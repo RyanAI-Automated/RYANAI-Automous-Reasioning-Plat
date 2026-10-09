@@ -28,6 +28,7 @@ export class SystemMcpServer {
     this.setupHandlers();
   }
 
+  /** Registers the MCP list-tools and call-tool handlers for system diagnostics and container log retrieval. */
   private setupHandlers() {
     // List available system tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({

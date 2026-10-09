@@ -1,6 +1,12 @@
 // src/shared/config.ts - Unified configuration loader
 import { AppConfig } from './types.js';
 
+/**
+ * Merges partial overrides with environment variables and sane defaults to build a fully
+ * populated AppConfig. The `nodeEnv` default is derived from `process.env.NODE_ENV` so that
+ * container-supplied values (e.g. `production`/`staging`) are honored instead of always
+ * falling back to `development`.
+ */
 function validateConfig(config: Partial<AppConfig>): AppConfig {
   const environment = process.env.NODE_ENV;
   const defaultNodeEnv: AppConfig['nodeEnv'] =

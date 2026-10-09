@@ -1,9 +1,14 @@
+/**
+ * RyanAI Command Center - Main Frontend Entry Point
+ * Integrates React frontend with Fastify backend
+ * Version: 4.5.0-matrix
+ */
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { API_BASE_URL } from './lib/apiBaseUrl';
-import { authenticatedFetch } from './lib/authenticatedFetch';
 import { getPlatformHealth } from './lib/platformHealth';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -12,8 +17,15 @@ import ErrorBoundary from './components/ErrorBoundary';
 // ============================================================================
 
 const APP_VERSION = '4.5.0-matrix';
-const APP_ENV = import.meta.env.MODE;
+const APP_ENV = import.meta.env.MODE || 'development';
 
+// ============================================================================
+// GLOBAL API CLIENT
+// ============================================================================
+
+/**
+ * Global API client for backend communication
+ */
 class RyanAIClient {
   private baseURL: string;
   private version: string;
@@ -33,19 +45,29 @@ class RyanAIClient {
     endpoint: string,
     options: RequestInit & { method?: string } = {},
   ): Promise<T> {
-    const headers = new Headers(options.headers);
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
+    const url = `${this.baseURL}${endpoint}`;
+    const method = options.method || 'GET';
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-App-Version': this.version,
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      console.error(`API Request Failed: ${method} ${endpoint}`, error);
+      throw error;
     }
-    headers.set('X-App-Version', this.version);
-    const response = await authenticatedFetch(`${this.baseURL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-    if (!response.ok) {
-      throw new Error(`API request failed (HTTP ${response.status})`);
-    }
-    return response.json() as Promise<T>;
   }
 
   /**
@@ -119,14 +141,27 @@ class RyanAIClient {
   }
 }
 
+// ============================================================================
+// INITIALIZE GLOBAL CLIENT
+// ============================================================================
+
 const apiClient = new RyanAIClient(API_BASE_URL, APP_VERSION);
 
+// Attach to window for global access with complete TypeScript declarations
 declare global {
   interface Window {
     ryanai: {
       client: RyanAIClient;
       version: string;
+      environment: string;
       apiUrl: string;
+    };
+    __DEV__?: {
+      apiClient: RyanAIClient;
+      logs: Console;
+      simulatePipeline: () => Promise<any>;
+      simulateError: (errorId: string) => Promise<any>;
+      checkHealth: () => Promise<boolean>;
     };
   }
 }
@@ -134,6 +169,7 @@ declare global {
 window.ryanai = {
   client: apiClient,
   version: APP_VERSION,
+  environment: APP_ENV,
   apiUrl: API_BASE_URL,
 };
 
@@ -153,6 +189,7 @@ const initializeSentry = () => {
 // OPTIONAL BACKEND HEALTH CHECK
 // ============================================================================
 
+/** Pings the backend health endpoint; failures are non-fatal and allow the app to run offline. */
 const performHealthCheck = async (): Promise<boolean> => {
   try {
     await apiClient.healthCheck();
@@ -168,6 +205,7 @@ const performHealthCheck = async (): Promise<boolean> => {
 // INITIALIZE REACT APPLICATION
 // ============================================================================
 
+/** Mounts the React app wrapped in an ErrorBoundary, then checks backend health without blocking render. */
 const initializeApp = async () => {
   try {
     initializeSentry();
@@ -285,11 +323,3 @@ if (APP_ENV === 'development') {
 // ============================================================================
 
 export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}

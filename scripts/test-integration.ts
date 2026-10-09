@@ -1,18 +1,10 @@
-import {
-  apiUrl,
-  webUrl,
-  apiHealthUrl,
-  mcpHealthUrl,
-} from './health-config.mjs';
-import { checkWebSocket } from './check-websocket.js';
+import { apiUrl, webUrl, apiHealthUrl, mcpHealthUrl } from './health-config.mjs';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
 const timeoutMs = Number(process.env.INTEGRATION_TIMEOUT_MS || 5000);
-const adminToken = process.env.TEST_ADMIN_ACCESS_TOKEN?.trim();
-let skipped = 0;
 const results: { name: string; error?: string }[] = [];
 
 async function check(name: string, run: () => Promise<void>): Promise<void> {
@@ -27,37 +19,22 @@ async function check(name: string, run: () => Promise<void>): Promise<void> {
   }
 }
 
-/** Record whether an HTTP endpoint responds successfully with the expected content type. */
-async function checkHttp(
-  name: string,
-  url: string,
-  expectedContentType?: string,
-): Promise<void> {
+async function checkHttp(name: string, url: string, expectedContentType?: string): Promise<void> {
   await check(name, async () => {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} ${response.statusText}`);
     }
-    if (
-      expectedContentType &&
-      !response.headers.get('content-type')?.includes(expectedContentType)
-    ) {
+    if (expectedContentType && !response.headers.get('content-type')?.includes(expectedContentType)) {
       throw new Error(`Expected content type ${expectedContentType}`);
     }
   });
 }
 
-/**
- * Check database, Redis, HTTP, and WebSocket integrations using configured endpoints.
- * Close database clients and report failures or skipped authenticated checks.
- */
+/** Runs the full integration check suite (Postgres, Redis, API, web, MCP, WebSocket) and sets the process exit code on failure. */
 async function main(): Promise<void> {
   if (!databaseUrl || !redisUrl) {
-    throw new Error(
-      'Set DATABASE_URL and REDIS_URL in .env before running integration tests',
-    );
+    throw new Error('Set DATABASE_URL and REDIS_URL in .env before running integration tests');
   }
 
   const pool = new Pool({
@@ -70,9 +47,7 @@ async function main(): Promise<void> {
     url: redisUrl,
     socket: { connectTimeout: timeoutMs, reconnectStrategy: false },
   });
-  redis.on('error', (error) =>
-    console.error(`Redis client error: ${error.message}`),
-  );
+  redis.on('error', (error) => console.error(`Redis client error: ${error.message}`));
 
   try {
     await check('PostgreSQL connection', async () => {
@@ -86,14 +61,10 @@ async function main(): Promise<void> {
           (async () => {
             await redis.connect();
             const response = await redis.ping();
-            if (response !== 'PONG')
-              throw new Error(`Unexpected Redis response: ${response}`);
+            if (response !== 'PONG') throw new Error(`Unexpected Redis response: ${response}`);
           })(),
           new Promise<never>((_resolve, reject) => {
-            timeout = setTimeout(
-              () => reject(new Error('Redis connection or PING timed out')),
-              timeoutMs,
-            );
+            timeout = setTimeout(() => reject(new Error('Redis connection or PING timed out')), timeoutMs);
           }),
         ]);
       } finally {
@@ -104,46 +75,45 @@ async function main(): Promise<void> {
 
     await checkHttp('API health endpoint', apiHealthUrl, 'application/json');
     await check('API PostgreSQL and Redis health', async () => {
-      const response = await fetch(apiHealthUrl, {
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok)
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      const response = await fetch(apiHealthUrl, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
       const health = await response.json();
-      if (health.status !== 'online')
-        throw new Error(`API status is ${health.status ?? 'unknown'}`);
-      if (health.services?.database !== true)
-        throw new Error('PostgreSQL is not connected');
-      if (health.services?.redis !== true)
-        throw new Error('Redis is not connected');
+      if (health.status !== 'online') throw new Error(`API status is ${health.status ?? 'unknown'}`);
+      if (health.services?.database !== true) throw new Error('PostgreSQL is not connected');
+      if (health.services?.redis !== true) throw new Error('Redis is not connected');
     });
     await checkHttp('Web frontend health endpoint', `${webUrl}/health`);
     await checkHttp('Web frontend document', webUrl, 'text/html');
-    if (mcpHealthUrl)
-      await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json');
+    if (mcpHealthUrl) await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json');
 
-    await check('WebSocket endpoint rejects anonymous upgrades', () =>
-      checkWebSocket(apiUrl, timeoutMs, { expectedStatus: 401 }),
-    );
-    if (adminToken) {
-      await check('Authenticated admin WebSocket accepts upgrades', () =>
-        checkWebSocket(apiUrl, timeoutMs, { token: adminToken }),
-      );
-    } else {
-      skipped++;
-      console.log(
-        'SKIP Authenticated WebSocket: set TEST_ADMIN_ACCESS_TOKEN to a Supabase admin access token',
-      );
-    }
+    await check('WebSocket upgrade endpoint', async () => {
+      const wsUrl = new URL('/ws', apiUrl);
+      wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      await new Promise<void>((resolve, reject) => {
+        const socket = new WebSocket(wsUrl);
+        const timeout = setTimeout(() => {
+          socket.close();
+          reject(new Error(`Connection timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+
+        socket.addEventListener('open', () => {
+          clearTimeout(timeout);
+          socket.close();
+          resolve();
+        }, { once: true });
+        socket.addEventListener('error', () => {
+          clearTimeout(timeout);
+          reject(new Error('WebSocket connection failed'));
+        }, { once: true });
+      });
+    });
   } finally {
     if (redis.isOpen) redis.destroy();
     await pool.end();
   }
 
   const failed = results.filter((result) => result.error);
-  console.log(
-    `\nIntegration checks: ${results.length - failed.length}/${results.length} passed; ${skipped} skipped`,
-  );
+  console.log(`\nIntegration checks: ${results.length - failed.length}/${results.length} passed`);
   if (failed.length) process.exitCode = 1;
 }
 

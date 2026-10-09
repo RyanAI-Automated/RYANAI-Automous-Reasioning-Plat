@@ -5,9 +5,11 @@ import querystring from 'querystring';
 import { verifySlackSignature } from '../../utils/slackVerification.js';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 
+/** Normalizes an agent message's content into a plain string, serializing non-string values. */
 const extractContent = (content: unknown): string =>
   typeof content === 'string' ? content : JSON.stringify(content) ?? '';
 
+/** Registers the Slack interactions webhook, verifying the request signature before resuming the approval flow. */
 export const slackInteractionsPlugin: FastifyPluginAsync = async (fastify) => {
   // 1. Register raw-body plugin to preserve original request string
   await fastify.register(fastifyRawBody, {

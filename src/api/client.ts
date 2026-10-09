@@ -79,6 +79,7 @@ export class RyanAIClient {
     }
   }
 
+  /** Sends a request on the given channel and resolves with the server's response data. */
   public send(channel: string, data: unknown): Promise<unknown> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -118,6 +119,7 @@ export class RyanAIClient {
     });
   }
 
+  /** Registers an event/stream handler for a channel and returns an unsubscribe function. */
   public on(channel: string, handler: (data: unknown) => void): () => void {
     if (!this.eventHandlers.has(channel)) {
       this.eventHandlers.set(channel, []);
@@ -134,6 +136,7 @@ export class RyanAIClient {
     };
   }
 
+  /** Starts a reasoning request and safely extracts the string result, defaulting to '' when absent. */
   public async reasoning(prompt: string, context?: Record<string, unknown>): Promise<string> {
     const response = await this.send('reasoning.start', {
       prompt,
@@ -143,6 +146,7 @@ export class RyanAIClient {
     return typeof response === 'object' && response !== null && 'result' in response && typeof response.result === 'string' ? response.result : '';
   }
 
+  /** Routes an incoming WebSocket message to the matching response handler or event/stream listeners. */
   private handleMessage(message: WebSocketMessage<{ authenticated?: boolean }>) {
     const { id, type, channel, data, error } = message;
 

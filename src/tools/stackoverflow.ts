@@ -15,6 +15,7 @@ export interface StackOverflowQueryResult {
 
 const SO_AGENTS_BASE_URL = 'https://agents.stackoverflow.com/v1';
 
+/** Queries the Stack Overflow Agents API and safely narrows any error response into a readable message. */
 export async function queryStackOverflow(
   payload: StackOverflowQueryPayload,
   apiToken?: string
