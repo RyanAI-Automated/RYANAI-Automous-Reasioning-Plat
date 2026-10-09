@@ -1,90 +1,75 @@
 // twilioClient.js
+// Credentials and phone numbers come from the environment only.
+//   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
+//   TWILIO_WHATSAPP_FROM, TWILIO_VOICE_FROM, TWILIO_WHATSAPP_CONTENT_SID
+// Nothing is sent when this file is imported. Run it directly to send a test:
+//   node twilioClient.js +27XXXXXXXXX
 
-// Best practice: Load credentials from environment variables
-const accountSid = process.env.TWILIO_ACCOUNT_SID || 'ACa08a4ef5834427df16cc78be96079d59';
-const authToken = process.env.TWILIO_AUTH_TOKEN || 'YOUR_AUTH_TOKEN';
+import { pathToFileURL } from 'node:url';
 
+/** Read a required environment value or throw when it is missing or empty. */
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
+}
+
+/** Build the Twilio Basic authorization header from required environment credentials. */
 const getAuthHeader = () => {
-  const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const credentials = Buffer.from(
+    `${requireEnv('TWILIO_ACCOUNT_SID')}:${requireEnv('TWILIO_AUTH_TOKEN')}`
+  ).toString('base64');
   return `Basic ${credentials}`;
 };
 
-/**
- * Send a Twilio WhatsApp message using a Content Template SID
- */
-async function sendWhatsAppMessage({ to, from, contentSid }) {
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-  
-  const body = new URLSearchParams({
+/** Post form data to an account-scoped Twilio resource and reject unsuccessful API responses. */
+async function twilioPost(resource, params) {
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${requireEnv('TWILIO_ACCOUNT_SID')}/${resource}.json`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: getAuthHeader(),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams(params).toString(),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Twilio ${resource} error (${data.status}): ${data.message}`);
+  }
+  return data;
+}
+
+/** Send a Twilio WhatsApp message using a Content Template SID */
+export function sendWhatsAppMessage({ to, from, contentSid }) {
+  return twilioPost('Messages', {
     To: `whatsapp:${to}`,
-    From: `whatsapp:${from}`,
-    ContentSid: contentSid
+    From: `whatsapp:${from ?? requireEnv('TWILIO_WHATSAPP_FROM')}`,
+    ContentSid: contentSid ?? requireEnv('TWILIO_WHATSAPP_CONTENT_SID'),
   });
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': getAuthHeader(),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: body.toString()
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(`Twilio WhatsApp Error (${data.status}): ${data.message}`);
-  }
-  return data;
 }
 
-/**
- * Initiate an outbound voice call with a TwiML URL
- */
-async function makeVoiceCall({ to, from, twimlUrl }) {
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`;
-  
-  const body = new URLSearchParams({
+/** Initiate an outbound voice call with a TwiML URL */
+export function makeVoiceCall({ to, from, twimlUrl }) {
+  return twilioPost('Calls', {
     To: to,
-    From: from,
-    Url: twimlUrl
+    From: from ?? requireEnv('TWILIO_VOICE_FROM'),
+    Url: twimlUrl,
   });
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': getAuthHeader(),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: body.toString()
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(`Twilio Voice Error (${data.status}): ${data.message}`);
-  }
-  return data;
 }
 
-// Example Execution
-(async () => {
-  try {
-    console.log('🚀 Sending WhatsApp notification...');
-    const messageResponse = await sendWhatsAppMessage({
-      to: '+27718095084',
-      from: '+17372508034',
-      contentSid: 'HXac51c61af94371da7904a767b414c2fc'
-    });
-    console.log(`✅ WhatsApp Queued! SID: ${messageResponse.sid}`);
-
-    console.log('📞 Initiating automated voice call...');
-    const callResponse = await makeVoiceCall({
-      to: '+27718095084',
-      from: '+17372508034',
-      twimlUrl: 'https://webhooks.twilio.com/v1/Voice/Template/voice_auto_response'
-    });
-    console.log(`✅ Call Queued! SID: ${callResponse.sid}`);
-
-  } catch (error) {
-    console.error('❌ Failed:', error.message);
+// Manual test run only: node twilioClient.js <recipient-number>
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const to = process.argv[2];
+  if (!to) {
+    console.error('Usage: node twilioClient.js <recipient E.164 number>');
+    process.exit(1);
   }
-})();
+  try {
+    const msg = await sendWhatsAppMessage({ to });
+    console.log(`WhatsApp queued. SID: ${msg.sid}`);
+  } catch (error) {
+    console.error('Failed:', error.message);
+    process.exit(1);
+  }
+}

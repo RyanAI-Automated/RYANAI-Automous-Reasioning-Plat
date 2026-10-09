@@ -31,6 +31,7 @@ async function checkHttp(name: string, url: string, expectedContentType?: string
   });
 }
 
+/** Runs the full integration check suite (Postgres, Redis, API, web, MCP, WebSocket) and sets the process exit code on failure. */
 async function main(): Promise<void> {
   if (!databaseUrl || !redisUrl) {
     throw new Error('Set DATABASE_URL and REDIS_URL in .env before running integration tests');

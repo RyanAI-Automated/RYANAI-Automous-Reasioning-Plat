@@ -1,0 +1,26 @@
+# Replace the existing `web:` service in docker-compose.yml with this block.
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        # Leave empty: nginx proxies /api, /ws and /health to the api service.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    environment:
+      PORT: 80
+      API_UPSTREAM: http://api:3000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9090:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped

@@ -8,37 +8,40 @@ const server = Fastify({
   logger: true,
 });
 
-server.get("/api/health", async () => {
-  return {
-    status: "ONLINE",
-    engine: "RyanAI Sovereign Autonomous Reasoning Platform",
-    architect: "Ntsiyeni Ganyane",
-    cudaActive: true,
-    activeGraph: "ReAct-v4",
-    timestamp: new Date().toISOString(),
-  };
-});
+// CORS: set CORS_ORIGINS to a comma-separated list, e.g.
+//   CORS_ORIGINS=https://your-app.vercel.app,https://app.example.com
+// In production, an unset value blocks cross-origin browser calls.
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-// Configure CORS for the Vite frontend shell
-server.register(cors, {
-  origin: process.env.NODE_ENV === "production" ? false : "*",
+await server.register(cors, {
+  origin:
+    allowedOrigins.length > 0
+      ? allowedOrigins
+      : process.env.NODE_ENV === "production"
+        ? false
+        : true,
 });
 
 interface ReasonRequestBody {
   prompt?: string;
 }
 
-// Health check endpoint
-server.get("/api/health", async (_request: FastifyRequest, _reply: FastifyReply) => {
-  return {
-    status: "online",
-    engine: "RyanAI Sovereign Engine",
-    architect: "Ntsiyeni Ganyane",
-    cudaActive: true,
-    activeGraph: "ReAct-v2.1",
-    timestamp: new Date().toISOString(),
-  };
+/** Build the standalone gateway health response with the current timestamp. */
+const healthPayload = () => ({
+  status: "online",
+  engine: "RyanAI Sovereign Engine",
+  architect: "Ntsiyeni Ganyane",
+  activeGraph: "ReAct",
+  timestamp: new Date().toISOString(),
 });
+
+// /health is what the frontend health check, Docker and Kubernetes probes use.
+// /api/health is kept for the Vite dev proxy and older clients.
+server.get("/health", async (_request: FastifyRequest, _reply: FastifyReply) => healthPayload());
+server.get("/api/health", async (_request: FastifyRequest, _reply: FastifyReply) => healthPayload());
 
 // Agent Reasoning execution endpoint
 server.post("/api/reason", async (request: FastifyRequest<{ Body: ReasonRequestBody }>, reply: FastifyReply) => {
@@ -49,9 +52,8 @@ server.post("/api/reason", async (request: FastifyRequest<{ Body: ReasonRequestB
   }
 
   try {
-    request.log.info(`Dispatching objective to RyanReActEngine: ${prompt}`);
-    
-    // Execute the LangGraph ReAct reasoning pipeline
+    request.log.info({ promptLength: prompt.length }, "Dispatching objective to RyanReActEngine");
+
     const agentState = await defaultEngine.execute(prompt);
 
     return {
@@ -69,9 +71,10 @@ server.post("/api/reason", async (request: FastifyRequest<{ Body: ReasonRequestB
 });
 
 // Start the Fastify API Gateway
+/** Listen on the configured gateway port and exit with an error if startup fails. */
 const start = async () => {
   try {
-    const port = parseInt(process.env.PORT || "9090", 10);
+    const port = parseInt(process.env.PORT || "3001", 10);
     await server.listen({ port, host: "0.0.0.0" });
     console.log(`[RyanAI Gateway] Server listening on port ${port}`);
   } catch (err) {

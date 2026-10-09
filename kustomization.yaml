@@ -4,36 +4,5 @@ kind: Kustomization
 namespace: ryanai-system
 
 resources:
-  - ryanai-core.yaml
   - ryanai-databases.yaml
-<<<<<<< HEAD
   - ryanai-apps.yaml
-
-# Define image overrides cleanly using Kustomize's native images field
-images:
-  - name: api
-    newName: my-app-api
-    newTag: latest
-  - name: web
-    newName: my-app-web
-    newTag: latest
-
-# Patch deployment manifests to update imagePullPolicy safely by container name
-patches:
-  - target:
-      kind: Deployment
-      name: ryanai-api
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: ryanai-api
-      spec:
-        template:
-          spec:
-            containers:
-              - name: api
-                imagePullPolicy: Never
-=======
-  - ryanai-apps.yaml
->>>>>>> 2c18b0511655432fda9dde82873dddcc859eeadc

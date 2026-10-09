@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * Restore and subscribe to non-anonymous Supabase sessions without applying stale results.
+ * Return session and loading state, errors, and a sign-out action that reports success.
+ */
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(Boolean(supabase));

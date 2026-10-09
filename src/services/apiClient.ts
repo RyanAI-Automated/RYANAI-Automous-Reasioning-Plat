@@ -18,6 +18,10 @@ export interface ReasoningChunk {
 }
 
 export const apiClient = {
+  /**
+   * Submit an authenticated request and deliver parsed JSON stream chunks to the callback.
+   * Ignore malformed chunks and reject failed HTTP responses or missing response streams.
+   */
   async triggerReasoning(
     payload: ReasoningRequest,
     onChunk: (chunk: ReasoningChunk) => void,

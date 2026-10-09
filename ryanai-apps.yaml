@@ -1,133 +1,112 @@
-# ==============================================================================
-# API Backend Deployment & Service
-# ==============================================================================
+# Namespace for the RyanAI stack.
+# Create secrets out-of-band (never commit real values):
+#   kubectl -n ryanai-system create secret generic ryanai-secrets \
+#     --from-literal=DB_PASSWORD="$(openssl rand -hex 24)" \
+#     --from-literal=REDIS_PASSWORD="$(openssl rand -hex 24)" \
+#     --from-literal=JWT_SECRET="$(openssl rand -hex 32)"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ryanai-system
+---
+# Images are published by .github/workflows/ci-cd.yml.
+# Add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to ryanai-secrets for sign-in.
+# Build the web image with matching public VITE_SUPABASE_* settings.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ryanai-api
-  namespace: ryanai-system
-  labels:
-    app.kubernetes.io/name: ryanai-api
-    app.kubernetes.io/part-of: ryanai-platform
+  name: api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ryanai-api
+      app: api
   template:
     metadata:
       labels:
-        app: ryanai-api
+        app: api
     spec:
       containers:
         - name: api
-          image: my-app-api:latest
-<<<<<<< HEAD
-          imagePullPolicy: Never
-=======
-          imagePullPolicy: IfNotPresent
->>>>>>> 2c18b0511655432fda9dde82873dddcc859eeadc
+          image: ghcr.io/rmnganyane-dev/ryanai-automous-reasioning-plat/api:latest
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: ryanai-secrets
           env:
             - name: NODE_ENV
-              value: "production"
-            - name: DATABASE_URL
-              value: "postgresql://ryanai:ryanai_secure_password@postgres:5432/ryanai_db"
-            - name: REDIS_URL
-              value: "redis://:ryanai_redis_password@redis:6379"
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ryanai-secrets
-                  key: JWT_SECRET
+              value: production
+            - name: HOST
+              value: "0.0.0.0"
             - name: PORT
-              value: "3001"
-          ports:
-<<<<<<< HEAD
-            - name: http
-              containerPort: 3001
-=======
-            - containerPort: 3001
->>>>>>> 2c18b0511655432fda9dde82873dddcc859eeadc
+              value: "3000"
+            - name: DATABASE_URL
+              value: "postgresql://ryanai:$(DB_PASSWORD)@postgres:5432/ryanai_db"
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@redis:6379"
           readinessProbe:
             httpGet:
               path: /health
-              port: 3001
-            initialDelaySeconds: 5
+              port: http
+            timeoutSeconds: 5
             periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3001
-            initialDelaySeconds: 15
-            periodSeconds: 20
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: ryanai-api-svc
-  namespace: ryanai-system
-  labels:
-    app.kubernetes.io/name: ryanai-api-svc
-    app.kubernetes.io/part-of: ryanai-platform
+  name: api
 spec:
-  type: ClusterIP
+  selector:
+    app: api
   ports:
     - name: http
-      port: 3001
-      targetPort: 3001
-  selector:
-    app: ryanai-api
+      port: 3000
+      targetPort: http
 ---
-# ==============================================================================
-# Web Frontend Deployment & Service
-# ==============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ryanai-web
-  namespace: ryanai-system
-  labels:
-    app.kubernetes.io/name: ryanai-web
-    app.kubernetes.io/part-of: ryanai-platform
+  name: web
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ryanai-web
+      app: web
   template:
     metadata:
       labels:
-        app: ryanai-web
+        app: web
     spec:
       containers:
         - name: web
-          image: my-app-web:latest
-<<<<<<< HEAD
-          imagePullPolicy: Never
-=======
-          imagePullPolicy: IfNotPresent
->>>>>>> 2c18b0511655432fda9dde82873dddcc859eeadc
-          env:
-            - name: VITE_API_URL
-              value: "http://ryanai-api-svc:3001"
+          image: ghcr.io/rmnganyane-dev/ryanai-automous-reasioning-plat/web:latest
           ports:
             - name: http
               containerPort: 80
+          env:
+            - name: PORT
+              value: "80"
+            - name: API_HOST
+              value: api
+            - name: API_PORT
+              value: "3000"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            timeoutSeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: ryanai-web-svc
-  namespace: ryanai-system
-  labels:
-    app.kubernetes.io/name: ryanai-web-svc
-    app.kubernetes.io/part-of: ryanai-platform
+  name: web
 spec:
-  type: NodePort
+  selector:
+    app: web
   ports:
     - name: http
       port: 80
-      targetPort: 80
-      nodePort: 30090
-  selector:
-    app: ryanai-web
+      targetPort: http

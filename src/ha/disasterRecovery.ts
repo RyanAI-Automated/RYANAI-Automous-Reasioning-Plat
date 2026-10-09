@@ -10,6 +10,7 @@ export class DisasterRecoveryEngine {
   private primaryEndpoint = 'https://api.openai.com/v1/models';
   private localCudaEndpoint = process.env.LOCAL_CUDA_INFERENCE_URL || 'http://localhost:8000/v1/models';
 
+  /** Checks the primary OpenAI endpoint and fails over to the local CUDA inference endpoint when it's degraded. */
   async evaluateHealthAndFailover(): Promise<HealthCheckResult> {
     const start = Date.now();
     try {

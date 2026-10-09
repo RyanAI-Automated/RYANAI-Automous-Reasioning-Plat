@@ -10,6 +10,16 @@
     />
     <meta name="author" content="Ntsiyeni Ganyane" />
 
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E"
+    />
+
+    <title>RyanAI | Autonomous Reasoning & Dev Platform</title>
+
+    <!-- Fonts -->
     <title>RyanAI | Autonomous Reasoning Engine & Dev Platform</title>
 
     <!-- Tailwind CSS CDN -->
@@ -57,6 +67,17 @@
       rel="stylesheet"
     />
 
+    <!-- Open Graph / Social Meta -->
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="RyanAI | Autonomous Reasoning & Dev Platform"
+    />
+    <meta
+      property="og:description"
+      content="Sovereign AI reasoning agent platform with integrated terminal, GitHub, and VS Code workspaces."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
       body {
         background-color: #0b0f19;
@@ -74,17 +95,85 @@
       }
     </style>
   </head>
-  <body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+  <body
+    class="bg-[#0b0f19] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 overflow-hidden"
+  >
     <div id="root">
-      <!-- Loading Placeholder -->
-      <div style="height: 100vh; display: grid; place-items: center; padding: 2rem; background: #0b0f19; color: #94a3b8; font: 500 14px/1.5 'Inter', sans-serif; text-align: center;">
+      <div
+        style="
+          height: 100vh;
+          display: grid;
+          place-items: center;
+          padding: 2rem;
+          background: #0b0f19;
+          color: #94a3b8;
+          font:
+            500 14px/1.5 'Inter',
+            system-ui,
+            sans-serif;
+          text-align: center;
+        "
+      >
         <div>
-          <strong style="display: block; color: #22d3ee; font: 900 26px/1.2 'Orbitron', sans-serif; letter-spacing: 0.08em; margin-bottom: 0.75rem;">RYANAI PLATFORM</strong>
-          <span>Mounting autonomous reasoning workspace & developer tools...</span>
+          <strong
+            style="
+              display: block;
+              color: #22d3ee;
+              font:
+                900 26px/1.2 'Orbitron',
+                system-ui,
+                sans-serif;
+              letter-spacing: 0.08em;
+              margin-bottom: 0.75rem;
+            "
+            >RYANAI PLATFORM</strong
+          >
+          <span style="opacity: 0.85"
+            >Mounting autonomous reasoning workspace & developer tools...</span
+          >
         </div>
       </div>
     </div>
 
+    <noscript>
+      <style>
+        #root {
+          display: none;
+        }
+      </style>
+      <div
+        style="
+          height: 100vh;
+          display: grid;
+          place-items: center;
+          padding: 2rem;
+          background: #0b0f19;
+          color: #f87171;
+          font:
+            500 14px/1.5 system-ui,
+            sans-serif;
+          text-align: center;
+        "
+      >
+        <div>
+          <strong
+            style="
+              display: block;
+              color: #22d3ee;
+              font-size: 22px;
+              letter-spacing: 0.08em;
+            "
+            >RYANAI</strong
+          >
+          <p>
+            JavaScript is required to run the reasoning agent interface and
+            developer workspaces.
+          </p>
+        </div>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.tsx"></script>
     <!-- MERGED INLINE MAIN APPLICATION SCRIPT -->
     <script type="text/babel" data-presets="react,typescript">
       const APP_VERSION = '4.5.0-matrix';
