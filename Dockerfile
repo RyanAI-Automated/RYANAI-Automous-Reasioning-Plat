@@ -52,12 +52,6 @@ COPY --from=builder --chown=node:node /app/dist/models ./dist/models
 USER node
 EXPOSE 3000
 
-# 1. Link the local dir to a Vercel project
-vercel link
-
-# 2. Authenticate Docker with a short-lived OIDC token
-vercel vcr login docker
-
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
