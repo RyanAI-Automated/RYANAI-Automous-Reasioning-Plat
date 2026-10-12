@@ -14,7 +14,9 @@ export class RyanAIMissionOrchestrator {
   private static activeMissions = new Map<string, MissionContext>();
 
   /**
-   * Initializes and starts a long-horizon autonomous mission with safety checkpoints
+   * Store a mission context, execute its decomposed tasks, then audit their results.
+   * Returns PAUSED_FOR_APPROVAL if the audit mentions risk or vulnerability, otherwise
+   * COMPLETED. Dispatch or audit errors become a FAILED context.
    */
   async startMission(missionId: string, objective: string): Promise<MissionContext> {
     console.log(`[Mission Orchestrator] Initializing mission [${missionId}]: "${objective}"`);

@@ -1,6 +1,10 @@
 import { FastifyPluginAsync } from 'fastify';
 import { getReasoningAgent } from '../../agent/engine.js';
 
+/**
+ * Register a reasoning endpoint returning the final output and full message trace.
+ * Blank prompts return HTTP 400; model selection and invocation errors become 500 results.
+ */
 export const reasonPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: { prompt?: string; model?: string } }>('/api/reason', async (request, reply) => {
     const prompt = request.body?.prompt?.trim();

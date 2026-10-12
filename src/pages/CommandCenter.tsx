@@ -35,6 +35,11 @@ interface CommandCenterProps {
   userFullName?: string;
 }
 
+/**
+ * Render the account's conversations, reasoning stream, and workspace controls.
+ * Use Supabase when configured and userId-scoped local storage otherwise.
+ * The caller supplies the authenticated identity and handles sign-out.
+ */
 export default function CommandCenter({
   onSignOut,
   userId,
@@ -76,6 +81,12 @@ export default function CommandCenter({
   const requestStartRef = useRef<number | null>(null);
   const voiceStopRef = useRef<() => void>(() => undefined);
 
+  /**
+   * Load this user's conversations and select the first result when present.
+   * Use local storage only without Supabase. A returned conversation-query error leaves
+   * state unchanged; returned message-query errors produce empty message lists.
+   * Thrown query or local-data shape errors propagate.
+   */
   const loadConversations = useCallback(async () => {
     const client = supabase;
     if (!client) {
@@ -177,6 +188,11 @@ export default function CommandCenter({
   const activeConversation = conversations.find((c) => c.id === activeId);
   const activeMessages = activeConversation?.messages ?? [];
 
+  /**
+   * Create and select an empty conversation, returning its id.
+   * Use account-scoped local storage without Supabase; returned insert errors yield
+   * null, while thrown errors propagate.
+   */
   const newConversation = useCallback(async () => {
     if (!supabase) {
       const conv = createConversation(model);
@@ -220,6 +236,7 @@ export default function CommandCenter({
     return conv.id;
   }, [model, userId]);
 
+  /** Select a thread, restore its model when found, and clear the live response display. */
   const selectConversation = useCallback(
     (id: string) => {
       setActiveId(id);
@@ -232,6 +249,11 @@ export default function CommandCenter({
     [conversations],
   );
 
+  /**
+   * Delete a thread remotely when configured, then remove it from local UI state.
+   * Returned provider errors are ignored; thrown errors prevent the local removal.
+   * Without Supabase, persist the remaining threads under userId.
+   */
   const deleteConversation = useCallback(
     async (id: string) => {
       if (supabase) {
@@ -254,6 +276,11 @@ export default function CommandCenter({
     [activeId, userId],
   );
 
+  /**
+   * Append the user's message, creating a conversation if needed, and stream a reply.
+   * Update live text, tool steps, and latency; stream errors become assistant messages.
+   * Errors thrown by awaited persistence before streaming propagate.
+   */
   const sendMessage = useCallback(
     async (text: string) => {
       let convId = activeId;
@@ -428,6 +455,11 @@ export default function CommandCenter({
     [activeId, model, newConversation, conversations, userId],
   );
 
+  /**
+   * Change the selected model and update the active conversation in UI state.
+   * Persist locally without Supabase; otherwise construct a remote update without
+   * awaiting it or inspecting its result.
+   */
   const changeModel = useCallback(
     (m: ModelId) => {
       setModel(m);
@@ -450,6 +482,7 @@ export default function CommandCenter({
     [activeId, userId],
   );
 
+  /** Download the active thread and tool traces as Markdown; ignore empty or missing threads. */
   const exportThread = useCallback(() => {
     const conv = conversations.find((c) => c.id === activeId);
     if (!conv || conv.messages.length === 0) return;
@@ -479,6 +512,7 @@ export default function CommandCenter({
   }, [activeId, conversations]);
 
   // Voice command handler
+  /** Dispatch recognized voice command names to workspace actions; args and unknown names are ignored. */
   const handleVoiceCommand = useCallback(
     (command: string, args: string) => {
       void args;
@@ -515,6 +549,10 @@ export default function CommandCenter({
     [newConversation, changeModel, exportThread],
   );
 
+  /**
+   * Submit a nonempty final transcript unless it starts with a known command keyword.
+   * Interim transcripts and command-like text are ignored here.
+   */
   const handleVoiceTranscript = useCallback(
     (text: string, isFinal: boolean) => {
       if (!isFinal) return;

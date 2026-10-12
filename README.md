@@ -158,11 +158,11 @@ notepad .env
 ```
 
 Edit `.env` before starting Docker. Replace `DB_PASSWORD`, `REDIS_PASSWORD`,
-`JWT_SECRET`, and `MCP_AUTH_TOKEN` with independent random values. This command
-works in all three shells and prints four values you can use, one per setting:
+and `MCP_AUTH_TOKEN` with independent random values. This command
+works in all three shells and prints three values you can use, one per setting:
 
 ```text
-node -e "for(let i=0;i<4;i++) console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+node -e "for(let i=0;i<3;i++) console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
 For local Node processes, also put the corresponding database/cache passwords
@@ -173,7 +173,7 @@ docker compose config --quiet
 npm run docker:up
 ```
 
-Continue only after the configuration check succeeds. Compose checks all four
+Continue only after the configuration check succeeds. Compose checks all three
 required variables even when starting only PostgreSQL and Redis.
 
 If Vite reports a missing `RYANAI/core.json` or `src/lib/supabase` module,
@@ -187,15 +187,6 @@ template at startup; `PORT` defaults to 80 and `API_HOST`/`API_PORT` default to
 `api`/3000. Compose fixes these container ports independently of local development
 ports. Browser Supabase settings are supplied as public `VITE_SUPABASE_*` build
 arguments; local `.env` files are excluded from the web build inputs.
-### Step 1: Start Everything
-```bash
-cp .env.example .env
-# Replace DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, and MCP_AUTH_TOKEN placeholders in .env.
-npm run docker:up
-```
-
-On Windows, copy the file with `Copy-Item .env.example .env` (PowerShell) or
-`copy .env.example .env` (Command Prompt), if you do not already have a `.env`.
 
 Set `OPENAI_API_KEY` in `.env` to enable live model reasoning. Without a provider key, the UI and API still start, but reasoning requests return an explicit configuration error.
 
@@ -260,7 +251,7 @@ npm run install:all
 ```
 
 Create `.env` from `.env.example` only if it does not already exist. Replace the
-four secret placeholders, and also replace the matching password portions of
+three secret placeholders, and also replace the matching password portions of
 `DATABASE_URL` and `REDIS_URL`. Set `PORT=3001` and remove any old
 `NODE_ENV=production` line. Start only the database and cache containers, then
 keep this terminal running:
@@ -288,23 +279,6 @@ for a Fastify plugin timeout. Integration checks fail if dependencies are down.
 Use Ctrl+C to stop development processes, then `npm run docker:down` to stop
 the database and cache containers. The Tauri desktop process is optional and
 should be started in its own terminal only when working on the desktop app.
-```
-
-The API and tunnel load the root `.env` before reading configuration. Existing
-shell and Docker Compose environment variables take precedence; `.env` is optional
-when those supply configuration. Local `REDIS_URL` must contain the Redis password
-(and ACL username if required); setting `REDIS_PASSWORD` alone only configures
-Compose. Use the actual password, URL-encoded when necessary, rather than a literal
-`${REDIS_PASSWORD}` reference in `REDIS_URL`. The startup banner reports configuration
-presence, not successful authentication. For local API + Vite development, set
-`PORT=3001` in an existing `.env` copied from an older example; Compose supplies
-port 3000 to its API container independently. `API_BASE_URL` remains the Compose
-integration-check target (3000); set it to `http://localhost:3001` only when running
-integration checks against the local API.
-
-For local development, use `npm run dev:api` (API on port 3001 by default) and `npm run dev:web` (Vite on port 1420). Override ports portably in PowerShell with `$env:PORT='3002'; npm.cmd run dev:api` and `$env:VITE_PORT='5174'; npm.cmd run dev:web`; on bash, use `PORT=3002 npm run dev:api` and `VITE_PORT=5174 npm run dev:web`.
-
-For local Vite development, do not set `NODE_ENV=production` in `.env`; Vite controls development/production mode itself. Docker Compose defaults the API to production without requiring this setting in `.env`. `npm run dev:tunnel` requires ngrok account authentication; set `NGROK_AUTHTOKEN` in the root `.env` or shell. The tunnel uses the same `PORT` value as the API (3001 by default for local development).
 
 ---
 
@@ -599,7 +573,6 @@ REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379
 REDIS_TIMEOUT=5000
 
 # Authentication
-JWT_SECRET=your-secret-key-here-change-in-production
 JWT_EXPIRES_IN=24h
 
 # API Configuration

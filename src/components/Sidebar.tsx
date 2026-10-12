@@ -14,6 +14,7 @@ interface SidebarProps {
   githubConnected: boolean;
 }
 
+/** Render thread selection and workspace actions, including GitHub connection status. */
 export default function Sidebar({
   conversations,
   activeId,

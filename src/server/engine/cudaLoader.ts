@@ -15,25 +15,31 @@ let activeEngine: InferenceEngine;
 
 try {
   // Resolve path to compiled .node binary
-  const addonPath = path.resolve(__dirname, '../../../build/Release/ryan_cuda_engine.node');
+  const repositoryRoot = path.resolve(
+    __dirname,
+    import.meta.url.endsWith('.ts') ? '../../..' : '../../../..',
+  );
+  const addonPath = path.join(repositoryRoot, 'build/Release/ryan_cuda_engine.node');
   const nativeCuda = require(addonPath);
 
   activeEngine = {
-    ...nativeCuda,
-    isHardwareAccelerated: true,
+    process: async (input) => nativeCuda.executeInference(String(input)),
+    isHardwareAccelerated: nativeCuda.isCudaAvailable(),
   };
-  console.log('⚡ [CUDA Engine] Native GPU acceleration loaded successfully.');
+  console.log(
+    `[CUDA Engine] Native addon loaded (GPU acceleration: ${activeEngine.isHardwareAccelerated}).`,
+  );
 } catch (err) {
   console.warn(
     '⚠️ [CUDA Engine] Native addon not available or GPU missing. Falling back to CPU engine.',
-    (err as Error).message
+    (err as Error).message,
   );
 
   // Fall back to JS/CPU implementation
-  const cpuFallback = await import('./cpuFallbackEngine.js');
-  
+  const cpuFallback = await import('../../inference/index.js');
+
   activeEngine = {
-    ...cpuFallback.default,
+    process: async (input) => cpuFallback.runTensorInference(String(input)),
     isHardwareAccelerated: false,
   };
 }
