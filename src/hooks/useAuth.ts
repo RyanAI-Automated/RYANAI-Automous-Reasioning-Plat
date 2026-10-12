@@ -3,9 +3,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 /**
- * Restore and track a non-anonymous Supabase session, loading state, and auth errors.
- * An unconfigured client leaves the session null. The auth subscription is removed
- * on unmount; restoration failures are exposed through error.
+ * Restore and subscribe to non-anonymous Supabase sessions without applying stale results.
+ * Return session and loading state, errors, and a sign-out action that reports success.
  */
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -54,10 +53,6 @@ export function useAuth() {
     };
   }, []);
 
-  /**
-   * Clear the session after successful sign-out; return false on failure or no client.
-   * Sign-out failures update error and leave the local session intact.
-   */
   const signOut = useCallback(async () => {
     if (!supabase) return false;
     setSigningOut(true);

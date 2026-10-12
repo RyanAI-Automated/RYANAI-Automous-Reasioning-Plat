@@ -4,7 +4,6 @@ import '../loadEnv.js';
 // Tracing must precede application imports.
 import '../instrument.js';
 import '../telemetry.js';
-import './engine/cudaLoader.js';
 
 import Fastify, { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
@@ -111,14 +110,9 @@ const serviceStatus = {
 // MIDDLEWARE & PLUGINS INITIALIZATION
 // ============================================================================
 
-/**
- * Connect Redis, install rate limiting and WebSocket support, and register routes.
- * Readiness and plugin-registration failures propagate to startup.
- */
 async function registerPlugins() {
   // Check readiness before Avvio's plugin timeout obscures connection failures.
   const redis = await connectRedis(config.redis.url);
-  // 1. Register Fastify Redis Connection
   await fastify.register(fastifyRedis, {
     client: redis,
     closeClient: true,
@@ -149,11 +143,6 @@ async function registerPlugins() {
 // INITIALIZATION FUNCTIONS
 // ============================================================================
 
-/**
- * Open the database pool and initialize agent checkpoint storage.
- * Return false on database initialization failure. A checkpoint setup failure is
- * caught separately and still returns true after a successful database probe.
- */
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
@@ -190,7 +179,6 @@ async function initializeDatabase() {
   }
 }
 
-/** Ping Redis and mark it available on success; caught failures return false. */
 async function verifyRedis() {
   console.log('⚡ Initializing Redis...');
   try {
@@ -228,9 +216,13 @@ function registerCoreRoutes() {
     };
   };
 
-  for (const path of new Set(['/health', '/api/health', API_ROUTES.healthPath])) {
-    fastify.get(path, healthCheck);
-  }
+<<<<<<< HEAD
+fastify.get('/health', healthCheck);
+fastify.get(API_ROUTES.healthPath, healthCheck);
+=======
+  fastify.get('/health', healthCheck);
+  fastify.get('/api/health', healthCheck);
+>>>>>>> 46f6e7a (fix(auth): enforce rate limits before provider verification)
 
   // Sentry integration test route
   fastify.get('/debug-sentry', async () => {
@@ -247,17 +239,11 @@ function registerCoreRoutes() {
     };
   });
 
-  /** Return text content unchanged, otherwise JSON or a string fallback; serialization errors propagate. */
   function contentToText(content: unknown): string {
     if (typeof content === 'string') return content;
     return JSON.stringify(content) ?? String(content);
   }
 
-  /**
-   * Invoke the requested reasoning agent and return its messages as a text trace.
-   * The final trace entry supplies output and response. Model selection, invocation,
-   * and content serialization errors propagate.
-   */
   async function runReasoning(prompt: string, model?: string) {
     const result = await getReasoningAgent(model).invoke({
       messages: [{ role: 'user', content: prompt }],
@@ -279,10 +265,47 @@ function registerCoreRoutes() {
     };
   }
 
-  const reasonHandler = async (
-    request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
-    reply: FastifyReply,
-  ) => {
+  fastify.post<{ Body: { prompt?: string; model?: string } }>(
+    '/api/reason',
+    async (request, reply) => {
+      const prompt = request.body?.prompt?.trim();
+      if (!prompt) {
+        return reply
+          .code(400)
+          .send({ success: false, error: 'A non-empty prompt is required' });
+      }
+
+      try {
+        return await runReasoning(prompt, request.body?.model);
+      } catch (err) {
+        fastify.log.error({ err }, 'Reasoning request failed');
+        return reply.code(502).send({
+          success: false,
+          error:
+            err instanceof Error
+              ? err.message
+              : 'Reasoning provider request failed',
+        });
+      }
+    },
+  );
+
+<<<<<<< HEAD
+  return {
+    success: true,
+    objective: prompt,
+    output,
+    reasoningTrace,
+    engine: 'RyanAI LangGraph ReAct',
+    response: output,
+    trace: reasoningTrace,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+fastify.post<{ Body: { prompt?: string; model?: string } }>(
+  API_ROUTES.reasonPath,
+  async (request, reply) => {
     const prompt = request.body?.prompt?.trim();
     if (!prompt) {
       return reply
@@ -302,18 +325,19 @@ function registerCoreRoutes() {
             : 'Reasoning provider request failed',
       });
     }
-  };
-  for (const path of new Set(['/api/reason', API_ROUTES.reasonPath])) {
-    fastify.post(path, reasonHandler);
-  }
+  },
+);
 
+// Reasoning stream endpoint
+fastify.post<{ Body: { prompt?: string; sessionId?: string; model?: string } }>(
+  API_ROUTES.streamPath,
+  async (request, reply) => {
+=======
   // Reasoning stream endpoint
-  const streamHandler = async (
-    request: FastifyRequest<{
-      Body: { prompt?: string; sessionId?: string; model?: string };
-    }>,
-    reply: FastifyReply,
-  ) => {
+  fastify.post<{
+    Body: { prompt?: string; sessionId?: string; model?: string };
+  }>('/api/reasoning/stream', async (request, reply) => {
+>>>>>>> 46f6e7a (fix(auth): enforce rate limits before provider verification)
     const prompt = request.body?.prompt?.trim();
     const { sessionId } = request.body || {};
     if (!prompt) {
@@ -366,10 +390,7 @@ function registerCoreRoutes() {
         raw.end();
       }
     }
-  };
-  for (const path of new Set(['/api/reasoning/stream', API_ROUTES.streamPath])) {
-    fastify.post(path, streamHandler);
-  }
+  });
 
   // MCP routes
   fastify.post<{
@@ -409,11 +430,6 @@ function registerCoreRoutes() {
 // SERVER STARTUP
 // ============================================================================
 
-/**
- * Register plugins, probe services, and start listening on the configured address.
- * Database/checkpointer probe failures can leave the API running in a degraded state;
- * uncaught plugin or listener failures terminate the process with exit code 1.
- */
 async function start() {
   try {
     console.log('\n🔧 Registering Plugins...\n');
