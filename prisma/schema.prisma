@@ -1,12 +1,66 @@
-// File path: ./prisma/schema.prisma
-
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AgentStatus {
+  IDLE
+  RUNNING
+  COMPLETED
+  FAILED
+  PAUSED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  agentSessions AgentSession[]
+  memories      MemoryVault[]
+  agents        AgentInstance[]
+
+  @@map("users")
+}
+
+model Session {
+  id          String        @id @default(uuid())
+  title       String        @default("New Reasoning Session")
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Message {
+  id          String        @id @default(uuid())
+  sessionId   String
+  session     Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role        Role
+  content     String        @db.Text
+  reasoning   String?       @db.Text
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+
+  @@index([sessionId])
+  @@map("messages")
 }
 
 model AgentSession {
@@ -14,11 +68,15 @@ model AgentSession {
   operator    String         @default("Ntsiyeni Ganyane")
   activeGraph String         @default("ReAct-v2.1")
   cudaActive  Boolean        @default(true)
+  userId      String?
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   messages    AgentMessage[]
 
   @@index([createdAt])
+  @@index([userId])
+  @@map("agent_sessions")
 }
 
 model AgentMessage {
@@ -26,11 +84,55 @@ model AgentMessage {
   sessionId      String
   session        AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   role           String       // 'user' | 'assistant'
-  content        String       
-  reasoningSteps String       // Stored as a serialized JSON string for SQLite compatibility
+  content        String       @db.Text
+  reasoningSteps String       @db.Text // Serialized JSON string for cross-compatibility
   latencyMs      Int          @default(14)
   timestamp      String
   createdAt      DateTime     @default(now())
 
   @@index([sessionId])
+  @@map("agent_messages")
+}
+
+model AgentInstance {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  status       AgentStatus  @default(IDLE)
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config       Json?
+  lastActive   DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([userId])
+  @@map("agent_instances")
+}
+
+model MemoryVault {
+  id          String        @id @default(uuid())
+  title       String
+  content     String        @db.Text
+  category    String        @default("general")
+  tags        String[]
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+  @@map("memory_vault")
+}
+
+model SystemTelemetry {
+  id          String        @id @default(uuid())
+  cpuUsage    Float?
+  memoryUsage Float?
+  activeNodes Int?
+  status      String        @default("healthy")
+  payload     Json?
+  recordedAt  DateTime      @default(now())
+
+  @@map("system_telemetry")
 }
