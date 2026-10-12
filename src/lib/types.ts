@@ -10,6 +10,13 @@ export interface SystemStatus {
   // ... other properties
 }
 
+export interface AIModelConfig {
+  provider: 'openai' | 'anthropic' | 'local';
+  modelName: string;
+  temperature: number;
+  maxTokens?: number;
+}
+
 export interface SystemStatus {
   cpu: number | null;        // Allowed to be null when metrics aren't reporting
   memory?: number | null;    // Allowed to be null
