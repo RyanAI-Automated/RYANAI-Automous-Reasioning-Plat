@@ -140,7 +140,7 @@
     "@types/react-native": "^0.72.8",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.18",
+  "autoprefixer": "^10.4.18",
     "cross-env": "^10.1.0",
     "eslint": "^9.9.1",
     "eslint-plugin-prettier": "^5.1.3",
