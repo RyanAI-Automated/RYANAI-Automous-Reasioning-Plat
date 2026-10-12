@@ -1,4 +1,3 @@
-# Replace the existing `web:` service in docker-compose.yml with this block.
   web:
     build:
       context: .
