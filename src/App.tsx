@@ -8,7 +8,7 @@ import {
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
-import { Analytics } from '@vercel/analytics/react';
+
 import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 import RyanAICockpit from '@/components/dashboard/RyanAICockpit';
@@ -17,10 +17,10 @@ import DashboardPage from '@/pages/Dashboard';
 import LandingPage from '@/pages/LandingPage';
 import AuthPage from '@/pages/AuthPage';
 import { useAuth } from '@/hooks/useAuth';
+import { Analytics } from '@vercel/analytics/react';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
-/** Resolve the URL hash and legacy auth aliases to a route, falling back to the default. */
 const routeFromHash = (): Route => {
   const segment = window.location.hash.replace(/^#\/?/, '').split('/')[0];
   const route =
@@ -49,7 +49,6 @@ const destinations = appManifest.routes.map((route) => ({
   icon: routeIcons[route.id],
 }));
 
-/** Render navigation and gate private views on a restored, non-anonymous user session. */
 export default function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
   const { session, loading, error, signingOut, signOut } = useAuth();
@@ -59,7 +58,7 @@ export default function App() {
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
       : user?.email;
-  /** Navigate to sign-in only after the session has been successfully signed out. */
+
   const handleSignOut = async () => {
     if (await signOut()) window.location.hash = '/signin';
   };
