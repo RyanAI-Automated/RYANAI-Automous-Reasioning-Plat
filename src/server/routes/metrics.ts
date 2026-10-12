@@ -1,16 +1,12 @@
+import { requireAdmin } from './auth.js';
 import { FastifyPluginAsync } from 'fastify';
 
-/** Registers the admin metrics endpoint, protected by JWT verification, reporting process-level stats. */
+/**
+ * Register admin-only process metrics: uptime in seconds and memory in MiB.
+ * Database status is reported as unknown without probing the database.
+ */
 export const metricsRoutes: FastifyPluginAsync = async (fastify) => {
-  // Apply JWT verification middleware to restrict access to authenticated admins
-  fastify.addHook('preHandler', async (request, reply) => {
-    try {
-      await request.jwtVerify();
-    } catch {
-      reply.status(401);
-      return reply.send({ error: 'Unauthorized' });
-    }
-  });
+  fastify.addHook('preHandler', requireAdmin);
 
   fastify.get('/api/admin/metrics', async () => {
     // This endpoint reports process metrics; dependency health is available at /health.

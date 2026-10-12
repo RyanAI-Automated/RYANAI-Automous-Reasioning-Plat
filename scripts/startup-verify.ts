@@ -42,7 +42,10 @@ const healthChecks: HealthCheck[] = [
   },
 ];
 
-/** Runs a single startup health check (HTTP, Redis, or PostgreSQL) and reports success as a boolean. */
+/**
+ * Check HTTP health or run local Redis/PostgreSQL probes, with a timeout in milliseconds.
+ * Return false for unsupported protocols, unsuccessful checks, or caught failures.
+ */
 async function checkHealth(check: HealthCheck): Promise<boolean> {
   try {
     if (check.endpoint.startsWith('http')) {

@@ -5,7 +5,10 @@ interface AuthPageProps {
   mode?: 'signin' | 'signup';
 }
 
-/** Render Supabase email sign-in or account creation with validation and status messages. */
+/**
+ * Render Supabase sign-in or signup, including provider errors and email confirmation.
+ * Authentication is disabled without a configured client; access follows session state.
+ */
 export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,10 +19,6 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
   const [loading, setLoading] = useState(false);
   const isSignup = mode === 'signup';
 
-  /**
-   * Validate and submit credentials, showing provider errors or email confirmation guidance.
-   * Session listeners determine access after a successful submission.
-   */
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase || loading) return;

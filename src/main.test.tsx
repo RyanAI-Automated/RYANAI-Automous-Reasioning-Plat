@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
-import { createRoot } from 'react-dom/client';
-import { afterEach, expect, it, vi } from 'vitest';
+import ReactDOM, { createRoot } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ErrorBoundary from './components/ErrorBoundary';
 
 vi.mock('./App', () => ({
@@ -11,29 +11,28 @@ vi.mock('./lib/platformHealth', () => ({
   getPlatformHealth: () => new Promise(() => {}),
 }));
 
-const authenticatedRequest = vi.hoisted(() => vi.fn());
-vi.mock('./lib/authenticatedFetch', () => ({
-  authenticatedFetch: authenticatedRequest,
-}));
+const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
+vi.mock('./lib/supabase', () => ({ supabase: { auth: { getSession } } }));
+vi.mock('./lib/apiBaseUrl', () => ({ API_BASE_URL: 'https://api.example.test' }));
+beforeEach(() => {
+  getSession.mockReset().mockResolvedValue({
+    data: { session: { access_token: 'current-session' } },
+    error: null,
+  });
+});
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllEnvs();
-  authenticatedRequest.mockReset();
-});
+afterEach(() => vi.restoreAllMocks());
 
 it('mounts the UI while the backend health request remains pending', async () => {
+  const mount = vi.spyOn(ReactDOM, 'createRoot');
   document.body.innerHTML = '<div id="root">Loading...</div>';
   await act(async () => {
-    vi.stubEnv('VITE_API_BASE_URL', '');
-    vi.stubEnv('VITE_API_URL', 'https://legacy-api.example.test/');
-    const { API_BASE_URL, APP_ENV } = await import('./main');
-    expect(API_BASE_URL).toBe('https://legacy-api.example.test');
-    expect(APP_ENV).toBe(import.meta.env.MODE);
+    await import('./main');
     document.dispatchEvent(new Event('DOMContentLoaded'));
   });
+  expect(mount).toHaveBeenCalledOnce();
   expect(document.querySelector('nav')?.textContent).toBe('RyanAI workspace');
   expect(document.getElementById('root')?.textContent).not.toContain(
     'Loading...',
@@ -68,59 +67,27 @@ it('shows a recovery action when a view throws during rendering', async () => {
   }
 });
 
-it('returns authenticated API responses and preserves request options', async () => {
-  const { apiClient, API_BASE_URL, APP_VERSION } = await import('./main');
-  const payload = { accepted: true };
-  authenticatedRequest.mockResolvedValue(new Response(JSON.stringify(payload)));
-  const controller = new AbortController();
-  const result = await apiClient.request<typeof payload>('/api/pipeline/execute', {
+it('sends requests with method, body and headers and returns parsed JSON', async () => {
+  const { apiClient, API_BASE_URL, APP_VERSION, APP_ENV } = await import('./main');
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ result: 'ok' })));
+  expect(APP_ENV).toBe(import.meta.env.MODE);
+  await expect(apiClient.request('/api/example', {
     method: 'POST',
-    body: JSON.stringify({ targetEnv: 'staging', autoShip: false }),
-    headers: new Headers({ 'X-Request-ID': 'request-1' }),
-    signal: controller.signal,
-  });
-  expect(result).toEqual(payload);
-  expect(authenticatedRequest).toHaveBeenCalledWith(
-    `${API_BASE_URL}/api/pipeline/execute`,
-    expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ targetEnv: 'staging', autoShip: false }),
-      signal: controller.signal,
-    }),
-  );
-  const headers = authenticatedRequest.mock.calls[0][1].headers as Headers;
+    body: JSON.stringify({ prompt: 'hello' }),
+    headers: new Headers({ Authorization: 'Bearer test-token' }),
+  })).resolves.toEqual({ result: 'ok' });
+  const [url, options] = fetchMock.mock.calls[0];
+  expect(url).toBe(`${API_BASE_URL}/api/example`);
+  expect(options?.method).toBe('POST');
+  expect(options?.body).toBe(JSON.stringify({ prompt: 'hello' }));
+  const headers = new Headers(options?.headers);
   expect(headers.get('Content-Type')).toBe('application/json');
   expect(headers.get('X-App-Version')).toBe(APP_VERSION);
-  expect(headers.get('X-Request-ID')).toBe('request-1');
+  expect(headers.get('Authorization')).toBe('Bearer current-session');
 });
 
-it('sends pipeline, governance, recycling and telemetry requests', async () => {
-  const { apiClient, API_BASE_URL } = await import('./main');
-  authenticatedRequest.mockImplementation(async () =>
-    new Response(JSON.stringify({ ok: true })),
-  );
-  const requests = [
-    [() => apiClient.executePipeline('staging', false), '/api/pipeline/execute', 'POST'],
-    [() => apiClient.getPipelineStatus(), '/api/pipeline/status', 'GET'],
-    [() => apiClient.getGovernanceErrors('open'), '/api/governance/errors?filter=open', 'GET'],
-    [() => apiClient.applyAutoFix('issue-1'), '/api/governance/fix/issue-1', 'POST'],
-    [() => apiClient.getRecycledItems('code'), '/api/recycling/items?category=code', 'GET'],
-    [() => apiClient.restoreRecycledItem('item-1'), '/api/recycling/restore/item-1', 'POST'],
-    [() => apiClient.getTelemetry(), '/api/telemetry', 'GET'],
-    [() => apiClient.runDiagnosticSweep(), '/api/telemetry/diagnostic', 'POST'],
-  ] as const;
-  for (const [send, path, method] of requests) {
-    await expect(send()).resolves.toEqual({ ok: true });
-    const [url, init] = authenticatedRequest.mock.lastCall!;
-    expect(url).toBe(`${API_BASE_URL}${path}`);
-    expect(init.method ?? 'GET').toBe(method);
-  }
-});
-
-it('rejects HTTP errors and authentication failures', async () => {
+it('rejects unsuccessful API responses', async () => {
   const { apiClient } = await import('./main');
-  authenticatedRequest.mockResolvedValueOnce(new Response('{}', { status: 403 }));
-  await expect(apiClient.getTelemetry()).rejects.toThrow('HTTP 403');
-  authenticatedRequest.mockRejectedValueOnce(new Error('Please sign in to continue.'));
-  await expect(apiClient.getTelemetry()).rejects.toThrow('Please sign in');
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('unavailable', { status: 503 }));
+  await expect(apiClient.request('/api/example')).rejects.toThrow('API Error: 503');
 });

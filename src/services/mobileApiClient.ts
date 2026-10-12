@@ -8,7 +8,10 @@ export interface AgentEvolutionResponse {
 }
 
 export class MobileApiClient {
-  /** Submits an objective to the backend agent evolution endpoint and returns its result. */
+  /**
+   * Post an evolution objective and return the parsed response.
+   * HTTP errors reject with the API error when available; fetch and JSON errors propagate.
+   */
   public static async executeObjective(objective: string): Promise<AgentEvolutionResponse> {
     try {
       const response = await fetch(`${BACKEND_URL}/api/agent/evolve`, {
@@ -31,7 +34,7 @@ export class MobileApiClient {
     }
   }
 
-  /** Fetches backend health status, returning an offline placeholder if the request fails. */
+  /** Return parsed health JSON regardless of HTTP status, or offline on fetch/parse failure. */
   public static async checkHealth(): Promise<unknown> {
     try {
       const response = await fetch(`${BACKEND_URL}/health`);

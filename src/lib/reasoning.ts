@@ -7,8 +7,10 @@ import { API_BASE_URL } from './apiBaseUrl';
 import { API_ROUTES } from '@/config/core';
 
 /**
- * Read authenticated reasoning events and dispatch progress, output, and completion.
- * Report request or incomplete-stream failures through the optional error callback.
+ * Deliver reasoning progress and completed results through callbacks until the stream ends.
+ * Malformed JSON data lines are forwarded verbatim (trimmed) to onToken. onDone runs
+ * only after a completion result and end of stream. Request, stream, and callback
+ * failures go to onError; an error thrown by onError itself propagates.
  */
 export async function streamReasoning(
   prompt: string,
@@ -105,7 +107,11 @@ export async function streamReasoning(
   }
 }
 
-/** Return authenticated reasoning output, rejecting failed or empty responses. */
+/**
+ * Return output (or the legacy response field) from an authenticated reasoning request.
+ * Rejects unsuccessful or empty responses and propagates authentication, fetch, and
+ * JSON parsing errors.
+ */
 export async function quickReason(
   prompt: string,
   model: ModelId,

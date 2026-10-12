@@ -18,7 +18,14 @@ declare module 'fastify' {
   }
 }
 
-/** Verify with Supabase Auth; never trust a decoded token or browser metadata. */
+/**
+ * Verify with Supabase Auth; never trust a decoded token or browser metadata.
+ * Attach a non-anonymous authUser after bearer-token verification.
+ * Reuses an existing authUser. Roles come from app_metadata. Missing or invalid
+ * sessions receive 401. Missing configuration, provider errors with no status or
+ * status >= 500, and caught exceptions receive 503.
+ * Provider exceptions are converted to responses, with a five-second fetch timeout.
+ */
 export async function requireUser(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -72,7 +79,10 @@ export async function requireUser(
   }
 }
 
-/** Require a verified Supabase user and reject non-admin accounts with HTTP 403. */
+/**
+ * Require a verified user, responding with 403 unless authUser has the admin role.
+ * Preserves authentication error responses from requireUser.
+ */
 export async function requireAdmin(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -84,7 +94,12 @@ export async function requireAdmin(
   }
 }
 
-/** Install before any routes, including websocket upgrades. Deny by default. */
+/**
+ * Install authentication before routes, including WebSocket upgrades.
+ * Allow OPTIONS, public health/index routes, retired login/logout routes, and webhooks
+ * with their own signature checks. Reasoning and verification routes require a user;
+ * all remaining routes require an admin.
+ */
 export function installAuthentication(fastify: FastifyInstance) {
   fastify.decorateRequest('authUser', null);
   // Run after onRequest rate limits, before route handlers or websocket upgrades.
@@ -121,7 +136,7 @@ export function installAuthentication(fastify: FastifyInstance) {
   });
 }
 
-/** Register session verification and retire legacy login and logout routes with HTTP 410. */
+/** Register session verification and respond with 410 for retired login/logout endpoints. */
 export const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     '/api/auth/verify',

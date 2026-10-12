@@ -20,6 +20,11 @@ export interface UseVoiceRecognitionOptions {
   onCommand?: (command: string, args: string) => void;
 }
 
+/**
+ * Expose browser speech-recognition availability and local listening controls.
+ * The controls only update UI state; no recognizer is started and options callbacks
+ * are currently unused.
+ */
 export function useVoiceRecognition(_options: UseVoiceRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');

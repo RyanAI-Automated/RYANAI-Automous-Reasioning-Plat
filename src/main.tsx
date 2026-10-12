@@ -1,9 +1,4 @@
-/**
- * RyanAI Command Center - Main Frontend Entry Point
- * Integrates React frontend with Fastify backend
- * Version: 4.5.0-matrix
- */
-
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -17,15 +12,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 // ============================================================================
 
 const APP_VERSION = '4.5.0-matrix';
-const APP_ENV = import.meta.env.MODE || 'development';
+const APP_ENV = import.meta.env.MODE;
 
-// ============================================================================
-// GLOBAL API CLIENT
-// ============================================================================
-
-/**
- * Global API client for backend communication
- */
 class RyanAIClient {
   private baseURL: string;
   private version: string;
@@ -41,33 +29,20 @@ class RyanAIClient {
   /**
    * Make API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     endpoint: string,
     options: RequestInit & { method?: string } = {},
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-App-Version': this.version,
-          ...options.headers,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-
-      return (await response.json()) as T;
-    } catch (error) {
-      console.error(`API Request Failed: ${method} ${endpoint}`, error);
-      throw error;
-    }
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type'))
+      headers.set('Content-Type', 'application/json');
+    if (!headers.has('X-App-Version'))
+      headers.set('X-App-Version', this.version);
+    const response = await authenticatedFetch(url, { ...options, method, headers });
+    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    return response.json() as Promise<T>;
   }
 
   /**
@@ -141,27 +116,21 @@ class RyanAIClient {
   }
 }
 
-// ============================================================================
-// INITIALIZE GLOBAL CLIENT
-// ============================================================================
-
 const apiClient = new RyanAIClient(API_BASE_URL, APP_VERSION);
 
-// Attach to window for global access with complete TypeScript declarations
 declare global {
   interface Window {
-    ryanai: {
-      client: RyanAIClient;
-      version: string;
-      environment: string;
-      apiUrl: string;
-    };
     __DEV__?: {
       apiClient: RyanAIClient;
       logs: Console;
-      simulatePipeline: () => Promise<any>;
-      simulateError: (errorId: string) => Promise<any>;
+      simulatePipeline: () => Promise<unknown>;
+      simulateError: (errorId: string) => Promise<unknown>;
       checkHealth: () => Promise<boolean>;
+    };
+    ryanai: {
+      client: RyanAIClient;
+      version: string;
+      apiUrl: string;
     };
   }
 }
@@ -169,7 +138,6 @@ declare global {
 window.ryanai = {
   client: apiClient,
   version: APP_VERSION,
-  environment: APP_ENV,
   apiUrl: API_BASE_URL,
 };
 
@@ -189,7 +157,6 @@ const initializeSentry = () => {
 // OPTIONAL BACKEND HEALTH CHECK
 // ============================================================================
 
-/** Pings the backend health endpoint; failures are non-fatal and allow the app to run offline. */
 const performHealthCheck = async (): Promise<boolean> => {
   try {
     await apiClient.healthCheck();
@@ -205,7 +172,6 @@ const performHealthCheck = async (): Promise<boolean> => {
 // INITIALIZE REACT APPLICATION
 // ============================================================================
 
-/** Mounts the React app wrapped in an ErrorBoundary, then checks backend health without blocking render. */
 const initializeApp = async () => {
   try {
     initializeSentry();

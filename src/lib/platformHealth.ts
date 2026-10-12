@@ -11,14 +11,14 @@ export interface PlatformHealth {
 }
 
 /**
- * Fetch online platform health with caller cancellation and a five-second timeout.
- * Reject failed HTTP responses, invalid JSON, and health reports that are not online.
+ * Fetch the health payload and require an online status, with a five-second deadline.
+ * Rejects HTTP errors, invalid JSON, offline status, and network failures. A deadline
+ * abort becomes a timeout error; caller cancellation preserves the fetch error.
  */
 export async function getPlatformHealth(
   signal?: AbortSignal,
 ): Promise<PlatformHealth> {
   const controller = new AbortController();
-  /** Cancel the health request when its timeout or the caller signal fires. */
   const abort = () => controller.abort();
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener('abort', abort, { once: true });

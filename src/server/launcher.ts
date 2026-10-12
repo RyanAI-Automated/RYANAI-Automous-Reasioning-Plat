@@ -4,6 +4,7 @@ import '../loadEnv.js';
 // Tracing must precede application imports.
 import '../instrument.js';
 import '../telemetry.js';
+import './engine/cudaLoader.js';
 
 import Fastify, { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
@@ -11,10 +12,16 @@ import fastifyRedis from '@fastify/redis';
 import fastifyRateLimit from '@fastify/rate-limit';
 import pg from 'pg';
 import { connectRedis } from './connectRedis.js';
+import {
+  databaseFailureDiagnostic,
+  startupSummary,
+} from './startupDiagnostics.js';
+
+import { API_ROUTES } from '../config/core.js';
 
 import { getReasoningAgent } from '../agent/engine.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
-import { authPlugin } from './routes/auth.js';
+import { authPlugin, installAuthentication } from './routes/auth.js';
 import { commsPlugin } from './comms/index.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
@@ -72,6 +79,23 @@ const fastify = Fastify({
   },
 });
 
+// CORS Hook
+fastify.addHook('onRequest', (req, reply, done) => {
+  reply.header('Access-Control-Allow-Origin', '*');
+  reply.header(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS',
+  );
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    reply.code(200).send();
+    return;
+  }
+  done();
+});
+
+installAuthentication(fastify);
+
 // Database pool
 let dbPool: pg.Pool;
 
@@ -87,28 +111,14 @@ const serviceStatus = {
 // MIDDLEWARE & PLUGINS INITIALIZATION
 // ============================================================================
 
-/** Registers Fastify plugins and routes, verifying Redis is reachable before wiring dependent plugins. */
+/**
+ * Connect Redis, install rate limiting and WebSocket support, and register routes.
+ * Readiness and plugin-registration failures propagate to startup.
+ */
 async function registerPlugins() {
-  await fastify.register(fastifyWebsocket);
-  await registerWebSocketRoutes(fastify);
-
-  // CORS Hook
-  fastify.addHook('onRequest', (req, reply, done) => {
-    reply.header('Access-Control-Allow-Origin', '*');
-    reply.header(
-      'Access-Control-Allow-Methods',
-      'GET, POST, PUT, DELETE, OPTIONS',
-    );
-    reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    if (req.method === 'OPTIONS') {
-      reply.code(200).send();
-      return;
-    }
-    done();
-  });
-
   // Check readiness before Avvio's plugin timeout obscures connection failures.
   const redis = await connectRedis(config.redis.url);
+  // 1. Register Fastify Redis Connection
   await fastify.register(fastifyRedis, {
     client: redis,
     closeClient: true,
@@ -120,6 +130,11 @@ async function registerPlugins() {
     timeWindow: '1 minute',
     redis: fastify.redis,
   });
+
+  // Register routes only after rate-limit's onRoute hook is installed.
+  await fastify.register(fastifyWebsocket);
+  await registerWebSocketRoutes(fastify);
+  registerCoreRoutes();
 
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
@@ -134,6 +149,11 @@ async function registerPlugins() {
 // INITIALIZATION FUNCTIONS
 // ============================================================================
 
+/**
+ * Open the database pool and initialize agent checkpoint storage.
+ * Return false on database initialization failure. A checkpoint setup failure is
+ * caught separately and still returns true after a successful database probe.
+ */
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
@@ -144,9 +164,7 @@ async function initializeDatabase() {
       connectionTimeoutMillis: 2000,
     });
 
-    const client = await dbPool.connect();
-    const result = await client.query('SELECT NOW()');
-    client.release();
+    const result = await dbPool.query('SELECT NOW()');
 
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
@@ -158,7 +176,7 @@ async function initializeDatabase() {
     } catch (agentErr) {
       console.warn(
         '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
-        agentErr instanceof Error ? agentErr.message : agentErr,
+        databaseFailureDiagnostic(agentErr),
       );
     }
 
@@ -166,12 +184,13 @@ async function initializeDatabase() {
   } catch (err) {
     console.error(
       `✗ Database connection failed:`,
-      err instanceof Error ? err.message : err,
+      databaseFailureDiagnostic(err),
     );
     return false;
   }
 }
 
+/** Ping Redis and mark it available on success; caught failures return false. */
 async function verifyRedis() {
   console.log('⚡ Initializing Redis...');
   try {
@@ -192,69 +211,78 @@ async function verifyRedis() {
 // API ROUTES
 // ============================================================================
 
-const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
-  const healthy =
-    serviceStatus.database && serviceStatus.redis && serviceStatus.api;
-  reply.code(healthy ? 200 : 503);
-  return {
-    status: healthy ? 'online' : 'degraded',
-    service: 'ryanai-api-gateway',
-    timestamp: new Date().toISOString(),
-    services: serviceStatus,
-    engine: 'LangGraph ReAct',
-    architect: 'RyanAI',
-    cudaActive: false,
-    activeGraph: 'reasoning-agent',
+function registerCoreRoutes() {
+  const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
+    const healthy =
+      serviceStatus.database && serviceStatus.redis && serviceStatus.api;
+    reply.code(healthy ? 200 : 503);
+    return {
+      status: healthy ? 'online' : 'degraded',
+      service: 'ryanai-api-gateway',
+      timestamp: new Date().toISOString(),
+      services: serviceStatus,
+      engine: 'LangGraph ReAct',
+      architect: 'RyanAI',
+      cudaActive: false,
+      activeGraph: 'reasoning-agent',
+    };
   };
-};
 
-fastify.get('/health', healthCheck);
-fastify.get('/api/health', healthCheck);
+  for (const path of new Set(['/health', '/api/health', API_ROUTES.healthPath])) {
+    fastify.get(path, healthCheck);
+  }
 
-// Sentry integration test route
-fastify.get('/debug-sentry', async () => {
-  throw new Error('RyanAI Sentry Integration Test Exception!');
-});
-
-// Root
-fastify.get('/', async () => {
-  return {
-    status: 'online',
-    service: 'RyanAI API Gateway',
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
-  };
-});
-
-function contentToText(content: unknown): string {
-  if (typeof content === 'string') return content;
-  return JSON.stringify(content) ?? String(content);
-}
-
-async function runReasoning(prompt: string, model?: string) {
-  const result = await getReasoningAgent(model).invoke({
-    messages: [{ role: 'user', content: prompt }],
+  // Sentry integration test route
+  fastify.get('/debug-sentry', async () => {
+    throw new Error('RyanAI Sentry Integration Test Exception!');
   });
-  const reasoningTrace = result.messages.map((message: { content: unknown }) =>
-    contentToText(message.content),
-  );
-  const output = reasoningTrace.at(-1) ?? '';
 
-  return {
-    success: true,
-    objective: prompt,
-    output,
-    reasoningTrace,
-    engine: 'RyanAI LangGraph ReAct',
-    response: output,
-    trace: reasoningTrace,
-    timestamp: new Date().toISOString(),
-  };
-}
+  // Root
+  fastify.get('/', async () => {
+    return {
+      status: 'online',
+      service: 'RyanAI API Gateway',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+    };
+  });
 
-fastify.post<{ Body: { prompt?: string; model?: string } }>(
-  '/api/reason',
-  async (request, reply) => {
+  /** Return text content unchanged, otherwise JSON or a string fallback; serialization errors propagate. */
+  function contentToText(content: unknown): string {
+    if (typeof content === 'string') return content;
+    return JSON.stringify(content) ?? String(content);
+  }
+
+  /**
+   * Invoke the requested reasoning agent and return its messages as a text trace.
+   * The final trace entry supplies output and response. Model selection, invocation,
+   * and content serialization errors propagate.
+   */
+  async function runReasoning(prompt: string, model?: string) {
+    const result = await getReasoningAgent(model).invoke({
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const reasoningTrace = result.messages.map(
+      (message: { content: unknown }) => contentToText(message.content),
+    );
+    const output = reasoningTrace.at(-1) ?? '';
+
+    return {
+      success: true,
+      objective: prompt,
+      output,
+      reasoningTrace,
+      engine: 'RyanAI LangGraph ReAct',
+      response: output,
+      trace: reasoningTrace,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  const reasonHandler = async (
+    request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
+    reply: FastifyReply,
+  ) => {
     const prompt = request.body?.prompt?.trim();
     if (!prompt) {
       return reply
@@ -274,13 +302,18 @@ fastify.post<{ Body: { prompt?: string; model?: string } }>(
             : 'Reasoning provider request failed',
       });
     }
-  },
-);
+  };
+  for (const path of new Set(['/api/reason', API_ROUTES.reasonPath])) {
+    fastify.post(path, reasonHandler);
+  }
 
-// Reasoning stream endpoint
-fastify.post<{ Body: { prompt?: string; sessionId?: string; model?: string } }>(
-  '/api/reasoning/stream',
-  async (request, reply) => {
+  // Reasoning stream endpoint
+  const streamHandler = async (
+    request: FastifyRequest<{
+      Body: { prompt?: string; sessionId?: string; model?: string };
+    }>,
+    reply: FastifyReply,
+  ) => {
     const prompt = request.body?.prompt?.trim();
     const { sessionId } = request.body || {};
     if (!prompt) {
@@ -292,6 +325,10 @@ fastify.post<{ Body: { prompt?: string; sessionId?: string; model?: string } }>(
     reply.hijack();
     const { raw } = reply;
 
+    // Hijacking bypasses Fastify's header flush, including the CORS hook.
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) raw.setHeader(name, value);
+    }
     raw.setHeader('Content-Type', 'text/event-stream');
     raw.setHeader('Cache-Control', 'no-cache, no-transform');
     raw.setHeader('Connection', 'keep-alive');
@@ -329,46 +366,54 @@ fastify.post<{ Body: { prompt?: string; sessionId?: string; model?: string } }>(
         raw.end();
       }
     }
-  },
-);
-
-// MCP routes
-fastify.post<{
-  Body: { action?: string; tool?: string; payload?: Record<string, unknown> };
-}>('/api/mcp', async (request, reply) => {
-  const { action, tool, payload } = request.body || {};
-
-  if (!action && !tool) {
-    return reply
-      .code(400)
-      .send({ success: false, error: 'Missing action or tool parameter' });
+  };
+  for (const path of new Set(['/api/reasoning/stream', API_ROUTES.streamPath])) {
+    fastify.post(path, streamHandler);
   }
 
-  return reply.send({
-    success: true,
-    data: {
-      receivedAction: action,
-      receivedTool: tool,
-      processedPayload: payload ?? {},
-    },
-  });
-});
+  // MCP routes
+  fastify.post<{
+    Body: { action?: string; tool?: string; payload?: Record<string, unknown> };
+  }>('/api/mcp', async (request, reply) => {
+    const { action, tool, payload } = request.body || {};
 
-// System info
-fastify.get('/api/system', async () => {
-  return {
-    platform: process.platform,
-    nodeVersion: process.version,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    env: config.nodeEnv,
-  };
-});
+    if (!action && !tool) {
+      return reply
+        .code(400)
+        .send({ success: false, error: 'Missing action or tool parameter' });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        receivedAction: action,
+        receivedTool: tool,
+        processedPayload: payload ?? {},
+      },
+    });
+  });
+
+  // System info
+  fastify.get('/api/system', async () => {
+    return {
+      platform: process.platform,
+      nodeVersion: process.version,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      env: config.nodeEnv,
+    };
+  });
+}
 
 // ============================================================================
 // SERVER STARTUP
 // ============================================================================
 
+/**
+ * Register plugins, probe services, and start listening on the configured address.
+ * Database/checkpointer probe failures can leave the API running in a degraded state;
+ * uncaught plugin or listener failures terminate the process with exit code 1.
+ */
 async function start() {
   try {
     console.log('\n🔧 Registering Plugins...\n');
@@ -390,16 +435,16 @@ async function start() {
     );
     console.log(`   - System: http://${config.host}:${config.port}/api/system`);
     console.log(
-      `   - Auth Login: POST http://${config.host}:${config.port}/api/auth/login`,
+      `   - Sign-in: Supabase Auth (use the frontend Sign in / Create account screens)`,
     );
     console.log(
       `   - Auth Verify: GET http://${config.host}:${config.port}/api/auth/verify`,
     );
     console.log(
-      `   - Reason: POST http://${config.host}:${config.port}/api/reason`,
+      `   - Reason: POST http://${config.host}:${config.port}${API_ROUTES.reasonPath}`,
     );
     console.log(
-      `   - Stream: POST http://${config.host}:${config.port}/api/reasoning/stream`,
+      `   - Stream: POST http://${config.host}:${config.port}${API_ROUTES.streamPath}`,
     );
     console.log(`   - MCP: POST http://${config.host}:${config.port}/api/mcp`);
     console.log(
@@ -417,9 +462,17 @@ async function start() {
     console.log(
       `   - Admin Metrics: GET http://${config.host}:${config.port}/api/admin/metrics`,
     );
-    console.log(`\n🟢 All services ready!\n`);
-
     serviceStatus.api = true;
+    const summary = startupSummary(serviceStatus);
+    if (
+      serviceStatus.database &&
+      serviceStatus.redis &&
+      serviceStatus.agentCheckpointer
+    ) {
+      console.log(`\n${summary}\n`);
+    } else {
+      console.warn(`\n${summary}\n`);
+    }
   } catch (err) {
     fastify.log.fatal(err);
     process.exit(1);

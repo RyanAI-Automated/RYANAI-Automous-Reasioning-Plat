@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
 const state = vi.hoisted(() => ({
+  routes: { healthPath: '/api/health', reasonPath: '/api/reason', streamPath: '/api/reasoning/stream' },
   app: undefined as FastifyInstance | undefined,
   invoke: vi.fn(),
   listen: vi.fn().mockResolvedValue('http://localhost:3000'),
 }));
 
 // Exercise the real launcher's routes without external services or a TCP listener.
+vi.mock('../config/core.js', () => ({ API_ROUTES: state.routes }));
 vi.mock('../loadEnv.js', () => ({}));
 vi.mock('../instrument.js', () => ({}));
 vi.mock('../telemetry.js', () => ({}));
@@ -43,7 +45,7 @@ vi.mock('@fastify/rate-limit', () => ({ default: async () => {} }));
 vi.mock('../api/websocket.js', () => ({
   registerWebSocketRoutes: async () => {},
 }));
-vi.mock('./routes/auth.js', () => ({ authPlugin: async () => {} }));
+vi.mock('./routes/auth.js', () => ({ authPlugin: async () => {}, installAuthentication: vi.fn() }));
 vi.mock('./comms/index.js', () => ({ commsPlugin: async () => {} }));
 vi.mock('./routes/approvalRoutes.js', () => ({
   approvalRoutes: async () => {},
@@ -67,7 +69,13 @@ const originalListeners = new Map(
   signals.map((signal) => [signal, process.listeners(signal)]),
 );
 
+describe.each([false, true])('launcher reasoning routes (custom paths: %s)', (customPaths) => {
 beforeAll(async () => {
+  vi.resetModules();
+  state.listen.mockClear();
+  Object.assign(state.routes, customPaths
+    ? { healthPath: '/custom/health', reasonPath: '/custom/reason', streamPath: '/custom/stream' }
+    : { healthPath: '/api/health', reasonPath: '/api/reason', streamPath: '/api/reasoning/stream' });
   await import('./launcher');
   await vi.waitFor(() => expect(state.listen).toHaveBeenCalledOnce());
 });
@@ -82,7 +90,22 @@ afterAll(async () => {
   }
 });
 
-describe('launcher reasoning routes', () => {
+  it('serves configured and legacy paths without duplicate registration', async () => {
+    for (const url of new Set(['/health', '/api/health', state.routes.healthPath])) {
+      expect((await state.app!.inject({ method: 'GET', url })).statusCode).toBe(200);
+    }
+    state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }] });
+    for (const url of new Set(['/api/reason', state.routes.reasonPath])) {
+      const response = await state.app!.inject({ method: 'POST', url, payload: { prompt: 'hello' } });
+      expect(response.json()).toMatchObject({ success: true, output: 'answer' });
+    }
+    for (const url of new Set(['/api/reasoning/stream', state.routes.streamPath])) {
+      const response = await state.app!.inject({ method: 'POST', url, payload: { prompt: 'hello' } });
+      expect(response.body).toContain('"status":"complete"');
+    }
+    expect((await state.app!.inject({ method: 'POST', url: '/api/mcp', payload: { action: 'test' } })).statusCode).toBe(200);
+  });
+
   it('serves cross-origin SSE with the CORS headers intact', async () => {
     state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }] });
     const response = await state.app!.inject({
