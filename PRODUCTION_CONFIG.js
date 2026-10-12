@@ -58,7 +58,7 @@ const productionConfig = {
 
   requirements: {
     runtime: {
-      node: '20+',
+      node: '22+', // Updated to align with Node 22 container environments
       docker: '24.0+',
       docker_compose: '2.20+',
       disk_space: '50GB',
@@ -254,33 +254,4 @@ const productionConfig = {
     },
     security: {
       tls_version: '1.3+',
-      cipher_suites: 'modern-secure-gcm',
-      headers_security: 'strict-csp',
-      cors_validation: true,
-    },
-  },
-
-  sla: {
-    availability_target: '99.95%',
-    mean_response_time: '85ms',
-    p99_response_time: '350ms',
-    error_rate_max: '0.05%',
-    uptime_tracking: true,
-  },
-};
-
-// Create a sanitized deep copy for safe logging without triggering CodeQL security alerts
-const sanitizeConfig = (config) => {
-  const safeConfig = JSON.parse(JSON.stringify(config));
-  if (safeConfig.security?.authentication) {
-    safeConfig.security.authentication.oauth_providers = ['[REDACTED]'];
-  }
-  return safeConfig;
-};
-
-console.log('📋 RyanAI Reasoning Platform - Production Configuration\n');
-console.log('═'.repeat(80));
-console.log(JSON.stringify(sanitizeConfig(productionConfig), null, 2));
-console.log('═'.repeat(80));
-
-export default productionConfig;
+      cipher_
