@@ -10,7 +10,6 @@ interface MemoryVaultProps {
   onClose: () => void;
 }
 
-/** Display and edit locally stored memories for the supplied user account. */
 export default function MemoryVault({
   open,
   onClose,
@@ -21,7 +20,6 @@ export default function MemoryVault({
   );
   const [input, setInput] = useState('');
 
-  /** Save nonblank input as a user memory and prepend it to the displayed entries. */
   const handleAdd = () => {
     if (input.trim()) {
       const entry = addMemoryEntry(input, userId);
@@ -30,7 +28,6 @@ export default function MemoryVault({
     }
   };
 
-  /** Remove a memory from both the user storage and the displayed entries. */
   const handleDelete = (id: string) => {
     deleteMemoryEntry(id, userId);
     setEntries(entries.filter((e) => e.id !== id));

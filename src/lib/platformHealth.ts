@@ -10,15 +10,10 @@ export interface PlatformHealth {
   activeGraph?: string;
 }
 
-/**
- * Fetch online platform health with caller cancellation and a five-second timeout.
- * Reject failed HTTP responses, invalid JSON, and health reports that are not online.
- */
 export async function getPlatformHealth(
   signal?: AbortSignal,
 ): Promise<PlatformHealth> {
   const controller = new AbortController();
-  /** Cancel the health request when its timeout or the caller signal fires. */
   const abort = () => controller.abort();
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener('abort', abort, { once: true });

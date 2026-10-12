@@ -6,10 +6,6 @@ import type { ModelId, ReasoningCallbacks } from './types.js';
 import { API_BASE_URL } from './apiBaseUrl';
 import { API_ROUTES } from '@/config/core';
 
-/**
- * Read authenticated reasoning events and dispatch progress, output, and completion.
- * Report request or incomplete-stream failures through the optional error callback.
- */
 export async function streamReasoning(
   prompt: string,
   model: ModelId,
@@ -105,7 +101,6 @@ export async function streamReasoning(
   }
 }
 
-/** Return authenticated reasoning output, rejecting failed or empty responses. */
 export async function quickReason(
   prompt: string,
   model: ModelId,

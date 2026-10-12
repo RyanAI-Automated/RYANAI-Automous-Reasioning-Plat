@@ -35,7 +35,6 @@ interface CommandCenterProps {
   userFullName?: string;
 }
 
-/** Render the user workspace with account-scoped conversations, memories, and reasoning. */
 export default function CommandCenter({
   onSignOut,
   userId,

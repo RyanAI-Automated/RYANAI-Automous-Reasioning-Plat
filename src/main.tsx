@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 /**
  * RyanAI Command Center - Main Frontend Entry Point
  * Integrates React frontend with Fastify backend
@@ -9,8 +10,6 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { API_BASE_URL } from './lib/apiBaseUrl';
-import { getPlatformHealth } from './lib/platformHealth';
-import ErrorBoundary from './components/ErrorBoundary';
 
 // ============================================================================
 // ENVIRONMENT CONFIGURATION
@@ -33,23 +32,21 @@ class RyanAIClient {
   constructor(baseURL: string, version: string) {
     this.baseURL = baseURL;
     this.version = version;
-    console.log(
-      `🚀 RyanAI Client initialized | API: ${baseURL} | Version: ${version}`,
-    );
+    console.log(`🚀 RyanAI Client initialized | API: ${baseURL} | Version: ${version}`);
   }
 
   /**
    * Make API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     endpoint: string,
-    options: RequestInit & { method?: string } = {},
+    options: RequestInit & { method?: string } = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
 
     try {
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         ...options,
         method,
         headers: {
@@ -91,9 +88,7 @@ class RyanAIClient {
    * Get Governance Errors
    */
   async getGovernanceErrors(filter?: string) {
-    return this.request(
-      `/api/governance/errors${filter ? `?filter=${filter}` : ''}`,
-    );
+    return this.request(`/api/governance/errors${filter ? `?filter=${filter}` : ''}`);
   }
 
   /**
@@ -107,9 +102,7 @@ class RyanAIClient {
    * Get Recycled Items
    */
   async getRecycledItems(category?: string) {
-    return this.request(
-      `/api/recycling/items${category ? `?category=${category}` : ''}`,
-    );
+    return this.request(`/api/recycling/items${category ? `?category=${category}` : ''}`);
   }
 
   /**
@@ -137,7 +130,7 @@ class RyanAIClient {
    * Health Check
    */
   async healthCheck() {
-    return getPlatformHealth();
+    return this.request('/health');
   }
 }
 
@@ -159,8 +152,8 @@ declare global {
     __DEV__?: {
       apiClient: RyanAIClient;
       logs: Console;
-      simulatePipeline: () => Promise<any>;
-      simulateError: (errorId: string) => Promise<any>;
+      simulatePipeline: () => Promise<unknown>;
+      simulateError: (errorId: string) => Promise<unknown>;
       checkHealth: () => Promise<boolean>;
     };
   }
@@ -186,17 +179,16 @@ const initializeSentry = () => {
 };
 
 // ============================================================================
-// OPTIONAL BACKEND HEALTH CHECK
+// HEALTH CHECK BEFORE INITIALIZATION
 // ============================================================================
 
-/** Pings the backend health endpoint; failures are non-fatal and allow the app to run offline. */
 const performHealthCheck = async (): Promise<boolean> => {
   try {
     await apiClient.healthCheck();
     console.log('✅ Backend health check passed');
     return true;
   } catch (error) {
-    console.warn('⚠️ Backend health check failed:', error);
+    console.warn('⚠️ Backend health check failed (will retry):', error);
     return false;
   }
 };
@@ -205,10 +197,16 @@ const performHealthCheck = async (): Promise<boolean> => {
 // INITIALIZE REACT APPLICATION
 // ============================================================================
 
-/** Mounts the React app wrapped in an ErrorBoundary, then checks backend health without blocking render. */
 const initializeApp = async () => {
   try {
     initializeSentry();
+
+    const backendHealthy = await performHealthCheck();
+    if (backendHealthy) {
+      console.log('🟢 Backend connection established');
+    } else {
+      console.log('🟡 Backend unavailable - frontend operating in offline mode');
+    }
 
     const rootElement = document.getElementById('root');
     if (!rootElement) {
@@ -218,29 +216,18 @@ const initializeApp = async () => {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
-        <ErrorBoundary>
-          <App />
-        </ErrorBoundary>
-      </React.StrictMode>,
+        <App />
+      </React.StrictMode>
     );
 
     console.log(
       '%c✅ RyanAI Command Center v4.5.0-matrix Ready',
-      'font-size: 14px; color: #00ff66; font-weight: bold; text-shadow: 0 0 10px #00ff66;',
+      'font-size: 14px; color: #00ff66; font-weight: bold; text-shadow: 0 0 10px #00ff66;'
     );
     console.log(
       `%c📍 API: ${API_BASE_URL}`,
-      'color: #00f3ff; font-family: monospace; font-size: 12px;',
+      'color: #00f3ff; font-family: monospace; font-size: 12px;'
     );
-
-    const backendHealthy = await performHealthCheck();
-    if (backendHealthy) {
-      console.log('🟢 Backend connection established');
-    } else {
-      console.log(
-        '🟡 Backend unavailable - frontend operating in offline mode',
-      );
-    }
 
     window.dispatchEvent(
       new CustomEvent('ryanai-ready', {
@@ -250,18 +237,21 @@ const initializeApp = async () => {
           backendHealthy,
           timestamp: new Date().toISOString(),
         },
-      }),
+      })
     );
   } catch (error) {
     console.error('❌ Failed to initialize RyanAI Command Center:', error);
 
-    const rootElement = document.getElementById('root');
-    if (rootElement) {
-      const message = document.createElement('p');
-      message.setAttribute('role', 'alert');
-      message.textContent =
-        'RyanAI could not start. Reload the page to try again.';
-      rootElement.replaceChildren(message);
+    const errorBoundary = document.getElementById('error-boundary');
+    const loadingScreen = document.getElementById('loading-screen');
+
+    if (errorBoundary && loadingScreen) {
+      loadingScreen.style.display = 'none';
+      errorBoundary.style.display = 'block';
+      const errorDetails = document.getElementById('error-details');
+      if (errorDetails) {
+        errorDetails.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
     }
 
     window.dispatchEvent(
@@ -270,7 +260,7 @@ const initializeApp = async () => {
           error: error instanceof Error ? error.message : 'Unknown error',
           timestamp: new Date().toISOString(),
         },
-      }),
+      })
     );
 
     throw error;
@@ -282,15 +272,19 @@ const initializeApp = async () => {
 // ============================================================================
 
 if (document.readyState === 'loading') {
-  document.addEventListener(
-    'DOMContentLoaded',
-    () => {
-      void initializeApp().catch(console.error);
-    },
-    { once: true },
-  );
+  document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
   initializeApp().catch(console.error);
+}
+
+// ============================================================================
+// HOT MODULE REPLACEMENT (HMR) FOR DEVELOPMENT
+// ============================================================================
+
+if (import.meta.hot) {
+  import.meta.hot.accept('./App', () => {
+    console.log('🔄 Hot module replacement triggered');
+  });
 }
 
 // ============================================================================
@@ -314,12 +308,6 @@ if (APP_ENV === 'development') {
 
   console.log(
     '%c💻 Development Mode - Debug utilities available at window.__DEV__',
-    'color: #00f3ff; font-size: 12px; font-family: monospace;',
+    'color: #00f3ff; font-size: 12px; font-family: monospace;'
   );
 }
-
-// ============================================================================
-// EXPORT FOR TYPE SAFETY
-// ============================================================================
-
-export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };

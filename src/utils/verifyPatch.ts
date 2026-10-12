@@ -55,10 +55,6 @@ export async function runVerificationPipeline(
       HOME: configDirectory,
       DOCKER_CONFIG: configDirectory,
     };
-    /**
-     * Run Docker against the fixed local daemon with a restricted environment and timeout.
-     * Resolve captured stdout or reject command failures.
-     */
     const docker = (args: string[], timeout: number) =>
       new Promise<string>((resolve, reject) => {
         execFile(

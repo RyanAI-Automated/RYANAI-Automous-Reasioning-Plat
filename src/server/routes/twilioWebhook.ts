@@ -3,14 +3,9 @@ import twilio from 'twilio';
 import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 
-/** Return string message content unchanged or serialize other content as JSON. */
 const extractContent = (content: unknown): string =>
   typeof content === 'string' ? content : JSON.stringify(content);
 
-/**
- * Register the WhatsApp webhook with Twilio signature verification.
- * Route verified messages to the agent using a sender-specific thread and return TwiML.
- */
 export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
   await fastify.register(formbody);
 
@@ -86,7 +81,6 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
   );
 };
 
-/** Escape XML metacharacters before inserting agent output into a TwiML message. */
 function escapeXml(unsafe: string): string {
   return unsafe.replace(/[<>&'"]/g, (c) => {
     switch (c) {

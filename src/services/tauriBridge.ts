@@ -8,7 +8,6 @@ export interface AgentResponse {
 }
 
 export class TauriBridge {
-  /** Invokes the native Tauri command to trigger an agent objective and surfaces any IPC failure as an Error. */
   public static async executeObjective(objective: string): Promise<AgentResponse> {
     try {
       const response = await invoke<AgentResponse>("trigger_agent_objective", { objective });
@@ -19,7 +18,6 @@ export class TauriBridge {
     }
   }
 
-  /** Invokes the native Tauri command to retrieve current system health status. */
   public static async checkSystemHealth(): Promise<unknown> {
     return await invoke("get_system_status");
   }
