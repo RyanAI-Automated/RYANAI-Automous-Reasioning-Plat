@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name('ryan-cli')
   .description('RyanAI Autonomous Reasoning Platform CLI Manager')
-  .version('1.0.0');
+  .version('1.1.0');
 
 program
   .command('doctor')
@@ -36,7 +36,7 @@ program
   .action(() => {
     console.log('Generating Prisma client...');
     try {
-      execSync('pnpm prisma generate', { stdio: 'inherit' });
+      execSync('npx prisma generate', { stdio: 'inherit' });
       console.log('Database client generated successfully.');
     } catch (error) {
       console.error('Failed to generate Prisma client:', error);
@@ -50,7 +50,7 @@ program
   .action(() => {
     console.log('Starting RyanAI Fastify server...');
     try {
-      execSync('node --import tsx/esm src/server/index.ts', { stdio: 'inherit' });
+      execSync('node --import tsx src/server/index.ts', { stdio: 'inherit' });
     } catch (error) {
       console.error('Server execution failed:', error);
       process.exit(1);
