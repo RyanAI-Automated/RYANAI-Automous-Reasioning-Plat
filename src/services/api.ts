@@ -28,6 +28,11 @@ export async function fetchSystemHealth(): Promise<SystemHealth> {
   return response.json();
 }
 
+/**
+ * Submit an authenticated prompt and return the parsed reasoning response.
+ * Rejects HTTP errors using the API error when available; authentication, fetch, and
+ * successful-response JSON parsing failures propagate.
+ */
 export async function executeAgentReasoning(
   prompt: string,
 ): Promise<ReasonResponse> {

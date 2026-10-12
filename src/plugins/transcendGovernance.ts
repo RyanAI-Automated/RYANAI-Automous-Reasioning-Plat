@@ -14,6 +14,11 @@ export interface TranscendEvaluationResult {
   violations: string[];
 }
 
+/**
+ * Load a WASM policy and expose its evaluator on Fastify.
+ * Optionally reject denied requests whose URLs match an enforceRoutes prefix and
+ * whose bodies are truthy. Policy file and initialization errors propagate.
+ */
 const transcendGovernancePlugin: FastifyPluginAsync<TranscendPluginOptions> = async (
   fastify,
   opts
@@ -23,7 +28,8 @@ const transcendGovernancePlugin: FastifyPluginAsync<TranscendPluginOptions> = as
   const policy: LoadedPolicy = await loadPolicy(wasmBuffer);
 
   /**
-   * Synchronous WASM policy evaluation against the loaded entrypoint
+   * Evaluate the loaded WASM policy and normalize its first result.
+   * An empty result denies access with a violation; evaluator exceptions propagate.
    */
   const evaluateInput = (input: Record<string, unknown>): TranscendEvaluationResult => {
     const results = policy.evaluate(input);

@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @config "../tailwind.config.js";
 
+.your-custom-class {
+  @apply text-4xl;
+}
+
 /* Root Theme Variables */
 :root {
   --bg-primary: #0a0e27;

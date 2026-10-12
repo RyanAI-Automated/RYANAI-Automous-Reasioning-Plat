@@ -10,6 +10,10 @@ interface MemoryVaultProps {
   onClose: () => void;
 }
 
+/**
+ * Render editable memory entries stored under userId.
+ * Entries load on mount; remount the component when changing accounts.
+ */
 export default function MemoryVault({
   open,
   onClose,

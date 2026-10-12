@@ -7,6 +7,10 @@ interface EmergencyTwimlQuery {
   message?: string;
 }
 
+/**
+ * Register emergency TwiML with a six-second DTMF/speech prompt and hangup fallback.
+ * The route generates call instructions; it does not change kernel blocks.
+ */
 export async function voiceEmergencyRoutes(fastify: FastifyInstance) {
   fastify.get('/api/v1/voice/emergency-twiml', async (req: FastifyRequest<{ Querystring: EmergencyTwimlQuery }>, reply: FastifyReply) => {
     const { pid = '0', message } = req.query;
