@@ -31,5 +31,5 @@ jobs:
       }}
     uses: ./.github/workflows/deploy.yml
     with:
-      commit_sha: ${{ github.event.workflow_run.head_sha || github.sha }}
+      commit_sha: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
     secrets: inherit

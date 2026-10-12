@@ -19,6 +19,10 @@ async function test(name: string, run: () => Promise<void>): Promise<void> {
   }
 }
 
+/**
+ * Check HTTP and WebSocket access, skipping authenticated checks without tokens.
+ * Report the results and set a failing exit code if any executed check fails.
+ */
 async function main(): Promise<void> {
   await test('API health endpoint', async () => {
     const response = await fetch(apiHealthUrl, {

@@ -7,6 +7,7 @@ const tools = ["cs-script.cli", "cs-syntaxer"];
 const sdkHelp =
   "Install the .NET SDK from https://dotnet.microsoft.com/en-us/download, then restart your terminal.";
 
+/** Run the .NET CLI, optionally capturing stdout, and throw on launch or exit failure. */
 function runDotnet(args, capture = false) {
   const result = spawnSync("dotnet", args, {
     encoding: "utf8",
@@ -25,6 +26,10 @@ function runDotnet(args, capture = false) {
   return result.stdout ?? "";
 }
 
+/**
+ * Require an installed .NET SDK, then install or update the global CS-Script tools.
+ * The command runner and logger can be injected for tests; command failures propagate.
+ */
 export function setupCsScript(run = runDotnet, log = console.log) {
   if (!run(["--list-sdks"], true).trim()) {
     throw new Error(`No .NET SDK was found. ${sdkHelp}`);

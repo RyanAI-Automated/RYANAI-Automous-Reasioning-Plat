@@ -20,6 +20,9 @@ RUN npm run db:generate \
 
 FROM node:22-alpine AS runner
 
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

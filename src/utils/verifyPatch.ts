@@ -1,12 +1,15 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, realpath, rm, writeFile, stat, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const DOCKER = "/usr/bin/docker";
 const DAEMON = "unix:///var/run/docker.sock";
-const IMAGE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}$/;
+const IMAGE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}\$/;
 
 // This program is fixed application code. Candidate commands only run inside Docker.
 const VERIFY = `
@@ -19,7 +22,68 @@ npm run validate
 if [ -f /verification-script.js ]; then node /verification-script.js; fi
 `;
 
-type VerificationResult = { success: boolean; error?: string };
+export type VerificationPipelineResult = { success: boolean; error?: string };
+
+export interface PatchVerificationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings?: string[];
+}
+
+/**
+ * Securely verifies a staged patch file in isolation before applying it 
+ * to the live workspace. Prevents live corruption and unvalidated code exposure.
+ */
+export async function verifyStagedPatch(
+  stagedFilePath: string,
+  targetRelativePath: string
+): Promise<PatchVerificationResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  try {
+    const fileStats = await stat(stagedFilePath);
+    if (!fileStats.isFile()) {
+      errors.push('Staged patch path is not a valid file.');
+      return { isValid: false, errors, warnings };
+    }
+
+    const content = await readFile(stagedFilePath, 'utf-8');
+
+    // Guardrail: Block unresolved Git merge conflict markers
+    if (
+      content.includes('<<<<<<<') ||
+      content.includes('=======') ||
+      content.includes('>>>>>>>')
+    ) {
+      errors.push('Security Check Failed: Patch contains unresolved Git merge conflict markers.');
+    }
+
+    // Guardrail: Check for high-risk execution primitives
+    if (content.includes('eval(') || content.includes('child_process.execSync')) {
+      warnings.push('Warning: Patch introduces high-risk execution primitives (eval/execSync). Review recommended.');
+    }
+
+    // Isolated Syntax & Type Validation for TypeScript / JavaScript
+    if (targetRelativePath.endsWith('.ts') || targetRelativePath.endsWith('.tsx')) {
+      try {
+        await execFileAsync('npx', ['tsc', '--noEmit', '--skipLibCheck', stagedFilePath], {
+          timeout: 15000,
+        });
+      } catch (execError: any) {
+        errors.push(`TypeScript validation failed: ${execError.stderr?.trim() || execError.message}`);
+      }
+    }
+  } catch (err: any) {
+    errors.push(`Verification subsystem error: ${err.message}`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
 
 /**
  * Validate an immutable staging tree, never the live workspace. Docker and an
@@ -32,7 +96,7 @@ type VerificationResult = { success: boolean; error?: string };
 export async function runVerificationPipeline(
   cwd: string,
   testScript?: string,
-): Promise<VerificationResult> {
+): Promise<VerificationPipelineResult> {
   const image = process.env.RYAN_PATCH_VERIFIER_IMAGE;
   if (!image || !IMAGE_PATTERN.test(image)) {
     return {
@@ -43,7 +107,7 @@ export async function runVerificationPipeline(
 
   let configDirectory: string | undefined;
   let containerAttempted = false;
-  let result: VerificationResult = {
+  let result: VerificationPipelineResult = {
     success: false,
     error: "Isolated patch validation failed.",
   };

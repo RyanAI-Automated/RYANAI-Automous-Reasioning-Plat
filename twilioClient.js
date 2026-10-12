@@ -7,12 +7,14 @@
 
 import { pathToFileURL } from 'node:url';
 
+/** Read a required environment value or throw when it is missing or empty. */
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
   return value;
 }
 
+/** Build the Twilio Basic authorization header from required environment credentials. */
 const getAuthHeader = () => {
   const credentials = Buffer.from(
     `${requireEnv('TWILIO_ACCOUNT_SID')}:${requireEnv('TWILIO_AUTH_TOKEN')}`
@@ -20,6 +22,7 @@ const getAuthHeader = () => {
   return `Basic ${credentials}`;
 };
 
+/** Post form data to an account-scoped Twilio resource and reject unsuccessful API responses. */
 async function twilioPost(resource, params) {
   const url = `https://api.twilio.com/2010-04-01/Accounts/${requireEnv('TWILIO_ACCOUNT_SID')}/${resource}.json`;
   const response = await fetch(url, {

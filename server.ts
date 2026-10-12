@@ -29,6 +29,7 @@ interface ReasonRequestBody {
   prompt?: string;
 }
 
+/** Build the standalone gateway health response with the current timestamp. */
 const healthPayload = () => ({
   status: "online",
   engine: "RyanAI Sovereign Engine",
@@ -70,6 +71,7 @@ server.post("/api/reason", async (request: FastifyRequest<{ Body: ReasonRequestB
 });
 
 // Start the Fastify API Gateway
+/** Listen on the configured gateway port and exit with an error if startup fails. */
 const start = async () => {
   try {
     const port = parseInt(process.env.PORT || "3001", 10);

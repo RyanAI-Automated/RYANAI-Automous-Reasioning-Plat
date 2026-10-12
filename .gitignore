@@ -183,3 +183,9 @@ build/
 # Private workspace patch ownership, staging, and crash-recovery journal
 .ryan-patch/
 .ryan-patch-*.tmp
+
+# .gitignore
+*.worktrees/
+RYANAI/
+complete-ryanal-reasoning-platform/
+vercel-build-failure-npm-script/complete-ryanai-reasoning-platform/ 
