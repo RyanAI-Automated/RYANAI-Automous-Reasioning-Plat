@@ -1,5 +1,5 @@
-use tauri::command;
 use sysinfo::System;
+use tauri::command;
 
 #[command]
 pub fn get_hardware_telemetry() -> String {

@@ -18,6 +18,11 @@ interface AdminResolveBody {
   approved: boolean;
 }
 
+/**
+ * Register admin-only endpoints to start, inspect, resume, or reject agent threads.
+ * Pending single-agent tool calls trigger approval notifications. Multi-agent resolve
+ * failures return 500; uncaught agent errors in other handlers reach Fastify.
+ */
 export const approvalRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireAdmin);
 

@@ -23,6 +23,11 @@ interface ConnectionContext {
 const connections = new Map<string, ConnectionContext>();
 const channels = new Map<string, Set<string>>();
 
+/**
+ * Register the admin-only /ws bridge with 10 upgrade attempts per minute.
+ * Each connection expires after five minutes and closes after more than 60 messages
+ * in a one-minute window. Closing removes its subscriptions and connection state.
+ */
 export async function registerWebSocketRoutes(fastify: FastifyInstance) {
   logger.info('Registering WebSocket routes');
 
@@ -103,6 +108,10 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
   );
 }
 
+/**
+ * Reply to authentication, reasoning, and subscription requests or stream acknowledgments.
+ * Dispatch failures become HANDLER_ERROR responses; sending the response can still throw.
+ */
 async function handleMessage(
   context: ConnectionContext,
   message: WebSocketMessage,
@@ -178,6 +187,10 @@ async function handleMessage(
   sendMessage(context.ws, response);
 }
 
+/**
+ * Schedule four simulated progress events 400 milliseconds apart using request.sessionId.
+ * Events are sent only while the socket is open; the prompt is not evaluated.
+ */
 function handleReasoningRequest(
   context: ConnectionContext,
   request: ReasoningRequest,
@@ -213,6 +226,7 @@ function handleReasoningRequest(
   });
 }
 
+/** Send an event to open connections subscribed to channel; send/serialization errors propagate. */
 export function broadcast(channel: string, data: unknown) {
   const event: WebSocketMessage = {
     id: uuid(),
@@ -250,6 +264,7 @@ function sendError(ws: WebSocket, code: string, message: string) {
   sendMessage(ws, msg);
 }
 
+/** Build a five-minute connection context from an already verified authUser, or return undefined. */
 function extractAuth(request: FastifyRequest): AuthContext | undefined {
   const user = request.authUser;
   if (!user) return undefined;

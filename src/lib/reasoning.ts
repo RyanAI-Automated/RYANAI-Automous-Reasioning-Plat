@@ -6,6 +6,12 @@ import type { ModelId, ReasoningCallbacks } from './types.js';
 import { API_BASE_URL } from './apiBaseUrl';
 import { API_ROUTES } from '@/config/core';
 
+/**
+ * Deliver reasoning progress and completed results through callbacks until the stream ends.
+ * Malformed JSON data lines are forwarded verbatim (trimmed) to onToken. onDone runs
+ * only after a completion result and end of stream. Request, stream, and callback
+ * failures go to onError; an error thrown by onError itself propagates.
+ */
 export async function streamReasoning(
   prompt: string,
   model: ModelId,
@@ -101,6 +107,11 @@ export async function streamReasoning(
   }
 }
 
+/**
+ * Return output (or the legacy response field) from an authenticated reasoning request.
+ * Rejects unsuccessful or empty responses and propagates authentication, fetch, and
+ * JSON parsing errors.
+ */
 export async function quickReason(
   prompt: string,
   model: ModelId,
