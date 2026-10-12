@@ -1,11 +1,18 @@
+# syntax=docker/dockerfile:1
+
 FROM node:22-slim
 
+# Install system dependencies (git) and clean up apt lists in a single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/patch-deps
-COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
 
+# Copy dependency manifests and install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps \
+    && npm cache clean --force
+
+# Switch to the working directory for subsequent build or runtime tasks
 WORKDIR /work
