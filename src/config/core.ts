@@ -1,6 +1,4 @@
-import appManifest from '../../app/routes.json' with { type: 'json' };
-
-// Keep the runtime contract in the checkout; the legacy RYANAI gitlink is optional.
+// Keep the runtime contract in the checkout; safe fallbacks prevent build failures.
 export const API_ROUTES = Object.freeze({
   healthPath: '/api/health',
   reasonPath: '/api/reason',
@@ -8,13 +6,13 @@ export const API_ROUTES = Object.freeze({
 });
 
 export const UI_CONFIG = Object.freeze({
-  defaultRoute: appManifest.defaultRoute,
+  defaultRoute: '/dashboard',
 });
 
 export const RYANAI_CORE = Object.freeze({
   api: API_ROUTES,
   ui: UI_CONFIG,
-  activeSkills: ['autonomous-reasoning'],
+  activeSkills: ['autonomous-reasoning', 'agent-pa-core'],
 });
 
 interface CoreConfig {
@@ -23,15 +21,9 @@ interface CoreConfig {
   [key: string]: any;
 }
 
-let coreConfig: CoreConfig = {};
-
-try {
-  coreConfig = {
-    version: "0.1.0",
-    environment: import.meta.env.MODE || "production",
-  };
-} catch {
-  coreConfig = { version: "0.1.0" };
-}
+const coreConfig: CoreConfig = {
+  version: "0.1.0",
+  environment: import.meta.env.MODE || "production",
+};
 
 export default coreConfig;
