@@ -65,26 +65,26 @@ index 00afb81..ba1dc78 100644
 -    
 +
      <!-- Favicon -->
--    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E" />
+-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E" />
 -    
 +    <link
 +      rel="icon"
 +      type="image/svg+xml"
-+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E"
++      href="data:image/svg+xml,%3Csvg xmlns='[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E"
 +    />
 +
      <title>RyanAI | Autonomous Reasoning & Dev Platform</title>
 -    
 +
      <!-- Fonts -->
-     <link rel="preconnect" href="https://fonts.googleapis.com" />
-     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
--    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet" />
--    <link rel="preconnect" href="https://fonts.googleapis.com">
--    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
--    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+     <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)" />
+     <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin />
+-    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&display=swap)" rel="stylesheet" />
+-    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
+-    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin>
+-    <link href="[https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap](https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap)" rel="stylesheet">
 +    <link
-+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap"
++      href="[https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap)"
 +      rel="stylesheet"
 +    />
  
@@ -207,7 +207,7 @@ index 9f9d890..34b6560 100644
 +          href="#/"
 +          className="flex items-center gap-2 font-display text-sm font-black tracking-[0.18em] text-cyan-200"
 +        >
-           <Cpu className="h-5 w-5 text-cyan-400" />
+           <Cpu className="h-5 w-5 text-cyan-400"/>
            RYANAI
          </a>
 -        <nav aria-label="Main navigation" className="flex items-center gap-1 overflow-x-auto">
@@ -228,14 +228,13 @@ index 9f9d890..34b6560 100644
 +                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
                }`}
              >
-               <Icon className="h-4 w-4" />
+               <Icon className="h-4 w-4"/>
 @@ -74,7 +83,12 @@ export default function App() {
-         {route === 'cockpit' && <RyanAICockpit />}
+         {route === 'cockpit' && <RyanAICockpit/>}
          {route === 'workspace' && (
            <div className="h-full min-h-[calc(100vh-3.5rem)]">
--            <CommandCenter onSignOut={() => { window.location.hash = '/'; }} userFullName="Operator" />
-+            <CommandCenter
-+              onSignOut={() => {
+-            <CommandCenter onSignOut="{()"> { window.location.hash = '/'; }} userFullName="Operator" />
++            <CommandCenter + onSignOut="{()"> {
 +                window.location.hash = '/';
 +              }}
 +              userFullName="Operator"
@@ -489,7 +488,7 @@ index 0000000..7df83be
 +    await act(async () => {
 +      root.render(
 +        <ErrorBoundary>
-+          <BrokenView />
++          <BrokenView/>
 +        </ErrorBoundary>,
 +      );
 +    });
@@ -530,195 +529,51 @@ index 1a2c8be..93f8d27 100644
    /**
 @@ -39,7 +43,7 @@ class RyanAIClient {
     */
-   async request<T = any>(
+   async request<T any>(
      endpoint: string,
 -    options: RequestInit & { method?: string } = {}
 +    options: RequestInit & { method?: string } = {},
    ): Promise<T> {
      const url = `${this.baseURL}${endpoint}`;
      const method = options.method || 'GET';
-@@ -87,7 +91,9 @@ class RyanAIClient {
+@@ -87,7 +91,37 @@ class RyanAIClient {
     * Get Governance Errors
     */
-   async getGovernanceErrors(filter?: string) {
--    return this.request(`/api/governance/errors${filter ? `?filter=${filter}` : ''}`);
-+    return this.request(
-+      `/api/governance/errors${filter ? `?filter=${filter}` : ''}`,
-+    );
-   }
- 
-   /**
-@@ -101,7 +107,9 @@ class RyanAIClient {
-    * Get Recycled Items
-    */
-   async getRecycledItems(category?: string) {
--    return this.request(`/api/recycling/items${category ? `?category=${category}` : ''}`);
-+    return this.request(
-+      `/api/recycling/items${category ? `?category=${category}` : ''}`,
-+    );
-   }
- 
-   /**
-@@ -129,7 +137,7 @@ class RyanAIClient {
-    * Health Check
-    */
-   async healthCheck() {
--    return this.request('/health');
-+    return getPlatformHealth();
-   }
- }
- 
-@@ -178,7 +186,7 @@ const initializeSentry = () => {
- };
- 
- // ============================================================================
--// HEALTH CHECK BEFORE INITIALIZATION
-+// OPTIONAL BACKEND HEALTH CHECK
- // ============================================================================
- 
- const performHealthCheck = async (): Promise<boolean> => {
-@@ -187,7 +195,7 @@ const performHealthCheck = async (): Promise<boolean> => {
-     console.log('✅ Backend health check passed');
-     return true;
-   } catch (error) {
--    console.warn('⚠️ Backend health check failed (will retry):', error);
-+    console.warn('⚠️ Backend health check failed:', error);
-     return false;
-   }
- };
-@@ -200,13 +208,6 @@ const initializeApp = async () => {
-   try {
-     initializeSentry();
- 
--    const backendHealthy = await performHealthCheck();
--    if (backendHealthy) {
--      console.log('🟢 Backend connection established');
--    } else {
--      console.log('🟡 Backend unavailable - frontend operating in offline mode');
--    }
--
-     const rootElement = document.getElementById('root');
-     if (!rootElement) {
-       throw new Error('Root element not found in DOM');
-@@ -215,19 +216,30 @@ const initializeApp = async () => {
-     const root = ReactDOM.createRoot(rootElement);
-     root.render(
-       <React.StrictMode>
--        <App />
--      </React.StrictMode>
-+        <ErrorBoundary>
-+          <App />
-+        </ErrorBoundary>
-+      </React.StrictMode>,
-     );
- 
-     console.log(
-       '%c✅ RyanAI Command Center v4.5.0-matrix Ready',
--      'font-size: 14px; color: #00ff66; font-weight: bold; text-shadow: 0 0 10px #00ff66;'
-+      'font-size: 14px; color: #00ff66; font-weight: bold; text-shadow: 0 0 10px #00ff66;',
-     );
-     console.log(
-       `%c📍 API: ${API_BASE_URL}`,
--      'color: #00f3ff; font-family: monospace; font-size: 12px;'
-+      'color: #00f3ff; font-family: monospace; font-size: 12px;',
-     );
- 
-+    const backendHealthy = await performHealthCheck();
-+    if (backendHealthy) {
-+      console.log('🟢 Backend connection established');
-+    } else {
-+      console.log(
-+        '🟡 Backend unavailable - frontend operating in offline mode',
-+      );
-+    }
+-  async getGovernanceErrors(filter?: st
++  async getGovernanceErrors(filter?: string) {
++    const query = filter ? `?filter=${encodeURIComponent(filter)}` : '';
++    return this.request(`/governance/errors${query}`);
++  }
++}
 +
-     window.dispatchEvent(
-       new CustomEvent('ryanai-ready', {
-         detail: {
-@@ -236,21 +248,18 @@ const initializeApp = async () => {
-           backendHealthy,
-           timestamp: new Date().toISOString(),
-         },
--      })
-+      }),
-     );
-   } catch (error) {
-     console.error('❌ Failed to initialize RyanAI Command Center:', error);
- 
--    const errorBoundary = document.getElementById('error-boundary');
--    const loadingScreen = document.getElementById('loading-screen');
--
--    if (errorBoundary && loadingScreen) {
--      loadingScreen.style.display = 'none';
--      errorBoundary.style.display = 'block';
--      const errorDetails = document.getElementById('error-details');
--      if (errorDetails) {
--        errorDetails.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
--      }
-+    const rootElement = document.getElementById('root');
-+    if (rootElement) {
-+      const message = document.createElement('p');
-+      message.setAttribute('role', 'alert');
-+      message.textContent =
-+        'RyanAI could not start. Reload the page to try again.';
-+      rootElement.replaceChildren(message);
-     }
- 
-     window.dispatchEvent(
-@@ -259,7 +268,7 @@ const initializeApp = async () => {
-           error: error instanceof Error ? error.message : 'Unknown error',
-           timestamp: new Date().toISOString(),
-         },
--      })
-+      }),
-     );
- 
-     throw error;
-@@ -271,21 +280,17 @@ const initializeApp = async () => {
- // ============================================================================
- 
- if (document.readyState === 'loading') {
--  document.addEventListener('DOMContentLoaded', initializeApp);
-+  document.addEventListener(
-+    'DOMContentLoaded',
-+    () => {
-+      void initializeApp().catch(console.error);
-+    },
-+    { once: true },
++export const ryanClient = new RyanAIClient(API_BASE_URL, '1.1.0');
++
++// ============================================================================
++// NON-BLOCKING BACKGROUND HEALTH CHECK
++// ============================================================================
++
++getPlatformHealth()
++  .then((health) => {
++    console.log('✅ RyanAI Platform Health Verified:', health);
++  })
++  .catch((err) => {
++    console.warn('⚠️ RyanAI Backend API offline or unreachable (UI mounted in standalone mode):', err.message);
++  });
++
++// ============================================================================
++// DOM MOUNTING
++// ============================================================================
++
++const rootElement = document.getElementById('root');
++
++if (rootElement) {
++  ReactDOM.createRoot(rootElement).render(
++    <React.StrictMode>
++      <ErrorBoundary>
++        <App/>
++      </ErrorBoundary>
++    </React.StrictMode>
 +  );
- } else {
-   initializeApp().catch(console.error);
- }
- 
--// ============================================================================
--// HOT MODULE REPLACEMENT (HMR) FOR DEVELOPMENT
--// ============================================================================
--
--if (import.meta.hot) {
--  import.meta.hot.accept('./App', () => {
--    console.log('🔄 Hot module replacement triggered');
--  });
--}
--
- // ============================================================================
- // DEVELOPMENT UTILITIES
- // ============================================================================
-@@ -307,7 +312,7 @@ if (APP_ENV === 'development') {
- 
-   console.log(
-     '%c💻 Development Mode - Debug utilities available at window.__DEV__',
--    'color: #00f3ff; font-size: 12px; font-family: monospace;'
-+    'color: #00f3ff; font-size: 12px; font-family: monospace;',
-   );
- }
- 
-@@ -315,4 +320,4 @@ if (APP_ENV === 'development') {
- // EXPORT FOR TYPE SAFETY
- // ============================================================================
- 
--export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
-\ No newline at end of file
-+export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
--- 
-2.49.0
-
++} else {
++  console.error('Fatal: Root DOM element #root not found in document.');
++}
