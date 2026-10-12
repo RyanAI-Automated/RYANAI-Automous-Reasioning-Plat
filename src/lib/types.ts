@@ -5,6 +5,12 @@ import modelCatalog from '../../models/catalog.json';
 
 export type ModelId = (typeof modelCatalog.models)[number]['id'];
 
+export interface SystemStatus {
+  cpu: number | null; // Allow null
+  // ... other properties
+}
+
+
 export interface ModelMeta {
   id: string;
   name: string;
