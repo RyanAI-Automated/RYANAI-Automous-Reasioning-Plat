@@ -19,7 +19,6 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
   isLoading,
 }) => {
   return (
-    // Fixed: Use standard 'ref' on the native div element instead of 'containerRef'
     <div ref={containerRef} className="flex flex-col space-y-4 overflow-y-auto p-4 h-full w-full">
       {messages.map((msg) => (
         <div
@@ -30,9 +29,10 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
               : 'mr-auto bg-slate-800 text-slate-100 border border-slate-700'
           }`}
         >
-          <span className="text-xs font-semibold opacity-70 mb-1 capitalize">
-            {msg.role}
-          </span>
+          <div className="flex justify-between items-center mb-1 opacity-70 text-xs">
+            <span className="font-semibold capitalize">{msg.role}</span>
+            {msg.timestamp && <span>{msg.timestamp}</span>}
+          </div>
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
         </div>
       ))}
