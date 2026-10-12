@@ -1,6 +1,10 @@
 import { requireAdmin } from './auth.js';
 import { FastifyPluginAsync } from 'fastify';
 
+/**
+ * Register admin-only process metrics: uptime in seconds and memory in MiB.
+ * Database status is reported as unknown without probing the database.
+ */
 export const metricsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireAdmin);
 

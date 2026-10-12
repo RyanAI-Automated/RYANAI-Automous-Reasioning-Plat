@@ -5,6 +5,10 @@ import fastifyWebsocket from '@fastify/websocket';
 import { primaryBrain } from '../config/brains';
 import { HumanMessage } from '@langchain/core/messages';
 
+/**
+ * Register the WebSocket plugin and a route that streams primary-brain tokens.
+ * Malformed requests and provider failures are sent to the client as error messages.
+ */
 export async function registerWebsocketGateway(fastify: FastifyInstance) {
   await fastify.register(fastifyWebsocket);
 

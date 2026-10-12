@@ -5,6 +5,11 @@ import { EmergencyVoiceAlertService } from '../services/emergencyVoiceAlert';
 const ebpfSentinel = new EbpfSentinelService();
 const emergencyVoiceAlert = new EmergencyVoiceAlertService();
 
+/**
+ * Register policy evaluation for agent execution requests.
+ * A denial attempts process termination and a background voice alert before HTTP 403;
+ * an allowed request is acknowledged without executing its command.
+ */
 export async function agentExecuteRoutes(fastify: FastifyInstance) {
   fastify.post('/api/v1/agent/execute', async (request: FastifyRequest, reply: FastifyReply) => {
     const inputPayload = request.body as { pid?: number; command?: string };

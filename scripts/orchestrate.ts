@@ -110,6 +110,10 @@ async function runService(serviceName: string): Promise<boolean> {
   });
 }
 
+/**
+ * Probe the HTTP health endpoint with a five-second timeout.
+ * Database and Redis entries are skipped; failed probes do not change the true result.
+ */
 async function runHealthChecks(): Promise<boolean> {
   logger.info('Running health checks...');
 

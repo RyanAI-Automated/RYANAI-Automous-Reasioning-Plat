@@ -43,8 +43,9 @@ export class GitHubShipper {
   }
 
   /**
-   * Low-level Git Data API Commit & Push
-   * Atomically stages multiple files, builds a new tree, generates a commit, and moves the branch ref.
+   * Create a GitHub commit for the supplied files and advance the branch without force.
+   * By default, a missing branch is created from main. Return commit and tree SHAs;
+   * API failures propagate and may leave a new branch or Git objects behind.
    */
   async commitAndPushFiles(opts: CommitAndPushOptions): Promise<{ commitSha: string; treeSha: string }> {
     const { owner, repo, branch, commitMessage, files, createBranchIfMissing = true } = opts;

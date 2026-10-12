@@ -7,6 +7,10 @@ interface AgentTriggerBody {
   objective: string;
 }
 
+/**
+ * Register objective execution through the agent graph.
+ * Missing objectives return HTTP 400; invocation failures become HTTP 500 results.
+ */
 export async function agentOpsRoutes(fastify: FastifyInstance) {
   fastify.post("/api/agent/evolve", async (request: FastifyRequest<{ Body: AgentTriggerBody }>, reply: FastifyReply) => {
     const { objective } = request.body;

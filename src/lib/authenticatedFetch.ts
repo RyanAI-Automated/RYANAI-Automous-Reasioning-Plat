@@ -1,7 +1,14 @@
 import { supabase } from './supabase';
 import { API_BASE_URL } from './apiBaseUrl';
 
-/** Send a current session only to our configured API, never an arbitrary URL. */
+/**
+ * Send a current session only to our configured API, never an arbitrary URL.
+ * Targets must have the configured origin and a /api/ path.
+ * Relative URLs resolve against that API. Overrides Authorization, omits cookies, and
+ * rejects redirects. Returns the fetch Response even for unsuccessful HTTP statuses.
+ * Invalid URLs, disallowed targets, missing configuration/session, session lookup
+ * failures, and fetch failures reject the request.
+ */
 export async function authenticatedFetch(
   input: string,
   init: RequestInit = {},

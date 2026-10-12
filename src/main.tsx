@@ -1,6 +1,6 @@
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Analytics } from '@vercel/analytics/react';
 import App from './App';
 import './index.css';
 import { API_BASE_URL } from './lib/apiBaseUrl';
@@ -12,7 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 // ============================================================================
 
 const APP_VERSION = '4.5.0-matrix';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const APP_ENV = import.meta.env.MODE;
 
 class RyanAIClient {
   private baseURL: string;
@@ -29,22 +29,20 @@ class RyanAIClient {
   /**
    * Make API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     endpoint: string,
     options: RequestInit & { method?: string } = {},
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
-
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.baseURL}/health`);
-      return res.ok;
-    } catch {
-      return false;
-    }
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type'))
+      headers.set('Content-Type', 'application/json');
+    if (!headers.has('X-App-Version'))
+      headers.set('X-App-Version', this.version);
+    const response = await authenticatedFetch(url, { ...options, method, headers });
+    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    return response.json() as Promise<T>;
   }
 
   /**
@@ -122,6 +120,13 @@ const apiClient = new RyanAIClient(API_BASE_URL, APP_VERSION);
 
 declare global {
   interface Window {
+    __DEV__?: {
+      apiClient: RyanAIClient;
+      logs: Console;
+      simulatePipeline: () => Promise<unknown>;
+      simulateError: (errorId: string) => Promise<unknown>;
+      checkHealth: () => Promise<boolean>;
+    };
     ryanai: {
       client: RyanAIClient;
       version: string;
@@ -284,11 +289,3 @@ if (APP_ENV === 'development') {
 // ============================================================================
 
 export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}

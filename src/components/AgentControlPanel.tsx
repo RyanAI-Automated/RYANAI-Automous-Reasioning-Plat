@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { TauriBridge } from "../services/tauriBridge";
 
+/** Render an objective input with execution progress, output, and caught errors. */
 export function AgentControlPanel() {
   const [objective, setObjective] = useState("");
   const [output, setOutput] = useState("");
