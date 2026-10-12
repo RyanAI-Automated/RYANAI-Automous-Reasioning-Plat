@@ -44,7 +44,11 @@ export class PipelineOrchestrator {
   }
 
   /**
-   * Execute all 5 pipeline phases sequentially
+   * Run pipeline phases sequentially, stopping early on validation or policy failure.
+   * Compile the current workspace and optionally ship files when autoShip is true;
+   * the test phase currently records a simulated result. Attempt WhatsApp and email
+   * reports even on failure, then return phase outcomes and durations in milliseconds.
+   * Dispatch errors set dispatchReportSent to false without changing overallStatus.
    */
   async runPipeline(config: PipelineConfig): Promise<OrchestratorRunResult> {
     const startTime = Date.now();

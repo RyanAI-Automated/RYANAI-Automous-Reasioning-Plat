@@ -4,6 +4,10 @@ import twilio from 'twilio';
 
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
+/**
+ * Send a WhatsApp message to a number without the `whatsapp:` prefix.
+ * Return a confirmation containing the SID, or a failure message if sending throws.
+ */
 export const sendWhatsAppTool = tool(
   async ({ to, message }) => {
     try {
