@@ -216,13 +216,9 @@ function registerCoreRoutes() {
     };
   };
 
-<<<<<<< HEAD
-fastify.get('/health', healthCheck);
-fastify.get(API_ROUTES.healthPath, healthCheck);
-=======
+
   fastify.get('/health', healthCheck);
   fastify.get('/api/health', healthCheck);
->>>>>>> 46f6e7a (fix(auth): enforce rate limits before provider verification)
 
   // Sentry integration test route
   fastify.get('/debug-sentry', async () => {
@@ -290,54 +286,11 @@ fastify.get(API_ROUTES.healthPath, healthCheck);
     },
   );
 
-<<<<<<< HEAD
-  return {
-    success: true,
-    objective: prompt,
-    output,
-    reasoningTrace,
-    engine: 'RyanAI LangGraph ReAct',
-    response: output,
-    trace: reasoningTrace,
-    timestamp: new Date().toISOString(),
-  };
-}
 
-fastify.post<{ Body: { prompt?: string; model?: string } }>(
-  API_ROUTES.reasonPath,
-  async (request, reply) => {
-    const prompt = request.body?.prompt?.trim();
-    if (!prompt) {
-      return reply
-        .code(400)
-        .send({ success: false, error: 'A non-empty prompt is required' });
-    }
-
-    try {
-      return await runReasoning(prompt, request.body?.model);
-    } catch (err) {
-      fastify.log.error({ err }, 'Reasoning request failed');
-      return reply.code(502).send({
-        success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Reasoning provider request failed',
-      });
-    }
-  },
-);
-
-// Reasoning stream endpoint
-fastify.post<{ Body: { prompt?: string; sessionId?: string; model?: string } }>(
-  API_ROUTES.streamPath,
-  async (request, reply) => {
-=======
   // Reasoning stream endpoint
   fastify.post<{
     Body: { prompt?: string; sessionId?: string; model?: string };
   }>('/api/reasoning/stream', async (request, reply) => {
->>>>>>> 46f6e7a (fix(auth): enforce rate limits before provider verification)
     const prompt = request.body?.prompt?.trim();
     const { sessionId } = request.body || {};
     if (!prompt) {
@@ -507,3 +460,4 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 start();
+
