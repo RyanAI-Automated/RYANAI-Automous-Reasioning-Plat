@@ -16,6 +16,7 @@ export async function checkWebSocket(
       followRedirects: false,
     });
     let settled = false;
+    /** Settle the check once, clearing its timer and terminating the socket. */
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
