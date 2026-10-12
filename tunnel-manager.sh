@@ -8,7 +8,7 @@
 set -euo pipefail
 
 # --- Configuration ---
-GATEWAY_PORT="${1:-8080}"
+GATEWAY_PORT="${1:-3000}"
 LOG_FILE="/tmp/ryanai_cloudflared.log"
 ENV_FILE=".env.tunnel"
 MAX_WAIT_SECONDS=15
@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 # --- 1. Dependency Resolution ---
 if ! command -v cloudflared &> /dev/null; then
@@ -31,7 +31,7 @@ if ! command -v cloudflared &> /dev/null; then
     log_success "cloudflared installed successfully."
 fi
 
-# --- 2. Conflict Cleanup (No Fails) ---
+# --- 2. Conflict Cleanup ---
 log_info "Sweeping for orphaned tunnel processes..."
 if pgrep -x "cloudflared" > /dev/null; then
     pkill -x "cloudflared"
@@ -41,7 +41,7 @@ fi
 # Empty the log file for a fresh read
 > "$LOG_FILE"
 
-# --- 3. Background Execution (No Blocks) ---
+# --- 3. Background Execution ---
 log_info "Initializing secure edge tunnel to local port ${GATEWAY_PORT}..."
 # Run entirely detached from the terminal session
 nohup cloudflared tunnel --url "http://localhost:${GATEWAY_PORT}" > "$LOG_FILE" 2>&1 &
@@ -72,8 +72,9 @@ WSS_URL="${TUNNEL_URL/https/wss}/api/telemetry/stream"
 API_URL="${TUNNEL_URL}/api/inference/execute"
 
 cat <<EOF > "$ENV_FILE"
-# RyanAI Dynamic Tunnel Configuration
+# RyanAI Dynamic Tunnel Configuration (v1.1.0)
 # Auto-generated on $(date)
+VITE_API_BASE_URL="$TUNNEL_URL"
 NEXT_PUBLIC_INFERENCE_URL="$API_URL"
 NEXT_PUBLIC_TELEMETRY_WSS="$WSS_URL"
 EOF
