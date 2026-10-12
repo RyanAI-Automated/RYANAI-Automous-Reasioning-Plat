@@ -18,11 +18,7 @@ export function verifyEnv(env: EnvConfig): boolean {
   return isValid;
 }
 
-/**
- * Probe PostgreSQL and Redis, returning false when a connection check fails.
- * Close the database pool after its probe; pool cleanup and client construction
- * errors propagate rather than becoming a false result.
- */
+/** Verifies PostgreSQL and Redis connectivity using current environment configuration, returning overall success. */
 export async function verifyEnvironment(): Promise<boolean> {
   console.log('Verifying RyanAI infrastructure connections...');
   let allPassed = true;

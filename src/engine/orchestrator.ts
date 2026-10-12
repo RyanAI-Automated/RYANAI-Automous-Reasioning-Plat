@@ -1,9 +1,11 @@
 // File path: ./src/engine/orchestrator.ts
 
-import { ryanAiGraph } from "./graph";
-import { primaryBrain, secondaryBrain, logicBrain } from "../config/brains";
+import { ryanAiGraph } from "./graph.js";
+import { primaryBrain, secondaryBrain, logicBrain } from "../config/brains.js";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { MemoryRepository } from "../database/memory";
+import { MemoryRepository } from "../database/memory.js";
+import { SelfPatchSkill } from "./selfPatchSkill.js";
+import { CsScriptTool } from "../agent/tools/csScriptTool.js";
 
 // Define the state interface for the LangGraph workflow
 export interface RyanAIState {
@@ -12,6 +14,11 @@ export interface RyanAIState {
   primaryOutput: string;
   finalValidation: string;
   errors: string[];
+}
+
+export interface ReasoningContext {
+  goal: string;
+  history: string[];
 }
 
 export class RyanAIOrchestrator {
@@ -72,7 +79,7 @@ export class RyanAIOrchestrator {
 
     console.log("[Primary Brain] Executing core synthesis...");
 
-    // 2. Primary Brain executes the heavy reasoning based on the plan
+    // 2. Primary Brain executes heavy reasoning based on the plan
     const executionPrompt = new SystemMessage("You are the Primary Brain. Execute the following execution plan with high precision.");
     const planMessage = new HumanMessage(logicResponse.content.toString());
     const primaryResponse = await primaryBrain.invoke([executionPrompt, planMessage]);
@@ -110,4 +117,53 @@ export class RyanAIOrchestrator {
       }
     };
   }
+
+  /**
+   * Executes a reasoning and self-improvement cycle using autonomous tool invocation.
+   */
+  public static async executeCycle(goal: string): Promise<{ success: boolean; output: string; error?: string }> {
+    console.log(`[RyanAI Orchestrator] Starting reasoning cycle for goal: "${goal}"`);
+
+    // Handle self-patching goals
+    if (goal.startsWith('patch:')) {
+      const parts = goal.replace('patch:', '').trim().split('|');
+      const filePath = parts[0]?.trim();
+      const patchContent = parts[1]?.trim();
+
+      if (!filePath || !patchContent) {
+        return { success: false, output: "", error: 'Invalid patch format. Use "patch: filePath | content"' };
+      }
+
+      const result = await SelfPatchSkill.applyAndVerifyPatch({
+        filePath,
+        patchContent,
+      });
+
+      const isSuccess = result.status === "success";
+      return {
+        success: isSuccess,
+        output: isSuccess ? `Successfully patched and verified ${filePath}` : "",
+        error: isSuccess ? undefined : (result.error || result.message || 'Patch failed'),
+      };
+    }
+
+    // Handle script execution goals
+    if (goal.startsWith('cs-exec:')) {
+      const scriptCode = goal.replace('cs-exec:', '').trim();
+      const execResult = await CsScriptTool.executeScript(scriptCode);
+      return {
+        success: execResult.success,
+        output: execResult.output || '',
+        error: execResult.error,
+      };
+    }
+
+    return {
+      success: true,
+      output: `Autonomous reasoning loop acknowledged goal: "${goal}". No direct execution trigger matched.`,
+    };
+  }
 }
+
+// Alias for backwards compatibility if referenced elsewhere as RyanOrchestrator
+export const RyanOrchestrator = RyanAIOrchestrator;

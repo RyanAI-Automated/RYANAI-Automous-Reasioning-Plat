@@ -1,28 +1,9 @@
 {
-  "name": "RYANAI Development",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "name": "RyanAI",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
   "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
-    },
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
-      "helm": "latest",
-      "kubectl": "latest",
-      "minikube": "none"
-    }
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "npm ci --legacy-peer-deps",
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
-        "ms-vscode.vscode-typescript-next",
-        "github.copilot",
-        "ms-kubernetes-tools.vscode-kubernetes-tools"
-      ]
-    }
-  },
-  "remoteUser": "node"
+  "forwardPorts": [1420, 3001, 8765, 9090],
+  "postCreateCommand": "npm ci --legacy-peer-deps"
 }

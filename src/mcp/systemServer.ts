@@ -28,10 +28,7 @@ export class SystemMcpServer {
     this.setupHandlers();
   }
 
-  /**
-   * Register a Docker log tool returning the last 50 lines of container output.
-   * Invalid identifiers, unknown tools, and command failures become MCP error results.
-   */
+  /** Registers the MCP list-tools and call-tool handlers for system diagnostics and container log retrieval. */
   private setupHandlers() {
     // List available system tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
