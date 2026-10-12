@@ -1,10 +1,17 @@
+# =====================================================================
+# RyanAI Autonomous Reasoning Platform - Production Docker Compose
+# =====================================================================
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    container_name: ryanai-db
     environment:
       POSTGRES_USER: ryanai
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: ryanai_db
+    networks:
+      - ryanai-net
     ports:
       - '127.0.0.1:5432:5432'
     volumes:
@@ -24,6 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: ryanai-redis
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     command:
@@ -32,6 +40,8 @@ services:
       - 'yes'
       - --requirepass
       - ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    networks:
+      - ryanai-net
     ports:
       - '127.0.0.1:6379:6379'
     volumes:
@@ -49,6 +59,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+    container_name: ryanai-api
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -61,6 +72,8 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
       OPENAI_ALLOWED_MODELS: ${OPENAI_ALLOWED_MODELS:-gpt-4o,gpt-4o-mini}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+    networks:
+      - ryanai-net
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,6 +101,7 @@ services:
     build:
       context: .
       dockerfile: mcp-server/Dockerfile
+    container_name: ryanai-mcp
     environment:
       NODE_ENV: production
       RYANAI_MCP_TRANSPORT: http
@@ -102,6 +116,8 @@ services:
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
       QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
+    networks:
+      - ryanai-net
     depends_on:
       api:
         condition: service_healthy
@@ -129,10 +145,13 @@ services:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    container_name: ryanai-web
     environment:
       PORT: 80
       API_HOST: api
       API_PORT: 3000
+    networks:
+      - ryanai-net
     depends_on:
       api:
         condition: service_healthy
@@ -153,6 +172,10 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+
+networks:
+  ryanai-net:
+    driver: bridge
 
 volumes:
   postgres_data:
