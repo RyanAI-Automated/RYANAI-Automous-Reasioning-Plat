@@ -1,0 +1,32 @@
+{
+  "autonomous-reasoning": {
+    "schema": {
+      "name": "autonomous-reasoning",
+      "description": "LangGraph ReAct orchestration core for sovereign multi-step reasoning and tool execution.",
+      "version": "2.1.0",
+      "endpoints": ["/api/reason", "/api/reasoning/stream"]
+    },
+    "integratedAt": "2026-10-12T00:00:00.000Z",
+    "authorizedBy": "Ntsiyeni Ganyane (Sir G)"
+  },
+  "sovereign-firewall": {
+    "schema": {
+      "name": "sovereign-firewall",
+      "description": "Zero-trust access control enforcing absolute master clearance and backdoor isolation.",
+      "version": "1.0.0",
+      "enforcementLevel": "absolute"
+    },
+    "integratedAt": "2026-10-12T00:00:00.000Z",
+    "authorizedBy": "Ntsiyeni Ganyane (Sir G)"
+  },
+  "agent-pa-core": {
+    "schema": {
+      "name": "agent-pa-core",
+      "description": "Personal Assistant daemon handling self-management, error diagnostics, and dynamic patching.",
+      "version": "2.1.0-masterpiece",
+      "command": "npm run agent:pa"
+    },
+    "integratedAt": "2026-10-12T00:00:00.000Z",
+    "authorizedBy": "Ntsiyeni Ganyane (Sir G)"
+  }
+}
