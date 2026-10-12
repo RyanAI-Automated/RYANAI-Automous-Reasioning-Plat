@@ -1,12 +1,17 @@
+# syntax=docker/dockerfile:1
+
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Dependency lifecycle scripts remain enabled; the root addon is opt-in.
+# Install system dependencies required for native modules (e.g., Prisma)
 RUN apk add --no-cache libc6-compat
+
+# Copy dependency manifests first to leverage Docker layer caching
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev --legacy-peer-deps
 
+# Copy configuration and source files
 COPY tsconfig*.json ./
 COPY src ./src
 COPY scripts/copy-server-assets.mjs ./scripts/copy-server-assets.mjs
@@ -14,18 +19,23 @@ COPY models/catalog.json ./models/catalog.json
 COPY app/routes.json ./app/routes.json
 COPY prisma ./prisma
 
+# Generate Prisma client, build the server, and prune dev dependencies
 RUN npm run db:generate \
     && npm run build:server \
-    && npm prune --omit=dev --legacy-peer-deps
+    && npm prune --omit=dev
 
+# ==========================================
+# Runner Stage
+# ==========================================
 FROM node:22-alpine AS runner
 
 WORKDIR /app
+
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000
 
-# Patch verification uses npm; keep its bundled dependencies patched too.
+# Install runtime utilities and patch bundled npm vulnerabilities
 RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && npm install --global npm@11.21.0 \
     && npm install --prefix /tmp/npm-security-patches --install-strategy=nested \
@@ -40,15 +50,18 @@ RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && mkdir -p /app/logs \
     && chown -R node:node /app
 
+# Copy production artifacts from the builder stage
 COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=builder --chown=node:node /app/dist/models ./dist/models
 
+# Drop privileges to non-root user for enhanced security
 USER node
 EXPOSE 3000
 
+# Container health check using Node's native fetch API
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
