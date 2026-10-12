@@ -10,6 +10,15 @@ export interface SystemStatus {
   // ... other properties
 }
 
+export interface SystemStatus {
+  cpu: number | null;        // Allowed to be null when metrics aren't reporting
+  memory?: number | null;    // Allowed to be null
+  disk?: number | null;      // Allowed to be null
+  status: 'healthy' | 'degraded' | 'offline';
+  uptime?: number;
+  activeAgents?: number;
+  [key: string]: any;        // Fallback for any extra dynamic telemetry fields
+}
 
 export interface ModelMeta {
   id: string;
