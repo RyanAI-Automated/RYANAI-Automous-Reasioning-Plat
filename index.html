@@ -2,15 +2,9 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport"
-				<meta name="theme-color" content="#0b0f19" />
-    <meta name="author" content="Ntsiyeni Ganyane">
- content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b0f19" />
-    <meta
-      name="description"
-      content="RyanAI Autonomous Reasoning Engine & Developer Workspace by Ntsiyeni Ganyane."
-    />
+    <meta name="description" content="RyanAI Autonomous Reasoning Engine & Developer Workspace by Ntsiyeni Ganyane." />
     <meta name="author" content="Ntsiyeni Ganyane" />
 
     <!-- Favicon -->
@@ -21,54 +15,6 @@
     />
 
     <title>RyanAI | Autonomous Reasoning & Dev Platform</title>
-
-    <!-- Fonts -->
-    <title>RyanAI | Autonomous Reasoning Engine & Dev Platform</title>
-
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              cyber: {
-                bg: '#0b0f19',
-                panel: '#111827',
-                card: '#0f172a',
-                border: '#1e293b',
-                cyan: '#22d3ee',
-                purple: '#a855f7',
-                emerald: '#10b981',
-                amber: '#f59e0b',
-                rose: '#f43f5e'
-              }
-            },
-            fontFamily: {
-              orbitron: ['Orbitron', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-              sans: ['Inter', 'sans-serif'],
-              space: ['Space Grotesk', 'sans-serif']
-            }
-          }
-        }
-      }
-    </script>
-
-    <!-- Lucide Icons & React / Babel CDNs -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
 
     <!-- Open Graph / Social Meta -->
     <meta property="og:type" content="website" />
@@ -118,30 +64,6 @@
           <span style="opacity: 0.85"
             >Mounting autonomous reasoning workspace & developer tools...</span
           >
-    <style>
-      body {
-        background-color: #0b0f19;
-        font-family: 'Inter', sans-serif;
-        color: #f1f5f9;
-      }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #0b0f19; }
-      ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: #22d3ee; }
-      .glass-panel {
-        background: rgba(17, 24, 39, 0.85);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-      }
-    </style>
-  </head>
-  <body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
-    <div id="root">
-      <!-- Loading Placeholder -->
-      <div style="height: 100vh; display: grid; place-items: center; padding: 2rem; background: #0b0f19; color: #94a3b8; font: 500 14px/1.5 'Inter', sans-serif; text-align: center;">
-        <div>
-          <strong style="display: block; color: #22d3ee; font: 900 26px/1.2 'Orbitron', sans-serif; letter-spacing: 0.08em; margin-bottom: 0.75rem;">RYANAI PLATFORM</strong>
-          <span>Mounting autonomous reasoning workspace & developer tools...</span>
         </div>
       </div>
     </div>
@@ -185,137 +107,5 @@
     </noscript>
 
     <script type="module" src="/src/main.tsx"></script>
-    <!-- MERGED INLINE MAIN APPLICATION SCRIPT -->
-    <script type="text/babel" data-presets="react,typescript">
-      const APP_VERSION = '4.5.0-matrix';
-      const API_BASE_URL = window.location.origin;
-
-      class RyanAIClient {
-        constructor(baseURL, version) {
-          this.baseURL = baseURL;
-          this.version = version;
-        }
-
-        async request(endpoint, options = {}) {
-          const url = `${this.baseURL}${endpoint}`;
-          try {
-            const response = await fetch(url, {
-              ...options,
-              headers: {
-                'Content-Type': 'application/json',
-                'X-App-Version': this.version,
-                ...options.headers,
-              },
-            });
-            if (!response.ok) throw new Error(`API Error: ${response.status}`);
-            return await response.json();
-          } catch (error) {
-            console.warn(`API Request fallback mode for ${endpoint}`);
-            return { status: 'offline', endpoint };
-          }
-        }
-
-        async healthCheck() {
-          return { status: 'healthy', timestamp: new Date().toISOString() };
-        }
-      }
-
-      const apiClient = new RyanAIClient(API_BASE_URL, APP_VERSION);
-      window.ryanai = { client: apiClient, version: APP_VERSION, apiUrl: API_BASE_URL };
-
-      // Root App Component
-      const App = () => {
-        const [activeTab, setActiveTab] = React.useState('reasoning');
-
-        React.useEffect(() => {
-          if (window.lucide) {
-            window.lucide.createIcons();
-          }
-        }, [activeTab]);
-
-        return (
-          <div class="min-h-screen flex flex-col">
-            {/* Header */}
-            <header class="border-b border-slate-800 bg-[#0f172a]/90 backdrop-blur-md sticky top-0 z-50">
-              <div class="max-w-[1920px] mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
-                <div class="flex items-center space-x-3.5">
-                  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 via-purple-600 to-indigo-700 p-0.5 shadow-lg shadow-cyan-500/20">
-                    <div class="w-full h-full bg-[#0b0f19] rounded-[10px] flex items-center justify-center">
-                      <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
-                    </div>
-                  </div>
-                  <div>
-                    <h1 class="font-orbitron font-bold text-lg tracking-wider text-cyan-400">
-                      RYAN<span class="text-white">AI</span>
-                    </h1>
-                    <p class="text-xs text-slate-400">by <strong class="text-cyan-300">Ntsiyeni Ganyane</strong></p>
-                  </div>
-                </div>
-
-                <div class="flex items-center space-x-2 text-xs font-mono">
-                  <span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-cyan-300">
-                    Model: Ryan-R1-Reasoning
-                  </span>
-                  <span class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400">
-                    Agent: ONLINE
-                  </span>
-                </div>
-              </div>
-
-              {/* Navigation */}
-              <div class="border-t border-slate-800 bg-[#0b0f19]/90 px-4">
-                <div class="max-w-[1920px] mx-auto flex items-center space-x-2 text-sm font-medium py-2">
-                  <button 
-                    onClick={() => setActiveTab('reasoning')}
-                    class={`px-4 py-2 rounded-lg transition-all ${activeTab === 'reasoning' ? 'bg-cyan-950/50 text-cyan-400 border border-cyan-800/50' : 'text-slate-400 hover:text-slate-200'}`}
-                  >
-                    Reasoning Engine
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('editor')}
-                    class={`px-4 py-2 rounded-lg transition-all ${activeTab === 'editor' ? 'bg-cyan-950/50 text-cyan-400 border border-cyan-800/50' : 'text-slate-400 hover:text-slate-200'}`}
-                  >
-                    Developer Workspace
-                  </button>
-                </div>
-              </div>
-            </header>
-
-            {/* Main Area */}
-            <main class="flex-grow max-w-[1920px] w-full mx-auto p-6 space-y-6">
-              {activeTab === 'reasoning' ? (
-                <div class="glass-panel rounded-2xl p-6 border border-slate-800 space-y-4">
-                  <h2 class="font-orbitron font-bold text-lg text-slate-100 flex items-center gap-2">
-                    <i data-lucide="bot" class="w-5 h-5 text-cyan-400"></i>
-                    Autonomous Task Synthesis
-                  </h2>
-                  <textarea 
-                    rows={4}
-                    class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm text-slate-100 focus:outline-none focus:border-cyan-400"
-                    defaultValue="Synthesize an autonomous distributed lock manager with Redis fallback, real-time deadlock detection, and fault-tolerant telemetry monitoring."
-                  />
-                  <div class="flex justify-end">
-                    <button class="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-bold rounded-xl shadow-lg shadow-cyan-500/20">
-                      Launch Autonomous Loop
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div class="glass-panel rounded-2xl p-6 border border-slate-800">
-                  <h2 class="font-orbitron font-bold text-lg text-slate-100">Developer Workspace Active</h2>
-                </div>
-              )}
-            </main>
-          </div>
-        );
-      };
-
-      // Mount App
-      const rootElement = document.getElementById('root');
-      if (rootElement) {
-        const root = ReactDOM.createRoot(rootElement);
-        root.render(<App />);
-      }
-    </script>
   </body>
 </html>

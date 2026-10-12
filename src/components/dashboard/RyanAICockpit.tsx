@@ -13,6 +13,7 @@ interface ReasoningResult {
   error?: string;
 }
 
+/** Render API health and a reasoning form that displays request failures and answers. */
 export default function RyanAICockpit() {
   const { health, error: healthError, checking, refresh } = usePlatformHealth();
   const [prompt, setPrompt] = useState('');
@@ -168,6 +169,7 @@ export default function RyanAICockpit() {
   );
 }
 
+/** Label a reported service state, preserving undefined as "Not reported". */
 function reported(value: boolean | undefined) {
   return value === true
     ? 'Healthy'
@@ -176,6 +178,7 @@ function reported(value: boolean | undefined) {
       : 'Not reported';
 }
 
+/** Render a labeled service status value. */
 function ServiceValue({ label, value }: { label: string; value: string }) {
   return (
     <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">

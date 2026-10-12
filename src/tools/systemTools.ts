@@ -7,7 +7,8 @@ import { promisify } from "util";
 const execAsync = promisify(exec);
 
 /**
- * Tool 1: Execute safe system diagnostics or check hardware load
+ * Return GPU diagnostics, a fresh Node process's memory usage, or a general status.
+ * Caught command failures become diagnostic failure messages.
  */
 export const systemDiagnosticsTool = tool(
   async ({ queryType }) => {

@@ -37,7 +37,13 @@ async function twilioPost(resource, params) {
   return data;
 }
 
-/** Send a Twilio WhatsApp message using a Content Template SID */
+/**
+ * Send a Twilio WhatsApp message using a Content Template SID.
+ * Supply to/from without the whatsapp: prefix. Nullish from/contentSid values use
+ * TWILIO_WHATSAPP_FROM/TWILIO_WHATSAPP_CONTENT_SID; missing defaults throw synchronously.
+ * Returns a promise for Twilio's parsed response, rejecting on missing account
+ * credentials, transport/JSON errors, or unsuccessful HTTP status.
+ */
 export function sendWhatsAppMessage({ to, from, contentSid }) {
   return twilioPost('Messages', {
     To: `whatsapp:${to}`,
@@ -46,7 +52,12 @@ export function sendWhatsAppMessage({ to, from, contentSid }) {
   });
 }
 
-/** Initiate an outbound voice call with a TwiML URL */
+/**
+ * Initiate an outbound voice call with a TwiML URL.
+ * A nullish from uses TWILIO_VOICE_FROM; a missing default throws synchronously.
+ * Returns a promise for Twilio's parsed response, rejecting on missing account
+ * credentials, transport/JSON errors, or unsuccessful HTTP status.
+ */
 export function makeVoiceCall({ to, from, twimlUrl }) {
   return twilioPost('Calls', {
     To: to,
