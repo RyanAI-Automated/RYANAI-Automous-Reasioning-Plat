@@ -11,9 +11,16 @@ export interface StreamEventData {
   error?: string;
 }
 
+/** Expose an authenticated reasoning stream callback and its active-request state. */
 export function useRyanStream() {
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
 
+  /**
+   * Read SSE progress and completed results, resetting streaming state when reading ends.
+   * onToken receives a complete result; onComplete runs only for a nonempty result event.
+   * Authentication, HTTP, stream, JSON, and Error-valued callback failures propagate.
+   * An ordinary end of stream does not require a completion event.
+   */
   const streamReasoning = useCallback(
     async (
       prompt: string,

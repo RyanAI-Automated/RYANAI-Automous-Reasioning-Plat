@@ -3,6 +3,10 @@ import { GitHubShipper, CommitAndPushOptions, CreatePullRequestOptions, CreateRe
 
 const shipper = new GitHubShipper();
 
+/**
+ * Register endpoints that create GitHub commits, pull requests, and releases.
+ * Caught provider failures become HTTP 500 responses.
+ */
 export async function githubRoutes(fastify: FastifyInstance) {
   // Direct multi-file commit & shipping route
   fastify.post('/api/v1/github/ship', async (req: FastifyRequest<{ Body: CommitAndPushOptions }>, reply: FastifyReply) => {

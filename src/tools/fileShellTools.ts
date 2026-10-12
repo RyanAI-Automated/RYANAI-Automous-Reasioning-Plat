@@ -10,7 +10,8 @@ const execAsync = promisify(exec);
 const WORKSPACE_ROOT = "C:\\Users\\General\\Downloads\\RYANAI Autonomous Reasoning Plat";
 
 /**
- * Tool 1: Workspace File Reader
+ * Read UTF-8 file contents under the configured workspace path.
+ * Return an access-denied or failure message when the prefix check or file read fails.
  */
 export const readFileTool = tool(
   async ({ filePath }) => {
@@ -35,7 +36,9 @@ export const readFileTool = tool(
 );
 
 /**
- * Tool 2: Secure Shell Executor
+ * Run a shell command in the configured workspace and return its output.
+ * Block the literal patterns rm -rf / and Format-Volume; other commands run without
+ * sandbox isolation. Caught execution failures become failure messages.
  */
 export const executeShellTool = tool(
   async ({ command }) => {

@@ -15,6 +15,7 @@ const WORKSPACE_DIR = process.cwd();
 export class RyanMCPServer {
   private server: Server;
 
+  /** Create the MCP server and install tool handlers without connecting a transport. */
   constructor() {
     this.server = new Server(
       {
@@ -31,6 +32,10 @@ export class RyanMCPServer {
     this.setupToolHandlers();
   }
 
+  /**
+   * Register workspace reading, script execution, diagnostics, and patching tools.
+   * Tool invocation exceptions are converted to MCP text results with isError set.
+   */
   private setupToolHandlers() {
     // List available tools exposed to external MCP clients
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -189,6 +194,10 @@ export class RyanMCPServer {
     });
   }
 
+  /**
+   * Validate patch arguments and return the serialized patch status as MCP text.
+   * Mark every non-success status as an error; invalid argument types reject.
+   */
   private async applyPatchTool(args: Record<string, unknown> | undefined) {
     const { filePath, patchContent, testScript } = args ?? {};
     if (
@@ -213,6 +222,7 @@ export class RyanMCPServer {
     };
   }
 
+  /** Connect the MCP server to standard input/output; connection errors propagate. */
   public async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);

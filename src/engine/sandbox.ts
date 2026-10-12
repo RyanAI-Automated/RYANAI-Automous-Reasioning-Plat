@@ -17,7 +17,12 @@ export interface SandboxResult {
 
 export class RyanAISandbox {
   /**
-   * Executes agent-generated code inside an isolated runtime container environment with safety limits
+   * Write a script and run it with host Node using sandbox-runtime as the working directory.
+   * The file remains on disk. Execution has a 10-second timeout and returns trimmed
+   * output; process failures become an unsuccessful result. Directory creation and
+   * file-write errors propagate before execution.
+   *
+   * @param fileName - Script path joined to sandbox-runtime; passed to a shell command.
    */
   public static async executeInSandbox(
     scriptContent: string,

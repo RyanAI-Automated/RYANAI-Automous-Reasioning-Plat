@@ -20,6 +20,11 @@ interface EmailBody {
   html: string;
 }
 
+/**
+ * Register WhatsApp, voice-call, and SMTP email delivery endpoints.
+ * Missing payloads return HTTP 400, unavailable Twilio configuration returns 503,
+ * and caught delivery failures become HTTP 500 responses.
+ */
 export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   // Initialize Twilio Client with safety check
   const accountSid = process.env.TWILIO_ACCOUNT_SID;

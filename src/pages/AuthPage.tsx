@@ -5,6 +5,10 @@ interface AuthPageProps {
   mode?: 'signin' | 'signup';
 }
 
+/**
+ * Render Supabase sign-in or signup, including provider errors and email confirmation.
+ * Authentication is disabled without a configured client; access follows session state.
+ */
 export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

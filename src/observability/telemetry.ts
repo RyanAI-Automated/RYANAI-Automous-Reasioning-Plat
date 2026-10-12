@@ -11,6 +11,11 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 export class RyanAITelemetry {
   private static sdk: NodeSDK | null = null;
 
+  /**
+   * Initialize the shared tracing SDK and register shutdown on SIGTERM.
+   * Repeated calls do nothing once an SDK exists. Construction errors propagate;
+   * synchronous start errors are caught and leave the SDK cached.
+   */
   static initialize() {
     if (this.sdk) return;
 

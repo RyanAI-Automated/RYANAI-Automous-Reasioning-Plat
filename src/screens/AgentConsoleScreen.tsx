@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { MobileApiClient } from "../services/mobileApiClient";
 
+/** Render a mobile objective form with request progress, output, and caught errors. */
 export function AgentConsoleScreen() {
   const [objective, setObjective] = useState("");
   const [output, setOutput] = useState("");

@@ -79,6 +79,11 @@ export class RyanAIClient {
     }
   }
 
+  /**
+   * Send a request and resolve with its matching response data.
+   * Rejects disconnected sends, server errors, serialization/send failures, or a response
+   * that has not arrived after 30 seconds.
+   */
   public send(channel: string, data: unknown): Promise<unknown> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -118,6 +123,10 @@ export class RyanAIClient {
     });
   }
 
+  /**
+   * Register a local event/stream listener and return a function that removes it.
+   * This does not send a subscription request to the server.
+   */
   public on(channel: string, handler: (data: unknown) => void): () => void {
     if (!this.eventHandlers.has(channel)) {
       this.eventHandlers.set(channel, []);
@@ -134,6 +143,11 @@ export class RyanAIClient {
     };
   }
 
+  /**
+   * Request reasoning and return the response's string result, or an empty string.
+   * A queued acknowledgment has no result; this method does not collect stream events.
+   * Request failures from send propagate.
+   */
   public async reasoning(prompt: string, context?: Record<string, unknown>): Promise<string> {
     const response = await this.send('reasoning.start', {
       prompt,
@@ -143,6 +157,10 @@ export class RyanAIClient {
     return typeof response === 'object' && response !== null && 'result' in response && typeof response.result === 'string' ? response.result : '';
   }
 
+  /**
+   * Resolve matching requests, dispatch event/stream data, and update authentication state.
+   * Synchronous listener errors propagate to the WebSocket message handler.
+   */
   private handleMessage(message: WebSocketMessage<{ authenticated?: boolean }>) {
     const { id, type, channel, data, error } = message;
 
@@ -168,6 +186,11 @@ export class RyanAIClient {
 }
 
 // Export Vue composable
+/**
+ * Create a WebSocket client with request and local-listener helpers.
+ * The returned connected/authenticated refs are copied after connect completes;
+ * subsequent client state changes do not automatically update these copies.
+ */
 export function useRyanAI(options?: ClientOptions) {
   const client = new RyanAIClient(options);
   const connected = ref(false);
