@@ -10,6 +10,10 @@ interface TelemetryPanelProps {
   sending: boolean;
 }
 
+/**
+ * Render supplied telemetry and tool steps, distinguishing missing metrics from zero.
+ * CPU and memory are percentages; latency is in milliseconds.
+ */
 export default function TelemetryPanel({
   status,
   steps,

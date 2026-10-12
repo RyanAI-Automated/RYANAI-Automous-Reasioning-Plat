@@ -3,6 +3,11 @@ import { DispatchService, PipelineReportPayload, SecurityAlertPayload } from '..
 
 const dispatch = new DispatchService();
 
+/**
+ * Register pipeline-report and security-alert dispatch endpoints.
+ * Pipeline reports send WhatsApp and email concurrently; a failure returns HTTP 500
+ * even if the other delivery succeeds.
+ */
 export async function dispatchRoutes(fastify: FastifyInstance) {
   // Trigger WhatsApp + Email dual dispatch
   fastify.post('/api/v1/dispatch/pipeline-report', async (req: FastifyRequest<{ Body: PipelineReportPayload }>, reply: FastifyReply) => {

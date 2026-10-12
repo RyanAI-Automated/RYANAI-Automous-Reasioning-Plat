@@ -1,6 +1,11 @@
 // src/shared/config.ts - Unified configuration loader
 import { AppConfig } from './types.js';
 
+/**
+ * Merge configuration defaults, environment values, and explicit overrides.
+ * Nested overrides take precedence over environment values; PORT overrides config.port.
+ * Numeric strings are parsed without range or NaN validation.
+ */
 function validateConfig(config: Partial<AppConfig>): AppConfig {
   const environment = process.env.NODE_ENV;
   const defaultNodeEnv: AppConfig['nodeEnv'] =

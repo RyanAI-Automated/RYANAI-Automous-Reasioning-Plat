@@ -15,6 +15,11 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SUPER_SECRET_RYAN_KEY_2026';
 
+/**
+ * Register domain, Google, WhatsApp OTP, and administrator sign-in routes.
+ * Handlers issue JWTs, write login audits, and may create users; the OTP flow also
+ * writes Redis state and sends WhatsApp messages.
+ */
 export async function authGatewayRoutes(fastify: FastifyInstance) {
   
   // 1. Register / Login with Enterprise @ryanai Domain

@@ -19,6 +19,10 @@ const reasoningRouteSchema = {
   },
 };
 
+/**
+ * Register reasoning status, execution acknowledgment, and simulated SSE progress routes.
+ * Create a vector cache manager and register its connection cleanup on app shutdown.
+ */
 export async function registerReasoningRoutes(fastify: FastifyInstance): Promise<void> {
   const vectorCache = new VectorCacheManager(
     process.env.REDIS_URL || "redis://localhost:6379",

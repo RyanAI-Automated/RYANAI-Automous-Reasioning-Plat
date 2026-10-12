@@ -15,6 +15,13 @@ reviews:
         name: clean up
         instructions: Test
 
+  profile: assertive
+  path_instructions:
+    - path: "src/**/*.ts"
+      instructions: "Focus on architecture and system design."
+
+tone_instructions: "Prioritize scalability and long-term maintainability."
+
 knowledge_base:
   opt_out: true
   automatic_linking_mode: enabled
