@@ -16,3 +16,22 @@ export const RYANAI_CORE = Object.freeze({
   ui: UI_CONFIG,
   activeSkills: ['autonomous-reasoning'],
 });
+
+interface CoreConfig {
+  version?: string;
+  environment?: string;
+  [key: string]: any;
+}
+
+let coreConfig: CoreConfig = {};
+
+try {
+  coreConfig = {
+    version: "0.1.0",
+    environment: import.meta.env.MODE || "production",
+  };
+} catch {
+  coreConfig = { version: "0.1.0" };
+}
+
+export default coreConfig;
