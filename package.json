@@ -180,3 +180,4 @@
                          "@prisma/engines@6.12.0":  true
                      }
 }
+"agent:pa": "tsx src/agents/agentPAScript.ts"
