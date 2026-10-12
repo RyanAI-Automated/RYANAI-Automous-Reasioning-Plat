@@ -99,6 +99,7 @@
     "@supabase/supabase-js": "^2.116.0",
     "@tauri-apps/api": "^2.11.1",
     "@types/pg": "^8.23.1",
+    "@types/uuid": "^10.0.0",
     "@vercel/analytics": "^2.0.1",
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
@@ -120,6 +121,7 @@
     "redis": "^6.2.1",
     "resend": "^6.28.1",
     "twilio": "^6.1.1",
+    "uuid": "^14.0.3",
     "ws": "^8.21.3",
     "xlsx": "^0.18.5",
     "zod": "^4.5.4",
@@ -128,6 +130,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@ngrok/ngrok": "^1.7.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@types/bcrypt": "^6.0.0",
     "@types/exceljs": "^0.5.3",
