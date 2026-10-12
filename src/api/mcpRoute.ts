@@ -14,6 +14,10 @@ interface McpPayload {
   [key: string]: unknown;
 }
 
+/**
+ * Register MCP status, payload echo, and Docker log retrieval endpoints.
+ * Log retrieval returns the last 50 lines; command failures become HTTP 500 responses.
+ */
 export async function registerMcpRoutes(fastify: FastifyInstance): Promise<void> {
   // Status check endpoint
   fastify.get('/api/mcp', async () => ({ 

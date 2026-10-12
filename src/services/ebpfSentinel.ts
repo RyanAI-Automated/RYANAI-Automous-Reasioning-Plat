@@ -7,9 +7,8 @@ export class EbpfSentinelService {
   private mapPath = '/sys/fs/bpf/blocked_pids';
 
   /**
-   * Mark the PID in the pinned blocked_pids map for the eBPF consumer.
-   * If the map update fails, attempt SIGKILL directly. Both failures are caught,
-   * so resolution does not confirm that the process was terminated.
+   * Mark a PID in the pinned eBPF map, falling back to process.kill with SIGKILL.
+   * Map-update and fallback-kill errors are caught; resolution does not confirm termination.
    */
   async terminatePidInKernel(pid: number): Promise<void> {
     try {

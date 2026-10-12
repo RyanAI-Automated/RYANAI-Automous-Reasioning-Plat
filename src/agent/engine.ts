@@ -24,8 +24,8 @@ const reasoningAgents = new Map<string, ReturnType<typeof createReactAgent>>();
 
 /**
  * Return the cached reasoning agent for a trimmed, enabled model name.
- * Omitting the name uses the configured default model.
- * @throws If the model is disabled or model/agent initialization fails.
+ * Creates and caches an agent on first use. Rejects disabled models and propagates
+ * model or agent construction errors.
  */
 export function getReasoningAgent(requestedModel = defaultModel) {
   const model = requestedModel.trim();

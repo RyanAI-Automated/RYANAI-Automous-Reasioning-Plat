@@ -32,12 +32,18 @@ export interface SecurityAlertPayload {
 export class DispatchService {
   // Read configuration at dispatch time so importing the service does not require
   // optional provider credentials, and failed delivery is never reported as success.
+  /** Read a trimmed dispatch setting at call time; throw if missing or blank. */
   private requiredEnv(name: string): string {
     const value = process.env[name]?.trim();
     if (!value) throw new Error(`Dispatch requires ${name}`);
     return value;
   }
 
+  /**
+   * Send text through Twilio and return its message SID.
+   * A blank or omitted target uses DEFAULT_RECIPIENT_PHONE; addresses gain a whatsapp:
+   * prefix when absent. Missing settings, provider errors, or a missing SID reject.
+   */
   private async sendWhatsApp(
     body: string,
     targetPhone?: string,
@@ -63,11 +69,9 @@ export class DispatchService {
      ========================================================================== */
 
   /**
-   * Send WhatsApp text update for pipeline completion.
-   * @param targetPhone - Recipient with or without whatsapp:; blank/omitted values
-   * use DEFAULT_RECIPIENT_PHONE. Configuration is read at send time.
-   * @returns The Twilio message SID.
-   * @throws For missing configuration, provider failures, or a missing message SID.
+   * Send WhatsApp text update for pipeline completion and return the Twilio message SID.
+   * payload.executionTimeMs is displayed in seconds. Blank or omitted targetPhone uses
+   * DEFAULT_RECIPIENT_PHONE; configuration and delivery errors propagate.
    */
   async sendWhatsAppPipelineUpdate(
     payload: PipelineReportPayload,
@@ -94,10 +98,9 @@ export class DispatchService {
 
   /**
    * Send urgent WhatsApp security alert for eBPF or Transcend blocks.
-   * @param targetPhone - Recipient with or without whatsapp:; blank/omitted values
-   * use DEFAULT_RECIPIENT_PHONE. Configuration is read at send time.
-   * @returns The Twilio message SID.
-   * @throws For missing configuration, provider failures, or a missing message SID.
+   * Returns the Twilio message SID.
+   * Blank or omitted targetPhone uses DEFAULT_RECIPIENT_PHONE; configuration and
+   * delivery errors propagate.
    */
   async sendWhatsAppSecurityAlert(
     payload: SecurityAlertPayload,
@@ -121,12 +124,9 @@ export class DispatchService {
      ========================================================================== */
 
   /**
-   * Dispatch full dark-mode HTML email report.
-   * @param payload - Report data; executionTimeMs is rendered in seconds and logUrl
-   * must be an absolute HTTP or HTTPS URL.
-   * @param targetEmail - Recipient; blank/omitted values use DEFAULT_RECIPIENT_EMAIL.
-   * @returns The Resend email ID.
-   * @throws For missing configuration, invalid log URLs, provider failures, or a missing ID.
+   * Dispatch full dark-mode HTML email report and return the Resend email ID.
+   * Blank or omitted targetEmail uses DEFAULT_RECIPIENT_EMAIL. Missing settings, invalid
+   * log URLs, provider failures, and responses without an email ID reject.
    */
   async sendPipelineEmailReport(
     payload: PipelineReportPayload,
@@ -154,8 +154,8 @@ export class DispatchService {
   }
 
   /**
-   * Generate a dark-mode HTML report with escaped text fields and a validated log link.
-   * @throws If logUrl cannot be parsed as an absolute URL or uses a non-HTTP(S) scheme.
+   * Render an HTML report with escaped text and executionTimeMs displayed in seconds.
+   * Throws if logUrl is not an absolute HTTP or HTTPS URL.
    */
   private renderEmailTemplate(payload: PipelineReportPayload): string {
     const escapeHtml = (value: string): string =>

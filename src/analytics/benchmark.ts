@@ -14,10 +14,10 @@ export interface BenchmarkResult {
 
 export class RyanAIBenchmarkEngine {
   /**
-   * Runs an active telemetry benchmark across all three local brain nodes.
-   * Returns per-model latency in milliseconds and token estimates based on four
-   * characters per token. Model failures become unsuccessful results; persistence
-   * is attempted but database failures do not reject the benchmark.
+   * Run a telemetry benchmark across all three configured brain nodes.
+   * Return latency in milliseconds and throughput estimated at four characters per
+   * token. Model failures become failed results; database archival is attempted,
+   * but persistence failures do not prevent returning the results.
    */
   static async runClusterBenchmark(testPrompt = "Evaluate the efficiency of eBPF packet filtering over standard socket routing."): Promise<BenchmarkResult[]> {
     console.log("[Benchmark] Initiating cluster performance analysis...");

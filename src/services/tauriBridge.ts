@@ -8,10 +8,7 @@ export interface AgentResponse {
 }
 
 export class TauriBridge {
-  /**
-   * Invoke the desktop objective command and return its response.
-   * IPC failures reject as Error instances with the supplied failure text.
-   */
+  /** Invoke the desktop objective command, wrapping IPC failures in an Error. */
   public static async executeObjective(objective: string): Promise<AgentResponse> {
     try {
       const response = await invoke<AgentResponse>("trigger_agent_objective", { objective });
@@ -22,7 +19,7 @@ export class TauriBridge {
     }
   }
 
-  /** Return the desktop system-status response; IPC failures propagate. */
+  /** Return the desktop system-status command result; IPC failures propagate. */
   public static async checkSystemHealth(): Promise<unknown> {
     return await invoke("get_system_status");
   }

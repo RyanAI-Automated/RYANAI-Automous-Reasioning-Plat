@@ -7,11 +7,10 @@ import { API_BASE_URL } from './apiBaseUrl';
 import { API_ROUTES } from '@/config/core';
 
 /**
- * Post an authenticated prompt and deliver progress and final output via callbacks.
- * Malformed JSON data lines are passed to onToken as raw trimmed lines.
- * onDone runs only after the stream ends with a complete result received.
- * Request, stream, and callback errors are reported through onError when provided;
- * they are otherwise swallowed. An error thrown by onError itself propagates.
+ * Deliver reasoning progress and completed results through callbacks until the stream ends.
+ * Malformed JSON data lines are forwarded verbatim (trimmed) to onToken. onDone runs
+ * only after a completion result and end of stream. Request, stream, and callback
+ * failures go to onError; an error thrown by onError itself propagates.
  */
 export async function streamReasoning(
   prompt: string,
@@ -109,9 +108,9 @@ export async function streamReasoning(
 }
 
 /**
- * Post an authenticated prompt and return the nonempty output or response field.
- * Rejects on authentication, transport, JSON parsing, unsuccessful HTTP/API status,
- * or empty output.
+ * Return output (or the legacy response field) from an authenticated reasoning request.
+ * Rejects unsuccessful or empty responses and propagates authentication, fetch, and
+ * JSON parsing errors.
  */
 export async function quickReason(
   prompt: string,

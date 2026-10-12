@@ -16,6 +16,7 @@ export function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+/** Create an unsaved message with a generated ID and a timestamp in epoch milliseconds. */
 export function createMessage(
   role: 'user' | 'assistant',
   content: string,
@@ -50,9 +51,9 @@ export function generateTitle(text: string): string {
 }
 
 /**
- * Load conversations from the userId-specific localStorage key.
- * Return an empty array for missing data, read failures, or invalid JSON;
- * parsed values are not schema-validated.
+ * Load conversations from the localStorage namespace for userId.
+ * Returns an empty array for missing data, read failures, or invalid JSON; parsed
+ * values are not schema-validated. Legacy unscoped data is not read.
  */
 export function loadConversations(userId: string): Conversation[] {
   try {
@@ -64,8 +65,8 @@ export function loadConversations(userId: string): Conversation[] {
 }
 
 /**
- * Replace conversations at the userId-specific localStorage key.
- * Serialization and storage failures are caught; return does not confirm persistence.
+ * Replace the stored conversations in the localStorage namespace for userId.
+ * Serialization and storage failures are caught; completion does not confirm a write.
  */
 export function saveConversations(
   conversations: Conversation[],
@@ -82,9 +83,9 @@ export function saveConversations(
 }
 
 /**
- * Load memory from the userId-specific localStorage key.
- * Return an empty array for missing data, read failures, or invalid JSON;
- * parsed values are not schema-validated.
+ * Load memory entries from the localStorage namespace for userId.
+ * Returns an empty array for missing data, read failures, or invalid JSON; parsed
+ * values are not schema-validated. Legacy unscoped data is not read.
  */
 export function loadMemory(userId: string): MemoryEntry[] {
   try {
@@ -96,8 +97,8 @@ export function loadMemory(userId: string): MemoryEntry[] {
 }
 
 /**
- * Replace memory at the userId-specific localStorage key.
- * Serialization and storage failures are caught; return does not confirm persistence.
+ * Replace the stored memory entries in the localStorage namespace for userId.
+ * Serialization and storage failures are caught; completion does not confirm a write.
  */
 export function saveMemory(entries: MemoryEntry[], userId: string): void {
   try {
@@ -108,8 +109,8 @@ export function saveMemory(entries: MemoryEntry[], userId: string): void {
 }
 
 /**
- * Append a timestamped entry to the user's memory and attempt to save it.
- * Returns the new entry even if storage fails; malformed stored structures can throw.
+ * Append a timestamped memory entry for userId and return it even if saving fails.
+ * Previously stored JSON with a non-array shape can cause this call to throw.
  */
 export function addMemoryEntry(
   content: string,
@@ -131,8 +132,8 @@ export function addMemoryEntry(
 }
 
 /**
- * Remove matching IDs from the user's memory and attempt to save the remainder.
- * Storage failures are caught; malformed stored structures can throw.
+ * Remove matching entries from userId's stored memory; storage failures are caught.
+ * Previously stored JSON with a non-array shape can cause this call to throw.
  */
 export function deleteMemoryEntry(id: string, userId: string): void {
   const entries = loadMemory(userId);

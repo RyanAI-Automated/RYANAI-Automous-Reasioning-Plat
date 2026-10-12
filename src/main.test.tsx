@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import ReactDOM, { createRoot } from 'react-dom/client';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ErrorBoundary from './components/ErrorBoundary';
 
 vi.mock('./App', () => ({
@@ -10,6 +10,16 @@ vi.mock('./App', () => ({
 vi.mock('./lib/platformHealth', () => ({
   getPlatformHealth: () => new Promise(() => {}),
 }));
+
+const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
+vi.mock('./lib/supabase', () => ({ supabase: { auth: { getSession } } }));
+vi.mock('./lib/apiBaseUrl', () => ({ API_BASE_URL: 'https://api.example.test' }));
+beforeEach(() => {
+  getSession.mockReset().mockResolvedValue({
+    data: { session: { access_token: 'current-session' } },
+    error: null,
+  });
+});
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -73,7 +83,7 @@ it('sends requests with method, body and headers and returns parsed JSON', async
   const headers = new Headers(options?.headers);
   expect(headers.get('Content-Type')).toBe('application/json');
   expect(headers.get('X-App-Version')).toBe(APP_VERSION);
-  expect(headers.get('Authorization')).toBe('Bearer test-token');
+  expect(headers.get('Authorization')).toBe('Bearer current-session');
 });
 
 it('rejects unsuccessful API responses', async () => {

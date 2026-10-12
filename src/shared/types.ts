@@ -128,6 +128,7 @@ export interface StreamEvent<T = unknown> {
 }
 
 export class AppError extends Error {
+  /** Create an application error with an HTTP status (default 500) and optional details. */
   constructor(
     public code: string,
     public message: string,
@@ -140,6 +141,7 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
+  /** Create a VALIDATION_ERROR with HTTP status 400 and optional details. */
   constructor(message: string, details?: Record<string, unknown>) {
     super('VALIDATION_ERROR', message, 400, details);
     this.name = 'ValidationError';

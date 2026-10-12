@@ -111,6 +111,10 @@ const serviceStatus = {
 // MIDDLEWARE & PLUGINS INITIALIZATION
 // ============================================================================
 
+/**
+ * Connect Redis, install rate limiting and WebSocket support, and register routes.
+ * Readiness and plugin-registration failures propagate to startup.
+ */
 async function registerPlugins() {
   // Check readiness before Avvio's plugin timeout obscures connection failures.
   const redis = await connectRedis(config.redis.url);
@@ -145,6 +149,11 @@ async function registerPlugins() {
 // INITIALIZATION FUNCTIONS
 // ============================================================================
 
+/**
+ * Open the database pool and initialize agent checkpoint storage.
+ * Return false on database initialization failure. A checkpoint setup failure is
+ * caught separately and still returns true after a successful database probe.
+ */
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
@@ -168,7 +177,6 @@ async function initializeDatabase() {
       console.warn(
         '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
         databaseFailureDiagnostic(agentErr),
-        agentErr instanceof Error ? agentErr.message : agentErr,
       );
     }
 
@@ -177,12 +185,12 @@ async function initializeDatabase() {
     console.error(
       `✗ Database connection failed:`,
       databaseFailureDiagnostic(err),
-      err instanceof Error ? err.message : err,
     );
     return false;
   }
 }
 
+/** Ping Redis and mark it available on success; caught failures return false. */
 async function verifyRedis() {
   console.log('⚡ Initializing Redis...');
   try {
@@ -239,11 +247,17 @@ function registerCoreRoutes() {
     };
   });
 
+  /** Return text content unchanged, otherwise JSON or a string fallback; serialization errors propagate. */
   function contentToText(content: unknown): string {
     if (typeof content === 'string') return content;
     return JSON.stringify(content) ?? String(content);
   }
 
+  /**
+   * Invoke the requested reasoning agent and return its messages as a text trace.
+   * The final trace entry supplies output and response. Model selection, invocation,
+   * and content serialization errors propagate.
+   */
   async function runReasoning(prompt: string, model?: string) {
     const result = await getReasoningAgent(model).invoke({
       messages: [{ role: 'user', content: prompt }],
@@ -395,6 +409,11 @@ function registerCoreRoutes() {
 // SERVER STARTUP
 // ============================================================================
 
+/**
+ * Register plugins, probe services, and start listening on the configured address.
+ * Database/checkpointer probe failures can leave the API running in a degraded state;
+ * uncaught plugin or listener failures terminate the process with exit code 1.
+ */
 async function start() {
   try {
     console.log('\n🔧 Registering Plugins...\n');
@@ -417,7 +436,6 @@ async function start() {
     console.log(`   - System: http://${config.host}:${config.port}/api/system`);
     console.log(
       `   - Sign-in: Supabase Auth (use the frontend Sign in / Create account screens)`,
-      `   - Auth Login: POST http://${config.host}:${config.port}/api/auth/login`,
     );
     console.log(
       `   - Auth Verify: GET http://${config.host}:${config.port}/api/auth/verify`,
@@ -444,8 +462,6 @@ async function start() {
     console.log(
       `   - Admin Metrics: GET http://${config.host}:${config.port}/api/admin/metrics`,
     );
-    console.log(`\n🟢 All services ready!\n`);
-
     serviceStatus.api = true;
     const summary = startupSummary(serviceStatus);
     if (

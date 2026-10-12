@@ -14,10 +14,9 @@ export class RyanAIMissionOrchestrator {
   private static activeMissions = new Map<string, MissionContext>();
 
   /**
-   * Register a mission, execute its decomposition tasks, then audit their results.
-   * Pause when the audit text contains "vulnerability" or "risk"; otherwise mark it
-   * completed. Execution/audit errors become a FAILED context returned to the caller.
-   * Reusing missionId replaces the previous in-memory context.
+   * Store a mission context, execute its decomposed tasks, then audit their results.
+   * Returns PAUSED_FOR_APPROVAL if the audit mentions risk or vulnerability, otherwise
+   * COMPLETED. Dispatch or audit errors become a FAILED context.
    */
   async startMission(missionId: string, objective: string): Promise<MissionContext> {
     console.log(`[Mission Orchestrator] Initializing mission [${missionId}]: "${objective}"`);

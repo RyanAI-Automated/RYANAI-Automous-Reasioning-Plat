@@ -20,9 +20,11 @@ declare module 'fastify' {
 
 /**
  * Verify with Supabase Auth; never trust a decoded token or browser metadata.
- * Reuse an existing authUser, or populate it from a non-anonymous verified user.
- * Missing/invalid credentials receive 401; missing configuration and authentication
- * service failures receive 503. Admin status comes from app_metadata.role.
+ * Attach a non-anonymous authUser after bearer-token verification.
+ * Reuses an existing authUser. Roles come from app_metadata. Missing or invalid
+ * sessions receive 401. Missing configuration, provider errors with no status or
+ * status >= 500, and caught exceptions receive 503.
+ * Provider exceptions are converted to responses, with a five-second fetch timeout.
  */
 export async function requireUser(
   request: FastifyRequest,
@@ -78,8 +80,8 @@ export async function requireUser(
 }
 
 /**
- * Require a verified user, then send 403 unless their trusted role is admin.
- * Preserves any authentication error response sent by requireUser.
+ * Require a verified user, responding with 403 unless authUser has the admin role.
+ * Preserves authentication error responses from requireUser.
  */
 export async function requireAdmin(
   request: FastifyRequest,
@@ -92,7 +94,12 @@ export async function requireAdmin(
   }
 }
 
-/** Install before any routes, including websocket upgrades. Deny by default. */
+/**
+ * Install authentication before routes, including WebSocket upgrades.
+ * Allow OPTIONS, public health/index routes, retired login/logout routes, and webhooks
+ * with their own signature checks. Reasoning and verification routes require a user;
+ * all remaining routes require an admin.
+ */
 export function installAuthentication(fastify: FastifyInstance) {
   fastify.decorateRequest('authUser', null);
   // Run after onRequest rate limits, before route handlers or websocket upgrades.
@@ -129,10 +136,7 @@ export function installAuthentication(fastify: FastifyInstance) {
   });
 }
 
-/**
- * Register session verification and retired login/logout endpoints.
- * Verification requires a user; login and logout return 410 directing clients to Supabase.
- */
+/** Register session verification and respond with 410 for retired login/logout endpoints. */
 export const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     '/api/auth/verify',

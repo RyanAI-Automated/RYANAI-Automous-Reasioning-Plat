@@ -9,9 +9,9 @@ import { createLogger } from '../src/shared/logger.js';
 const logger = createLogger('tunnel');
 
 /**
- * Open an ngrok tunnel to PORT (default 3001) and remain pending while it is active.
- * Invalid ports reject; missing credentials and connection errors set process.exitCode
- * to 1 and resolve.
+ * Open an ngrok tunnel to PORT (default 3001) and remain pending while it runs.
+ * Reject ports outside the integer range 1–65535. Missing credentials or connection
+ * failures set the process exit code to 1 and resolve without a tunnel.
  */
 async function startTunnel() {
   const port = Number(process.env.PORT || '3001');

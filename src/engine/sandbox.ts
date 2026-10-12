@@ -17,11 +17,12 @@ export interface SandboxResult {
 
 export class RyanAISandbox {
   /**
-   * Write a script and run it with local Node from sandbox-runtime, with a
-   * 10-second process timeout. The script file remains after execution.
-   * @param fileName - Path joined to sandbox-runtime; used in the shell command.
-   * @returns Trimmed output and exit status; process errors become failure results.
-   * @throws If creating the directory or writing the script fails.
+   * Write a script and run it with host Node using sandbox-runtime as the working directory.
+   * The file remains on disk. Execution has a 10-second timeout and returns trimmed
+   * output; process failures become an unsuccessful result. Directory creation and
+   * file-write errors propagate before execution.
+   *
+   * @param fileName - Script path joined to sandbox-runtime; passed to a shell command.
    */
   public static async executeInSandbox(
     scriptContent: string,

@@ -30,10 +30,9 @@ export class AirGapVectorStore {
   }
 
   /**
-   * Rank persisted vectors whose IDs were saved through this instance by cosine score.
-   * Missing records are skipped; storage/decryption errors reject. Empty, mismatched,
-   * or zero-norm vectors score zero. Results use slice(0, topK), including its
-   * negative-index behavior when topK is negative.
+   * Rank persisted vectors saved through this instance by descending cosine score.
+   * Missing records are skipped; storage and decryption errors propagate.
+   * Return up to topK results; a negative limit omits that many lowest-ranked entries.
    */
   async similaritySearch(
     queryVector: number[],
@@ -52,6 +51,7 @@ export class AirGapVectorStore {
     return results.sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
+  /** Return cosine similarity, or zero for empty, unequal-length, or zero-norm vectors. */
   private cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length || a.length === 0) return 0;
     let dotProduct = 0;
@@ -69,8 +69,8 @@ export class AirGapVectorStore {
   }
 
   /**
-   * Clear all persisted vectors and the shared cache, then this instance's search IDs.
-   * Rejects on persistence failure without clearing the search IDs.
+   * Clear shared persistent and memory caches, then this instance's search IDs.
+   * Storage failures propagate before the IDs are cleared.
    */
   async clear(): Promise<void> {
     await clearCache();

@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -39,7 +40,7 @@ class RyanAIClient {
       headers.set('Content-Type', 'application/json');
     if (!headers.has('X-App-Version'))
       headers.set('X-App-Version', this.version);
-    const response = await fetch(url, { ...options, method, headers });
+    const response = await authenticatedFetch(url, { ...options, method, headers });
     if (!response.ok) throw new Error(`API Error: ${response.status}`);
     return response.json() as Promise<T>;
   }

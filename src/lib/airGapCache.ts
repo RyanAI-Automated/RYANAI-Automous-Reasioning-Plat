@@ -83,8 +83,8 @@ async function withStore<T>(
 
 /**
  * Insert or replace a persisted vector by ID, resolving after transaction commit.
- * Only id, vector, and metadata are stored. The vector uses a shared application
- * key for obfuscation; metadata remains unencrypted.
+ * Custom fields are also persisted. The vector uses a shared application
+ * key for obfuscation; metadata and custom fields remain unencrypted.
  * Serialization, cryptography, and IndexedDB failures reject.
  */
 export async function saveVector(entry: VectorEntry): Promise<void> {

@@ -29,9 +29,9 @@ export async function fetchSystemHealth(): Promise<SystemHealth> {
 }
 
 /**
- * Post a prompt using the current session and return the parsed reasoning response.
- * Rejects on authentication, transport, or response JSON errors and on non-OK HTTP
- * status, using the server error message when available.
+ * Submit an authenticated prompt and return the parsed reasoning response.
+ * Rejects HTTP errors using the API error when available; authentication, fetch, and
+ * successful-response JSON parsing failures propagate.
  */
 export async function executeAgentReasoning(
   prompt: string,

@@ -10,8 +10,7 @@ export interface AgentEvolutionResponse {
 export class MobileApiClient {
   /**
    * Post an evolution objective and return the parsed response.
-   * HTTP failures reject with the server error when available; transport and JSON
-   * parsing errors also propagate.
+   * HTTP errors reject with the API error when available; fetch and JSON errors propagate.
    */
   public static async executeObjective(objective: string): Promise<AgentEvolutionResponse> {
     try {
@@ -35,10 +34,7 @@ export class MobileApiClient {
     }
   }
 
-  /**
-   * Return the health response JSON without checking HTTP status.
-   * Transport or JSON parsing failures become a status: "offline" result.
-   */
+  /** Return parsed health JSON regardless of HTTP status, or offline on fetch/parse failure. */
   public static async checkHealth(): Promise<unknown> {
     try {
       const response = await fetch(`${BACKEND_URL}/health`);

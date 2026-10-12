@@ -7,6 +7,7 @@
 import { Analytics } from '@segment/analytics-node';
 import { pathToFileURL } from 'node:url';
 
+/** Return an environment value, throwing when it is unset or empty. */
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -15,6 +16,7 @@ function requireEnv(name) {
 
 export const analytics = new Analytics({ writeKey: requireEnv('SEGMENT_WRITE_KEY') });
 
+/** Build the Twilio Basic authorization header; reject missing account credentials. */
 const getAuthHeader = () => {
   const credentials = Buffer.from(
     `${requireEnv('TWILIO_ACCOUNT_SID')}:${requireEnv('TWILIO_AUTH_TOKEN')}`
@@ -22,6 +24,11 @@ const getAuthHeader = () => {
   return `Basic ${credentials}`;
 };
 
+/**
+ * Post form parameters to a Twilio account resource and return its response and JSON body.
+ * HTTP error statuses are returned unchanged; missing credentials, network failures,
+ * and JSON decoding errors reject the promise.
+ */
 async function dispatch(resource, params) {
   const url = `https://api.twilio.com/2010-04-01/Accounts/${requireEnv('TWILIO_ACCOUNT_SID')}/${resource}.json`;
   const response = await fetch(url, {
@@ -38,10 +45,10 @@ async function dispatch(resource, params) {
 
 /**
  * Send a WhatsApp message and track the event in Segment.
- * Supply to/from without the whatsapp: prefix; userId identifies the Segment user.
- * Returns Twilio's parsed response. Non-OK responses are tracked as failures and
- * reject; configuration, transport, JSON parsing, and synchronous tracking errors
- * also propagate. Tracking is queued without waiting for a flush.
+ * `to` and `from` are phone numbers without the `whatsapp:` prefix; `contentSid`
+ * identifies the Twilio template. Return the Twilio JSON payload on success.
+ * Reject HTTP failures after tracking them; credential, network, JSON decoding,
+ * and synchronous tracking errors also propagate.
  */
 export async function sendWhatsAppAndTrack({ userId, to, from, contentSid }) {
   const { response, data } = await dispatch('Messages', {
@@ -68,10 +75,10 @@ export async function sendWhatsAppAndTrack({ userId, to, from, contentSid }) {
 }
 
 /**
- * Initiate a voice call and track the event in Segment for userId.
- * Returns Twilio's parsed response. Non-OK responses are tracked as failures and
- * reject; configuration, transport, JSON parsing, and synchronous tracking errors
- * also propagate. Tracking is queued without waiting for a flush.
+ * Initiate a voice call and track the event in Segment.
+ * `twimlUrl` identifies the call instructions. Return the Twilio JSON payload
+ * on success; reject HTTP failures after tracking them. Credential, network,
+ * JSON decoding, and synchronous tracking errors also propagate.
  */
 export async function makeVoiceCallAndTrack({ userId, to, from, twimlUrl }) {
   const { response, data } = await dispatch('Calls', { To: to, From: from, Url: twimlUrl });

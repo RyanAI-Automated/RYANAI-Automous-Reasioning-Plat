@@ -11,10 +11,9 @@ export interface PlatformHealth {
 }
 
 /**
- * Fetch API health with a five-second deadline and optional caller cancellation.
- * @returns The parsed health response only when its status is online.
- * @throws For unsuccessful HTTP status, invalid responses, timeouts, or transport
- * errors. Caller cancellation preserves the underlying abort error.
+ * Fetch the health payload and require an online status, with a five-second deadline.
+ * Rejects HTTP errors, invalid JSON, offline status, and network failures. A deadline
+ * abort becomes a timeout error; caller cancellation preserves the fetch error.
  */
 export async function getPlatformHealth(
   signal?: AbortSignal,

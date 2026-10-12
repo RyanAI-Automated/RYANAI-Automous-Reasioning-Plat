@@ -1,0 +1,75 @@
+import operator
+from typing import TypedDict, Annotated, Sequence, Dict, Optional, Literal
+from pydantic import BaseModel, Field
+
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver # Swap to RedisSaver for production
+
+# ==========================================
+# 1. SHARED STATE & SCHEMAS
+# ==========================================
+
+class RyanAIUnifiedState(TypedDict):
+    """The master state payload traversing the multi-agent graph."""
+    messages: Annotated[Sequence[BaseMessage], operator.add]
+    task_description: str
+    architecture_spec: Optional[str]
+    source_code: Dict[str, str]
+    deployment_artifacts: Dict[str, str]
+    build_status: str  # 'pending', 'failed', 'success'
+    next_node: str     # Routing directive for the graph
+
+class CodePayload(BaseModel):
+    """Schema to force the LLM to output exact file dictionaries."""
+    files: Dict[str, str] = Field(description="Dictionary of filename keys to source code string values.")
+
+class RouteDecision(BaseModel):
+    """Schema to force the Supervisor to pick a valid routing path."""
+    next_action: Literal["architect", "docker_ops", "observability", "FINISH"]
+
+# ==========================================
+# 2. LLM INITIALIZATION
+# ==========================================
+
+# Mapped to local Nvidia Nemotron/vLLM endpoint
+llm = ChatOpenAI(model="ryanai-nemotron-local", base_url="http://localhost:8000/v1")
+
+# ==========================================
+# 3. SUPERVISOR & OPERATIONAL NODES
+# ==========================================
+
+def supervisor_node(state: RyanAIUnifiedState) -> Dict:
+    """Evaluates the state and routes to the correct specialized subsystem."""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are the RyanAI System Supervisor. Route the task to the correct agent. "
+                   "If building/coding, route to 'architect'. If managing containers, route to 'docker_ops'. "
+                   "If checking telemetry, route to 'observability'. If the task is resolved, route to 'FINISH'."),
+        ("user", "Task: {task_description}\nHistory: {messages}")
+    ])
+    
+    router = llm.with_structured_output(RouteDecision)
+    decision = router.invoke(prompt.format_messages(
+        task_description=state.get("task_description", ""),
+        messages=state.get("messages", [])
+    ))
+    
+    return {"next_node": decision.next_action}
+
+def docker_ops_node(state: RyanAIUnifiedState) -> Dict:
+    """Handles container orchestrations (Mock implementation)."""
+    msg = SystemMessage(content="DockerOps: Container configurations verified and running.")
+    return {"messages": [msg], "next_node": "supervisor"}
+
+def observability_node(state: RyanAIUnifiedState) -> Dict:
+    """Handles Grafana/Loki telemetry (Mock implementation)."""
+    msg = SystemMessage(content="Observability: Telemetry endpoints healthy.")
+    return {"messages": [msg], "next_node": "supervisor"}
+
+# ==========================================
+# 4. TRIPARTITE ENGINE NODES (Code Loop)
+# ==========================================
+
+def architect_node(state: RyanAIUnifiedState) ->

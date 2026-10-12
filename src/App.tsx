@@ -20,6 +20,10 @@ import { useAuth } from '@/hooks/useAuth';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
+/**
+ * Resolve the first hash path segment, mapping login/register to signin/signup.
+ * Unknown segments use the configured default route.
+ */
 const routeFromHash = (): Route => {
   const segment = window.location.hash.replace(/^#\/?/, '').split('/')[0];
   const route =

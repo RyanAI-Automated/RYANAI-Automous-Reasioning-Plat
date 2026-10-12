@@ -19,10 +19,9 @@ export interface ReasoningChunk {
 
 export const apiClient = {
   /**
-   * Post an authenticated request and deliver newline-delimited JSON/SSE data to onChunk.
-   * Malformed lines and exceptions from onChunk are ignored; an unterminated final
-   * line is not delivered. Authentication, transport, stream-read, non-OK HTTP,
-   * and missing-body errors reject.
+   * Deliver newline-delimited JSON or SSE data lines to onChunk until the stream ends.
+   * Malformed JSON and synchronous onChunk errors are ignored. Authentication, HTTP,
+   * missing-body, and stream-read failures reject; an unterminated final line is discarded.
    */
   async triggerReasoning(
     payload: ReasoningRequest,

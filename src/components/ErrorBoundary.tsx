@@ -6,10 +6,12 @@ export default class ErrorBoundary extends Component<
 > {
   state = { failed: false };
 
+  /** Switch the boundary to its failure view after a descendant render error. */
   static getDerivedStateFromError() {
     return { failed: true };
   }
 
+  /** Publish a ryanai-error window event containing the caught render error message. */
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('RyanAI UI failed to render', error, info);
     window.dispatchEvent(
@@ -17,6 +19,7 @@ export default class ErrorBoundary extends Component<
     );
   }
 
+  /** Render children until a render error occurs, then show a page reload action. */
   render() {
     if (this.state.failed) {
       return (

@@ -43,10 +43,9 @@ export class GitHubShipper {
   }
 
   /**
-   * Create a commit containing the supplied files and advance the remote branch without force.
-   * If the branch is missing, create it from main unless createBranchIfMissing is false.
-   * Returns commit and tree SHAs. GitHub API errors propagate; a created branch or Git
-   * objects may remain after a later failure.
+   * Create a GitHub commit for the supplied files and advance the branch without force.
+   * By default, a missing branch is created from main. Return commit and tree SHAs;
+   * API failures propagate and may leave a new branch or Git objects behind.
    */
   async commitAndPushFiles(opts: CommitAndPushOptions): Promise<{ commitSha: string; treeSha: string }> {
     const { owner, repo, branch, commitMessage, files, createBranchIfMissing = true } = opts;
