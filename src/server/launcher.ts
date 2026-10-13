@@ -30,8 +30,8 @@ import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 
 const { Pool } = pg;
 
-console.log('ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¡ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ RyanAI Platform Initialization');
-console.log('======\n');
+console.log('🚀 RyanAI Platform Initialization');
+console.log('==================================\n');
 
 // Configuration
 const config = {
@@ -52,7 +52,7 @@ const config = {
   },
 };
 
-console.log(`ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¹ Configuration:`);
+console.log(`📋 Configuration:`);
 console.log(`   - Node Env: ${config.nodeEnv}`);
 console.log(`   - Host: ${config.host}:${config.port}`);
 console.log(
@@ -106,31 +106,29 @@ const serviceStatus = {
   api: false,
 };
 
-// ======
+// ============================================================================
 // MIDDLEWARE & PLUGINS INITIALIZATION
-// ======
+// ============================================================================
 
 async function registerPlugins() {
-  // Check readiness before Avvio's plugin timeout obscures connection failures.
   const redis = await connectRedis(config.redis.url);
   await fastify.register(fastifyRedis, {
     client: redis,
     closeClient: true,
   });
 
-  // 2. Register Global Rate Limiter backed by Redis
+  // Global Rate Limiter backed by Redis
   await fastify.register(fastifyRateLimit, {
     max: 100,
     timeWindow: '1 minute',
     redis: fastify.redis,
   });
 
-  // Register routes only after rate-limit's onRoute hook is installed.
   await fastify.register(fastifyWebsocket);
   await registerWebSocketRoutes(fastify);
   registerCoreRoutes();
 
-  // 3. Register Application & Webhook Routes
+  // Application & Webhook Routes
   await fastify.register(authPlugin);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
@@ -139,12 +137,12 @@ async function registerPlugins() {
   await fastify.register(metricsRoutes);
 }
 
-// ======
+// ============================================================================
 // INITIALIZATION FUNCTIONS
-// ======
+// ============================================================================
 
 async function initializeDatabase() {
-  console.log('ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â¡ Initializing Database...');
+  console.log('📡 Initializing Database...');
   try {
     dbPool = new Pool({
       connectionString: config.database.url,
@@ -155,16 +153,15 @@ async function initializeDatabase() {
 
     const result = await dbPool.query('SELECT NOW()');
 
-    console.log(`ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Database connected: ${result.rows[0].now}`);
+    console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
 
-    // Initialize LangGraph PostgresSaver checkpointer tables
     try {
       await initializeAgentDatabase();
       serviceStatus.agentCheckpointer = true;
     } catch (agentErr) {
       console.warn(
-        'ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â Agent PostgresSaver checkpointer setup deferred/failed:',
+        '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
         databaseFailureDiagnostic(agentErr),
       );
     }
@@ -172,7 +169,7 @@ async function initializeDatabase() {
     return true;
   } catch (err) {
     console.error(
-      `ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Database connection failed:`,
+      `✗ Database connection failed:`,
       databaseFailureDiagnostic(err),
     );
     return false;
@@ -180,24 +177,24 @@ async function initializeDatabase() {
 }
 
 async function verifyRedis() {
-  console.log('ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â¡ Initializing Redis...');
+  console.log('⚡ Initializing Redis...');
   try {
     const pong = await fastify.redis.ping();
-    console.log(`ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Redis connected: ${pong}`);
+    console.log(`✓ Redis connected: ${pong}`);
     serviceStatus.redis = true;
     return true;
   } catch (err) {
     console.error(
-      `ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Redis connection failed:`,
+      `✗ Redis connection failed:`,
       err instanceof Error ? err.message : err,
     );
     return false;
   }
 }
 
-// ======
+// ============================================================================
 // API ROUTES
-// ======
+// ============================================================================
 
 function registerCoreRoutes() {
   const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -216,9 +213,8 @@ function registerCoreRoutes() {
     };
   };
 
-
   fastify.get('/health', healthCheck);
-  fastify.get('/api/health', healthCheck);
+  fastify.get(API_ROUTES.healthPath, healthCheck);
 
   // Sentry integration test route
   fastify.get('/debug-sentry', async () => {
@@ -262,7 +258,7 @@ function registerCoreRoutes() {
   }
 
   fastify.post<{ Body: { prompt?: string; model?: string } }>(
-    '/api/reason',
+    API_ROUTES.reasonPath,
     async (request, reply) => {
       const prompt = request.body?.prompt?.trim();
       if (!prompt) {
@@ -286,11 +282,10 @@ function registerCoreRoutes() {
     },
   );
 
-
   // Reasoning stream endpoint
   fastify.post<{
     Body: { prompt?: string; sessionId?: string; model?: string };
-  }>('/api/reasoning/stream', async (request, reply) => {
+  }>(API_ROUTES.streamPath, async (request, reply) => {
     const prompt = request.body?.prompt?.trim();
     const { sessionId } = request.body || {};
     if (!prompt) {
@@ -302,7 +297,6 @@ function registerCoreRoutes() {
     reply.hijack();
     const { raw } = reply;
 
-    // Hijacking bypasses Fastify's header flush, including the CORS hook.
     for (const [name, value] of Object.entries(reply.getHeaders())) {
       if (value !== undefined) raw.setHeader(name, value);
     }
@@ -379,24 +373,24 @@ function registerCoreRoutes() {
   });
 }
 
-// ======
+// ============================================================================
 // SERVER STARTUP
-// ======
+// ============================================================================
 
 async function start() {
   try {
-    console.log('\nÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â§ Registering Plugins...\n');
+    console.log('\n🔧 Registering Plugins...\n');
     await registerPlugins();
 
-    console.log('\nÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â¡ Connecting Services...\n');
+    console.log('\n📡 Connecting Services...\n');
     await initializeDatabase();
     await verifyRedis();
 
-    console.log(`\nÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¡ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Starting Fastify Server...\n`);
+    console.log(`\n🚀 Starting Fastify Server...\n`);
     await fastify.listen({ port: config.port, host: config.host });
 
-    console.log(`\nÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ RyanAI API Gateway is running!`);
-    console.log(`\nÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â Endpoints:`);
+    console.log(`\n✓ RyanAI API Gateway is running!`);
+    console.log(`\n📍 Endpoints:`);
     console.log(`   - Root: http://${config.host}:${config.port}/`);
     console.log(`   - Health: http://${config.host}:${config.port}/health`);
     console.log(
@@ -450,7 +444,7 @@ async function start() {
 
 // Graceful shutdown hooks
 const shutdown = async () => {
-  console.log('\nÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€šÃ‚Â´ Shutting down gracefully...');
+  console.log('\n📴 Shutting down gracefully...');
   if (dbPool) await dbPool.end();
   await fastify.close();
   process.exit(0);
@@ -460,4 +454,3 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 start();
-
