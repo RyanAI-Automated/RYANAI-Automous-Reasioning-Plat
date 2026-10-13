@@ -138,7 +138,10 @@ async function main(): Promise<void> {
     if (mcpHealthUrl) {
       await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 }),
       });
     }
