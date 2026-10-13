@@ -7,6 +7,8 @@
     "main": "dist/index.js",
     "scripts": {
         "build:web": "vite build",
+        "dev": "vite",
+        "dev": "vite --host",
         "build:api": "tsc && node scripts/copy-server-assets.mjs",
         "docker:up": "docker compose up --build -d",
         "docker:health": "docker compose exec ryanai-api curl -s http://localhost:3000/health | jq",
