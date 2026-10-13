@@ -65,8 +65,12 @@
         "tauri": "tauri",
         "release": "powershell -ExecutionPolicy Bypass -File ./build-installer.ps1",
         "ship": "npm run validate && git add . && git commit -m 'ship: production build' && git push origin main",
+<<<<<<< Updated upstream
         "build:web": "npm run build:client",
         "agent:pa": "tsx src/agents/agentPAScript.ts"
+=======
+        "build:web": "npm run build:client"
+>>>>>>> Stashed changes
     },
     "dependencies": {
         "@fastify/cookie": "^11.1.2",
@@ -83,7 +87,11 @@
         "@langchain/openai": "^1.5.13",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "@octokit/rest": "^22.0.1",
+<<<<<<< Updated upstream
         "@open-policy-agent/opa-wasm": "^1.10.0",
+=======
+        "@open-policy-agent/opa-wasm": "^1.1.0",
+>>>>>>> Stashed changes
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/auto-instrumentations-node": "^0.80.0",
         "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
@@ -99,8 +107,14 @@
         "@supabase/server": "^1.6.1",
         "@supabase/ssr": "^0.12.7",
         "@supabase/supabase-js": "^2.116.0",
+<<<<<<< Updated upstream
         "@tauri-apps/api": "^2.11.1",
         "@types/pg": "^8.23.1",
+=======
+        "@tauri-apps/api": "^2.11.5",
+        "@types/pg": "^8.23.1",
+        "@types/uuid": "^10.0.0",
+>>>>>>> Stashed changes
         "@vercel/analytics": "^2.0.1",
         "docx": "^9.7.1",
         "dotenv": "^17.4.2",
@@ -122,6 +136,10 @@
         "redis": "^6.2.1",
         "resend": "^6.28.1",
         "twilio": "^6.1.1",
+<<<<<<< Updated upstream
+=======
+        "uuid": "^14.0.3",
+>>>>>>> Stashed changes
         "ws": "^8.21.3",
         "xlsx": "^0.18.5",
         "zod": "^4.5.4",
@@ -130,6 +148,10 @@
     "devDependencies": {
         "@eslint/js": "^9.9.1",
         "@ngrok/ngrok": "^1.7.0",
+<<<<<<< Updated upstream
+=======
+        "@tailwindcss/postcss": "^4.3.3",
+>>>>>>> Stashed changes
         "@tauri-apps/cli": "^2.11.4",
         "@types/bcrypt": "^6.0.0",
         "@types/exceljs": "^0.5.3",
@@ -173,11 +195,20 @@
     },
     "allowScripts": {
         "@prisma/client@6.19.3": true,
+<<<<<<< Updated upstream
         "puppeteer@25.12.0": true,
         "esbuild@0.28.2": true,
         "protobufjs@7.6.6": true,
         "@sentry/node-cpu-profiler@2.4.4": true,
         "prisma@6.12.0": true,
         "@prisma/engines@6.12.0": true
+=======
+        "prisma@6.12.0": true,
+        "@prisma/engines@6.12.0": true,
+        "@sentry/node-cpu-profiler": true,
+        "esbuild": true,
+        "protobufjs": true,
+        "puppeteer": true
+>>>>>>> Stashed changes
     }
 }
