@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @config "../tailwind.config.js";
 
 /* Root Theme Variables */
@@ -46,13 +46,12 @@ body {
   }
 }
 
-/* Register glass so Tailwind 4 can resolve it in @apply and variants. */
-@utility glass {
-  @apply bg-slate-900/40 backdrop-blur-md;
-}
-
 /* Custom HUD Component Classes */
 @layer components {
+  .glass {
+    @apply bg-slate-900/40 backdrop-blur-md;
+  }
+
   .glass-dark {
     @apply bg-slate-950/70 backdrop-blur-lg;
   }
@@ -78,7 +77,7 @@ body {
   }
 
   .input-primary {
-    @apply px-3 py-2 bg-slate-900/60 border border-cyan-500/30 rounded-lg text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400;
+    @apply px-3 py-2 bg-slate-900/60 border border-cyan-500/30 rounded-lg text-slate-100 placeholder:text-slate-500 font-mono text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400;
   }
 
   .card {
