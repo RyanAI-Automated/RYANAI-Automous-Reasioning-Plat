@@ -10,7 +10,7 @@ const redisUrl = process.env.REDIS_URL;
 const timeoutMs = Number(process.env.INTEGRATION_TIMEOUT_MS || 5000);
 const adminToken = process.env.TEST_ADMIN_ACCESS_TOKEN?.trim();
 
-// Active development ports
+// Active development ports and URLs
 const API_URL = process.env.API_URL || process.env.BASE_URL || 'http://localhost:3001';
 const WEB_URL = process.env.WEB_URL || 'http://localhost:1420';
 const MCP_URL = process.env.MCP_URL || 'http://localhost:8765';
@@ -39,10 +39,12 @@ async function checkHttp(
   name: string,
   url: string,
   expectedContentType?: string,
+  init?: RequestInit,
 ): Promise<void> {
   await check(name, async () => {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(timeoutMs),
+      ...init,
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} ${response.statusText}`);
@@ -134,7 +136,11 @@ async function main(): Promise<void> {
     await checkHttp('Web frontend document', webUrl, 'text/html');
 
     if (mcpHealthUrl) {
-      await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json');
+      await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 }),
+      });
     }
 
     await check('WebSocket endpoint rejects anonymous upgrades', () =>
