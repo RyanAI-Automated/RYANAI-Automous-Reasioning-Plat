@@ -4,6 +4,7 @@ import {
   apiHealthUrl,
   mcpHealthUrl,
 } from './health-config.mjs';
+
 import { checkWebSocket } from './check-websocket.js';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
@@ -12,8 +13,17 @@ const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
 const timeoutMs = Number(process.env.INTEGRATION_TIMEOUT_MS || 5000);
 const adminToken = process.env.TEST_ADMIN_ACCESS_TOKEN?.trim();
+
+// Respect environment overrides, defaulting to your active ports (3001 for API, 1420 for Web)
 const API_URL = process.env.API_URL || process.env.BASE_URL || 'http://localhost:3001';
 const WEB_URL = process.env.WEB_URL || 'http://localhost:1420';
+const MCP_URL = process.env.MCP_URL || 'http://localhost:8765';
+
+// Derive test endpoints directly from environment-aware base URLs
+const apiUrl = API_URL;
+const webUrl = WEB_URL;
+const apiHealthUrl = `${API_URL}/health`;
+const mcpHealthUrl = `${MCP_URL}/mcp`;
 
 let skipped = 0;
 const results: { name: string; error?: string }[] = [];
