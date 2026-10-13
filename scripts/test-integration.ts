@@ -1,185 +1,107 @@
-import { config } from 'dotenv';
-config({ quiet: true });
+# Copy to .env and replace local-only values before starting the stack.
+# Local API and Vite proxy use 3001; Compose supplies PORT=3000 to its API.
+PORT=3001
+HOST=0.0.0.0
+LOG_LEVEL=info
 
-import { checkWebSocket } from './check-websocket.js';
-import { Pool } from 'pg';
-import { createClient } from 'redis';
+# Secrets (replace these with real secure values)
+DB_PASSWORD=my_secure_db_password_123
+REDIS_PASSWORD=my_secure_redis_password_456
+JWT_SECRET=super_secret_jwt_key_that_is_at_least_32_characters_long
 
-const databaseUrl = process.env.DATABASE_URL;
-const redisUrl = process.env.REDIS_URL;
-const timeoutMs = Number(process.env.INTEGRATION_TIMEOUT_MS || 5000);
-const adminToken = process.env.TEST_ADMIN_ACCESS_TOKEN?.trim();
+# Database & Redis URLs
+DATABASE_URL=postgresql://ryanai:my_secure_db_password_123@localhost:5432/ryanai_db
+REDIS_URL=redis://:my_secure_redis_password_456@localhost:6379
+DB_MAX_CONNECTIONS=20
+DB_TIMEOUT_MS=2000
+REDIS_TIMEOUT=5000
+JWT_EXPIRES_IN=24h
+API_BASE_URL=http://localhost:3000
+API_TIMEOUT=30000
 
-// Active development ports and URLs
-const API_URL = process.env.API_URL || process.env.BASE_URL || 'http://localhost:3001';
-const WEB_URL = process.env.WEB_URL || 'http://localhost:1420';
-const MCP_URL = process.env.MCP_URL || 'http://localhost:8765';
+# Compose secrets; use different strong values in .env.
+DB_PASSWORD=replace_with_a_unique_alphanumeric_password
+REDIS_PASSWORD=replace_with_a_different_alphanumeric_password
+JWT_SECRET=replace_with_a_unique_random_secret_at_least_32_chars
 
-const apiUrl = API_URL;
-const webUrl = WEB_URL;
-const apiHealthUrl = `${API_URL}/health`;
-const mcpHealthUrl = `${MCP_URL}/mcp`;
+# Local development URLs. Compose supplies service-to-service URLs itself.
+DATABASE_URL=postgresql://ryanai:replace_with_a_unique_alphanumeric_password@localhost:5432/ryanai_db
+REDIS_URL=redis://:replace_with_a_different_alphanumeric_password@localhost:6379
+DB_MAX_CONNECTIONS=20
+DB_TIMEOUT_MS=2000
+REDIS_TIMEOUT=5000
+JWT_EXPIRES_IN=24h
+# Integration checks target Compose; use port 3001 when checking the local API.
+API_BASE_URL=http://localhost:3000
+API_TIMEOUT=30000
 
-let skipped = 0;
-const results: { name: string; error?: string }[] = [];
+# Model provider (server-side only).
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o
+OPENAI_ALLOWED_MODELS=gpt-4o,gpt-4o-mini
+OPENAI_BASE_URL=
+ANTHROPIC_API_KEY=
+GOOGLE_API_KEY=
+NVIDIA_API_KEY=
+TOGETHER_API_KEY=
+NVIDIA_NEMOTRON_KEY=
+QWEN_API_KEY=
+OPENAI_ORG_ID=
+OPENAI_PROJECT_ID=
+LLM_PROVIDER=openai
+CUDA_DEVICE_ID=0
 
-async function check(name: string, run: () => Promise<void>): Promise<void> {
-  try {
-    await run();
-    console.log(`PASS ${name}`);
-    results.push({ name });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`FAIL ${name}: ${message}`);
-    results.push({ name, error: message });
-  }
-}
+# Authentication (REQUIRED for sign-in to work)
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_or_publishable_key
 
-async function checkHttp(
-  name: string,
-  url: string,
-  expectedContentType?: string,
-  init?: RequestInit,
-): Promise<void> {
-  await check(name, async () => {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      ...init,
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    }
-    if (
-      expectedContentType &&
-      !response.headers.get('content-type')?.includes(expectedContentType)
-    ) {
-      throw new Error(`Expected content type matching ${expectedContentType}`);
-    }
-  });
-}
+# Application integrations
+VITE_APP_ENV=production
+VITE_API_URL=
+VITE_API_BASE_URL=
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_or_publishable_key
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_or_publishable_key
 
-async function main(): Promise<void> {
-  if (!databaseUrl || !redisUrl) {
-    throw new Error(
-      'Set DATABASE_URL and REDIS_URL in environment variables before running integration tests',
-    );
-  }
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+DEFAULT_CONTAINER=ryanai-runtime
+NGROK_AUTHTOKEN=
+MCP_ENABLED=true
+MCP_PORT=8765
+MCP_AUTH_TOKEN=mcp_secure_token_at_least_32_characters_long
+MCP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1]
+SENTRY_ENABLED=false
+SENTRY_DSN=
+TAURI_ENABLED=false
 
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    connectionTimeoutMillis: timeoutMs,
-    max: 1,
-  });
+# Legacy browser key fallback; never use a service-role or secret key here.
+VITE_SUPABASE_ANON_KEY=
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+DEFAULT_CONTAINER=ryanai-runtime
+NGROK_AUTHTOKEN=
+MCP_ENABLED=true
+MCP_PORT=8765
+MCP_AUTH_TOKEN=replace-with-a-random-secret-of-at-least-32-characters
+MCP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1]
+SENTRY_ENABLED=false
+SENTRY_DSN=
+TAURI_ENABLED=false
 
-  const redis = createClient({
-    url: redisUrl,
-    socket: { connectTimeout: timeoutMs, reconnectStrategy: false },
-  });
+# Optional server-side pipeline notifications.
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_NUMBER=
+TWILIO_WHATSAPP_WEBHOOK_URL=
+DEFAULT_RECIPIENT_PHONE=
+RESEND_API_KEY=
+DISPATCH_FROM_EMAIL=
+DEFAULT_RECIPIENT_EMAIL=
 
-  redis.on('error', (error) =>
-    console.error(`Redis client error: ${error.message}`),
-  );
+# API URL that the frontend talks to
+VITE_API_URL=http://localhost:3001
+VITE_API_BASE_URL=http://localhost:3001
 
-  try {
-    await check('PostgreSQL connection', async () => {
-      await pool.query('SELECT 1');
-    });
-
-    await check('Redis connection', async () => {
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await Promise.race([
-          (async () => {
-            await redis.connect();
-            const response = await redis.ping();
-            if (response !== 'PONG') {
-              throw new Error(`Unexpected Redis response: ${response}`);
-            }
-          })(),
-          new Promise<never>((_resolve, reject) => {
-            timeout = setTimeout(
-              () => reject(new Error('Redis connection or PING timed out')),
-              timeoutMs,
-            );
-          }),
-        ]);
-      } finally {
-        clearTimeout(timeout);
-        if (redis.isOpen) {
-          await redis.destroy();
-        }
-      }
-    });
-
-    await checkHttp('API health endpoint', apiHealthUrl, 'application/json');
-
-    await check('API PostgreSQL and Redis health', async () => {
-      const response = await fetch(apiHealthUrl, {
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-      }
-      const health = await response.json();
-      if (health.status !== 'online') {
-        throw new Error(`API status is ${health.status ?? 'unknown'}`);
-      }
-      if (health.services?.database !== true) {
-        throw new Error('PostgreSQL is not connected in API health check');
-      }
-      if (health.services?.redis !== true) {
-        throw new Error('Redis is not connected in API health check');
-      }
-    });
-
-    await checkHttp('Web frontend health endpoint', `${webUrl}/health`);
-    await checkHttp('Web frontend document', webUrl, 'text/html');
-
-    if (mcpHealthUrl) {
-      const mcpToken = process.env.MCP_AUTH_TOKEN;
-      await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(mcpToken ? { 'Authorization': `Bearer ${mcpToken}` } : {}),
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 }),
-      });
-    }
-
-    await check('WebSocket endpoint rejects anonymous upgrades', () =>
-      checkWebSocket(apiUrl, timeoutMs, { expectedStatus: 401 }),
-    );
-
-    if (adminToken) {
-      await check('Authenticated admin WebSocket accepts upgrades', () =>
-        checkWebSocket(apiUrl, timeoutMs, { token: adminToken }),
-      );
-    } else {
-      skipped++;
-      console.log(
-        'SKIP Authenticated WebSocket: set TEST_ADMIN_ACCESS_TOKEN to a valid admin access token',
-      );
-    }
-  } finally {
-    if (redis.isOpen) {
-      await redis.destroy();
-    }
-    await pool.end();
-  }
-
-  const failed = results.filter((result) => result.error);
-  const passedCount = results.length - failed.length;
-  console.log(
-    `\nIntegration checks: ${passedCount}/${results.length} passed; ${skipped} skipped`,
-  );
-  if (failed.length) {
-    process.exitCode = 1;
-  }
-}
-
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+# Supabase Authentication URL and Keys (match these to your backend Supabase config)
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_PUBLISHABLE_KEY=your_actual_supabase_anon_key_here
+VITE_SUPABASE_ANON_KEY=your_actual_supabase_anon_key_here
