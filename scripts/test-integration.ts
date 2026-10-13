@@ -136,11 +136,13 @@ async function main(): Promise<void> {
     await checkHttp('Web frontend document', webUrl, 'text/html');
 
     if (mcpHealthUrl) {
+      const mcpToken = process.env.MCP_AUTH_TOKEN;
       await checkHttp('MCP health endpoint', mcpHealthUrl, 'application/json', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...(mcpToken ? { 'Authorization': `Bearer ${mcpToken}` } : {}),
         },
         body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 }),
       });
