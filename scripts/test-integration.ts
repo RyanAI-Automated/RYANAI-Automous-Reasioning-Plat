@@ -12,6 +12,8 @@ const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
 const timeoutMs = Number(process.env.INTEGRATION_TIMEOUT_MS || 5000);
 const adminToken = process.env.TEST_ADMIN_ACCESS_TOKEN?.trim();
+const API_URL = process.env.API_URL || process.env.BASE_URL || 'http://localhost:3001';
+const WEB_URL = process.env.WEB_URL || 'http://localhost:1420';
 
 let skipped = 0;
 const results: { name: string; error?: string }[] = [];
