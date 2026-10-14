@@ -292,4 +292,4 @@ if (APP_ENV === 'development') {
 export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
 export const runtimeConfig = (window as Record<string, unknown>).__RUNTIME_CONFIG__ || {
   apiUrl: import.meta.env.VITE_API_BASE_URL || '',
-}
+};
