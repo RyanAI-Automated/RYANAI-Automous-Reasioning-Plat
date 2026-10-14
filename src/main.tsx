@@ -290,6 +290,6 @@ if (APP_ENV === 'development') {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
-export const runtimeConfig = ((window as unknown) as Record<string, unknown>).__RUNTIME_CONFIG__ || {
+export const runtimeConfig = (window as unknown as Record<string, unknown>).__RUNTIME_CONFIG__ || {
   apiUrl: import.meta.env.VITE_API_BASE_URL || '',
 };
