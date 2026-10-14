@@ -407,6 +407,37 @@ function registerCoreRoutes() {
 // SERVER STARTUP
 // ============================================================================
 
+async function registerPlugins() {
+  const redis = await connectRedis(config.redis.url);
+
+  // 1. Register foundational Fastify plugins first (Websocket, Redis, Rate Limit)
+  await fastify.register(fastifyWebsocket);
+
+  await fastify.register(fastifyRedis, {
+    client: redis,
+    closeClient: true,
+  });
+
+  await fastify.register(fastifyRateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+    redis: fastify.redis,
+  });
+
+  // 2. Register WebSocket routes after rate-limiting and redis are fully decorated
+  await registerWebSocketRoutes(fastify);
+
+  registerCoreRoutes();
+
+  // 3. Register Application & Webhook Routes
+  await fastify.register(authPlugin);
+  await fastify.register(commsPlugin);
+  await fastify.register(approvalRoutes);
+  await fastify.register(slackInteractionsPlugin);
+  await fastify.register(twilioWebhookPlugin);
+  await fastify.register(metricsRoutes);
+}
+
 async function start() {
   try {
     console.log('\n🔧 Registering Plugins...\n');
