@@ -107,97 +107,7 @@ const serviceStatus = {
 };
 
 // ============================================================================
-// MIDDLEWARE & PLUGINS INITIALIZATION
-// ============================================================================
-
-async function registerPlugins() {
-  const redis = await connectRedis(config.redis.url);
-  await fastify.register(fastifyWebsocket);
-  await registerWebSocketRoutes(fastify);
-
-  // 1. Register Fastify Redis Connection
-  await fastify.register(fastifyRedis, {
-    client: redis,
-    closeClient: true,
-  });
-
-  // 2. Register Global Rate Limiter backed by Redis
-  await fastify.register(fastifyRateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
-    redis: fastify.redis,
-  });
-
-  registerCoreRoutes();
-
-  // 3. Register Application & Webhook Routes
-  await fastify.register(authPlugin);
-  await fastify.register(commsPlugin);
-  await fastify.register(approvalRoutes);
-  await fastify.register(slackInteractionsPlugin);
-  await fastify.register(twilioWebhookPlugin);
-  await fastify.register(metricsRoutes);
-}
-
-// ============================================================================
-// INITIALIZATION FUNCTIONS
-// ============================================================================
-
-async function initializeDatabase() {
-  console.log('📡 Initializing Database...');
-  try {
-    dbPool = new Pool({
-      connectionString: config.database.url,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
-
-    const result = await dbPool.query('SELECT NOW()');
-
-    console.log(`✓ Database connected: ${result.rows[0].now}`);
-    serviceStatus.database = true;
-
-    try {
-      await initializeAgentDatabase();
-      serviceStatus.agentCheckpointer = true;
-    } catch (agentErr) {
-      console.warn(
-        '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
-        databaseFailureDiagnostic(agentErr),
-        agentErr instanceof Error ? agentErr.message : agentErr,
-      );
-    }
-
-    return true;
-  } catch (err) {
-    console.error(
-      `✗ Database connection failed:`,
-      databaseFailureDiagnostic(err),
-      err instanceof Error ? err.message : err,
-    );
-    return false;
-  }
-}
-
-async function verifyRedis() {
-  console.log('⚡ Initializing Redis...');
-  try {
-    const pong = await fastify.redis.ping();
-    console.log(`✓ Redis connected: ${pong}`);
-    serviceStatus.redis = true;
-    return true;
-  } catch (err) {
-    console.error(
-      `✗ Redis connection failed:`,
-      err instanceof Error ? err.message : err,
-    );
-    return false;
-  }
-}
-
-// ============================================================================
-// API ROUTES
+// API ROUTES REGISTRATION
 // ============================================================================
 
 function registerCoreRoutes() {
@@ -404,7 +314,64 @@ function registerCoreRoutes() {
 }
 
 // ============================================================================
-// SERVER STARTUP
+// INITIALIZATION FUNCTIONS
+// ============================================================================
+
+async function initializeDatabase() {
+  console.log('📡 Initializing Database...');
+  try {
+    dbPool = new Pool({
+      connectionString: config.database.url,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
+
+    const result = await dbPool.query('SELECT NOW()');
+
+    console.log(`✓ Database connected: ${result.rows[0].now}`);
+    serviceStatus.database = true;
+
+    try {
+      await initializeAgentDatabase();
+      serviceStatus.agentCheckpointer = true;
+    } catch (agentErr) {
+      console.warn(
+        '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
+        databaseFailureDiagnostic(agentErr),
+        agentErr instanceof Error ? agentErr.message : agentErr,
+      );
+    }
+
+    return true;
+  } catch (err) {
+    console.error(
+      `✗ Database connection failed:`,
+      databaseFailureDiagnostic(err),
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
+async function verifyRedis() {
+  console.log('⚡ Initializing Redis...');
+  try {
+    const pong = await fastify.redis.ping();
+    console.log(`✓ Redis connected: ${pong}`);
+    serviceStatus.redis = true;
+    return true;
+  } catch (err) {
+    console.error(
+      `✗ Redis connection failed:`,
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
+// ============================================================================
+// MIDDLEWARE & PLUGINS INITIALIZATION
 // ============================================================================
 
 async function registerPlugins() {
@@ -437,6 +404,10 @@ async function registerPlugins() {
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
 }
+
+// ============================================================================
+// SERVER STARTUP
+// ============================================================================
 
 async function start() {
   try {
