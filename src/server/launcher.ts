@@ -53,13 +53,13 @@ const config = {
 };
 
 console.log(`📋 Configuration:`);
-console.log(`   - Node Env: ${config.nodeEnv}`);
-console.log(`   - Host: ${config.host}:${config.port}`);
+console.log(`    - Node Env: ${config.nodeEnv}`);
+console.log(`    - Host: ${config.host}:${config.port}`);
 console.log(
-  `   - Database: ${process.env.DATABASE_URL ? 'URL supplied' : 'Local default'} (connection not yet checked)`,
+  `    - Database: ${process.env.DATABASE_URL ? 'URL supplied' : 'Local default'} (connection not yet checked)`,
 );
 console.log(
-  `   - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Unauthenticated local default'} (connection not yet checked)\n`,
+  `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Unauthenticated local default'} (connection not yet checked)\n`,
 );
 
 // Initialize Fastify instance with trustProxy and telemetry-aware logger
@@ -127,16 +127,10 @@ function registerCoreRoutes() {
     };
   };
 
-  // Collision-free health check registrations
-  fastify.get('/health', healthCheck);
-  if (
-    API_ROUTES.healthPath &&
-    ((API_ROUTES.healthPath as string) !== '/health') &&
-    ((API_ROUTES.healthPath as string) !== '/health') &&
-    fastify.get(API_ROUTES.healthPath, healthCheck);
-  }
-  if (API_ROUTES.healthPath !== '/api/health') {
-    fastify.get('/api/health', healthCheck);
+  // Register health check endpoints dynamically using a Set to prevent duplicates and TS2367 errors
+  const healthPaths = Array.from(new Set(['/health', '/api/health', API_ROUTES.healthPath]));
+  for (const p of healthPaths) {
+    fastify.get(p, healthCheck);
   }
 
   // Sentry integration test route
@@ -180,7 +174,10 @@ function registerCoreRoutes() {
     };
   }
 
-  const handleReasoningRequest = async (request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>, reply: FastifyReply) => {
+  const handleReasoningRequest = async (
+    request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
+    reply: FastifyReply,
+  ) => {
     const prompt = request.body?.prompt?.trim();
     if (!prompt) {
       return reply
@@ -309,28 +306,6 @@ function registerCoreRoutes() {
 // INITIALIZATION FUNCTIONS
 // ============================================================================
 
-const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
-    const healthy =
-      serviceStatus.database && serviceStatus.redis && serviceStatus.api;
-    reply.code(healthy ? 200 : 503);
-    return {
-      status: healthy ? 'online' : 'degraded',
-      service: 'ryanai-api-gateway',
-      timestamp: new Date().toISOString(),
-      services: serviceStatus,
-      engine: 'LangGraph ReAct',
-      architect: 'RyanAI',
-      cudaActive: false,
-      activeGraph: 'reasoning-agent',
-    };
-  };
-
-  // Register health check endpoints dynamically to prevent duplicates and TS2367 errors
-  const healthPaths = Array.from(new Set(['/health', '/api/health', API_ROUTES.healthPath]));
-  for (const p of healthPaths) {
-    fastify.get(p, healthCheck);
-  }
-
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
@@ -437,9 +412,9 @@ async function start() {
 
     console.log(`\n✓ RyanAI API Gateway is running!`);
     console.log(`\n📍 Endpoints:`);
-    console.log(`   - Root: http://${config.host}:${config.port}/`);
-    console.log(`   - Health: http://${config.host}:${config.port}/health`);
-    console.log(`   - System: http://${config.host}:${config.port}/api/system`);
+    console.log(`    - Root: http://${config.host}:${config.port}/`);
+    console.log(`    - Health: http://${config.host}:${config.port}/health`);
+    console.log(`    - System: http://${config.host}:${config.port}/api/system`);
     console.log(`\n🟢 All services ready!\n`);
 
     serviceStatus.api = true;
