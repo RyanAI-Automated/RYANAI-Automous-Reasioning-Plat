@@ -23,3 +23,4 @@ export const webUrl = (local
 
 export const apiHealthUrl = process.env.API_HEALTH_URL || `${apiUrl}/health`;
 export const mcpHealthUrl = process.env.MCP_HEALTH_URL || 'http://127.0.0.1:8765/mcp';
+export const PORT = process.env.PORT || '3000';
