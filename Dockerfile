@@ -5,7 +5,9 @@ WORKDIR /app
 # Dependency lifecycle scripts remain enabled; the root addon is opt-in.
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev --legacy-peer-deps
+
+# Leverage BuildKit cache mount for faster dependency installation
+RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
 COPY tsconfig*.json ./
 COPY src ./src
