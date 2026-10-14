@@ -131,7 +131,7 @@ function registerCoreRoutes() {
   fastify.get('/health', healthCheck);
   if (
     API_ROUTES.healthPath &&
-    API_ROUTES.healthPath !== '/health' &&
+    API_ROUTES.healthPath as string) !== '/health' && ...
     API_ROUTES.healthPath !== '/api/health'
   ) {
     fastify.get(API_ROUTES.healthPath, healthCheck);
