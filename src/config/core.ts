@@ -23,7 +23,8 @@ interface CoreConfig {
 
 const coreConfig: CoreConfig = {
   version: "0.1.0",
-  environment: import.meta.env.MODE || "production",
+  environment:
+    (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE || "production",
 };
 
 export default coreConfig;

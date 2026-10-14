@@ -17,14 +17,14 @@ function validateConfig(config: Partial<AppConfig>): AppConfig {
     nodeEnv = defaultNodeEnv,
     port = 3000,
     host = '0.0.0.0',
-    database = {},
-    redis = {},
-    jwt = {},
-    api = {},
-    mcp = {},
-    openai = {},
-    sentry = {},
-    tauri = {},
+    database,
+    redis,
+    jwt,
+    api,
+    mcp,
+    openai,
+    sentry,
+    tauri,
   } = config;
 
   const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:[REDACTED]@localhost:5432/ryanai';
