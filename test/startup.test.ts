@@ -8,6 +8,8 @@ import { createServer, type Socket } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { connectRedis } from '../src/server/connectRedis.js';
 
+const cleanApiUrl = apiUrl.replace(/\/\$/, '');
+const apiHealthUrl = `${cleanApiUrl}/health`;
 const exec = promisify(execFile);
 const configUrl = new URL('../scripts/health-config.mjs', import.meta.url).href;
 const directories: string[] = [];
