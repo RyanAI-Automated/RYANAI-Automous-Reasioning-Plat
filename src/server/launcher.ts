@@ -132,8 +132,7 @@ function registerCoreRoutes() {
   if (
     API_ROUTES.healthPath &&
     ((API_ROUTES.healthPath as string) !== '/health') &&
-    API_ROUTES.healthPath as string) !== '/health'
-  ) {
+    ((API_ROUTES.healthPath as string) !== '/health') &&
     fastify.get(API_ROUTES.healthPath, healthCheck);
   }
   if (API_ROUTES.healthPath !== '/api/health') {
