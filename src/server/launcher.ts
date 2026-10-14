@@ -11,10 +11,7 @@ import fastifyRedis from '@fastify/redis';
 import fastifyRateLimit from '@fastify/rate-limit';
 import pg from 'pg';
 import { connectRedis } from './connectRedis.js';
-import {
-  databaseFailureDiagnostic,
-  startupSummary,
-} from './startupDiagnostics.js';
+import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 
 import { API_ROUTES } from '../config/core.js';
 
@@ -127,10 +124,13 @@ function registerCoreRoutes() {
     };
   };
 
-  // Register health check endpoints dynamically using a Set to prevent duplicates and TS2367 errors
-  const healthPaths = Array.from(new Set(['/health', '/api/health', API_ROUTES.healthPath]));
-  for (const p of healthPaths) {
-    fastify.get(p, healthCheck);
+  // Collision-free health check registrations
+  fastify.get('/health', healthCheck);
+  if ((API_ROUTES.healthPath as string) !== '/health') {
+    fastify.get(API_ROUTES.healthPath, healthCheck);
+  }
+  if ((API_ROUTES.healthPath as string) !== '/api/health') {
+    fastify.get('/api/health', healthCheck);
   }
 
   // Sentry integration test route
