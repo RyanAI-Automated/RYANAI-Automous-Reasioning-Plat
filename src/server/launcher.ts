@@ -127,9 +127,18 @@ function registerCoreRoutes() {
     };
   };
 
+  // Collision-free health check registrations
   fastify.get('/health', healthCheck);
-  fastify.get(API_ROUTES.healthPath, healthCheck);
-  fastify.get('/api/health', healthCheck);
+  if (
+    API_ROUTES.healthPath &&
+    API_ROUTES.healthPath !== '/health' &&
+    API_ROUTES.healthPath !== '/api/health'
+  ) {
+    fastify.get(API_ROUTES.healthPath, healthCheck);
+  }
+  if (API_ROUTES.healthPath !== '/api/health') {
+    fastify.get('/api/health', healthCheck);
+  }
 
   // Sentry integration test route
   fastify.get('/debug-sentry', async () => {
@@ -172,55 +181,39 @@ function registerCoreRoutes() {
     };
   }
 
+  const handleReasoningRequest = async (request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>, reply: FastifyReply) => {
+    const prompt = request.body?.prompt?.trim();
+    if (!prompt) {
+      return reply
+        .code(400)
+        .send({ success: false, error: 'A non-empty prompt is required' });
+    }
+
+    try {
+      return await runReasoning(prompt, request.body?.model);
+    } catch (err) {
+      fastify.log.error({ err }, 'Reasoning request failed');
+      return reply.code(502).send({
+        success: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Reasoning provider request failed',
+      });
+    }
+  };
+
+  // Collision-free reasoning endpoint registrations
   fastify.post<{ Body: { prompt?: string; model?: string } }>(
     API_ROUTES.reasonPath,
-    async (request, reply) => {
-      const prompt = request.body?.prompt?.trim();
-      if (!prompt) {
-        return reply
-          .code(400)
-          .send({ success: false, error: 'A non-empty prompt is required' });
-      }
-
-      try {
-        return await runReasoning(prompt, request.body?.model);
-      } catch (err) {
-        fastify.log.error({ err }, 'Reasoning request failed');
-        return reply.code(502).send({
-          success: false,
-          error:
-            err instanceof Error
-              ? err.message
-              : 'Reasoning provider request failed',
-        });
-      }
-    },
+    handleReasoningRequest,
   );
-
-  fastify.post<{ Body: { prompt?: string; model?: string } }>(
-    '/api/reason',
-    async (request, reply) => {
-      const prompt = request.body?.prompt?.trim();
-      if (!prompt) {
-        return reply
-          .code(400)
-          .send({ success: false, error: 'A non-empty prompt is required' });
-      }
-
-      try {
-        return await runReasoning(prompt, request.body?.model);
-      } catch (err) {
-        fastify.log.error({ err }, 'Reasoning request failed');
-        return reply.code(502).send({
-          success: false,
-          error:
-            err instanceof Error
-              ? err.message
-              : 'Reasoning provider request failed',
-        });
-      }
-    },
-  );
+  if (API_ROUTES.reasonPath !== '/api/reason') {
+    fastify.post<{ Body: { prompt?: string; model?: string } }>(
+      '/api/reason',
+      handleReasoningRequest,
+    );
+  }
 
   // Reasoning stream endpoint
   fastify.post<{
