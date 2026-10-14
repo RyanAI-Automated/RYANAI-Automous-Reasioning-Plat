@@ -1,0 +1,28 @@
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - package.json
+          - package-lock.json
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/components/**
+          - src/pages/**
+          - src/hooks/**
+          - src/store/**
+          - index.html
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/server/**
+          - src/agent/**
+          - src/api/**
+          - prisma/**
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - Dockerfile*
