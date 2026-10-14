@@ -21,17 +21,17 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         '/api': {
-          target: env.VITE_API_URL || process.env.VITE_API_URL || 'http://127.0.0.1:3000',
+          target: env.VITE_API_URL || process.env.VITE_API_URL || 'http://127.0.0.1:3001',
           changeOrigin: true,
           secure: false,
         },
         '/health': {
-          target: env.VITE_API_URL || process.env.VITE_API_URL || 'http://127.0.0.1:3000',
+          target: env.VITE_API_URL || process.env.VITE_API_URL || 'http://127.0.0.1:3001',
           changeOrigin: true,
           secure: false,
         },
         '/ws': {
-          target: env.VITE_API_URL || process.env.VITE_API_URL || 'ws://127.0.0.1:3000',
+          target: env.VITE_WS_URL || env.VITE_API_URL || process.env.VITE_WS_URL || process.env.VITE_API_URL || 'ws://127.0.0.1:3001',
           changeOrigin: true,
           ws: true,
         },
