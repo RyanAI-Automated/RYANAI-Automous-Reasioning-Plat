@@ -289,9 +289,13 @@ if (APP_ENV === 'development') {
 // EXPORTS & RUNTIME CONFIGURATION
 // ============================================================================
 
+<<<<<<< HEAD
 export { apiClient, APP_VERSION, APP_ENV };
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const runtimeConfig = ((window as unknown) as Record<string, unknown>).__RUNTIME_CONFIG__ || {
   apiUrl: import.meta.env.VITE_API_BASE_URL || '',
 };
+=======
+export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
+>>>>>>> e3c9742 (chore: add package-lock.json for startup readiness fix)
