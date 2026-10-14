@@ -310,6 +310,28 @@ function registerCoreRoutes() {
 // INITIALIZATION FUNCTIONS
 // ============================================================================
 
+const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
+    const healthy =
+      serviceStatus.database && serviceStatus.redis && serviceStatus.api;
+    reply.code(healthy ? 200 : 503);
+    return {
+      status: healthy ? 'online' : 'degraded',
+      service: 'ryanai-api-gateway',
+      timestamp: new Date().toISOString(),
+      services: serviceStatus,
+      engine: 'LangGraph ReAct',
+      architect: 'RyanAI',
+      cudaActive: false,
+      activeGraph: 'reasoning-agent',
+    };
+  };
+
+  // Register health check endpoints dynamically to prevent duplicates and TS2367 errors
+  const healthPaths = Array.from(new Set(['/health', '/api/health', API_ROUTES.healthPath]));
+  for (const p of healthPaths) {
+    fastify.get(p, healthCheck);
+  }
+
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
