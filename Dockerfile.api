@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Dependency lifecycle scripts remain enabled; the root addon is opt-in.
 RUN apk add --no-cache libc6-compat
-COPY package.json package-lock.json ./
+COPY package.json package-lock*.json ./
 RUN npm ci --include=dev --legacy-peer-deps
 
 COPY tsconfig*.json ./
