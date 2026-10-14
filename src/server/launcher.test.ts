@@ -44,7 +44,7 @@ vi.mock('../api/websocket.js', () => ({
   registerWebSocketRoutes: async () => {},
 }));
 vi.mock('./routes/auth.js', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+  const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
     installAuthentication: vi.fn(),
