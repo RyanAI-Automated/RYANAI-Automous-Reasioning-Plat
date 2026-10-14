@@ -143,7 +143,7 @@
     "ioredis": "^6.0.0",
     "lucide-react": "^0.446.0",
     "nodemailer": "^10.0.10",
-    "openai": "^7.32.0",
+    "openai": "^7.23.0",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.0",
     "react": "^18.3.1",
