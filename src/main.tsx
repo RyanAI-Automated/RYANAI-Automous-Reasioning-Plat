@@ -290,3 +290,4 @@ if (APP_ENV === 'development') {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
+export const runtimeConfig = ...
