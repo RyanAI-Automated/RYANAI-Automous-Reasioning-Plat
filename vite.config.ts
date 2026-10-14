@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig(({ mode }) => {
-  // Load environment variables based on the current mode
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
@@ -18,7 +17,7 @@ export default defineConfig(({ mode }) => {
       port: Number(env.VITE_PORT || process.env.VITE_PORT || 1420),
       strictPort: true,
       watch: {
-        usePolling: true, // Prevents file-watching issues inside Codespaces/Docker containers
+        usePolling: true,
       },
       proxy: {
         '/api': {
