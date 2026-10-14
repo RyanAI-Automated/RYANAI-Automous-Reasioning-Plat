@@ -132,6 +132,7 @@ declare global {
       version: string;
       apiUrl: string;
     };
+    __RUNTIME_CONFIG__?: Record<string, unknown>;
   }
 }
 
@@ -285,11 +286,12 @@ if (APP_ENV === 'development') {
 }
 
 // ============================================================================
-// EXPORT FOR TYPE SAFETY & LINT COMPLIANCE
+// EXPORTS & RUNTIME CONFIGURATION
 // ============================================================================
 
+export { apiClient, APP_VERSION, APP_ENV };
+
 // eslint-disable-next-line react-refresh/only-export-components
-export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
-export const runtimeConfig = (window as unknown as Record<string, unknown>).__RUNTIME_CONFIG__ || {
+export const runtimeConfig = ((window as unknown) as Record<string, unknown>).__RUNTIME_CONFIG__ || {
   apiUrl: import.meta.env.VITE_API_BASE_URL || '',
 };
