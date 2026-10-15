@@ -101,6 +101,7 @@
         "frontend:agent:dry-run": "node scripts/frontend-platform-agent.mjs --fix --dry-run"
     },
     "dependencies": {
+        "@open-policy-agent/opa-wasm": "...",
         "@fastify/cookie": "^11.1.2",
         "@fastify/cors": "^10.1.0",
         "@fastify/env": "^7.0.0",
@@ -205,6 +206,7 @@
         "vitest": "^5.0.1"
     },
     "overrides": {
+        "sprintf-js": "^1.1.4"
         "exceljs": {
             "tmp": "^0.2.3",
             "uuid": "^11.0.0"
