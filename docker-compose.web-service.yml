@@ -1,15 +1,19 @@
-  web:
+web:
     build:
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: Dockerfile
+      target: web
       args:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    container_name: ryanai-web
     environment:
       PORT: 80
       API_HOST: api
       API_PORT: 3000
+    networks:
+      - ryanai-net
     depends_on:
       api:
         condition: service_healthy
