@@ -182,7 +182,7 @@ export class AgentPAScript extends EventEmitter {
 /**
  * Entry point when invoked directly via CLI or package script (`npm run agent:pa`).
  */
-if (require.main === module) {
+if (require.main === module) { ... }
   const agent = new AgentPAScript();
   
   agent.start().catch((err) => {
