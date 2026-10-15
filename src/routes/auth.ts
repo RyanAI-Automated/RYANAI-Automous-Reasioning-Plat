@@ -3,6 +3,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import crypto from "node:crypto";
 // Assuming Prisma client or database adapter is configured in your project
 // import { prisma } from "../lib/prisma.js";
 
@@ -27,7 +28,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
   
   /**
    * POST /api/auth/signup
-   * Registers a new user account with strict validation and secure hashing.
+   * Registers a new user account with strict validation, secure hashing, and JWT token generation.
    */
   fastify.post("/api/auth/signup", async (request: FastifyRequest, reply: FastifyReply) => {
     const validationResult = SignupSchema.safeParse(request.body);
@@ -59,15 +60,20 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
       // 3. Create user record in database
       // const newUser = await prisma.user.create({
-      //   data: { email, password: hashedPassword, name },
+      //   data: { email, passwordHash: hashedPassword, name },
       // });
+      const userId = crypto.randomUUID();
 
-      request.log.info({ email }, "New user account created successfully");
+      // 4. Generate JWT session token
+      const token = fastify.jwt.sign({ id: userId, email });
+
+      request.log.info({ email }, "New user account created successfully with JWT session");
 
       return reply.status(201).send({
         success: true,
         message: "Account created successfully.",
-        user: { email, name },
+        token,
+        user: { id: userId, email, name },
       });
     } catch (error: unknown) {
       request.log.error(error, "Failed to process user registration");
@@ -80,7 +86,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
   /**
    * POST /api/auth/signin
-   * Authenticates user credentials and returns session tokens.
+   * Authenticates user credentials and returns session JWT tokens.
    */
   fastify.post("/api/auth/signin", async (request: FastifyRequest, reply: FastifyReply) => {
     const validationResult = SigninSchema.safeParse(request.body);
@@ -119,22 +125,59 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // 4. Generate JWT token if using @fastify/jwt
-      // const token = fastify.jwt.sign({ id: user.id, email: user.email }, { expiresIn: "8h" });
+      // 4. Generate JWT session token
+      const token = fastify.jwt.sign({ id: user.id, email: user.email });
 
       request.log.info({ email }, "User authenticated successfully");
 
       return reply.status(200).send({
         success: true,
         message: "Authentication successful.",
-        // token,
-        user: { email: user.email, name: user.name },
+        token,
+        user: { id: user.id, email: user.email, name: user.name },
       });
     } catch (error: unknown) {
       request.log.error(error, "Failed to process user authentication");
       return reply.status(500).send({
         success: false,
         error: "Internal server error during authentication.",
+      });
+    }
+  });
+
+  /**
+   * GET /api/auth/me
+   * Protected profile endpoint requiring valid JWT authorization header.
+   */
+  fastify.get("/api/auth/me", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify();
+      const payload = request.user as { id: string; email: string };
+
+      // Lookup user in database
+      // const user = await prisma.user.findUnique({ where: { id: payload.id } });
+      const user: { id: string; email: string; name: string; createdAt?: string } | null = null; // Replace with Prisma lookup
+
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: "User not found.",
+        });
+      }
+
+      return reply.status(250).send || reply.status(200).send({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          createdAt: user.createdAt,
+        },
+      });
+    } catch (err) {
+      return reply.status(401).send({
+        success: false,
+        error: "Unauthorized: Invalid or missing token.",
       });
     }
   });
