@@ -11,7 +11,6 @@
         "npm": ">=10.0.0"
     },
     "scripts": {
-        "### ═══════════════════════════════════════════════════════════ BUILD & VALIDATION ═══════════════════════════════════════════════════════════ ###": "",
         "dev": "concurrently --kill-others --names api,web,mcp \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:mcp\"",
         "build": "tsc -p tsconfig.app.json && vite build",
         "start": "node dist/server/server/launcher.js",
@@ -29,7 +28,6 @@
         "build:api": "npm run build:server",
         "install:all": "npm ci --legacy-peer-deps && npm --prefix mcp-server ci && npm --prefix workflows-ryanai ci",
         "preview": "vite preview --host",
-        "### ═══════════════════════════════════════════════════════════ DEVELOPMENT ═══════════════════════════════════════════════════════════ ###": "",
         "dev:all": "npm run dev",
         "dev:api": "cross-env NODE_ENV=development tsx watch src/server/launcher.ts",
         "dev:server": "tsx watch src/server/launcher.ts",
@@ -38,7 +36,6 @@
         "dev:mcp": "npm --prefix mcp-server run start:http",
         "dev:desktop": "tauri dev",
         "dev:tunnel": "concurrently \"npm run dev:api\" \"npm run tunnel\"",
-        "### ═══════════════════════════════════════════════════════════ DOCKER & INFRASTRUCTURE ═══════════════════════════════════════════════════════════ ###": "",
         "docker:build": "docker compose build --no-cache",
         "docker:down": "docker compose down",
         "docker:logs": "docker compose logs -f",
@@ -46,12 +43,10 @@
         "infra:up": "docker compose up -d",
         "infra:down": "docker compose down",
         "infra:logs": "docker compose logs -f",
-        "### ═══════════════════════════════════════════════════════════ DATABASE ═══════════════════════════════════════════════════════════ ###": "",
         "db:generate": "prisma generate",
         "db:push": "prisma db push",
         "db:migrate": "node --import tsx/esm src/db/migrate.ts",
         "db:setup": "npm run db:generate && npm run db:migrate",
-        "### ═══════════════════════════════════════════════════════════ TESTING ═══════════════════════════════════════════════════════════ ###": "",
         "test": "vitest run",
         "test:cs-script": "node --test scripts/check-cs-script.mjs",
         "test:workflows": "python -m unittest discover -s workflows -p test_*.py",
@@ -60,7 +55,6 @@
         "test:integration": "tsx scripts/test-integration.ts --local",
         "test:platform": "vitest run test",
         "benchmark:api": "node scripts/benchmark-api.mjs",
-        "### ═══════════════════════════════════════════════════════════ SCRIPTING & UTILITIES ═══════════════════════════════════════════════════════════ ###": "",
         "tunnel": "tsx scripts/tunnel.ts",
         "setup:cs-script": "node scripts/setup-cs-script.mjs",
         "orchestrate": "node scripts/orchestrate.mjs",
@@ -73,7 +67,6 @@
         "native:build": "npm run build:cuda && npm run cmake:build",
         "native:local:configure": "node scripts/cmake.mjs -S native/local-inference -B native/local-inference/build",
         "native:local:build": "node scripts/cmake.mjs --build native/local-inference/build --config Release",
-        "### ═══════════════════════════════════════════════════════════ PYTHON & RUST ═══════════════════════════════════════════════════════════ ###": "",
         "core:run": "python scripts/ryan_cli.py",
         "core:platform": "python scripts/ryan_cli.py",
         "core:check": "python scripts/check-python-core.py",
@@ -81,14 +74,12 @@
         "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
         "rust:build": "cargo build --manifest-path src-tauri/Cargo.toml --all-targets",
         "app:check": "npm run typecheck",
-        "### ═══════════════════════════════════════════════════════════ MCP & SYSTEM ═══════════════════════════════════════════════════════════ ###": "",
         "mcp:check": "npm --prefix mcp-server run check",
         "mcp:start": "npm --prefix mcp-server start",
         "mcp:http": "npm --prefix mcp-server run start:http",
         "mcp:health": "node scripts/check-mcp-health.mjs",
         "mcp:system": "tsx src/mcp/runSystemServer.ts",
         "telemetry:collect": "node --import tsx/esm --import=./src/telemetry.ts src/mcp/systemServer.ts",
-        "### ═══════════════════════════════════════════════════════════ TAURI & RELEASE ═══════════════════════════════════════════════════════════ ###": "",
         "tauri": "tauri",
         "release": "powershell -ExecutionPolicy Bypass -File ./build-installer.ps1",
         "ship": "npm run validate && npm run docker:build",
@@ -166,4 +157,67 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.39.5",
-        "@ngrok/ngrok": "^1.
+        "@ngrok/ngrok": "^1.7.0",
+        "@tailwindcss/postcss": "^4.3.3",
+        "@tauri-apps/cli": "^2.11.4",
+        "@types/bcrypt": "^6.0.0",
+        "@types/exceljs": "^0.5.3",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/node": "^26.6.4",
+        "@types/nodemailer": "^8.0.2",
+        "@types/pdf-parse": "^1.1.5",
+        "@types/react": "^18.3.5",
+        "@types/react-dom": "^18.3.0",
+        "@types/uuid": "^11.0.0",
+        "@types/ws": "^8.18.1",
+        "@vitejs/plugin-react": "^6.1.1",
+        "autoprefixer": "^10.4.18",
+        "concurrently": "^10.0.6",
+        "cross-env": "^10.1.0",
+        "eslint": "^9.9.1",
+        "eslint-plugin-prettier": "^5.1.3",
+        "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+        "eslint-plugin-react-refresh": "^0.5.7",
+        "fake-indexeddb": "^6.2.5",
+        "globals": "^17.13.0",
+        "happy-dom": "^20.14.6",
+        "node-addon-api": "^8.9.2",
+        "node-gyp": "13.1.0",
+        "pino-pretty": "^13.1.3",
+        "postcss": "^8.5.30",
+        "prisma": "^6.19.3",
+        "puppeteer": "^25.11.0",
+        "tailwindcss": "^4.3.3",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.23.13",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.3.0",
+        "vite": "^8.3.2",
+        "vitest": "^5.0.1"
+    },
+    "overrides": {
+        "sprintf-js": "^1.1.4",
+        "exceljs": {
+            "tmp": "^0.2.3",
+            "uuid": "^11.0.0"
+        },
+        "@vitejs/plugin-react": {
+            "vite": "$vite"
+        },
+        "@prisma/config": {
+            "deepmerge-ts": "8.0.2"
+        },
+        "concurrently": {
+            "shell-quote": "1.12.0"
+        }
+    },
+    "allowScripts": {
+        "@prisma/client@6.19.3": true,
+        "puppeteer@25.11.0": true,
+        "esbuild@0.28.2": true,
+        "protobufjs@7.6.6": true,
+        "@sentry/node-cpu-profiler@2.4.4": true,
+        "prisma@6.19.3": true,
+        "@prisma/engines@6.19.3": true
+    }
+}
