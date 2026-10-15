@@ -26,7 +26,7 @@ export async function registerPatchRoutes(fastify: FastifyInstance) {
         }
 
         // 3. Attach author if authenticated
-        const authUser = request.user as { email?: string } | undefined;
+        const authUser = (request as any).user as { email?: string } | undefined;
         if (authUser?.email && !patchRequest.author) {
           patchRequest.author = authUser.email;
         }
