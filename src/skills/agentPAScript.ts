@@ -179,22 +179,4 @@ export class AgentPAScript extends EventEmitter {
   }
 }
 
-/**
- * Entry point when invoked directly via CLI or package script (`npm run agent:pa`).
- */
-if (require.main === module) { ... }
-  const agent = new AgentPAScript();
-  
-  agent.start().catch((err) => {
-    console.error("[AgentPA] Unhandled startup error:", err);
-    process.exit(1);
-  });
-
-  process.on("SIGINT", async () => {
-    console.log("\n[AgentPA] Intercepted SIGINT. Shutting down gracefully...");
-    await agent.stop();
-    process.exit(0);
-  });
-}
-
 export default AgentPAScript;
