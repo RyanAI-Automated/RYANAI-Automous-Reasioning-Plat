@@ -31,6 +31,11 @@ export const SELF_HEALING_SKILL = {
   description: "Self-healing and auto-correction engine",
 };
 
+export const SOVEREIGN_FIREWALL_SKILL = {
+  name: "sovereign-firewall",
+  description: "Zero-trust network isolation and firewall enforcement",
+};
+
 /**
  * AgentPAScript
  * 
