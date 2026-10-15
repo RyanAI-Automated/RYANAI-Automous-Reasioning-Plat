@@ -12,6 +12,10 @@
                 },
     "scripts":  {
                     "### ═══════════════════════════════════════════════════════════ BUILD \u0026 VALIDATION ═══════════════════════════════════════════════════════════ ###":  "",
+                    "dev": "next dev",
+                    "build": "next build",
+                    "start": "next start",
+                    "lint": "next lint",
                     "build:server": "ts-node src/server.ts",
                     "agent:pa": "ts-node src/skills/agentPAScript.ts"
                     "dev": "next dev",
