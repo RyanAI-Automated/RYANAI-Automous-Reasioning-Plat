@@ -21,6 +21,10 @@ export interface AgentPAScriptConfig {
   maxRetryAttempts?: number;
 }
 
+export const AGENT_PA_SKILL = {
+  // skill definition...
+};
+
 /**
  * AgentPAScript
  * 
