@@ -1,3 +1,7 @@
+# =====================================================================
+# RyanAI Autonomous Reasoning Platform - API Service Dockerfile
+# =====================================================================
+
 FROM node:22-alpine AS builder
 
 WORKDIR /app
