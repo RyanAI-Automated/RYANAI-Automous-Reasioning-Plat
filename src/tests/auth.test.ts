@@ -1,7 +1,7 @@
 // File path: ./src/tests/auth.test.ts
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { buildApp } from "../app.js"; // Adjust path to your main Fastify app factory function
+import { buildApp } from "../server.js";
 import { prisma } from "../lib/prisma.js";
 import { FastifyInstance } from "fastify";
 
@@ -130,8 +130,4 @@ describe("Authentication Routes Integration Tests", () => {
     const body = JSON.parse(response.payload);
     expect(body.success).toBe(false);
   });
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)

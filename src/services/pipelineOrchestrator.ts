@@ -14,7 +14,6 @@ interface PipelineStep {
 }
 
 export class PipelineOrchestrator {
-  
   async executeFullPipeline(projectName: string, instructions: string) {
     console.log(`[PIPELINE] Initializing 5-Phase sequence for: ${projectName} with instructions: ${instructions}`);
     const decisionGraph: PipelineStep[] = [];
@@ -31,7 +30,6 @@ export class PipelineOrchestrator {
 
       // 3. BUILD & TEST PHASE (Governed by Transcend & eBPF)
       console.log('[PHASE 3 & 4: BUILD/TEST] Booting Docker Sandbox...');
-      // If this violates rules, eBPF will SIGKILL it, throwing an error down to the catch block
       await execAsync(`docker build -t ${projectName}-test .`);
       await execAsync(`docker run --rm ${projectName}-test npm run test`);
       decisionGraph.push({ phase: 'Build/Test', action: 'Docker Execution', status: 'PASSED' });

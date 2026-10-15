@@ -13,7 +13,7 @@ export async function notifyPendingApproval({ threadId, tool, args }: ApprovalNo
   if (process.env.SLACK_WEBHOOK_URL) {
     try {
       const payload = {
-        text: `🚨 RyanAI Action Pending Approval: ${tool}`,
+        text: `🚨 RyanAI Action Pending Approval: \${tool}`,
         blocks: [
           {
             type: 'section',
@@ -80,7 +80,7 @@ export async function notifyPendingApproval({ threadId, tool, args }: ApprovalNo
         to: process.env.ADMIN_EMAIL,
         subject: `[Action Required] RyanAI Pending Approval: ${tool}`,
         html: `
-          <div style="font-family: sans-serif; padding: 20px; background-color: #0f172a; color: #f8fafc; rounded: 8px;">
+          <div style="font-family: sans-serif; padding: 20px; background-color: #0f172a; color: #f8fafc; border-radius: 8px;">
             <h2 style="color: #fbbf24;">🛡️ Action Approval Required</h2>
             <p><strong>Thread ID:</strong> <code>${threadId}</code></p>
             <p><strong>Target Tool:</strong> <code>${tool}</code></p>

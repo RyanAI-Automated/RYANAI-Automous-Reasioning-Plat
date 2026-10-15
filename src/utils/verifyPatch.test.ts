@@ -106,7 +106,7 @@ describe("isolated patch verification gate", () => {
   });
 
   it("passes an optional script as read-only data, never as host command text", async () => {
-    const script = 'console.log("$(touch /host-sentinel)");';
+    const script = 'console.log("\$(touch /host-sentinel)");';
     let contents: Promise<string> | undefined;
     let permissions: Promise<number> | undefined;
     execute.mockImplementation(

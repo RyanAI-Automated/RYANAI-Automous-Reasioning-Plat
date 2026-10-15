@@ -155,7 +155,7 @@ export default function App() {
                 <CommandCenter
                   onSignOut={() => void handleSignOut()}
                   userId={user.id}
-                  userEmail={user.email}
+                  userEmail={user.email!}
                   userFullName={displayName}
                 />
               </div>

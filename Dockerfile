@@ -132,8 +132,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT}/health" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/ryanai-web-entrypoint.sh"]
-<<<<<<< HEAD
 CMD ["nginx", "-g", "daemon off;"]
-=======
-CMD ["nginx", "-g", "daemon off;"]
->>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)
+

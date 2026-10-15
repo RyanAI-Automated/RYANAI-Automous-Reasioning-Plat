@@ -13,7 +13,8 @@ interface ConnectionContext {
   ws: WebSocket;
   auth?: AuthContext;
   subscriptions: Set<string>;
-  messageCount: number;`r`n  connectedAt: number;
+  messageCount: number;
+  connectedAt: number;
 }
 
 const connections = new Map<string, ConnectionContext>();
@@ -32,6 +33,7 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
       ws: socket as WebSocket,
       auth,
       subscriptions: new Set(),
+      messageCount: 0,
       connectedAt: Date.now(),
     };
 
@@ -202,3 +204,5 @@ function extractAuth(request: FastifyRequest): AuthContext | undefined {
     expiresAt: Date.now() + 86400000,
   };
 }
+
+export default registerWebSocketRoutes;

@@ -1,5 +1,5 @@
 // src/services/mobileApiClient.ts
-const BACKEND_URL = process.env.EXPO_PUBLIC_RYAN_API_URL || "https://api.ryanganyane.co.za"; // Or local IP for development
+const BACKEND_URL = process.env.EXPO_PUBLIC_RYAN_API_URL || "https://api.ryanganyane.co.za";
 
 export interface AgentEvolutionResponse {
   status: string;

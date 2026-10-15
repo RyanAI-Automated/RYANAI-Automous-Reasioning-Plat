@@ -7,10 +7,6 @@ import { API_BASE_URL } from './lib/apiBaseUrl';
 import { getPlatformHealth } from './lib/platformHealth';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// ============================================================================
-// ENVIRONMENT CONFIGURATION
-// ============================================================================
-
 const APP_VERSION = '4.5.0-matrix';
 const APP_ENV = import.meta.env.MODE;
 
@@ -26,9 +22,6 @@ class RyanAIClient {
     );
   }
 
-  /**
-   * Make API request
-   */
   async request<T = unknown>(
     endpoint: string,
     options: RequestInit & { method?: string } = {},
@@ -45,9 +38,6 @@ class RyanAIClient {
     return response.json() as Promise<T>;
   }
 
-  /**
-   * Pipeline Orchestration
-   */
   async executePipeline(targetEnv: string, autoShip: boolean) {
     return this.request('/api/pipeline/execute', {
       method: 'POST',
@@ -55,62 +45,38 @@ class RyanAIClient {
     });
   }
 
-  /**
-   * Get Pipeline Status
-   */
   async getPipelineStatus() {
     return this.request('/api/pipeline/status');
   }
 
-  /**
-   * Get Governance Errors
-   */
   async getGovernanceErrors(filter?: string) {
     return this.request(
-      `/api/governance/errors${filter ? `?filter=${filter}` : ''}`,
+      `/api/governance/errors${filter ? `?filter=\${filter}` : ''}`,
     );
   }
 
-  /**
-   * Apply Auto-Fix
-   */
   async applyAutoFix(errorId: string) {
     return this.request(`/api/governance/fix/${errorId}`, { method: 'POST' });
   }
 
-  /**
-   * Get Recycled Items
-   */
   async getRecycledItems(category?: string) {
     return this.request(
-      `/api/recycling/items${category ? `?category=${category}` : ''}`,
+      `/api/recycling/items${category ? `?category=\${category}` : ''}`,
     );
   }
 
-  /**
-   * Restore Recycled Item
-   */
   async restoreRecycledItem(itemId: string) {
     return this.request(`/api/recycling/restore/${itemId}`, { method: 'POST' });
   }
 
-  /**
-   * Get Telemetry
-   */
   async getTelemetry() {
     return this.request('/api/telemetry');
   }
 
-  /**
-   * Run Diagnostic Sweep
-   */
   async runDiagnosticSweep() {
     return this.request('/api/telemetry/diagnostic', { method: 'POST' });
   }
 
-  /**
-   * Health Check
-   */
   async healthCheck() {
     return getPlatformHealth();
   }
@@ -142,21 +108,12 @@ window.ryanai = {
   apiUrl: API_BASE_URL,
 };
 
-// ============================================================================
-// ERROR TRACKING (OPTIONAL SENTRY)
-// ============================================================================
-
 const initializeSentry = () => {
   const sentryDSN = import.meta.env.VITE_SENTRY_DSN;
   if (sentryDSN && APP_ENV === 'production') {
     console.log('🔍 Initializing Sentry error tracking...');
-    // Sentry initialization hook
   }
 };
-
-// ============================================================================
-// OPTIONAL BACKEND HEALTH CHECK
-// ============================================================================
 
 const performHealthCheck = async (): Promise<boolean> => {
   try {
@@ -168,10 +125,6 @@ const performHealthCheck = async (): Promise<boolean> => {
     return false;
   }
 };
-
-// ============================================================================
-// INITIALIZE REACT APPLICATION
-// ============================================================================
 
 const initializeApp = async () => {
   try {
@@ -244,10 +197,6 @@ const initializeApp = async () => {
   }
 };
 
-// ============================================================================
-// START APPLICATION
-// ============================================================================
-
 if (document.readyState === 'loading') {
   document.addEventListener(
     'DOMContentLoaded',
@@ -259,10 +208,6 @@ if (document.readyState === 'loading') {
 } else {
   initializeApp().catch(console.error);
 }
-
-// ============================================================================
-// DEVELOPMENT UTILITIES
-// ============================================================================
 
 if (APP_ENV === 'development') {
   window.__DEV__ = {
@@ -284,10 +229,6 @@ if (APP_ENV === 'development') {
     'color: #00f3ff; font-size: 12px; font-family: monospace;',
   );
 }
-
-// ============================================================================
-// EXPORTS & RUNTIME CONFIGURATION
-// ============================================================================
 
 // eslint-disable-next-line react-refresh/only-export-components
 export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };

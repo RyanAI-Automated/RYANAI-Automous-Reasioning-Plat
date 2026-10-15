@@ -1,7 +1,6 @@
 // File path: ./src/server.ts
 
 import { startTelemetry } from './telemetry/otel.js';
-// Initialize telemetry first before any Fastify or HTTP module imports
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -22,8 +21,6 @@ import { createRyanAgentGraph } from "./agent/reactWorkflow.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { RyanAIOrchestrator } from "./engine/orchestrator.js";
 import { RyanAISwarmCoordinator } from "./engine/swarmCoordinator.js";
-import { TelemetryDaemon } from "./engine/telemetryDaemon.js";
-import { RyanMCPServer } from "./mcp/ryanMcpServer.js";
 import { agentOpsRoutes } from "./routes/agentOps.js";
 import { dispatchRoutes } from "./routes/dispatch.js";
 import { githubRoutes } from "./routes/github.js";
@@ -31,11 +28,10 @@ import { voiceRealtimeGateway } from "./gateway/voiceRealtimeGateway.js";
 import transcendPlugin from "./plugins/transcendGovernance.js";
 import nativeInferencePlugin from "./plugins/nativeInference.js";
 import { eBPFSentinel } from "./security/sentinelLoader.js";
-import { TelemetryData, OutgoingMessage, IncomingMessage } from "./types.js";
+import { TelemetryData } from "./types.js";
 
 dotenv.config();
 
-// Fastify Type Augmentation for Custom Plugins & JWT
 declare module 'fastify' {
   interface FastifyInstance {
     cppEngine?: {
@@ -47,11 +43,9 @@ declare module 'fastify' {
   }
 }
 
-// ESM Directory Resolution
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Global Swarm Mesh Setup
 const swarm = RyanAISwarmCoordinator.getInstance();
 swarm.startMeshBroadcast(3000);
 
@@ -59,11 +53,9 @@ swarm.on("peer_updated", (peerId: string) => {
   console.log(`[Swarm Mesh] Discovered / updated peer node in cluster: ${peerId}`);
 });
 
-// Initialize eBPF Sentinel
 const sentinel = new eBPFSentinel();
 sentinel.initializeSentinel();
 
-// Checkpointer utility for state preservation across execution steps
 const RyanAICheckpointer = {
   getLatestCheckpoint: async (_threadId: string) => {
     return null;
@@ -73,7 +65,6 @@ const RyanAICheckpointer = {
   },
 };
 
-// Types & Interfaces
 interface EngineCommandBody {
   command: string;
   targetModule?: string;
@@ -105,22 +96,12 @@ interface GatherBody {
   SpeechResult?: string;
 }
 
-interface TwilioStatusBody {
-  CallSid?: string;
-  CallStatus?: string;
-  CallDuration?: string;
-  AnsweredBy?: string;
-}
-
-// Global active call store
 const activeCalls = new Map<string, { reason: string; startTime: number }>();
 
-// Lazy-load or fallback Twilio client instantiation
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-// Helper function for safe error message extraction
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
@@ -161,10 +142,7 @@ function readTelemetry(): TelemetryData {
   };
 }
 
-/**
- * Builds and configures the unified Fastify application instance.
- */
-async function buildApp(): Promise<FastifyInstance> {
+export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       transport: {
@@ -174,7 +152,6 @@ async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // 1. Register Core, Web Socket, JWT, Auth & Native C++ Plugins
   await app.register(cors, {
     origin: process.env.NODE_ENV === "production" ? false : "*",
   });
@@ -186,19 +163,16 @@ async function buildApp(): Promise<FastifyInstance> {
   await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
-  // 2. Register Transcend Governance Plugin
   await app.register(transcendPlugin, {
     wasmFilePath: path.join(__dirname, "../policy.wasm"),
     enforceRoutes: ["/api/v1/agent/execute", "/api/v1/voice/call"],
   });
 
-  // 3. Register Sub-Routes & Modular Gateways
   await app.register(agentOpsRoutes);
   await app.register(dispatchRoutes);
   await app.register(githubRoutes);
   await app.register(voiceRealtimeGateway);
 
-  // 4. Platform Health Route
   app.get("/health", async (_request: FastifyRequest, _reply: FastifyReply) => {
     return {
       status: "online",
@@ -224,7 +198,6 @@ async function buildApp(): Promise<FastifyInstance> {
     };
   });
 
-  // 5. System Status Route
   app.get("/api/system", async (_request: FastifyRequest, _reply: FastifyReply) => {
     return {
       status: "online",
@@ -234,7 +207,6 @@ async function buildApp(): Promise<FastifyInstance> {
     };
   });
 
-  // 6. eBPF Sentinel Security Status Route
   app.get("/api/ryan/security/status", async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({
       success: true,
@@ -242,7 +214,6 @@ async function buildApp(): Promise<FastifyInstance> {
     });
   });
 
-  // 7. Native C++ CUDA/CPU Inference Route for HUD Terminal & Agent Workflows
   app.post<{ Body: { prompt: string } }>(
     "/api/ryan/inference",
     async (req: FastifyRequest<{ Body: { prompt: string } }>, reply: FastifyReply) => {
@@ -270,7 +241,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 8. Command Route
   app.post<{ Body: EngineCommandBody }>(
     "/api/engine/command",
     async (request: FastifyRequest<{ Body: EngineCommandBody }>, reply: FastifyReply) => {
@@ -279,7 +249,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 9. Base Reason Route (LangGraph ReAct)
   app.post<{ Body: ReasonRequestBody }>(
     "/api/reason",
     async (request: FastifyRequest<{ Body: ReasonRequestBody }>, reply: FastifyReply) => {
@@ -308,7 +277,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 10. Stateful Agent Graph Execution Route with Checkpointing
   app.post<{ Body: { threadId: string; message: string } }>(
     "/api/ryan/agent/invoke",
     async (request: FastifyRequest<{ Body: { threadId: string; message: string } }>, reply: FastifyReply) => {
@@ -338,7 +306,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 11. Orchestrator Route (Multi-Brain Pipeline with Checkpointing)
   app.post<{ Body: TaskRequestBody }>(
     "/api/v1/reason",
     async (request: FastifyRequest<{ Body: TaskRequestBody }>, reply: FastifyReply) => {
@@ -371,10 +338,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  /* ==========================================================================
-     Transcend Governance & Agent Execution Routes
-     ========================================================================== */
-
   app.post(
     "/api/v1/agent/execute",
     async (req: FastifyRequest, reply: FastifyReply) => {
@@ -392,10 +355,6 @@ async function buildApp(): Promise<FastifyInstance> {
       return reply.send(result);
     }
   );
-
-  /* ==========================================================================
-     Voice Telephony Endpoints
-     ========================================================================== */
 
   const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
@@ -512,10 +471,15 @@ async function buildApp(): Promise<FastifyInstance> {
       } else {
         twiml.say(
           { voice: "Polly.Matthew" },
-          `Received ${input ? `'\${input}'` : "unrecognized input"}. No external dispatch is configured.`
+          `Received unrecognized input. No external dispatch is configured.`
         );
-<<<<<<< HEAD
         twiml.hangup();
-=======
-        twiml.hangup();
->>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)
+      }
+
+      reply.header("Content-Type", "text/xml");
+      return reply.send(twiml.toString());
+    }
+  );
+
+  return app;
+}

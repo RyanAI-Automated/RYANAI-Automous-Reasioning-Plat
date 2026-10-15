@@ -1,6 +1,6 @@
-import { authenticatedFetch } from '@/lib/authenticatedFetch';
 // File path: ./src/services/apiClient.ts
 
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { API_BASE_URL } from '../lib/apiBaseUrl';
 
 export interface ReasoningRequest {

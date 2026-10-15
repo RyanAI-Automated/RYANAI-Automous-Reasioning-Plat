@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { getSystemDiagnostics, testCudaAddonLoad, runCommand } from './src/utils/nodeSupport.js';
+import { getSystemDiagnostics, testCudaAddonLoad, runCommand } from './nodeSupport.js';
 
 const program = new Command();
 
@@ -16,18 +16,18 @@ program
     console.log('=== RyanAI Environment Diagnostics ===');
     const diag = getSystemDiagnostics();
 
-    console.log(`Node Version:             ${diag.nodeVersion}`);
+    console.log(`Node Version:             \${diag.nodeVersion}`);
     console.log(`Platform & Arch:          ${diag.platform} (${diag.arch})`);
-    console.log(`System Memory:            ${diag.freeMemoryGB} GB free / ${diag.totalMemoryGB} GB total`);
-    console.log(`CUDA C++ Source:          ${diag.cudaSourceExists ? 'Found [OK]' : 'Missing [WARN]'}`);
-    console.log(`CUDA Compiled Binding:    ${diag.cudaCompiledBindingExists ? 'Found [OK]' : 'Not Compiled [WARN]'}`);
+    console.log(`System Memory:            \${diag.freeMemoryGB} GB free / \${diag.totalMemoryGB} GB total`);
+    console.log(`CUDA C++ Source:          \${diag.cudaSourceExists ? 'Found [OK]' : 'Missing [WARN]'}`);
+    console.log(`CUDA Compiled Binding:    \${diag.cudaCompiledBindingExists ? 'Found [OK]' : 'Not Compiled [WARN]'}`);
 
     // Test native addon loading
     const addonTest = testCudaAddonLoad();
     if (addonTest.loaded) {
       console.log('CUDA Addon Load Test:     Successfully Bound [OK]');
     } else {
-      console.log(`CUDA Addon Load Test:     Failed [WARN] (${addonTest.error})`);
+      console.log(`CUDA Addon Load Test:     Failed [WARN] (\${addonTest.error})`);
     }
 
     console.log('======================================');

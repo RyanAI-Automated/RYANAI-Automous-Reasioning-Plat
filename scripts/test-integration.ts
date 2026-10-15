@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { execFile, promisify } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const timeoutMs = Number(process.env.API_TIMEOUT || 5000);

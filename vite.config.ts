@@ -3,14 +3,11 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Fix for Node.js environments where import.meta.dirname isn't available or typed
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  // Load environment variables based on the current mode (e.g. development, production)
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Extract variables with proper fallback hierarchy
   const targetApiUrl = env.VITE_API_URL || process.env.VITE_API_URL || 'http://127.0.0.1:3001';
   const targetWsUrl = env.VITE_WS_URL || process.env.VITE_WS_URL || targetApiUrl.replace(/^http/, 'ws');
   const serverPort = Number(env.VITE_PORT || process.env.VITE_PORT || 1420);
@@ -20,6 +17,13 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+      },
+    },
+    test: {
+      globals: true,
+      environment: 'node',
+      env: {
+        RYAN_PATCH_VERIFIER_IMAGE: "ryanai/verifier@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       },
     },
     server: {

@@ -189,3 +189,5 @@ build/
 RYANAI/
 complete-ryanal-reasoning-platform/
 vercel-build-failure-npm-script/complete-ryanai-reasoning-platform/ 
+.vercel
+.env*

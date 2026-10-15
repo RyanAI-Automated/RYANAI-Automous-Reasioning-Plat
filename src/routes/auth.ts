@@ -174,8 +174,5 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
       });
     }
   });
-<<<<<<< HEAD
+
 }
-=======
-}
->>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)

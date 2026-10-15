@@ -13,7 +13,8 @@ const auth = vi.hoisted(() => ({
   onAuthStateChange: vi.fn(),
   unsubscribe: vi.fn(),
   listener: null as
-    ((event: AuthChangeEvent, session: Session | null) => void) | null,
+    | ((event: AuthChangeEvent, session: Session | null) => void)
+    | null,
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
 vi.mock('@/pages/LandingPage', () => ({
