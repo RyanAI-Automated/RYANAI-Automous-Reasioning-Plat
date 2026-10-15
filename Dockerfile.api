@@ -4,8 +4,10 @@ WORKDIR /app
 
 # Dependency lifecycle scripts remain enabled; the root addon is opt-in.
 RUN apk add --no-cache libc6-compat
-COPY package.json package-lock*.json ./
-RUN npm ci --include=dev --legacy-peer-deps
+COPY package.json package-lock.json ./
+
+# Leverage BuildKit cache mount for faster dependency installation
+RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
 COPY tsconfig*.json ./
 COPY src ./src
@@ -19,6 +21,9 @@ RUN npm run db:generate \
     && npm prune --omit=dev --legacy-peer-deps
 
 FROM node:22-alpine AS runner
+
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 WORKDIR /app
 ENV NODE_ENV=production \
