@@ -5,6 +5,7 @@ import { startTelemetry } from './telemetry/otel.js';
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import fastifyJwt from "@fastify/jwt";
 import { registerAuthRoutes } from './routes/auth.js';
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
@@ -34,7 +35,7 @@ import { TelemetryData, OutgoingMessage, IncomingMessage } from "./types.js";
 
 dotenv.config();
 
-// Fastify Type Augmentation for Custom Plugins
+// Fastify Type Augmentation for Custom Plugins & JWT
 declare module 'fastify' {
   interface FastifyInstance {
     cppEngine?: {
@@ -173,12 +174,15 @@ async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // 1. Register Core, Web Socket, Auth & Native C++ Plugins
+  // 1. Register Core, Web Socket, JWT, Auth & Native C++ Plugins
   await app.register(cors, {
     origin: process.env.NODE_ENV === "production" ? false : "*",
   });
   await app.register(formbody);
   await app.register(websocket);
+  await app.register(fastifyJwt, {
+    secret: process.env.JWT_SECRET || "ryanai-secure-jwt-secret-key-2026",
+  });
   await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
@@ -511,148 +515,3 @@ async function buildApp(): Promise<FastifyInstance> {
           `Received ${input ? `'\${input}'` : "unrecognized input"}. No external dispatch is configured.`
         );
         twiml.hangup();
-      }
-
-      reply.header("Content-Type", "text/xml");
-      return reply.send(twiml.toString());
-    }
-  );
-
-  app.post<{ Body: TwilioStatusBody }>(
-    "/api/v1/voice/status",
-    async (req: FastifyRequest<{ Body: TwilioStatusBody }>, reply: FastifyReply) => {
-      const { CallSid, CallStatus } = req.body || {};
-      if (CallSid && (CallStatus === "completed" || CallStatus === "failed" || CallStatus === "no-answer")) {
-        activeCalls.delete(CallSid);
-      }
-      return reply.status(200).send({ received: true });
-    }
-  );
-
-  app.get("/api/v1/voice/active", async (_req: FastifyRequest, reply: FastifyReply) => {
-    const calls = Array.from(activeCalls.entries()).map(([sid, data]) => ({
-      callSid: sid,
-      reason: data.reason,
-      durationSeconds: Math.floor((Date.now() - data.startTime) / 1000),
-    }));
-
-    return reply.send({ count: calls.length, activeCalls: calls });
-  });
-
-  /* ==========================================================================
-     Real-Time Telemetry WebSocket Gateway (/ws/telemetry)
-     ========================================================================== */
-
-  app.get('/ws/telemetry', { websocket: true }, (connection, _req) => {
-    const socket = connection.socket;
-    app.log.info('HUD Client connected to telemetry stream');
-
-    // 1. Broadcast telemetry every 1.5 seconds
-    const telemetryInterval = setInterval(() => {
-      if (socket.readyState === 1 /* OPEN */) {
-        const msg: OutgoingMessage = {
-          type: 'TELEMETRY',
-          payload: readTelemetry(),
-        };
-        socket.send(JSON.stringify(msg));
-      }
-    }, 1500);
-
-    // 2. Handle messages sent from the HUD client
-    socket.on('message', (rawMessage: Buffer) => {
-      try {
-        const data: IncomingMessage = JSON.parse(rawMessage.toString());
-
-        if (data.type === 'COMMAND') {
-          app.log.info(`Received system command: ${data.command}`);
-
-          if (socket.readyState === 1) {
-            const ackLog: OutgoingMessage = {
-              type: 'LOG',
-              payload: {
-                id: Date.now().toString(),
-                timestamp: new Date().toLocaleTimeString(),
-                level: 'INFO',
-                message: `Command '${data.command}' was received but not executed by this telemetry endpoint.`,
-              },
-            };
-            socket.send(JSON.stringify(ackLog));
-          }
-        }
-
-        if (data.type === 'SWEEP_START') {
-          app.log.warn('A diagnostic sweep was requested, but no sweep provider is configured.');
-        }
-      } catch (err) {
-        app.log.error({ err }, 'Failed to parse incoming WebSocket message');
-      }
-    });
-
-    // Cleanup on disconnect
-    socket.on('close', () => {
-      app.log.info('HUD Client disconnected');
-      clearInterval(telemetryInterval);
-    });
-  });
-
-  return app;
-}
-
-/**
- * Server & Platform Initialization
- */
-async function main() {
-  try {
-    const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-    const host = process.env.HOST || "0.0.0.0";
-
-    // 1. Start MCP Server on stdio transport
-    const mcpServer = new RyanMCPServer();
-    await mcpServer.start();
-
-    // 2. Build and start Unified Fastify Gateway
-    const app = await buildApp();
-    await app.listen({ port, host });
-
-    console.log(`
-┌───────────────────────────────────────────────────────────┐
-│ RYAN_AI ENGINE RUNNING ON http://${host}:${port}          │
-├───────────────────────────────────────────────────────────┤
-│ • Native C++ Inference: POST /api/ryan/inference          │
-│ • LangGraph ReAct:      POST /api/reason                  │
-│ • Stateful Agent Graph: POST /api/ryan/agent/invoke       │
-│ • eBPF Security Status: GET  /api/ryan/security/status    │
-│ • Dispatch Gateway:     POST /api/v1/dispatch/pipeline-report │
-│ • GitHub Shipper:       POST /api/v1/github/ship          │
-│ • Realtime Voice:       WS   /api/v1/realtime/voice       │
-│ • Telemetry WebSocket:  WS   /ws/telemetry                │
-│ • Health Check:         GET  /health                      │
-└───────────────────────────────────────────────────────────┘
-`);
-
-    // 3. Start Telemetry Self-Healing Watchdog Daemon
-    const daemon = new TelemetryDaemon(30000);
-    daemon.start();
-
-    // Graceful Shutdown Handlers
-    const shutdown = async (signal: string) => {
-      console.log(`\n[Shutdown] Received ${signal}. Closing server...`);
-      try {
-        await app.close();
-        console.log('[Shutdown] Fastify server closed.');
-        process.exit(0);
-      } catch (err) {
-        console.error('[Shutdown Error]:', err);
-        process.exit(1);
-      }
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-  } catch (err) {
-    console.error("[Fatal Startup Error]:", err);
-    process.exit(1);
-  }
-}
-
-main();
