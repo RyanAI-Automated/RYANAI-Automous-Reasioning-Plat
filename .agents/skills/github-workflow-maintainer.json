@@ -1,0 +1,35 @@
+{
+  "id": "github-workflow-maintainer",
+  "name": "GitHub Workflow Maintainer",
+  "version": "1.0.0",
+  "description": "Audits, repairs, validates, and patches every GitHub Actions workflow in this repository.",
+  "scope": [
+    ".github/workflows/**/*.yml",
+    ".github/workflows/**/*.yaml",
+    ".github/dependabot.yml",
+    "scripts/validate-github-workflows.mjs"
+  ],
+  "commands": {
+    "audit": "node scripts/github-workflow-agent.mjs --audit",
+    "fix": "node scripts/github-workflow-agent.mjs --fix",
+    "validate": "npm run workflow:validate"
+  },
+  "policies": {
+    "neverCommitSecrets": true,
+    "neverResolveConflictByDroppingContent": true,
+    "requireWorkflowNameTriggerAndJobs": true,
+    "requirePinnedKnownActions": true,
+    "validateAfterEveryFix": true,
+    "preservePermissionsAndConcurrency": true
+  },
+  "checks": [
+    "YAML syntax",
+    "merge conflict markers",
+    "citation artifacts",
+    "action versions",
+    "workflow references",
+    "reusable workflow contracts",
+    "Dockerfile and configuration paths",
+    "Git diff whitespace"
+  ]
+}
