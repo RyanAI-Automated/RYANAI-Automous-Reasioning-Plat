@@ -101,7 +101,7 @@
         "frontend:agent:dry-run": "node scripts/frontend-platform-agent.mjs --fix --dry-run"
     },
     "dependencies": {
-        "@open-policy-agent/opa-wasm": "...",
+        "@open-policy-agent/opa-wasm": "^1.1.0",
         "@fastify/cookie": "^11.1.2",
         "@fastify/cors": "^10.1.0",
         "@fastify/env": "^7.0.0",
@@ -119,7 +119,6 @@
         "@langchain/openai": "^1.5.13",
         "@modelcontextprotocol/sdk": "^1.31.0",
         "@octokit/rest": "^22.0.1",
-        "@open-policy-agent/opa-wasm": "^1.1.0",
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/auto-instrumentations-node": "^0.80.0",
         "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
@@ -167,67 +166,4 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.39.5",
-        "@ngrok/ngrok": "^1.7.0",
-        "@tailwindcss/postcss": "^4.3.3",
-        "@tauri-apps/cli": "^2.11.4",
-        "@types/bcrypt": "^6.0.0",
-        "@types/exceljs": "^0.5.3",
-        "@types/jsonwebtoken": "^9.0.10",
-        "@types/node": "^26.6.4",
-        "@types/nodemailer": "^8.0.2",
-        "@types/pdf-parse": "^1.1.5",
-        "@types/react": "^18.3.5",
-        "@types/react-dom": "^18.3.0",
-        "@types/uuid": "^11.0.0",
-        "@types/ws": "^8.18.1",
-        "@vitejs/plugin-react": "^6.1.1",
-        "autoprefixer": "^10.4.18",
-        "concurrently": "^10.0.6",
-        "cross-env": "^10.1.0",
-        "eslint": "^9.9.1",
-        "eslint-plugin-prettier": "^5.1.3",
-        "eslint-plugin-react-hooks": "^5.1.0-rc.0",
-        "eslint-plugin-react-refresh": "^0.5.7",
-        "fake-indexeddb": "^6.2.5",
-        "globals": "^17.13.0",
-        "happy-dom": "^20.14.6",
-        "node-addon-api": "^8.9.2",
-        "node-gyp": "13.1.0",
-        "pino-pretty": "^13.1.3",
-        "postcss": "^8.5.30",
-        "prisma": "^6.19.3",
-        "puppeteer": "^25.11.0",
-        "tailwindcss": "^4.3.3",
-        "ts-node": "^10.9.2",
-        "tsx": "^4.23.13",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "^8.3.0",
-        "vite": "^8.3.2",
-        "vitest": "^5.0.1"
-    },
-    "overrides": {
-        "sprintf-js": "^1.1.4"
-        "exceljs": {
-            "tmp": "^0.2.3",
-            "uuid": "^11.0.0"
-        },
-        "@vitejs/plugin-react": {
-            "vite": "$vite"
-        },
-        "@prisma/config": {
-            "deepmerge-ts": "8.0.2"
-        },
-        "concurrently": {
-            "shell-quote": "1.12.0"
-        }
-    },
-    "allowScripts": {
-        "@prisma/client@6.19.3": true,
-        "puppeteer@25.11.0": true,
-        "esbuild@0.28.2": true,
-        "protobufjs@7.6.6": true,
-        "@sentry/node-cpu-profiler@2.4.4": true,
-        "prisma@6.19.3": true,
-        "@prisma/engines@6.19.3": true
-    }
-}
+        "@ngrok/ngrok": "^1.
