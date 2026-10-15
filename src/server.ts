@@ -5,6 +5,7 @@ import { startTelemetry } from './telemetry/otel.js';
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { registerAuthRoutes } from './routes/auth.js';
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
 import websocket from "@fastify/websocket";
@@ -172,12 +173,13 @@ async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // 1. Register Core, Web Socket & Native C++ Plugins
+  // 1. Register Core, Web Socket, Auth & Native C++ Plugins
   await app.register(cors, {
     origin: process.env.NODE_ENV === "production" ? false : "*",
   });
   await app.register(formbody);
   await app.register(websocket);
+  await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
   // 2. Register Transcend Governance Plugin
@@ -506,7 +508,7 @@ async function buildApp(): Promise<FastifyInstance> {
       } else {
         twiml.say(
           { voice: "Polly.Matthew" },
-          `Received ${input ? `'${input}'` : "unrecognized input"}. No external dispatch is configured.`
+          `Received ${input ? `'\${input}'` : "unrecognized input"}. No external dispatch is configured.`
         );
         twiml.hangup();
       }
@@ -542,7 +544,7 @@ async function buildApp(): Promise<FastifyInstance> {
      ========================================================================== */
 
   app.get('/ws/telemetry', { websocket: true }, (connection, _req) => {
-    const socket = connection;
+    const socket = connection.socket;
     app.log.info('HUD Client connected to telemetry stream');
 
     // 1. Broadcast telemetry every 1.5 seconds
@@ -556,7 +558,7 @@ async function buildApp(): Promise<FastifyInstance> {
       }
     }, 1500);
 
-    // 3. Handle messages sent from the HUD client
+    // 2. Handle messages sent from the HUD client
     socket.on('message', (rawMessage: Buffer) => {
       try {
         const data: IncomingMessage = JSON.parse(rawMessage.toString());
