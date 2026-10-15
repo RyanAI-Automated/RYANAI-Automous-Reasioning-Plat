@@ -196,7 +196,6 @@
         "vitest": "^5.0.1"
     },
     "overrides": {
-        "sprintf-js": "^1.1.4",
         "exceljs": {
             "tmp": "^0.2.3",
             "uuid": "^11.0.0"
