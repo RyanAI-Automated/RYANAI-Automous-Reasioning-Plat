@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { SelfPatchSkill, PatchRequest } from '../../engine/selfPatchSkill.js';
+import { SelfPatchSkill } from '../../engine/selfPatchSkill.js';
 
 interface PatchBody {
   filePath: string;

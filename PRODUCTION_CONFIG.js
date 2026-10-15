@@ -254,4 +254,10 @@ const productionConfig = {
     },
     security: {
       tls_version: '1.3+',
-      cipher_
+      cipher_suite: 'TLS_AES_256_GCM_SHA384',
+      hsts_enabled: true,
+    },
+  },
+};
+
+export default productionConfig;

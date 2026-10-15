@@ -4,6 +4,7 @@ import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import { WebSocketMessage, AuthContext, ReasoningRequest } from '../shared/types.js';
 import { createLogger } from '../shared/logger.js';
+import { requireAdmin } from '../server/routes/auth.js';
 
 const logger = createLogger('websocket');
 
@@ -12,7 +13,7 @@ interface ConnectionContext {
   ws: WebSocket;
   auth?: AuthContext;
   subscriptions: Set<string>;
-  connectedAt: number;
+  messageCount: number;`r`n  connectedAt: number;
 }
 
 const connections = new Map<string, ConnectionContext>();
@@ -22,7 +23,7 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
   logger.info('Registering WebSocket routes');
 
   // Upgrade HTTP to WebSocket
-  fastify.get('/ws', { websocket: true }, async (socket, request: FastifyRequest) => {
+  fastify.get('/ws', { websocket: true, preValidation: requireAdmin, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (socket, request: FastifyRequest) => {
     const connId = uuid();
     const auth = extractAuth(request);
 
@@ -40,6 +41,11 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
     socket.on('message', async (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString()) as WebSocketMessage;
+        context.messageCount += 1;
+        if (context.messageCount > 60) {
+          socket.close(1008, 'Message budget exceeded');
+          return;
+        }
         await handleMessage(context, message);
       } catch (err) {
         logger.error({ err, connId }, 'Message handling error');
@@ -185,20 +191,14 @@ function sendError(ws: WebSocket, code: string, message: string) {
 }
 
 function extractAuth(request: FastifyRequest): AuthContext | undefined {
-  try {
-    const token = request.headers.authorization?.replace('Bearer ', '');
-    if (!token) return undefined;
-    // In production, verify JWT; for now return mock
-    return {
-      userId: 'user-1',
-      email: 'user@ryan.ai',
-      name: 'RyanAI User',
-      roles: ['user'],
-      sessionId: uuid(),
-      issuedAt: Date.now(),
-      expiresAt: Date.now() + 86400000,
-    };
-  } catch {
-    return undefined;
-  }
+  if (!request.authUser) return undefined;
+  return {
+    userId: request.authUser.id,
+    email: request.authUser.email,
+    name: request.authUser.email || request.authUser.id,
+    roles: [request.authUser.role],
+    sessionId: uuid(),
+    issuedAt: Date.now(),
+    expiresAt: Date.now() + 86400000,
+  };
 }
