@@ -3,9 +3,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import bcrypt from "bcrypt";
-import crypto from "node:crypto";
-// Assuming Prisma client or database adapter is configured in your project
-// import { prisma } from "../lib/prisma.js";
+import { prisma } from "../lib/prisma.js";
 
 // Strict validation schemas using Zod
 const SignupSchema = z.object({
@@ -45,8 +43,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
     try {
       // 1. Check if user already exists in the database
-      // const existingUser = await prisma.user.findUnique({ where: { email } });
-      const existingUser = null; // Replace with active Prisma query: prisma.user.findUnique(...)
+      const existingUser = await prisma.user.findUnique({ where: { email } });
 
       if (existingUser) {
         return reply.status(409).send({
@@ -56,16 +53,15 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
       }
 
       // 2. Hash password securely (Cost factor: 12)
-      const hashedPassword = await bcrypt.hash(password, 12);
+      const passwordHash = await bcrypt.hash(password, 12);
 
       // 3. Create user record in database
-      // const newUser = await prisma.user.create({
-      //   data: { email, passwordHash: hashedPassword, name },
-      // });
-      const userId = crypto.randomUUID();
+      const newUser = await prisma.user.create({
+        data: { email, passwordHash, name },
+      });
 
       // 4. Generate JWT session token
-      const token = fastify.jwt.sign({ id: userId, email });
+      const token = fastify.jwt.sign({ id: newUser.id, email: newUser.email });
 
       request.log.info({ email }, "New user account created successfully with JWT session");
 
@@ -73,7 +69,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         success: true,
         message: "Account created successfully.",
         token,
-        user: { id: userId, email, name },
+        user: { id: newUser.id, email: newUser.email, name: newUser.name },
       });
     } catch (error: unknown) {
       request.log.error(error, "Failed to process user registration");
@@ -103,8 +99,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
 
     try {
       // 1. Lookup user by email
-      // const user = await prisma.user.findUnique({ where: { email } });
-      const user: { id: string; email: string; passwordHash: string; name: string } | null = null; // Replace with Prisma lookup
+      const user = await prisma.user.findUnique({ where: { email } });
 
       // 2. Secure lookup & generic error response to mitigate user enumeration
       if (!user) {
@@ -115,8 +110,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
       }
 
       // 3. Verify password against stored hash
-      // const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-      const isValidPassword = false; // Replace with: await bcrypt.compare(password, user.passwordHash)
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
       if (!isValidPassword) {
         return reply.status(401).send({
@@ -155,8 +149,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
       const payload = request.user as { id: string; email: string };
 
       // Lookup user in database
-      // const user = await prisma.user.findUnique({ where: { id: payload.id } });
-      const user: { id: string; email: string; name: string; createdAt?: string } | null = null; // Replace with Prisma lookup
+      const user = await prisma.user.findUnique({ where: { id: payload.id } });
 
       if (!user) {
         return reply.status(404).send({
@@ -165,7 +158,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.status(250).send || reply.status(200).send({
+      return reply.status(200).send({
         success: true,
         user: {
           id: user.id,
