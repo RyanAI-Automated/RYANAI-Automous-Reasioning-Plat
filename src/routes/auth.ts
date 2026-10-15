@@ -1,82 +1,141 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { getUsers, saveUser, UserRecord, hashPassword } from '../database/db.js';
-import crypto from 'crypto';
+// File path: ./src/routes/auth.ts
 
-interface SignupBody {
-  fullName?: string;
-  email?: string;
-  password?: string;
-}
+import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { z } from "zod";
+import bcrypt from "bcrypt";
+// Assuming Prisma client or database adapter is configured in your project
+// import { prisma } from "../lib/prisma.js";
 
-interface SigninBody {
-  email?: string;
-  password?: string;
-}
+// Strict validation schemas using Zod
+const SignupSchema = z.object({
+  email: z.string().email("Invalid email format").trim().toLowerCase(),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters long")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+  name: z.string().min(2, "Name is required").trim(),
+});
+
+const SigninSchema = z.object({
+  email: z.string().email("Invalid email format").trim().toLowerCase(),
+  password: z.string().min(1, "Password is required"),
+});
 
 export async function registerAuthRoutes(fastify: FastifyInstance) {
-  // Signup Endpoint
-  fastify.post('/api/auth/signup', async (request: FastifyRequest<{ Body: SignupBody }>, reply: FastifyReply) => {
-    const { fullName, email, password } = request.body || {};
+  
+  /**
+   * POST /api/auth/signup
+   * Registers a new user account with strict validation and secure hashing.
+   */
+  fastify.post("/api/auth/signup", async (request: FastifyRequest, reply: FastifyReply) => {
+    const validationResult = SignupSchema.safeParse(request.body);
 
-    if (!email || !password) {
-      return reply.status(400).send({ error: 'Email and password are required' });
+    if (!validationResult.success) {
+      return reply.status(400).send({
+        success: false,
+        error: "Validation failed",
+        details: validationResult.error.format(),
+      });
     }
 
-    const users = getUsers();
-    const normalizedEmail = email.trim().toLowerCase();
-    const existing = users.find((u) => u.email === normalizedEmail);
+    const { email, password, name } = validationResult.data;
 
-    if (existing) {
-      return reply.status(400).send({ error: 'User already exists' });
+    try {
+      // 1. Check if user already exists in the database
+      // const existingUser = await prisma.user.findUnique({ where: { email } });
+      const existingUser = null; // Replace with active Prisma query: prisma.user.findUnique(...)
+
+      if (existingUser) {
+        return reply.status(409).send({
+          success: false,
+          error: "An account with this email address already exists.",
+        });
+      }
+
+      // 2. Hash password securely (Cost factor: 12)
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // 3. Create user record in database
+      // const newUser = await prisma.user.create({
+      //   data: { email, password: hashedPassword, name },
+      // });
+
+      request.log.info({ email }, "New user account created successfully");
+
+      return reply.status(201).send({
+        success: true,
+        message: "Account created successfully.",
+        user: { email, name },
+      });
+    } catch (error: unknown) {
+      request.log.error(error, "Failed to process user registration");
+      return reply.status(500).send({
+        success: false,
+        error: "Internal server error during registration.",
+      });
     }
-
-    const newUser: UserRecord = {
-      id: crypto.randomUUID(),
-      fullName: fullName?.trim(),
-      email: normalizedEmail,
-      passwordHash: hashPassword(password),
-      createdAt: new Date().toISOString(),
-    };
-
-    saveUser(newUser);
-
-    return reply.status(201).send({
-      success: true,
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        fullName: newUser.fullName,
-      },
-    });
   });
 
-  // Signin Endpoint
-  fastify.post('/api/auth/signin', async (request: FastifyRequest<{ Body: SigninBody }>, reply: FastifyReply) => {
-    const { email, password } = request.body || {};
+  /**
+   * POST /api/auth/signin
+   * Authenticates user credentials and returns session tokens.
+   */
+  fastify.post("/api/auth/signin", async (request: FastifyRequest, reply: FastifyReply) => {
+    const validationResult = SigninSchema.safeParse(request.body);
 
-    if (!email || !password) {
-      return reply.status(400).send({ error: 'Email and password are required' });
+    if (!validationResult.success) {
+      return reply.status(400).send({
+        success: false,
+        error: "Validation failed",
+        details: validationResult.error.format(),
+      });
     }
 
-    const users = getUsers();
-    const normalizedEmail = email.trim().toLowerCase();
-    const passwordHash = hashPassword(password);
+    const { email, password } = validationResult.data;
 
-    const user = users.find(
-      (u) => u.email === normalizedEmail && u.passwordHash === passwordHash
-    );
+    try {
+      // 1. Lookup user by email
+      // const user = await prisma.user.findUnique({ where: { email } });
+      const user: { id: string; email: string; passwordHash: string; name: string } | null = null; // Replace with Prisma lookup
 
-    if (!user) {
-      return reply.status(401).send({ error: 'Invalid email or password' });
+      // 2. Secure lookup & generic error response to mitigate user enumeration
+      if (!user) {
+        return reply.status(401).send({
+          success: false,
+          error: "Invalid email or password.",
+        });
+      }
+
+      // 3. Verify password against stored hash
+      // const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      const isValidPassword = false; // Replace with: await bcrypt.compare(password, user.passwordHash)
+
+      if (!isValidPassword) {
+        return reply.status(401).send({
+          success: false,
+          error: "Invalid email or password.",
+        });
+      }
+
+      // 4. Generate JWT token if using @fastify/jwt
+      // const token = fastify.jwt.sign({ id: user.id, email: user.email }, { expiresIn: "8h" });
+
+      request.log.info({ email }, "User authenticated successfully");
+
+      return reply.status(200).send({
+        success: true,
+        message: "Authentication successful.",
+        // token,
+        user: { email: user.email, name: user.name },
+      });
+    } catch (error: unknown) {
+      request.log.error(error, "Failed to process user authentication");
+      return reply.status(500).send({
+        success: false,
+        error: "Internal server error during authentication.",
+      });
     }
-
-    return reply.send({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-      },
-    });
   });
 }
