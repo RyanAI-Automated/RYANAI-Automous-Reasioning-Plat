@@ -9,7 +9,7 @@ export interface ChatMessage {
 
 interface ChatStreamProps {
   messages: ChatMessage[];
-  containerRef?: RefObject<HTMLDivElement | null>;
+  containerRef?: RefObject<HTMLDivElement>;
   isLoading?: boolean;
 }
 
