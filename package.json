@@ -17,7 +17,7 @@
                     "start": "next start",
                     "lint": "next lint",
                     "build:server": "ts-node src/server.ts",
-                    "agent:pa": "ts-node src/skills/agentPAScript.ts"
+                    "agent:pa": "ts-node src/skills/agentPAScript.ts",
                     "dev": "next dev",
                     "build:server":  "tsc -p tsconfig.server.json \u0026\u0026 node scripts/copy-server-assets.mjs",
                     "start":  "node dist/server/server/launcher.js",
