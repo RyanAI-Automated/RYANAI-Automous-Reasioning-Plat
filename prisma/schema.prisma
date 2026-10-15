@@ -23,11 +23,12 @@ enum AgentStatus {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  name          String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id            String          @id @default(uuid())
+  email         String          @unique
+  passwordHash  String          @map("password_hash")
+  name          String?         @map("name")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
   sessions      Session[]
   agentSessions AgentSession[]
   memories      MemoryVault[]
@@ -37,27 +38,27 @@ model User {
 }
 
 model Session {
-  id          String        @id @default(uuid())
-  title       String        @default("New Reasoning Session")
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    Message[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id        String    @id @default(uuid())
+  title     String    @default("New Reasoning Session")
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   @@index([userId])
   @@map("sessions")
 }
 
 model Message {
-  id          String        @id @default(uuid())
-  sessionId   String
-  session     Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role        Role
-  content     String        @db.Text
-  reasoning   String?       @db.Text
-  metadata    Json?
-  createdAt   DateTime      @default(now())
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      Role
+  content   String   @db.Text
+  reasoning String?  @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([sessionId])
   @@map("messages")
@@ -66,12 +67,12 @@ model Message {
 model AgentSession {
   id          String         @id @default(uuid())
   operator    String         @default("Ntsiyeni Ganyane")
-  activeGraph String         @default("ReAct-v2.1")
-  cudaActive  Boolean        @default(true)
-  userId      String?
+  activeGraph String         @default("ReAct-v2.1") @map("active_graph")
+  cudaActive  Boolean        @default(true) @map("cuda_active")
+  userId      String?        @map("user_id")
   user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
   messages    AgentMessage[]
 
   @@index([createdAt])
@@ -81,58 +82,58 @@ model AgentSession {
 
 model AgentMessage {
   id             String       @id @default(uuid())
-  sessionId      String
+  sessionId      String       @map("session_id")
   session        AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role           String       // 'user' | 'assistant'
+  role           Role         @default(USER)
   content        String       @db.Text
-  reasoningSteps String       @db.Text // Serialized JSON string for cross-compatibility
-  latencyMs      Int          @default(14)
+  reasoningSteps String       @db.Text @map("reasoning_steps") // Serialized JSON string
+  latencyMs      Int          @default(14) @map("latency_ms")
   timestamp      String
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime     @default(now()) @map("created_at")
 
   @@index([sessionId])
   @@map("agent_messages")
 }
 
 model AgentInstance {
-  id           String       @id @default(uuid())
-  name         String
-  description  String?
-  status       AgentStatus  @default(IDLE)
-  userId       String
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  config       Json?
-  lastActive   DateTime     @default(now())
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  status      AgentStatus @default(IDLE)
+  userId      String      @map("user_id")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config      Json?
+  lastActive  DateTime    @default(now()) @map("last_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
   @@index([userId])
   @@map("agent_instances")
 }
 
 model MemoryVault {
-  id          String        @id @default(uuid())
-  title       String
-  content     String        @db.Text
-  category    String        @default("general")
-  tags        String[]
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  category  String   @default("general")
+  tags      String[]
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([userId])
   @@map("memory_vault")
 }
 
 model SystemTelemetry {
-  id          String        @id @default(uuid())
-  cpuUsage    Float?
-  memoryUsage Float?
-  activeNodes Int?
-  status      String        @default("healthy")
+  id          String   @id @default(uuid())
+  cpuUsage    Float?   @map("cpu_usage")
+  memoryUsage Float?   @map("memory_usage")
+  activeNodes Int?     @map("active_nodes")
+  status      String   @default("healthy")
   payload     Json?
-  recordedAt  DateTime      @default(now())
+  recordedAt  DateTime @default(now()) @map("recorded_at")
 
   @@map("system_telemetry")
 }
