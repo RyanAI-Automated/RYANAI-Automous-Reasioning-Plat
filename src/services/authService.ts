@@ -29,4 +29,8 @@ export async function fetchCurrentProfile() {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Failed to fetch profile");
   return data.user;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)
