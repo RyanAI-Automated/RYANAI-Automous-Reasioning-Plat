@@ -22,7 +22,13 @@ export interface AgentPAScriptConfig {
 }
 
 export const AGENT_PA_SKILL = {
-  // skill definition...
+  name: "agent-pa",
+  description: "Agent PA background telemetry and assistance",
+};
+
+export const SELF_HEALING_SKILL = {
+  name: "self-healing",
+  description: "Self-healing and auto-correction engine",
 };
 
 /**
