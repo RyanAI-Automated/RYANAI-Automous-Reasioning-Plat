@@ -1,16 +1,32 @@
-# =====================================================================
-# RyanAI Autonomous Reasoning Platform - API Service Dockerfile
-# =====================================================================
+# syntax=docker/dockerfile:1
 
-FROM node:22-alpine AS builder
+# =====================================================================
+# 1. VERIFIER STAGE (From Dockerfile.verifier)
+# =====================================================================
+FROM node:22-slim AS verifier
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/patch-deps
+
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps \
+    && npm cache clean --force
+
+WORKDIR /work
+
+# =====================================================================
+# 2. API / SERVER BUILDER STAGE (From Dockerfile.api / server / monorepo)
+# =====================================================================
+FROM node:22-alpine AS api-builder
 
 WORKDIR /app
 
-# Dependency lifecycle scripts remain enabled; the root addon is opt-in.
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 
-# Leverage BuildKit cache mount for faster dependency installation
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
 COPY tsconfig*.json ./
@@ -24,8 +40,37 @@ RUN npm run db:generate \
     && npm run build:server \
     && npm prune --omit=dev --legacy-peer-deps
 
-FROM node:22-alpine AS runner
+# =====================================================================
+# 3. WEB / FRONTEND BUILDER STAGE (From Dockerfile.web)
+# =====================================================================
+FROM node:22-alpine AS web-builder
 
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --legacy-peer-deps \
+    && npm cache clean --force
+
+COPY tsconfig*.json ./
+COPY vite.config.ts postcss.config.js tailwind.config.js index.html ./
+COPY src ./src
+COPY app/routes.json ./app/routes.json
+COPY models/catalog.json ./models/catalog.json
+
+ARG VITE_SUPABASE_URL=""
+ARG VITE_SUPABASE_PUBLISHABLE_KEY=""
+ARG VITE_SUPABASE_ANON_KEY=""
+
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
+RUN npm run build
+
+# =====================================================================
+# 4. API RUNNER STAGE (Default / API Service Target)
+# =====================================================================
+FROM node:22-alpine AS api
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
@@ -34,7 +79,6 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000
 
-# Patch verification uses npm; keep its bundled dependencies patched too.
 RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && npm install --global npm@11.21.0 \
     && npm install --prefix /tmp/npm-security-patches --install-strategy=nested \
@@ -49,11 +93,11 @@ RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && mkdir -p /app/logs \
     && chown -R node:node /app
 
-COPY --from=builder --chown=node:node /app/package.json ./package.json
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/dist/server ./dist/server
-COPY --from=builder --chown=node:node /app/dist/app ./dist/app
-COPY --from=builder --chown=node:node /app/dist/models ./dist/models
+COPY --from=api-builder --chown=node:node /app/package.json ./package.json
+COPY --from=api-builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
+COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
+COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 
 USER node
 EXPOSE 3000
@@ -63,3 +107,29 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "dist/server/server/launcher.js"]
+
+# =====================================================================
+# 5. WEB RUNNER STAGE (Nginx Frontend Target)
+# =====================================================================
+FROM nginx:alpine AS web
+
+RUN apk upgrade --no-cache
+
+ENV PORT=80 \
+    API_HOST=api \
+    API_PORT=3000
+
+COPY --from=web-builder /app/dist /usr/share/nginx/html
+COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
+COPY docker-entrypoint.sh /usr/local/bin/ryanai-web-entrypoint.sh
+
+RUN sed -i 's/\r$//' /usr/local/bin/ryanai-web-entrypoint.sh \
+    && chmod +x /usr/local/bin/ryanai-web-entrypoint.sh
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT}/health" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/ryanai-web-entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]
