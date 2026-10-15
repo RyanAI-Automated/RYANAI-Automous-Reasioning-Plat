@@ -12,6 +12,7 @@
                 },
     "scripts":  {
                     "### ═══════════════════════════════════════════════════════════ BUILD \u0026 VALIDATION ═══════════════════════════════════════════════════════════ ###":  "",
+                    "agent:pa": "ts-node src/skills/agentPAScript.ts"
                     "build:server":  "tsc -p tsconfig.server.json \u0026\u0026 node scripts/copy-server-assets.mjs",
                     "start":  "node dist/server/server/launcher.js",
                     "start:dev":  "tsx src/server/launcher.ts",
