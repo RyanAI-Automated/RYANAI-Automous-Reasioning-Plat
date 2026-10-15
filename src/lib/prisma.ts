@@ -14,4 +14,8 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)

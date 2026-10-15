@@ -130,4 +130,8 @@ describe("Authentication Routes Integration Tests", () => {
     const body = JSON.parse(response.payload);
     expect(body.success).toBe(false);
   });
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)

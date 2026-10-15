@@ -41,4 +41,8 @@ export interface PatchResult {
   appliedAt: string;
   error?: string;
   metadata?: Record<string, any>;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)

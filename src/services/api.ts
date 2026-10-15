@@ -156,4 +156,8 @@ export const authClient = {
   logout(): void {
     localStorage.removeItem('ryanai_token');
   },
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)

@@ -514,4 +514,8 @@ async function buildApp(): Promise<FastifyInstance> {
           { voice: "Polly.Matthew" },
           `Received ${input ? `'\${input}'` : "unrecognized input"}. No external dispatch is configured.`
         );
+<<<<<<< HEAD
         twiml.hangup();
+=======
+        twiml.hangup();
+>>>>>>> b788a83 (feat: update configuration, Docker setup, and auth fixes)
