@@ -1,54 +1,58 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { SelfPatchSkill } from '../../engine/selfPatchSkill.js';
-
-interface PatchBody {
-  filePath: string;
-  patchContent: string;
-  testScript?: string;
-}
+import { patchService } from '../../services/patchService.js';
+import { PatchRequest, PatchStatus } from '../../types/patch.js';
 
 export async function registerPatchRoutes(fastify: FastifyInstance) {
-  fastify.post<{ Body: PatchBody }>(
-    '/api/v1/patches/apply',
-    {
-      schema: {
-        body: {
-          type: 'object',
-          required: ['filePath', 'patchContent'],
-          properties: {
-            filePath: { type: 'string' },
-            patchContent: { type: 'string' },
-            testScript: { type: 'string' },
-          },
-        },
-      },
-    },
-    async (request: FastifyRequest<{ Body: PatchBody }>, reply: FastifyReply) => {
-      const { filePath, patchContent, testScript } = request.body;
-
-      if (filePath.includes('..') || filePath.startsWith('/')) {
-        return reply.status(400).send({
-          success: false,
-          error: 'Invalid file path: absolute paths and directory traversal are prohibited.',
-        });
-      }
-
+  fastify.post(
+    '/api/patches/apply',
+    async (request: FastifyRequest<{ Body: PatchRequest }>, reply: FastifyReply) => {
       try {
-        const result = await SelfPatchSkill.applyAndVerifyPatch({
-          filePath,
-          patchContent,
-          testScript,
-        });
+        const patchRequest = request.body;
 
-        if (!result.success) {
-          return reply.status(422).send(result);
+        // 1. Validate request payload existence
+        if (!patchRequest || !patchRequest.targetType || !patchRequest.operations) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Invalid patch request. "targetType" and "operations" are required fields.',
+          });
         }
 
-        return reply.send(result);
-      } catch (err: any) {
+        // 2. Validate operations array
+        if (!Array.isArray(patchRequest.operations) || patchRequest.operations.length === 0) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Operations payload must be a non-empty array.',
+          });
+        }
+
+        // 3. Attach author if authenticated
+        const authUser = request.user as { email?: string } | undefined;
+        if (authUser?.email && !patchRequest.author) {
+          patchRequest.author = authUser.email;
+        }
+
+        // 4. Execute patch via service
+        const result = await patchService.applyPatch(patchRequest);
+
+        // 5. Check result status
+        if (result.status === PatchStatus.FAILED) {
+          return reply.status(422).send({
+            success: false,
+            error: result.error || 'Patch execution failed',
+            result,
+          });
+        }
+
+        return reply.status(200).send({
+          success: true,
+          message: 'Patch applied successfully',
+          result,
+        });
+      } catch (error: any) {
+        request.log.error(error, '[PatchRoutes] Unhandled error during patch execution');
         return reply.status(500).send({
           success: false,
-          error: `Internal patch execution error: ${err.message}`,
+          error: error.message || 'Internal server error while processing patch request',
         });
       }
     }
