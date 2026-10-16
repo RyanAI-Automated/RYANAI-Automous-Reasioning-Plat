@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # =====================================================================
-# 1. VERIFIER STAGE (From Dockerfile.verifier)
+# 1. VERIFIER STAGE (Patch and Security Verification)
 # =====================================================================
 FROM node:22-slim AS verifier
 
@@ -18,7 +18,7 @@ RUN npm ci --legacy-peer-deps \
 WORKDIR /work
 
 # =====================================================================
-# 2. API / SERVER BUILDER STAGE (From Dockerfile.api / server / monorepo)
+# 2. API / SERVER BUILDER STAGE
 # =====================================================================
 FROM node:22-alpine AS api-builder
 
@@ -38,10 +38,10 @@ COPY prisma ./prisma
 
 RUN npm run db:generate \
     && npm run build:server \
-    && npm prune --omit=dev --legacy-peer-deps
+    && npm prune --omit=dev
 
 # =====================================================================
-# 3. WEB / FRONTEND BUILDER STAGE (From Dockerfile.web)
+# 3. WEB / FRONTEND BUILDER STAGE (Vite Static Build)
 # =====================================================================
 FROM node:22-alpine AS web-builder
 
@@ -68,7 +68,7 @@ ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 RUN npm run build
 
 # =====================================================================
-# 4. API RUNNER STAGE (Default / API Service Target)
+# 4. API RUNNER STAGE (Fastify Production Target)
 # =====================================================================
 FROM node:22-alpine AS api
 ARG VITE_API_BASE_URL
@@ -133,4 +133,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ENTRYPOINT ["/usr/local/bin/ryanai-web-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
-
