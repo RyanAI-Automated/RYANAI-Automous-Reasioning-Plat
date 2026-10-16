@@ -125,7 +125,7 @@
         "@supabase/server": "^1.6.1",
         "@supabase/ssr": "^0.12.7",
         "@supabase/supabase-js": "^2.116.0",
-        "@tauri-apps/api": "^2.11.1",
+        "@tauri-apps/api": "3.0.0-alpha.4",
         "@types/pg": "^8.23.1",
         "@vercel/analytics": "^2.0.1",
         "axios": "^1.20.0",
@@ -152,14 +152,16 @@
         "twilio": "^6.1.1",
         "uuid": "^14.0.2",
         "ws": "^8.21.3",
+        "ws": "^8.21.3",
         "zod": "^4.5.4",
-        "zustand": "^5.0.15"
+        "zustand": "^5.0.15",
+        "some-package": "^5.0.1"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.5",
         "@ngrok/ngrok": "^1.7.0",
         "@tailwindcss/postcss": "^4.3.3",
-        "@tauri-apps/cli": "^2.11.4",
+        "@tauri-apps/cli": "3.0.0-alpha.4",
         "@types/bcrypt": "^6.0.0",
         "@types/exceljs": "^0.5.3",
         "@types/jsonwebtoken": "^9.0.10",
