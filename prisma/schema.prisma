@@ -7,6 +7,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ==========================================
+// ENUMS
+// ==========================================
+
 enum Role {
   USER
   ASSISTANT
@@ -21,6 +25,10 @@ enum AgentStatus {
   FAILED
   PAUSED
 }
+
+// ==========================================
+// CUSTOM RYANAI BACKEND MODELS
+// ==========================================
 
 model User {
   id            String          @id @default(uuid())
@@ -61,7 +69,7 @@ model Message {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([sessionId])
-  @@map("messages")
+  @@map("session_messages")
 }
 
 model AgentSession {
@@ -86,7 +94,7 @@ model AgentMessage {
   session        AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   role           Role         @default(USER)
   content        String       @db.Text
-  reasoningSteps String       @db.Text @map("reasoning_steps") // Serialized JSON string
+  reasoningSteps String       @db.Text @map("reasoning_steps")
   latencyMs      Int          @default(14) @map("latency_ms")
   timestamp      String
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -136,4 +144,58 @@ model SystemTelemetry {
   recordedAt  DateTime @default(now()) @map("recorded_at")
 
   @@map("system_telemetry")
+}
+
+// ==========================================
+// SUPABASE INTEGRATED MODELS
+// ==========================================
+
+model Profile {
+  id        String    @id @db.Uuid
+  email     String?
+  fullName  String?   @map("full_name")
+  avatarUrl String?   @map("avatar_url")
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @map("updated_at")
+
+  @@map("profiles")
+}
+
+model Conversation {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  title     String           @default("New Thread")
+  model     String           @default("claude-sonnet-4.6")
+  createdAt DateTime?        @default(now()) @map("created_at")
+  updatedAt DateTime?        @default(now()) @map("updated_at")
+  messages  ChatSqlMessage[]
+
+  @@index([userId])
+  @@map("conversations")
+}
+
+model ChatSqlMessage {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String       @db.Text
+  model          String?
+  steps          Json?
+  createdAt      DateTime?    @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model MemoryEntry {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  key       String
+  value     String    @db.Text
+  category  String    @default("preference")
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("memory_entries")
 }
