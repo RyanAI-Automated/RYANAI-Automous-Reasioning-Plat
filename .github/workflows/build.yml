@@ -14,22 +14,25 @@ jobs:
 
     steps:
       - name: Checkout
+        uses: actions/checkout@v4[cite: 7]
         uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
+        uses: actions/setup-node@v4[cite: 7]
         with:
           node-version: 22
           cache: npm
 
       - name: Install root dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps[cite: 7]
 
       - name: Validate and build root application
-        run: npm run validate
+        run: npm run validate[cite: 7]
 
       - name: Build standalone MCP manager
-        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check
+        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check[cite: 7]
 
       - name: Build workflow worker
+        run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build[cite: 7]
         run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build

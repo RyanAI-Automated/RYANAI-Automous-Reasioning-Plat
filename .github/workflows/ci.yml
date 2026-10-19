@@ -56,25 +56,27 @@ jobs:
 
     steps:
       - name: Checkout
+        uses: actions/checkout@v4[cite: 8]
         uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
+        uses: actions/setup-node@v4[cite: 8]
         with:
           node-version: 22
           cache: npm
 
       - name: Install locked dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps[cite: 8]
 
       - name: Validate application
-        run: npm run validate
+        run: npm run validate[cite: 8]
 
       - name: Validate Python tooling
-        run: npm run core:check
+        run: npm run core:check[cite: 8]
 
       - name: Validate standalone MCP manager
-        run: npm run mcp:check
+        run: npm run mcp:check[cite: 8]
 
       - name: Start API and frontend and run integration checks
         shell: bash
@@ -90,4 +92,5 @@ jobs:
           trap cleanup EXIT
           npm run startup:verify
           npm run test:integration
+          npm run test:e2e[cite: 8]
           npm run test:e2e
