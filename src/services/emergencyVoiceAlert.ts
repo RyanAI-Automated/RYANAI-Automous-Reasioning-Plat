@@ -1,10 +1,5 @@
 import twilio from 'twilio';
 
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
 export interface SigkillAlertContext {
   pid: number;
   command: string;
@@ -21,10 +16,14 @@ export class EmergencyVoiceAlertService {
    * Dispatches an immediate outbound voice call when eBPF kernel sends SIGKILL
    */
   async dispatchKernelKillCall(context: SigkillAlertContext): Promise<string> {
+    const twilioClient = twilio(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN
+    );
+
     const reason = `CRITICAL_SECURITY_EVENT: eBPF Kernel SIGKILL on PID ${context.pid}`;
     const primaryViolation = context.violations[0] || 'Unauthorized kernel execution attempt';
     
-    // Construct dynamic message spoken by Ryan on the phone
     const speechMessage = `Security override engaged. I have executed an immediate hardware kernel SIGKILL on process ID ${context.pid}. Attempted command: ${context.command}. Violation reason: ${primaryViolation}. Host system remains secure.`;
 
     const twimlUrl = `${this.baseUrl}/api/v1/voice/emergency-twiml?pid=${context.pid}&reason=${encodeURIComponent(
@@ -41,7 +40,6 @@ export class EmergencyVoiceAlertService {
         statusCallback: `${this.baseUrl}/api/v1/voice/status`,
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
         statusCallbackMethod: 'POST',
-        // High priority override: bypass standard call throttling
         timeLimit: 180,
       });
 

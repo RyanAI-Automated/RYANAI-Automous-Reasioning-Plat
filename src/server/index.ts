@@ -43,6 +43,11 @@ server.get('/', async () => {
 });
 
 // Health check endpoint with live Redis ping
+/**
+ * Report API availability and a live Redis ping result.
+ * The database field reports configuration only; failed Redis checks still return
+ * an online API status.
+ */
 const healthCheck = async () => {
   let redisStatus = 'not-configured';
   try {
@@ -72,6 +77,10 @@ server.get('/health', healthCheck);
 server.get('/api/health', healthCheck);
 
 // Register plugins and feature routes
+/**
+ * Attempt Redis and reasoning-route registration and construct an MCP server.
+ * Catch each initialization failure independently; do not start the MCP transport.
+ */
 async function setupRoutes() {
   // Register Redis plugin with graceful fallback and fail-fast connection timeout
   try {

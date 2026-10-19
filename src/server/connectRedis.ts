@@ -1,6 +1,11 @@
 import { Redis } from 'ioredis';
 
-/** Bound initial readiness while retaining Redis reconnection after startup. */
+/**
+ * Bound initial readiness while retaining Redis reconnection after startup.
+ * Returns the connected client.
+ * timeoutMs bounds initial readiness in milliseconds. Connection failure or timeout
+ * disconnects the client and rejects with a configuration diagnostic that omits the URL.
+ */
 export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis> {
   const client = new Redis(url, { lazyConnect: true, connectTimeout: timeoutMs });
   // connect() rejects on connection errors; avoid ioredis logging configuration.

@@ -26,6 +26,10 @@ jobs:
 
       - name: Set up Node.js
         uses: actions/setup-node@v4[cite: 15]
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
@@ -38,6 +42,13 @@ jobs:
 
       - name: Run Tests
         run: npm test --if-present[cite: 15]
+        run: npm ci
+
+      - name: Run Linter
+        run: npm run lint --if-present
+
+      - name: Run Tests
+        run: npm test --if-present
 
   build:
     name: Build Artifacts
@@ -50,6 +61,10 @@ jobs:
 
       - name: Set up Node.js
         uses: actions/setup-node@v4[cite: 15]
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
@@ -62,6 +77,13 @@ jobs:
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4[cite: 15]
+        run: npm ci
+
+      - name: Build Application
+        run: npm run build --if-present
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: build-output
           path: dist/
@@ -80,12 +102,17 @@ jobs:
 
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4[cite: 15]
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
         with:
           name: build-output
           path: dist/
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v20[cite: 15]
+        uses: amondnet/vercel-action@v20
         with:
           vercel-token: \${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: \${{ secrets.VERCEL_ORG_ID }}

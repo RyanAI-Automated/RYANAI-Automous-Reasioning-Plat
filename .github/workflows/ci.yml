@@ -57,6 +57,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4[cite: 8]
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4[cite: 8]
@@ -91,3 +92,4 @@ jobs:
           npm run startup:verify
           npm run test:integration
           npm run test:e2e[cite: 8]
+          npm run test:e2e

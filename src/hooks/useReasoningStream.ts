@@ -11,6 +11,10 @@ export interface StreamEventData {
   error?: string;
 }
 
+/**
+ * Expose authenticated reasoning streams and their activity state.
+ * The stream action dispatches progress and completion callbacks and propagates errors.
+ */
 export function useRyanStream() {
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
 

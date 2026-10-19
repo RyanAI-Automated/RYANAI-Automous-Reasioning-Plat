@@ -18,6 +18,7 @@ interface AdminResolveBody {
   approved: boolean;
 }
 
+/** Register admin-only routes to inspect, approve, or reject paused agent work. */
 export const approvalRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireAdmin);
 

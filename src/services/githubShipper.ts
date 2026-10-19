@@ -43,13 +43,13 @@ export class GitHubShipper {
   }
 
   /**
-   * Low-level Git Data API Commit & Push
-   * Atomically stages multiple files, builds a new tree, generates a commit, and moves the branch ref.
+   * Create a GitHub commit for the supplied files and advance the branch without force.
+   * By default, a missing branch is created from main. Return commit and tree SHAs;
+   * API failures propagate and may leave a new branch or Git objects behind.
    */
   async commitAndPushFiles(opts: CommitAndPushOptions): Promise<{ commitSha: string; treeSha: string }> {
     const { owner, repo, branch, commitMessage, files, createBranchIfMissing = true } = opts;
 
-    // 1. Get reference to target branch
     let masterRefSha: string;
     try {
       const { data: refData } = await this.octokit.git.getRef({
@@ -60,7 +60,6 @@ export class GitHubShipper {
       masterRefSha = refData.object.sha;
     } catch (error: unknown) {
       if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404 && createBranchIfMissing) {
-        // Fallback: Get main/master SHA and create the branch
         const { data: mainRef } = await this.octokit.git.getRef({
           owner,
           repo,
@@ -79,7 +78,6 @@ export class GitHubShipper {
       }
     }
 
-    // 2. Fetch commit object to get base tree SHA
     const { data: currentCommit } = await this.octokit.git.getCommit({
       owner,
       repo,
@@ -87,7 +85,6 @@ export class GitHubShipper {
     });
     const baseTreeSha = currentCommit.tree.sha;
 
-    // 3. Create Blobs for each file in parallel
     const treeItems = await Promise.all(
       files.map(async (file) => {
         const { data: blob } = await this.octokit.git.createBlob({
@@ -99,14 +96,13 @@ export class GitHubShipper {
 
         return {
           path: file.path,
-          mode: '100644' as const, // Standard file mode
+          mode: '100644' as const,
           type: 'blob' as const,
           sha: blob.sha,
         };
       })
     );
 
-    // 4. Construct new tree with base tree reference
     const { data: newTree } = await this.octokit.git.createTree({
       owner,
       repo,
@@ -114,7 +110,6 @@ export class GitHubShipper {
       tree: treeItems,
     });
 
-    // 5. Create new Commit
     const { data: newCommit } = await this.octokit.git.createCommit({
       owner,
       repo,
@@ -123,7 +118,6 @@ export class GitHubShipper {
       parents: [masterRefSha],
     });
 
-    // 6. Move target branch pointer to new Commit
     await this.octokit.git.updateRef({
       owner,
       repo,

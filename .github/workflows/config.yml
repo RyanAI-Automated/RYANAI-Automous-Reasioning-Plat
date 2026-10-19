@@ -34,6 +34,7 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4[cite: 17]
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4[cite: 17]

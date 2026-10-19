@@ -15,6 +15,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4[cite: 7]
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4[cite: 7]
@@ -33,3 +34,4 @@ jobs:
 
       - name: Build workflow worker
         run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build[cite: 7]
+        run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build

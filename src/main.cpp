@@ -2,14 +2,12 @@
 #include <string>
 #include <sstream>
 
-// Simple JSON helper or string parser for demonstration
 std::string extractField(const std::string& json, const std::string& key) {
     std::string searchKey = "\"" + key + "\":";
     size_t startPos = json.find(searchKey);
     if (startPos == std::string::npos) return "";
     startPos += searchKey.length();
     
-    // Check if it's a string value
     if (json[startPos] == '"') {
         startPos++;
         size_t endPos = json.find('"', startPos);
@@ -30,7 +28,6 @@ int main() {
         std::string payload = extractField(line, "payload");
 
         if (action == "infer") {
-            // Simulate a deep reasoning loop & mock tensor caching
             std::cerr << "[C++ Engine] Processing reasoning tree for payload: " << payload << std::endl;
             std::cout << "{\"status\":\"success\",\"action\":\"infer\",\"result\":\"Deep analysis complete for: " << payload << "\",\"tensor_cache\":true}" << std::endl;
         } 

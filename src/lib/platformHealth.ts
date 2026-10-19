@@ -10,6 +10,11 @@ export interface PlatformHealth {
   activeGraph?: string;
 }
 
+/**
+ * Fetch the health payload and require an online status, with a five-second deadline.
+ * Rejects HTTP errors, invalid JSON, offline status, and network failures. A deadline
+ * abort becomes a timeout error; caller cancellation preserves the fetch error.
+ */
 export async function getPlatformHealth(
   signal?: AbortSignal,
 ): Promise<PlatformHealth> {

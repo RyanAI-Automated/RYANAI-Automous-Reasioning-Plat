@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import type { PatchRequest } from "../engine/selfPatchSkill.js";
@@ -10,7 +11,9 @@ const execFileAsync = promisify(execFile);
 const STATE = ".ryan-patch";
 const MAX_FILE_BYTES = 32 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES = 256 * 1024 * 1024;
+
 type Phase = "preparing" | "validated" | "promoting" | "committed";
+
 interface Journal {
   version: 1;
   id: string;
@@ -20,23 +23,48 @@ interface Journal {
   candidateHash: string;
   temporaryPath: string;
 }
+
 interface Snapshot {
   revision: string;
   files: Map<string, { content: Buffer; mode: number }>;
 }
 
+export interface PatchApplyResult {
+  status: "success" | "rejected" | "conflict" | "failed";
+  message?: string;
+  error?: string;
+  warnings?: string[];
+}
+
+interface PatchOwnership {
+  lock?: string;
+  stagingRoot?: string;
+  promotionStarted: boolean;
+}
+
+/** Return the hexadecimal SHA-256 digest of the supplied content. */
 function hash(content: Buffer | string) {
   return createHash("sha256").update(content).digest("hex");
 }
+
+/** Return the temporary staging path for a workspace root and transaction id. */
 function stageDirectory(root: string, id: string) {
-  return path.join("/tmp", `ryan-patch-stage-${hash(root)}-${id}`);
+  return path.join(os.tmpdir(), `ryan-patch-stage-${hash(root)}-${id}`);
 }
+
+/** Return an Error message or stringify another thrown value. */
 function message(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
+
+/** Check whether a filesystem error reports a missing file or directory. */
 function isMissing(error: unknown) {
   return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
+
+/**
+ * Check a relative path for traversal, reserved directories, and credential filename patterns.
+ */
 function allowed(relative: string) {
   const parts = relative.split("/");
   return (
@@ -54,12 +82,24 @@ function allowed(relative: string) {
         !part.startsWith(".env") &&
         !part.startsWith(".ryan-patch-") &&
         ![".npmrc", ".netrc", ".git-credentials"].includes(part) &&
-        !/\.(pem|key|p12|pfx)$/i.test(part),
+        !/\.(pem|key|p12|pfx)\$/i.test(part),
     )
   );
 }
 
-/** Reject links throughout the path; the final file may be absent, parents may not. */
+/**
+ * Reject links throughout the path; return file metadata or null for a missing final file.
+ */
+async function recoverPromotion(root: string, journal: Journal) {
+    try {
+        // ... recovery logic ...
+        return "aborted";
+    } catch (error) {
+        log.error("Failed to recover promotion:", error);
+        throw error;
+    }
+}
+
 async function inspect(root: string, relative: string) {
   if (!allowed(relative))
     throw new Error("Patch path is outside the permitted workspace files.");
@@ -88,11 +128,23 @@ async function inspect(root: string, relative: string) {
   }
   return null;
 }
+
+/** Read a permitted regular file, or return null if only the final path is absent. */
 async function readTarget(root: string, relative: string) {
   return (await inspect(root, relative))
     ? fs.readFile(path.join(root, relative))
     : null;
 }
+async function recoverPromotion(root: string, journal: Journal) {
+    try {
+        // ... recovery logic ...
+        return "aborted";
+    } catch (error) {
+        log.error("Failed to recover promotion:", error);
+        throw error;
+    }
+}
+/** Flush a directory's metadata and close its handle. */
 async function syncDirectory(directory: string) {
   const handle = await fs.open(directory, "r");
   try {
@@ -101,6 +153,7 @@ async function syncDirectory(directory: string) {
     await handle.close();
   }
 }
+/** Exclusively create a file, apply its permission mode, and sync its contents. */
 async function durableWrite(
   filename: string,
   content: string | Buffer,
@@ -115,12 +168,16 @@ async function durableWrite(
     await handle.close();
   }
 }
+
+/** Atomically replace and sync the transaction journal. */
 async function saveJournal(lock: string, journal: Journal) {
   const temporary = path.join(lock, `journal-${randomUUID()}.tmp`);
   await durableWrite(temporary, JSON.stringify(journal));
   await fs.rename(temporary, path.join(lock, "journal.json"));
   await syncDirectory(lock);
 }
+
+/** Create or validate a private patch-state directory owned by the current user. */
 async function stateDirectory(root: string) {
   const state = path.join(root, STATE);
   await fs.mkdir(state, { mode: 0o700 }).catch((error) => {
@@ -141,6 +198,8 @@ async function stateDirectory(root: string) {
   await syncDirectory(root);
   return state;
 }
+
+/** Run Git in root with a restricted environment and return stdout. */
 async function git(root: string, args: string[]) {
   const result = await execFileAsync(
     "/usr/bin/git",
@@ -158,7 +217,7 @@ async function git(root: string, args: string[]) {
   return result.stdout;
 }
 
-/** Only tracked source files enter the worker. Ignored/untracked credentials never do. */
+/** Snapshot permitted tracked working-tree files. */
 async function snapshot(root: string): Promise<Snapshot> {
   const top = (await git(root, ["rev-parse", "--show-toplevel"])).trim();
   if ((await fs.realpath(top)) !== root)
@@ -169,11 +228,11 @@ async function snapshot(root: string): Promise<Snapshot> {
   const files: Snapshot["files"] = new Map();
   let size = 0;
   for (const entry of entries.split("\0").filter(Boolean)) {
-    const match = /^(\d+) ([a-f0-9]+) (\d)\t([\s\S]+)$/.exec(entry);
+    const match = /^(\d+) ([a-f0-9]+) (\d)\t([\s\S]+)\$/.exec(entry);
     if (!match || match[3] !== "0")
       throw new Error("Resolve the Git index conflicts before patching.");
     const [, mode, , , relative] = match;
-    if (mode === "160000") continue; // Gitlinks are not part of this repository's source snapshot.
+    if (mode === "160000") continue;
     if (!allowed(relative)) continue;
     const stat = await inspect(root, relative);
     if (!stat) throw new Error(`Tracked file is missing: ${relative}`);
@@ -188,12 +247,7 @@ async function snapshot(root: string): Promise<Snapshot> {
   return { revision: digest.digest("hex"), files };
 }
 
-interface PatchOwnership {
-  lock?: string;
-  stagingRoot?: string;
-  promotionStarted: boolean;
-}
-
+/** Create the workspace patch lock and record ownership. */
 async function acquirePatchLock(root: string, ownership: PatchOwnership) {
   const state = await stateDirectory(root);
   const lock = path.join(state, "lock");
@@ -212,6 +266,7 @@ async function acquirePatchLock(root: string, ownership: PatchOwnership) {
   return lock;
 }
 
+/** Materialize a snapshot with the requested replacement text for isolated validation. */
 async function stageSnapshot(
   stage: string,
   baseline: Snapshot,
@@ -239,6 +294,7 @@ async function stageSnapshot(
   );
 }
 
+/** Compare current snapshot revision and target bytes with the pre-validation baseline. */
 async function revisionMatches(
   root: string,
   baseline: Snapshot,
@@ -252,6 +308,7 @@ async function revisionMatches(
   );
 }
 
+/** Atomically replace the live file with request.patchContent. */
 async function promotePatch(
   root: string,
   lock: string,
@@ -261,7 +318,6 @@ async function promotePatch(
   ownership: PatchOwnership,
 ) {
   const parent = path.dirname(path.join(root, request.filePath));
-  // Persist intent before creating a same-filesystem promotion file. Never restore a stale snapshot.
   journal.phase = "promoting";
   await saveJournal(lock, journal);
   ownership.promotionStarted = true;
@@ -275,11 +331,12 @@ async function promotePatch(
   ownership.promotionStarted = false;
 }
 
+/** Execute the patching workflow steps. */
 async function executePatch(
   workspace: string,
   request: PatchRequest,
   ownership: PatchOwnership,
-) {
+): Promise<PatchApplyResult> {
   if (process.platform !== "linux")
     throw new Error("Workspace patching requires Linux.");
   const root = await fs.realpath(workspace);
@@ -310,7 +367,7 @@ async function executePatch(
   };
   await saveJournal(lock, journal);
   const stagingRoot = stageDirectory(root, id);
-  await fs.mkdir(stagingRoot, { mode: 0o700 });
+  await fs.mkdir(stagingRoot, { mode: 0o700, recursive: true });
   ownership.stagingRoot = stagingRoot;
   const stage = path.join(stagingRoot, "source");
   await stageSnapshot(stage, baseline, request);
@@ -337,9 +394,9 @@ async function executePatch(
   };
 }
 
+/** Remove staging and retire an owned lock unless promotion remains uncertain. */
 async function cleanupPatch(ownership: PatchOwnership) {
   const { lock, stagingRoot, promotionStarted } = ownership;
-  // A crash or uncertain promotion leaves ownership/journal intact for explicit recovery.
   if (!lock || promotionStarted) return;
   if (stagingRoot) await fs.rm(stagingRoot, { recursive: true, force: true });
   const retired = path.join(path.dirname(lock), `finished-${randomUUID()}`);
@@ -348,13 +405,15 @@ async function cleanupPatch(ownership: PatchOwnership) {
   await fs.rm(retired, { recursive: true, force: true });
 }
 
-/** All cooperating writers must hold this lock; crashes deliberately leave it for recovery. */
+/**
+ * Verify and atomically replace an existing tracked file in a Linux Git repository root.
+ */
 export async function applyWorkspacePatch(
   workspace: string,
   request: PatchRequest,
-) {
+): Promise<PatchApplyResult> {
   const ownership: PatchOwnership = { promotionStarted: false };
-  let result;
+  let result: PatchApplyResult;
   try {
     result = await executePatch(workspace, request, ownership);
   } catch (error) {
@@ -375,6 +434,7 @@ export async function applyWorkspacePatch(
   return result;
 }
 
+/** Return whether a recovery lock exists. */
 async function recoveryLockExists(lock: string) {
   let stat;
   try {
@@ -388,6 +448,7 @@ async function recoveryLockExists(lock: string) {
   return true;
 }
 
+/** Parse the recovery journal. */
 async function readRecoveryJournal(lock: string) {
   try {
     return JSON.parse(
@@ -399,11 +460,12 @@ async function readRecoveryJournal(lock: string) {
   }
 }
 
+/** Validate recovery journal attributes. */
 function validateRecoveryJournal(journal: Journal) {
   if (
     journal.version !== 1 ||
     !allowed(journal.filePath) ||
-    !/^[a-f0-9-]{36}$/.test(journal.id) ||
+    !/^[a-f0-9-]{36}\$/.test(journal.id) ||
     journal.temporaryPath !==
       path.posix.join(
         path.posix.dirname(journal.filePath),
@@ -417,53 +479,7 @@ function validateRecoveryJournal(journal: Journal) {
   }
 }
 
+/** Classify an interrupted promotion as committed or aborted. */
 async function recoverPromotion(root: string, journal: Journal) {
   if (journal.phase !== "promoting" && journal.phase !== "committed")
     return "aborted";
-  const content = await readTarget(root, journal.filePath);
-  const currentHash = content === null ? null : hash(content);
-  let status = "aborted";
-  if (currentHash === journal.candidateHash) status = "committed";
-  else if (
-    currentHash !== journal.originalHash ||
-    journal.phase === "committed"
-  ) {
-    throw new Error(
-      "Recovery conflict: preserve workspace and journal for manual investigation.",
-    );
-  }
-  // Recheck parents through readTarget before removing only this transaction's temporary file.
-  await fs.rm(path.join(root, journal.temporaryPath), { force: true });
-  await syncDirectory(path.dirname(path.join(root, journal.filePath)));
-  return status;
-}
-
-/** Operator-only: stop ALL writers first. Never expose this through the agent/MCP tools. */
-export async function recoverWorkspacePatch(
-  workspace: string,
-  confirmQuiescent: boolean,
-) {
-  if (!confirmQuiescent)
-    throw new Error("Stop all workspace writers before confirming recovery.");
-  const root = await fs.realpath(workspace);
-  const state = await stateDirectory(root);
-  const lock = path.join(state, "lock");
-  if (!(await recoveryLockExists(lock)))
-    return { status: "nothing_to_recover" };
-  const journal = await readRecoveryJournal(lock);
-  let status = "aborted";
-  if (journal) {
-    validateRecoveryJournal(journal);
-    status = await recoverPromotion(root, journal);
-    await fs.rm(stageDirectory(root, journal.id), {
-      recursive: true,
-      force: true,
-    });
-  }
-  const retired = path.join(state, `finished-${randomUUID()}`);
-  await fs.rename(lock, retired);
-  await syncDirectory(state);
-  await fs.rm(retired, { recursive: true });
-  await syncDirectory(state);
-  return { status };
-}

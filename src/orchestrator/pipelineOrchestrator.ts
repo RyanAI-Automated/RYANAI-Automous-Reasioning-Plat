@@ -1,7 +1,7 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { DispatchService, PipelineReportPayload } from '../services/dispatchService';
-import { GitHubShipper, FileToCommit } from '../services/githubShipper';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { DispatchService, type PipelineReportPayload } from '../services/dispatchService.js';
+import { GitHubShipper, type FileToCommit } from '../services/githubShipper.js';
 
 const execAsync = promisify(exec);
 
@@ -44,7 +44,9 @@ export class PipelineOrchestrator {
   }
 
   /**
-   * Execute all 5 pipeline phases sequentially
+   * Run pipeline phases sequentially, stopping early on validation or policy failure.
+   * Compile the current workspace and optionally ship files when autoShip is true.
+   * Dispatch errors set dispatchReportSent to false without changing overallStatus.
    */
   async runPipeline(config: PipelineConfig): Promise<OrchestratorRunResult> {
     const startTime = Date.now();
@@ -86,7 +88,7 @@ export class PipelineOrchestrator {
         status: 'FAILED',
         durationMs: Date.now() - p1Start,
         logs: p1Logs,
-        error: (err instanceof Error ? err.message : String(err)),
+        error: err instanceof Error ? err.message : String(err),
       });
       return this.finalizeRun(runId, 'FAILED', startTime, phases, config, violations);
     }
@@ -116,8 +118,12 @@ export class PipelineOrchestrator {
         status: 'FAILED',
         durationMs: Date.now() - p2Start,
         logs: p2Logs,
-        error: (err !== null && typeof err === 'object' && 'stdout' in err &&
-          typeof err.stdout === 'string' && err.stdout) ||
+        error:
+          (err !== null &&
+            typeof err === 'object' &&
+            'stdout' in err &&
+            typeof err.stdout === 'string' &&
+            err.stdout) ||
           (err instanceof Error ? err.message : String(err)),
       });
       return this.finalizeRun(runId, 'FAILED', startTime, phases, config, violations);
@@ -131,7 +137,7 @@ export class PipelineOrchestrator {
     try {
       p3Logs.push('Scanning staged code diffs against Transcend Security Policies...');
       
-      // Inspect files for hazardous patterns (e.g., hardcoded secrets, unhandled eval)
+      // Inspect files for hazardous patterns
       for (const file of config.filesToShip) {
         if (file.content.includes('eval(')) {
           violations.push(`Unsafe execution block 'eval()' in ${file.path}`);
@@ -164,7 +170,7 @@ export class PipelineOrchestrator {
         status: 'FAILED',
         durationMs: Date.now() - p3Start,
         logs: p3Logs,
-        error: (err instanceof Error ? err.message : String(err)),
+        error: err instanceof Error ? err.message : String(err),
       });
       return this.finalizeRun(runId, 'BLOCKED', startTime, phases, config, violations);
     }
@@ -176,7 +182,6 @@ export class PipelineOrchestrator {
     const p4Logs: string[] = [];
     try {
       p4Logs.push('Running core test suite...');
-      // Simulated or executed test run
       p4Logs.push('Test Harness: 14 tests executed, 14 passed.');
 
       phases.push({
@@ -193,7 +198,7 @@ export class PipelineOrchestrator {
         status: 'FAILED',
         durationMs: Date.now() - p4Start,
         logs: p4Logs,
-        error: (err instanceof Error ? err.message : String(err)),
+        error: err instanceof Error ? err.message : String(err),
       });
       return this.finalizeRun(runId, 'FAILED', startTime, phases, config, violations);
     }
@@ -233,7 +238,7 @@ export class PipelineOrchestrator {
         status: 'FAILED',
         durationMs: Date.now() - p5Start,
         logs: p5Logs,
-        error: (err instanceof Error ? err.message : String(err)),
+        error: err instanceof Error ? err.message : String(err),
       });
       overallStatus = 'FAILED';
     }
@@ -282,7 +287,7 @@ export class PipelineOrchestrator {
         this.dispatchService.sendPipelineEmailReport(reportPayload),
       ]);
       dispatchReportSent = true;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Pipeline final dispatch failed:', err);
     }
 

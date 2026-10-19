@@ -8,6 +8,9 @@ import { createServer, type Socket } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { connectRedis } from '../src/server/connectRedis.js';
 
+const apiUrl = process.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const cleanApiUrl = apiUrl.replace(/\/\$/, '');
+const apiHealthUrl = `${cleanApiUrl}/health`;
 const exec = promisify(execFile);
 const configUrl = new URL('../scripts/health-config.mjs', import.meta.url).href;
 const directories: string[] = [];
@@ -29,6 +32,10 @@ async function readTargets(contents: string, local = false, overrides: NodeJS.Pr
 }
 
 describe('startup health targets', () => {
+  it('defines a valid default health URL', () => {
+    expect(apiHealthUrl).toBe('http://localhost:3000/health');
+  });
+
   it('keeps Compose defaults when no environment file values are set', async () => {
     expect(await readTargets('')).toMatchObject({
       apiUrl: 'http://localhost:3000', webUrl: 'http://localhost:9090',

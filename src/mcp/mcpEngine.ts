@@ -17,6 +17,7 @@ export class RyanMcpEngine {
     this.registerTools();
   }
 
+  /** Registers the MCP list-tools and call-tool handlers for triggering the deployment pipeline and system health checks. */
   private registerTools() {
     // 1. List Available MCP Tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({

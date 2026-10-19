@@ -30,8 +30,6 @@ export interface SecurityAlertPayload {
 }
 
 export class DispatchService {
-  // Read configuration at dispatch time so importing the service does not require
-  // optional provider credentials, and failed delivery is never reported as success.
   private requiredEnv(name: string): string {
     const value = process.env[name]?.trim();
     if (!value) throw new Error(`Dispatch requires ${name}`);
@@ -48,7 +46,7 @@ export class DispatchService {
     const to =
       targetPhone?.trim() || this.requiredEnv('DEFAULT_RECIPIENT_PHONE');
     const address = (phone: string) =>
-      phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+      phone.startsWith('whatsapp:') ? phone : `whatsapp:\${phone}`;
     const result = await twilio(accountSid, authToken).messages.create({
       from: address(from),
       to: address(to),
@@ -58,13 +56,6 @@ export class DispatchService {
     return result.sid;
   }
 
-  /* ==========================================================================
-     WHATSAPP DISPATCHERS
-     ========================================================================== */
-
-  /**
-   * Send WhatsApp text update for pipeline completion
-   */
   async sendWhatsAppPipelineUpdate(
     payload: PipelineReportPayload,
     targetPhone?: string,
@@ -73,31 +64,28 @@ export class DispatchService {
     const durationSec = (payload.executionTimeMs / 1000).toFixed(2);
 
     const message = [
-      `${statusEmoji} *RyanAI Pipeline ${payload.status}*`,
-      `*Project:* ${payload.projectName}`,
-      `*Branch:* \`${payload.branch}\` (${payload.commitHash.slice(0, 7)})`,
-      `*Duration:* ${durationSec}s`,
+      `${statusEmoji} *RyanAI Pipeline${payload.status}*`,
+      `*Project:* \${payload.projectName}`,
+      `*Branch:* \`${payload.branch}\` (\${payload.commitHash.slice(0, 7)})`,
+      `*Duration:* \${durationSec}s`,
       payload.transcendStatus.violationsCount > 0
-        ? `\n⚠️ *Transcend Violations:* ${payload.transcendStatus.violationsCount}`
+        ? `\n⚠️ *Transcend Violations:* \${payload.transcendStatus.violationsCount}`
         : payload.transcendStatus.evaluated
           ? '🛡️ *Transcend Guard:* Passed'
           : '🛡️ *Transcend Guard:* Not evaluated',
-      `\n📊 *Telemetry & Audit Logs:*\n${payload.logUrl}`,
+      `\n📊 *Telemetry & Audit Logs:*\n\${payload.logUrl}`,
     ].join('\n');
 
     return this.sendWhatsApp(message, targetPhone);
   }
 
-  /**
-   * Send urgent WhatsApp security alert for eBPF or Transcend blocks
-   */
   async sendWhatsAppSecurityAlert(
     payload: SecurityAlertPayload,
     targetPhone?: string,
   ): Promise<string> {
     const message = [
       `🚨 *TRANSCEND KERNEL INTERVENTION*`,
-      `*Action:* ${payload.actionTaken}`,
+      `*Action:* \${payload.actionTaken}`,
       `*PID:* \`${payload.pid}\``,
       `*Command:* \`${payload.command}\``,
       `*Timestamp:* ${payload.timestamp}`,
@@ -108,13 +96,6 @@ export class DispatchService {
     return this.sendWhatsApp(message, targetPhone);
   }
 
-  /* ==========================================================================
-     EMAIL DISPATCHERS (RESEND)
-     ========================================================================== */
-
-  /**
-   * Dispatch full dark-mode HTML email report
-   */
   async sendPipelineEmailReport(
     payload: PipelineReportPayload,
     targetEmail?: string,
@@ -140,9 +121,6 @@ export class DispatchService {
     return response.data.id;
   }
 
-  /**
-   * High-density Cyber/Matrix dark-mode HTML email template generator
-   */
   private renderEmailTemplate(payload: PipelineReportPayload): string {
     const escapeHtml = (value: string): string =>
       value.replace(
@@ -233,9 +211,9 @@ export class DispatchService {
       <div class="card" style="margin-bottom: 16px;">
         <div class="card-label">Code Diff Summary</div>
         <div class="card-value" style="color: #38bdf8;">
-          ${p.codeDiffSummary.filesChanged} files changed |
-          <span style="color: #4ade80;">+${p.codeDiffSummary.insertions}</span> |
-          <span style="color: #f87171;">-${p.codeDiffSummary.deletions}</span>
+          \${p.codeDiffSummary.filesChanged} files changed |
+          <span style="color: #4ade80;">+\${p.codeDiffSummary.insertions}</span> |
+          <span style="color: #f87171;">-\${p.codeDiffSummary.deletions}</span>
         </div>
       </div>
       `
@@ -246,8 +224,7 @@ export class DispatchService {
         p.transcendStatus.violationsCount > 0
           ? `
       <div class="violations-box">
-        <div class="violations-title">⚠️ TRANSCEND GOVERNANCE VIOLATIONS (${p.transcendStatus.violationsCount})</div>
-        ${p.transcendStatus.violations
+        <div class="violations-title">⚠️ TRANSCEND GOVERNANCE VIOLATIONS (${p.transcendStatus.violationsCount})</div>${p.transcendStatus.violations
           .map((v) => `<div class="violation-item">• ${v}</div>`)
           .join('')}
       </div>
@@ -255,7 +232,7 @@ export class DispatchService {
           : `
       <div class="card" style="border-color: #059669; background-color: #022c22;">
         <div class="card-label" style="color: #34d399;">Transcend Guard</div>
-        <div class="card-value" style="color: #6ee7b7;">${p.transcendStatus.evaluated ? '✓ Zero policy violations detected' : 'Not evaluated'}</div>
+        <div class="card-value" style="color: #6ee7b7;">\${p.transcendStatus.evaluated ? '✓ Zero policy violations detected' : 'Not evaluated'}</div>
       </div>
       `
       }

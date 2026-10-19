@@ -4,6 +4,7 @@ import WebSocket from 'ws';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-10-01';
 
+/** Registers the realtime voice WebSocket endpoint and relays audio/function-call traffic to and from the OpenAI Realtime API. */
 export async function voiceRealtimeGateway(fastify: FastifyInstance) {
   // Register Fastify WebSocket endpoint
   fastify.get('/api/v1/realtime/voice', { websocket: true }, (connection, _req: FastifyRequest) => {

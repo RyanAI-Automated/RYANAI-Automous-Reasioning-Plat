@@ -13,6 +13,7 @@ interface ReasoningResult {
   error?: string;
 }
 
+/** Display platform health and an authenticated reasoning form with request feedback. */
 export default function RyanAICockpit() {
   const { health, error: healthError, checking, refresh } = usePlatformHealth();
   const [prompt, setPrompt] = useState('');
@@ -20,6 +21,7 @@ export default function RyanAICockpit() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
+  /** Submit a nonblank objective once and display the reasoning output or request error. */
   async function runReasoning(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const objective = prompt.trim();
@@ -168,6 +170,7 @@ export default function RyanAICockpit() {
   );
 }
 
+/** Format a service health flag, distinguishing unavailable from unreported state. */
 function reported(value: boolean | undefined) {
   return value === true
     ? 'Healthy'
@@ -176,6 +179,7 @@ function reported(value: boolean | undefined) {
       : 'Not reported';
 }
 
+/** Render a labeled service status value in the cockpit. */
 function ServiceValue({ label, value }: { label: string; value: string }) {
   return (
     <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">

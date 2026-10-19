@@ -30,6 +30,10 @@ export class RyanAISwarmCoordinator extends EventEmitter {
     return this.instance;
   }
 
+  /**
+   * Listens for peer beacon broadcasts on the mesh UDP socket, updating known peers and
+   * silently discarding malformed packets
+   */
   private setupSocket() {
     this.socket.on('message', (msg, rinfo) => {
       try {

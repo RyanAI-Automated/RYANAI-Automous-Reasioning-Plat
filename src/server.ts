@@ -1,10 +1,11 @@
 // File path: ./src/server.ts
 
 import { startTelemetry } from './telemetry/otel.js';
-// Initialize telemetry first before any Fastify or HTTP module imports
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import fastifyJwt from "@fastify/jwt";
+import { registerAuthRoutes } from './routes/auth.js';
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
 import websocket from "@fastify/websocket";
@@ -20,8 +21,6 @@ import { createRyanAgentGraph } from "./agent/reactWorkflow.js";
 import { HumanMessage } from "@langchain/core/messages";
 import { RyanAIOrchestrator } from "./engine/orchestrator.js";
 import { RyanAISwarmCoordinator } from "./engine/swarmCoordinator.js";
-import { TelemetryDaemon } from "./engine/telemetryDaemon.js";
-import { RyanMCPServer } from "./mcp/ryanMcpServer.js";
 import { agentOpsRoutes } from "./routes/agentOps.js";
 import { dispatchRoutes } from "./routes/dispatch.js";
 import { githubRoutes } from "./routes/github.js";
@@ -29,11 +28,10 @@ import { voiceRealtimeGateway } from "./gateway/voiceRealtimeGateway.js";
 import transcendPlugin from "./plugins/transcendGovernance.js";
 import nativeInferencePlugin from "./plugins/nativeInference.js";
 import { eBPFSentinel } from "./security/sentinelLoader.js";
-import { TelemetryData, OutgoingMessage, IncomingMessage } from "./types.js";
+import { TelemetryData } from "./types.js";
 
 dotenv.config();
 
-// Fastify Type Augmentation for Custom Plugins
 declare module 'fastify' {
   interface FastifyInstance {
     cppEngine?: {
@@ -45,11 +43,9 @@ declare module 'fastify' {
   }
 }
 
-// ESM Directory Resolution
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Global Swarm Mesh Setup
 const swarm = RyanAISwarmCoordinator.getInstance();
 swarm.startMeshBroadcast(3000);
 
@@ -57,11 +53,9 @@ swarm.on("peer_updated", (peerId: string) => {
   console.log(`[Swarm Mesh] Discovered / updated peer node in cluster: ${peerId}`);
 });
 
-// Initialize eBPF Sentinel
 const sentinel = new eBPFSentinel();
 sentinel.initializeSentinel();
 
-// Checkpointer utility for state preservation across execution steps
 const RyanAICheckpointer = {
   getLatestCheckpoint: async (_threadId: string) => {
     return null;
@@ -71,7 +65,6 @@ const RyanAICheckpointer = {
   },
 };
 
-// Types & Interfaces
 interface EngineCommandBody {
   command: string;
   targetModule?: string;
@@ -103,22 +96,12 @@ interface GatherBody {
   SpeechResult?: string;
 }
 
-interface TwilioStatusBody {
-  CallSid?: string;
-  CallStatus?: string;
-  CallDuration?: string;
-  AnsweredBy?: string;
-}
-
-// Global active call store
 const activeCalls = new Map<string, { reason: string; startTime: number }>();
 
-// Lazy-load or fallback Twilio client instantiation
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-// Helper function for safe error message extraction
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
@@ -159,10 +142,7 @@ function readTelemetry(): TelemetryData {
   };
 }
 
-/**
- * Builds and configures the unified Fastify application instance.
- */
-async function buildApp(): Promise<FastifyInstance> {
+export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       transport: {
@@ -172,27 +152,27 @@ async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // 1. Register Core, Web Socket & Native C++ Plugins
   await app.register(cors, {
     origin: process.env.NODE_ENV === "production" ? false : "*",
   });
   await app.register(formbody);
   await app.register(websocket);
+  await app.register(fastifyJwt, {
+    secret: process.env.JWT_SECRET || "ryanai-secure-jwt-secret-key-2026",
+  });
+  await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
-  // 2. Register Transcend Governance Plugin
   await app.register(transcendPlugin, {
     wasmFilePath: path.join(__dirname, "../policy.wasm"),
     enforceRoutes: ["/api/v1/agent/execute", "/api/v1/voice/call"],
   });
 
-  // 3. Register Sub-Routes & Modular Gateways
   await app.register(agentOpsRoutes);
   await app.register(dispatchRoutes);
   await app.register(githubRoutes);
   await app.register(voiceRealtimeGateway);
 
-  // 4. Platform Health Route
   app.get("/health", async (_request: FastifyRequest, _reply: FastifyReply) => {
     return {
       status: "online",
@@ -218,7 +198,6 @@ async function buildApp(): Promise<FastifyInstance> {
     };
   });
 
-  // 5. System Status Route
   app.get("/api/system", async (_request: FastifyRequest, _reply: FastifyReply) => {
     return {
       status: "online",
@@ -228,7 +207,6 @@ async function buildApp(): Promise<FastifyInstance> {
     };
   });
 
-  // 6. eBPF Sentinel Security Status Route
   app.get("/api/ryan/security/status", async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({
       success: true,
@@ -236,7 +214,6 @@ async function buildApp(): Promise<FastifyInstance> {
     });
   });
 
-  // 7. Native C++ CUDA/CPU Inference Route for HUD Terminal & Agent Workflows
   app.post<{ Body: { prompt: string } }>(
     "/api/ryan/inference",
     async (req: FastifyRequest<{ Body: { prompt: string } }>, reply: FastifyReply) => {
@@ -264,7 +241,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 8. Command Route
   app.post<{ Body: EngineCommandBody }>(
     "/api/engine/command",
     async (request: FastifyRequest<{ Body: EngineCommandBody }>, reply: FastifyReply) => {
@@ -273,7 +249,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 9. Base Reason Route (LangGraph ReAct)
   app.post<{ Body: ReasonRequestBody }>(
     "/api/reason",
     async (request: FastifyRequest<{ Body: ReasonRequestBody }>, reply: FastifyReply) => {
@@ -302,7 +277,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 10. Stateful Agent Graph Execution Route with Checkpointing
   app.post<{ Body: { threadId: string; message: string } }>(
     "/api/ryan/agent/invoke",
     async (request: FastifyRequest<{ Body: { threadId: string; message: string } }>, reply: FastifyReply) => {
@@ -332,7 +306,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  // 11. Orchestrator Route (Multi-Brain Pipeline with Checkpointing)
   app.post<{ Body: TaskRequestBody }>(
     "/api/v1/reason",
     async (request: FastifyRequest<{ Body: TaskRequestBody }>, reply: FastifyReply) => {
@@ -365,10 +338,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  /* ==========================================================================
-     Transcend Governance & Agent Execution Routes
-     ========================================================================== */
-
   app.post(
     "/api/v1/agent/execute",
     async (req: FastifyRequest, reply: FastifyReply) => {
@@ -386,10 +355,6 @@ async function buildApp(): Promise<FastifyInstance> {
       return reply.send(result);
     }
   );
-
-  /* ==========================================================================
-     Voice Telephony Endpoints
-     ========================================================================== */
 
   const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
@@ -506,7 +471,7 @@ async function buildApp(): Promise<FastifyInstance> {
       } else {
         twiml.say(
           { voice: "Polly.Matthew" },
-          `Received ${input ? `'${input}'` : "unrecognized input"}. No external dispatch is configured.`
+          `Received unrecognized input. No external dispatch is configured.`
         );
         twiml.hangup();
       }
@@ -516,141 +481,5 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   );
 
-  app.post<{ Body: TwilioStatusBody }>(
-    "/api/v1/voice/status",
-    async (req: FastifyRequest<{ Body: TwilioStatusBody }>, reply: FastifyReply) => {
-      const { CallSid, CallStatus } = req.body || {};
-      if (CallSid && (CallStatus === "completed" || CallStatus === "failed" || CallStatus === "no-answer")) {
-        activeCalls.delete(CallSid);
-      }
-      return reply.status(200).send({ received: true });
-    }
-  );
-
-  app.get("/api/v1/voice/active", async (_req: FastifyRequest, reply: FastifyReply) => {
-    const calls = Array.from(activeCalls.entries()).map(([sid, data]) => ({
-      callSid: sid,
-      reason: data.reason,
-      durationSeconds: Math.floor((Date.now() - data.startTime) / 1000),
-    }));
-
-    return reply.send({ count: calls.length, activeCalls: calls });
-  });
-
-  /* ==========================================================================
-     Real-Time Telemetry WebSocket Gateway (/ws/telemetry)
-     ========================================================================== */
-
-  app.get('/ws/telemetry', { websocket: true }, (connection, _req) => {
-    const socket = connection;
-    app.log.info('HUD Client connected to telemetry stream');
-
-    // 1. Broadcast telemetry every 1.5 seconds
-    const telemetryInterval = setInterval(() => {
-      if (socket.readyState === 1 /* OPEN */) {
-        const msg: OutgoingMessage = {
-          type: 'TELEMETRY',
-          payload: readTelemetry(),
-        };
-        socket.send(JSON.stringify(msg));
-      }
-    }, 1500);
-
-    // 3. Handle messages sent from the HUD client
-    socket.on('message', (rawMessage: Buffer) => {
-      try {
-        const data: IncomingMessage = JSON.parse(rawMessage.toString());
-
-        if (data.type === 'COMMAND') {
-          app.log.info(`Received system command: ${data.command}`);
-
-          if (socket.readyState === 1) {
-            const ackLog: OutgoingMessage = {
-              type: 'LOG',
-              payload: {
-                id: Date.now().toString(),
-                timestamp: new Date().toLocaleTimeString(),
-                level: 'INFO',
-                message: `Command '${data.command}' was received but not executed by this telemetry endpoint.`,
-              },
-            };
-            socket.send(JSON.stringify(ackLog));
-          }
-        }
-
-        if (data.type === 'SWEEP_START') {
-          app.log.warn('A diagnostic sweep was requested, but no sweep provider is configured.');
-        }
-      } catch (err) {
-        app.log.error({ err }, 'Failed to parse incoming WebSocket message');
-      }
-    });
-
-    // Cleanup on disconnect
-    socket.on('close', () => {
-      app.log.info('HUD Client disconnected');
-      clearInterval(telemetryInterval);
-    });
-  });
-
   return app;
 }
-
-/**
- * Server & Platform Initialization
- */
-async function main() {
-  try {
-    const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-    const host = process.env.HOST || "0.0.0.0";
-
-    // 1. Start MCP Server on stdio transport
-    const mcpServer = new RyanMCPServer();
-    await mcpServer.start();
-
-    // 2. Build and start Unified Fastify Gateway
-    const app = await buildApp();
-    await app.listen({ port, host });
-
-    console.log(`
-┌───────────────────────────────────────────────────────────┐
-│ RYAN_AI ENGINE RUNNING ON http://${host}:${port}          │
-├───────────────────────────────────────────────────────────┤
-│ • Native C++ Inference: POST /api/ryan/inference          │
-│ • LangGraph ReAct:      POST /api/reason                  │
-│ • Stateful Agent Graph: POST /api/ryan/agent/invoke       │
-│ • eBPF Security Status: GET  /api/ryan/security/status    │
-│ • Dispatch Gateway:     POST /api/v1/dispatch/pipeline-report │
-│ • GitHub Shipper:       POST /api/v1/github/ship          │
-│ • Realtime Voice:       WS   /api/v1/realtime/voice       │
-│ • Telemetry WebSocket:  WS   /ws/telemetry                │
-│ • Health Check:         GET  /health                      │
-└───────────────────────────────────────────────────────────┘
-`);
-
-    // 3. Start Telemetry Self-Healing Watchdog Daemon
-    const daemon = new TelemetryDaemon(30000);
-    daemon.start();
-
-    // Graceful Shutdown Handlers
-    const shutdown = async (signal: string) => {
-      console.log(`\n[Shutdown] Received ${signal}. Closing server...`);
-      try {
-        await app.close();
-        console.log('[Shutdown] Fastify server closed.');
-        process.exit(0);
-      } catch (err) {
-        console.error('[Shutdown Error]:', err);
-        process.exit(1);
-      }
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-  } catch (err) {
-    console.error("[Fatal Startup Error]:", err);
-    process.exit(1);
-  }
-}
-
-main();

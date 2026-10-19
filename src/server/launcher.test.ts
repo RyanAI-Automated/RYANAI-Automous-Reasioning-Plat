@@ -43,7 +43,13 @@ vi.mock('@fastify/rate-limit', () => ({ default: async () => {} }));
 vi.mock('../api/websocket.js', () => ({
   registerWebSocketRoutes: async () => {},
 }));
-vi.mock('./routes/auth.js', () => ({ authPlugin: async () => {} }));
+vi.mock('./routes/auth.js', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    installAuthentication: vi.fn(),
+  };
+});
 vi.mock('./comms/index.js', () => ({ commsPlugin: async () => {} }));
 vi.mock('./routes/approvalRoutes.js', () => ({
   approvalRoutes: async () => {},

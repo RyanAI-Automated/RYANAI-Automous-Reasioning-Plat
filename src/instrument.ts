@@ -3,8 +3,6 @@ export {};
 
 const sentryDsn = process.env.SENTRY_DSN;
 
-// Sentry is optional for local development. Do not use a placeholder DSN or
-// make the server unstartable when observability packages are not installed.
 if (sentryDsn) {
   try {
     const [Sentry, profiling] = await Promise.all([

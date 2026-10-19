@@ -25,10 +25,14 @@ sast:
     - javascript-node-security
     - jsx-react
 
-  # Recommended: Exclude vendor directories and build outputs to improve scan speed and avoid noise
+  # Exclude vendor directories, caches, and build outputs to optimize scan speed
   global-config:
     ignore-paths:
       - "node_modules/**"
       - "dist/**"
       - "build/**"
+      - ".next/**"
+      - ".turbo/**"
+      - ".vercel/**"
+      - "coverage/**"
       - "src-tauri/target/**"

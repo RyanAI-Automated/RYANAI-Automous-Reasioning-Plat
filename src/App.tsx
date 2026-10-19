@@ -8,7 +8,7 @@ import {
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
-import { Analytics } from '@vercel/analytics/react';
+
 import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 import RyanAICockpit from '@/components/dashboard/RyanAICockpit';
@@ -17,6 +17,7 @@ import DashboardPage from '@/pages/Dashboard';
 import LandingPage from '@/pages/LandingPage';
 import AuthPage from '@/pages/AuthPage';
 import { useAuth } from '@/hooks/useAuth';
+import { Analytics } from '@vercel/analytics/react';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -61,6 +62,7 @@ export default function App() {
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
       : user?.email;
+
   const handleSignOut = async () => {
     if (await signOut()) window.location.hash = '/signin';
   };
@@ -153,7 +155,7 @@ export default function App() {
                 <CommandCenter
                   onSignOut={() => void handleSignOut()}
                   userId={user.id}
-                  userEmail={user.email}
+                  userEmail={user.email!}
                   userFullName={displayName}
                 />
               </div>

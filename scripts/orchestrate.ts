@@ -110,6 +110,7 @@ async function runService(serviceName: string): Promise<boolean> {
   });
 }
 
+/** Pings database, Redis, and API health endpoints, logging the status of each without failing the orchestration run. */
 async function runHealthChecks(): Promise<boolean> {
   logger.info('Running health checks...');
 

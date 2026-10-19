@@ -40,32 +40,7 @@
     }
   },
   "include": [
-    "src/loadEnv.ts",
-    "src/instrument.ts",
-    "src/telemetry.ts",
-    "src/server/launcher.ts",
-    "src/server/index.ts",
-    "src/server/connectRedis.ts",
-    "src/server/startupDiagnostics.ts",
-    "src/server/routes/**/*.ts",
-    "src/server/comms/index.js",
-    "src/agent/engine.ts",
-    "src/agent/approvalEngine.ts",
-    "src/agent/supervisorGraph.ts",
-    "src/agent/subAgents.ts",
-    "src/agent/tools/**/*.ts",
-    "src/api/websocket.ts",
-    "src/config/core.ts",
-    "src/skills/**/*.ts",
-    "src/shared/**/*.ts",
-    "src/mcp/ryanMcpServer.ts",
-    "src/engine/sandbox.ts",
-    "src/engine/selfPatchSkill.ts",
-    "src/tools/systemTools.ts",
-    "src/utils/notifications.ts",
-    "src/utils/slackVerification.ts",
-    "src/utils/verifyPatch.ts",
-    "src/utils/workspacePatch.ts"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",

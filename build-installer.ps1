@@ -1,7 +1,12 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 Push-Location $root
-$env:Path += ";$env:USERPROFILE\.cargo\bin"
+
+# Ensure Cargo binary directory is in user PATH for Tauri builds
+$cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
+if ($env:Path -notlike "*$cargoBin*") {
+    $env:Path = "$cargoBin;$env:Path"
+}
 
 try {
     Write-Host "=== 1. Preparing build dependencies ===" -ForegroundColor Cyan

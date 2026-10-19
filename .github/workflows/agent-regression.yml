@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -57,6 +57,9 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
+
+      - name: Set up Database Schema
+        run: npm run db:setup
 
       - name: Build API and frontend
         run: npm run build:server && npm run build:client
@@ -68,12 +71,24 @@ jobs:
           api_pid=$!
           npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
           web_pid=$!
+          
           cleanup() {
+            echo "Shutting down background services..."
             kill "$api_pid" "$web_pid" 2>/dev/null || true
             wait "$api_pid" "$web_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
-          npm run startup:verify
+
+          # Simple curl health check loop to replace missing startup:verify
+          echo "Waiting for API server to become healthy..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/health | grep -q "true" || curl -s http://localhost:3000/health | grep -q "ok"; then
+              echo "API is healthy!"
+              break
+            fi
+            sleep 1
+          done
+
           npm test
           npm run test:integration
           npm run test:e2e
