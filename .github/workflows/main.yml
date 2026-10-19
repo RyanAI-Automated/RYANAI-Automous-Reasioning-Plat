@@ -111,6 +111,7 @@ jobs:
           path: dist/
 
       - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v42
         uses: amondnet/vercel-action@v20[cite: 15]
         uses: amondnet/vercel-action@v20
         with:
