@@ -90,6 +90,16 @@ function allowed(relative: string) {
 /**
  * Reject links throughout the path; return file metadata or null for a missing final file.
  */
+async function recoverPromotion(root: string, journal: Journal) {
+    try {
+        // ... recovery logic ...
+        return "aborted";
+    } catch (error) {
+        log.error("Failed to recover promotion:", error);
+        throw error;
+    }
+}
+
 async function inspect(root: string, relative: string) {
   if (!allowed(relative))
     throw new Error("Patch path is outside the permitted workspace files.");
@@ -125,7 +135,15 @@ async function readTarget(root: string, relative: string) {
     ? fs.readFile(path.join(root, relative))
     : null;
 }
-
+async function recoverPromotion(root: string, journal: Journal) {
+    try {
+        // ... recovery logic ...
+        return "aborted";
+    } catch (error) {
+        log.error("Failed to recover promotion:", error);
+        throw error;
+    }
+}
 /** Flush a directory's metadata and close its handle. */
 async function syncDirectory(directory: string) {
   const handle = await fs.open(directory, "r");
@@ -135,7 +153,6 @@ async function syncDirectory(directory: string) {
     await handle.close();
   }
 }
-
 /** Exclusively create a file, apply its permission mode, and sync its contents. */
 async function durableWrite(
   filename: string,
