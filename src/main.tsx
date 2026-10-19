@@ -22,6 +22,9 @@ class RyanAIClient {
     );
   }
 
+  /**
+   * Make API request
+   */
   async request<T = unknown>(
     endpoint: string,
     options: RequestInit & { method?: string } = {},
