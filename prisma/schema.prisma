@@ -199,3 +199,4 @@ model MemoryEntry {
   @@index([userId])
   @@map("memory_entries")
 }
+}
