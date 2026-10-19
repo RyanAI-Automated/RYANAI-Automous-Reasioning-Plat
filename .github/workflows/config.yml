@@ -33,10 +33,11 @@ jobs:
 
     steps:
       - name: Checkout Repository
+        uses: actions/checkout@v4[cite: 17]
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4[cite: 17]
         with:
           node-version: '22'
 
@@ -52,4 +53,4 @@ jobs:
               JSON.parse(readFileSync(file, "utf8"));
               console.log(`PASS ${file}`);
             }
-          '
+          '[cite: 17]
