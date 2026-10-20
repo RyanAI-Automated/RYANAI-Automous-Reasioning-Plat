@@ -13,6 +13,9 @@ export interface CsExecutionResult {
   error?: string;
 }
 
+/** Shape of a rejected execFile call: an Error carrying captured output. */
+type ExecFileError = Error & { stdout?: string; stderr?: string };
+
 export class CsScriptTool {
   /**
    * Validate C# script syntax using global cs-syntaxer.
@@ -23,7 +26,8 @@ export class CsScriptTool {
       await writeFile(tempFile, scriptContent, "utf-8");
       const { stdout, stderr } = await execFileAsync("syntaxer", [tempFile], { timeout: 10000 });
       return { success: true, output: stdout || stderr };
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as ExecFileError;
       return { success: false, error: err.stderr?.trim() || err.message };
     } finally {
       await unlink(tempFile).catch(() => {});
@@ -39,7 +43,8 @@ export class CsScriptTool {
       await writeFile(tempFile, scriptContent, "utf-8");
       const { stdout, stderr } = await execFileAsync("css", [tempFile, ...args], { timeout: 30000 });
       return { success: true, output: stdout, error: stderr };
-    } catch (err: any) {
+    } catch (error) {
+      const err = error as ExecFileError;
       return { success: false, output: err.stdout, error: err.stderr?.trim() || err.message };
     } finally {
       await unlink(tempFile).catch(() => {});

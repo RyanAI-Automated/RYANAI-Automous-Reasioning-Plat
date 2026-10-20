@@ -14,6 +14,7 @@ import { cpus, totalmem } from "node:os";
 import twilio from "twilio";
 import dotenv from "dotenv";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { defaultEngine } from "./agent/reactGraph.js";
@@ -28,7 +29,7 @@ import { voiceRealtimeGateway } from "./gateway/voiceRealtimeGateway.js";
 import transcendPlugin from "./plugins/transcendGovernance.js";
 import nativeInferencePlugin from "./plugins/nativeInference.js";
 import { eBPFSentinel } from "./security/sentinelLoader.js";
-import { TelemetryData } from "./types.js";
+import { TelemetryData, OutgoingMessage, IncomingMessage } from "./types.js";
 
 dotenv.config();
 
@@ -94,6 +95,13 @@ interface TwimlQuery {
 interface GatherBody {
   Digits?: string;
   SpeechResult?: string;
+}
+
+interface TwilioStatusBody {
+  CallSid?: string;
+  CallStatus?: string;
+  CallDuration?: string;
+  AnsweredBy?: string;
 }
 
 const activeCalls = new Map<string, { reason: string; startTime: number }>();
@@ -163,10 +171,23 @@ export async function buildServer(): Promise<FastifyInstance> {
   await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
-  await app.register(transcendPlugin, {
-    wasmFilePath: path.join(__dirname, "../policy.wasm"),
-    enforceRoutes: ["/api/v1/agent/execute", "/api/v1/voice/call"],
-  });
+  const governedRoutes = ["/api/v1/agent/execute", "/api/v1/voice/call"];
+  const policyPath = process.env.TRANSCEND_POLICY_WASM || path.join(__dirname, "../policy.wasm");
+  if (existsSync(policyPath)) {
+    await app.register(transcendPlugin, {
+      wasmFilePath: policyPath,
+      enforceRoutes: governedRoutes,
+    });
+  } else {
+    // No compiled OPA policy is shipped in the repository. Fail closed: governed
+    // routes stay unavailable instead of running without policy enforcement.
+    app.log.warn({ policyPath }, "Transcend policy WASM not found; governed routes return 503.");
+    app.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
+      if (governedRoutes.some((route) => request.url.startsWith(route))) {
+        return reply.status(503).send({ success: false, error: "Governance engine is not configured." });
+      }
+    });
+  }
 
   await app.register(agentOpsRoutes);
   await app.register(dispatchRoutes);
@@ -481,5 +502,75 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
   );
 
+  // Twilio status callbacks (statusCallback above) retire finished calls.
+  app.post<{ Body: TwilioStatusBody }>(
+    "/api/v1/voice/status",
+    async (req: FastifyRequest<{ Body: TwilioStatusBody }>, reply: FastifyReply) => {
+      const { CallSid, CallStatus } = req.body || {};
+      if (CallSid && (CallStatus === "completed" || CallStatus === "failed" || CallStatus === "no-answer")) {
+        activeCalls.delete(CallSid);
+      }
+      return reply.status(200).send({ received: true });
+    }
+  );
+
+  app.get("/api/v1/voice/active", async (_req: FastifyRequest, reply: FastifyReply) => {
+    const calls = Array.from(activeCalls.entries()).map(([sid, data]) => ({
+      callSid: sid,
+      reason: data.reason,
+      durationSeconds: Math.floor((Date.now() - data.startTime) / 1000),
+    }));
+
+    return reply.send({ count: calls.length, activeCalls: calls });
+  });
+
+  // Real-time telemetry stream for the HUD client.
+  app.get("/ws/telemetry", { websocket: true }, (socket) => {
+    app.log.info("HUD Client connected to telemetry stream");
+
+    const telemetryInterval = setInterval(() => {
+      if (socket.readyState === socket.OPEN) {
+        const msg: OutgoingMessage = { type: "TELEMETRY", payload: readTelemetry() };
+        socket.send(JSON.stringify(msg));
+      }
+    }, 1500);
+
+    socket.on("message", (rawMessage: Buffer) => {
+      try {
+        const data: IncomingMessage = JSON.parse(rawMessage.toString());
+
+        if (data.type === "COMMAND") {
+          app.log.info(`Received system command: ${data.command}`);
+          if (socket.readyState === socket.OPEN) {
+            const ackLog: OutgoingMessage = {
+              type: "LOG",
+              payload: {
+                id: Date.now().toString(),
+                timestamp: new Date().toLocaleTimeString(),
+                level: "INFO",
+                message: `Command '${data.command}' was received but not executed by this telemetry endpoint.`,
+              },
+            };
+            socket.send(JSON.stringify(ackLog));
+          }
+        }
+
+        if (data.type === "SWEEP_START") {
+          app.log.warn("A diagnostic sweep was requested, but no sweep provider is configured.");
+        }
+      } catch (err) {
+        app.log.error({ err }, "Failed to parse incoming WebSocket message");
+      }
+    });
+
+    socket.on("close", () => {
+      app.log.info("HUD Client disconnected");
+      clearInterval(telemetryInterval);
+    });
+  });
+
   return app;
 }
+
+/** Alias used by the auth integration tests and older entry points. */
+export { buildServer as buildApp };
