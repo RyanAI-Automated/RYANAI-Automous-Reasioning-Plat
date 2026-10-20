@@ -90,16 +90,6 @@ function allowed(relative: string) {
 /**
  * Reject links throughout the path; return file metadata or null for a missing final file.
  */
-async function recoverPromotion(root: string, journal: Journal) {
-    try {
-        // ... recovery logic ...
-        return "aborted";
-    } catch (error) {
-        log.error("Failed to recover promotion:", error);
-        throw error;
-    }
-}
-
 async function inspect(root: string, relative: string) {
   if (!allowed(relative))
     throw new Error("Patch path is outside the permitted workspace files.");
@@ -135,15 +125,7 @@ async function readTarget(root: string, relative: string) {
     ? fs.readFile(path.join(root, relative))
     : null;
 }
-async function recoverPromotion(root: string, journal: Journal) {
-    try {
-        // ... recovery logic ...
-        return "aborted";
-    } catch (error) {
-        log.error("Failed to recover promotion:", error);
-        throw error;
-    }
-}
+
 /** Flush a directory's metadata and close its handle. */
 async function syncDirectory(directory: string) {
   const handle = await fs.open(directory, "r");
@@ -153,6 +135,7 @@ async function syncDirectory(directory: string) {
     await handle.close();
   }
 }
+
 /** Exclusively create a file, apply its permission mode, and sync its contents. */
 async function durableWrite(
   filename: string,
@@ -483,3 +466,49 @@ function validateRecoveryJournal(journal: Journal) {
 async function recoverPromotion(root: string, journal: Journal) {
   if (journal.phase !== "promoting" && journal.phase !== "committed")
     return "aborted";
+  const content = await readTarget(root, journal.filePath);
+  const currentHash = content === null ? null : hash(content);
+  let status = "aborted";
+  if (currentHash === journal.candidateHash) status = "committed";
+  else if (
+    currentHash !== journal.originalHash ||
+    journal.phase === "committed"
+  ) {
+    throw new Error(
+      "Recovery conflict: preserve workspace and journal for manual investigation.",
+    );
+  }
+  await fs.rm(path.join(root, journal.temporaryPath), { force: true });
+  await syncDirectory(path.dirname(path.join(root, journal.filePath)));
+  return status;
+}
+
+/** Operator-only recovery utility. */
+export async function recoverWorkspacePatch(
+  workspace: string,
+  confirmQuiescent: boolean,
+) {
+  if (!confirmQuiescent)
+    throw new Error("Stop all workspace writers before confirming recovery.");
+  const root = await fs.realpath(workspace);
+  const state = await stateDirectory(root);
+  const lock = path.join(state, "lock");
+  if (!(await recoveryLockExists(lock)))
+    return { status: "nothing_to_recover" };
+  const journal = await readRecoveryJournal(lock);
+  let status = "aborted";
+  if (journal) {
+    validateRecoveryJournal(journal);
+    status = await recoverPromotion(root, journal);
+    await fs.rm(stageDirectory(root, journal.id), {
+      recursive: true,
+      force: true,
+    });
+  }
+  const retired = path.join(state, `finished-${randomUUID()}`);
+  await fs.rename(lock, retired);
+  await syncDirectory(state);
+  await fs.rm(retired, { recursive: true });
+  await syncDirectory(state);
+  return { status };
+}

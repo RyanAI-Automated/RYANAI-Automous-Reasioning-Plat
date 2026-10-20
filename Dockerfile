@@ -5,6 +5,8 @@
 # =====================================================================
 FROM node:22-slim AS verifier
 
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
@@ -23,6 +25,7 @@ WORKDIR /work
 FROM node:22-alpine AS api-builder
 
 WORKDIR /app
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
@@ -38,7 +41,7 @@ COPY prisma ./prisma
 
 RUN npm run db:generate \
     && npm run build:server \
-    && npm prune --omit=dev
+    && npm prune --omit=dev --legacy-peer-deps
 
 # =====================================================================
 # 3. WEB / FRONTEND BUILDER STAGE (Vite Static Build)
@@ -46,10 +49,10 @@ RUN npm run db:generate \
 FROM node:22-alpine AS web-builder
 
 WORKDIR /app
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev --legacy-peer-deps \
-    && npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
 COPY tsconfig*.json ./
 COPY vite.config.ts postcss.config.js tailwind.config.js index.html ./
@@ -60,10 +63,12 @@ COPY models/catalog.json ./models/catalog.json
 ARG VITE_SUPABASE_URL=""
 ARG VITE_SUPABASE_PUBLISHABLE_KEY=""
 ARG VITE_SUPABASE_ANON_KEY=""
+ARG VITE_API_BASE_URL=""
 
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build
 
@@ -71,8 +76,6 @@ RUN npm run build
 # 4. API RUNNER STAGE (Fastify Production Target)
 # =====================================================================
 FROM node:22-alpine AS api
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -132,5 +135,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT}/health" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/ryanai-web-entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"]
 CMD ["nginx", "-g", "daemon off;"]
