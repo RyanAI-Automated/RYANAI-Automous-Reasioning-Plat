@@ -1,5 +1,5 @@
 import Modal from './Modal';
-import { Github } from 'lucide-react';
+import { GithubLogo as Github } from '@phosphor-icons/react';
 
 interface GithubModalProps {
   open: boolean;
