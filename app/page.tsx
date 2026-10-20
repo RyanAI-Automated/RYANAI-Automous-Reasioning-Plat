@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Activity, Cpu, Send, Trash2 } from 'lucide-react';
 import { useLogStore } from '../store/useLogStore';
+
+const subscribeNoop = () => () => {};
 
 export default function RyanAIWorkspace() {
   const { logs, appendLog, clearLogs } = useLogStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [socketStatus, setSocketStatus] = useState<'CONNECTING' | 'CONNECTED' | 'OFFLINE'>('CONNECTING');
-  const [isHydrated, setIsHydrated] = useState(false);
+  // False during server rendering, true once hydrated on the client.
+  const isHydrated = useSyncExternalStore(subscribeNoop, () => true, () => false);
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setIsHydrated(true), []);
   useEffect(() => { consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs, isHydrated]);
   useEffect(() => {
     const url = import.meta.env.VITE_TELEMETRY_WSS || 'ws://localhost:3000/ws';

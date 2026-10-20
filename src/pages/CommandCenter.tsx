@@ -28,6 +28,68 @@ import CodeRain from '@/components/CodeRain';
 import ChatInterface from '@/components/ChatInterface';
 import Modal from '@/components/Modal';
 
+/** Load userId-scoped local conversations, replacing unsupported model ids. */
+function loadSupportedLocalConversations(userId: string): Conversation[] {
+  return loadLocalConversations(userId).map((conversation) => ({
+    ...conversation,
+    model: MODELS[conversation.model] ? conversation.model : DEFAULT_MODEL,
+    messages: conversation.messages.map((message) => ({
+      ...message,
+      model: message.model && MODELS[message.model] ? message.model : undefined,
+    })),
+  }));
+}
+
+/**
+ * Fetch a user's conversations and their messages from Supabase, newest first.
+ * Returns null when the conversation query reports an error.
+ */
+async function fetchRemoteConversations(
+  client: NonNullable<typeof supabase>,
+  userId: string,
+): Promise<Conversation[] | null> {
+  const { data, error } = await client
+    .from('conversations')
+    .select('*')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to load conversations:', error.message);
+    return null;
+  }
+  if (!data || data.length === 0) return [];
+
+  // Load messages for each conversation.
+  return Promise.all(
+    data.map(async (conv): Promise<Conversation> => {
+      const { data: msgs } = await client
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: true });
+
+      return {
+        id: conv.id,
+        title: conv.title,
+        model: MODELS[conv.model as ModelId]
+          ? (conv.model as ModelId)
+          : DEFAULT_MODEL,
+        messages: (msgs ?? []).map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          model: m.model as ModelId | undefined,
+          steps: m.steps as ToolStep[] | undefined,
+          timestamp: new Date(m.created_at).getTime(),
+        })),
+        createdAt: new Date(conv.created_at).getTime(),
+        updatedAt: new Date(conv.updated_at).getTime(),
+      };
+    }),
+  );
+}
+
 interface CommandCenterProps {
   onSignOut: () => void;
   userId: string;
@@ -46,9 +108,20 @@ export default function CommandCenter({
   userEmail,
   userFullName,
 }: CommandCenterProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [model, setModel] = useState<ModelId>(DEFAULT_MODEL);
+  // The parent remounts this view per account (keyed by user id), so
+  // account-scoped local state can be read once during initialization.
+  const [initialLocalConversations] = useState<Conversation[]>(() =>
+    supabase ? [] : loadSupportedLocalConversations(userId),
+  );
+  const [conversations, setConversations] = useState<Conversation[]>(
+    initialLocalConversations,
+  );
+  const [activeId, setActiveId] = useState<string | null>(
+    initialLocalConversations[0]?.id ?? null,
+  );
+  const [model, setModel] = useState<ModelId>(
+    initialLocalConversations[0]?.model ?? DEFAULT_MODEL,
+  );
   const [sending, setSending] = useState(false);
   const [liveText, setLiveText] = useState('');
   const [liveSteps, setLiveSteps] = useState<ToolStep[]>([]);
@@ -57,7 +130,9 @@ export default function CommandCenter({
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [githubOpen, setGithubOpen] = useState(false);
-  const [githubConnected, setGithubConnected] = useState(false);
+  const [githubConnected] = useState(
+    () => localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
+  );
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [status, setStatus] = useState<SystemStatus>({
@@ -71,101 +146,46 @@ export default function CommandCenter({
     state: 'idle',
   });
   const mountedRef = useRef(true);
+  const startTimeRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
+    startTimeRef.current = Date.now();
     return () => {
       mountedRef.current = false;
     };
   }, []);
-  const startTimeRef = useRef(Date.now());
   const requestStartRef = useRef<number | null>(null);
   const voiceStopRef = useRef<() => void>(() => undefined);
 
   /**
-   * Load this user's conversations and select the first result when present.
-   * Use local storage only without Supabase. A returned conversation-query error leaves
-   * state unchanged; returned message-query errors produce empty message lists.
-   * Thrown query or local-data shape errors propagate.
+   * Load this user's Supabase conversations and select the first result when present.
+   * Without Supabase, local conversations are loaded as initial state above.
+   * A returned conversation-query error leaves state unchanged; returned
+   * message-query errors produce empty message lists. Thrown errors are logged.
    */
-  const loadConversations = useCallback(async () => {
-    const client = supabase;
-    if (!client) {
-      const localConversations = loadLocalConversations(userId);
-      const supportedConversations = localConversations.map((conversation) => ({
-        ...conversation,
-        model: MODELS[conversation.model] ? conversation.model : DEFAULT_MODEL,
-        messages: conversation.messages.map((message) => ({
-          ...message,
-          model:
-            message.model && MODELS[message.model] ? message.model : undefined,
-        })),
-      }));
-      setConversations(supportedConversations);
-      if (supportedConversations.length > 0) {
-        setActiveId(supportedConversations[0].id);
-        setModel(supportedConversations[0].model);
-      }
-      return;
-    }
-
-    const { data, error } = await client
-      .from('conversations')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      console.error('Failed to load conversations:', error.message);
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      setConversations([]);
-      return;
-    }
-
-    // Load messages for each conversation.
-    const convsWithMessages: Conversation[] = await Promise.all(
-      data.map(async (conv) => {
-        const { data: msgs } = await client
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: true });
-
-        return {
-          id: conv.id,
-          title: conv.title,
-          model: MODELS[conv.model as ModelId]
-            ? (conv.model as ModelId)
-            : DEFAULT_MODEL,
-          messages: (msgs ?? []).map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            model: m.model as ModelId | undefined,
-            steps: m.steps as ToolStep[] | undefined,
-            timestamp: new Date(m.created_at).getTime(),
-          })),
-          createdAt: new Date(conv.created_at).getTime(),
-          updatedAt: new Date(conv.updated_at).getTime(),
-        };
-      }),
-    );
-
-    setConversations(convsWithMessages);
-    if (convsWithMessages.length > 0) {
-      setActiveId(convsWithMessages[0].id);
-      setModel(convsWithMessages[0].model);
-    }
-  }, [userId]);
-
   useEffect(() => {
-    loadConversations();
-    setGithubConnected(
-      localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
-    );
-  }, [loadConversations, userId]);
+    const client = supabase;
+    if (!client) return;
+    let cancelled = false;
+    fetchRemoteConversations(client, userId)
+      .then((loaded) => {
+        if (cancelled || !loaded) return;
+        setConversations(loaded);
+        if (loaded.length > 0) {
+          setActiveId(loaded[0].id);
+          setModel(loaded[0].model);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(
+          'Failed to load conversations:',
+          error instanceof Error ? error.message : String(error),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -571,7 +591,9 @@ export default function CommandCenter({
     onTranscript: handleVoiceTranscript,
     onCommand: handleVoiceCommand,
   });
-  voiceStopRef.current = voice.stop;
+  useEffect(() => {
+    voiceStopRef.current = voice.stop;
+  }, [voice.stop]);
 
   const lastAssistant = [...activeMessages]
     .reverse()

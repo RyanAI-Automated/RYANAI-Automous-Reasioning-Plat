@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,7 +21,11 @@ let root: Root;
 let container: HTMLDivElement;
 
 function Probe() {
-  state = useAuth();
+  const current = useAuth();
+  // Publish the latest hook result after commit; act() flushes effects.
+  useEffect(() => {
+    state = current;
+  });
   return null;
 }
 

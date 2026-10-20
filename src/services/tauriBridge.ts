@@ -15,7 +15,9 @@ export class TauriBridge {
       return response;
     } catch (error: unknown) {
       console.error("[Tauri IPC Error]:", error);
-      throw new Error(String(error || "Unknown Tauri IPC execution failure."));
+      throw new Error(String(error || "Unknown Tauri IPC execution failure."), {
+        cause: error,
+      });
     }
   }
 
