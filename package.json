@@ -120,7 +120,7 @@
         "@opentelemetry/sdk-trace-node": "^2.11.0",
         "@opentelemetry/semantic-conventions": "^1.43.0",
         "@phosphor-icons/react": "^2.1.10",
-        "@prisma/client": "6.19.3",
+        "@prisma/client": "7.10.1",
         "@prisma/adapter-pg": "6.19.3",
         "@renderinc/sdk": "^1.2.0",
         "@sentry/node": "11.4.0",
