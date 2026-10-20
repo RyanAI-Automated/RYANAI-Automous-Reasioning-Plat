@@ -1,0 +1,69 @@
+name: Desktop - Build Tauri Installers
+
+# The Tauri shell bundles a Windows gateway sidecar (src-tauri/binaries), so
+# installers are built on Windows. Run manually or when a version tag is pushed.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    name: Build Windows installers
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck and build web frontend
+        run: npm run typecheck
+
+      - name: Build Tauri installers
+        run: npm run build:desktop
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ryanai-windows-installers
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach installers to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
