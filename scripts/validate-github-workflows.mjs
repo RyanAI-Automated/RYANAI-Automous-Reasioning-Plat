@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { parse } from 'yaml';
+// Default import works with both yaml v1 (CommonJS, hoisted by a transitive
+// dependency) and yaml v2; named ESM imports only work with v2.
+import YAML from 'yaml';
+
+const { parse } = YAML;
 
 const root = process.cwd();
 const workflowDir = join(root, '.github', 'workflows');
