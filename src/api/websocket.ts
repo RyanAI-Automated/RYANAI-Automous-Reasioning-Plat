@@ -196,7 +196,7 @@ function extractAuth(request: FastifyRequest): AuthContext | undefined {
   if (!request.authUser) return undefined;
   return {
     userId: request.authUser.id,
-    email: request.authUser.email,
+    email: request.authUser.email ?? '',
     name: request.authUser.email || request.authUser.id,
     roles: [request.authUser.role],
     sessionId: uuid(),
