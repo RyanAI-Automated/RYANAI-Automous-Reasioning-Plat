@@ -13,7 +13,7 @@ export async function notifyPendingApproval({ threadId, tool, args }: ApprovalNo
   if (process.env.SLACK_WEBHOOK_URL) {
     try {
       const payload = {
-        text: `🚨 RyanAI Action Pending Approval: \${tool}`,
+        text: `🚨 RyanAI Action Pending Approval: ${tool}`,
         blocks: [
           {
             type: 'section',

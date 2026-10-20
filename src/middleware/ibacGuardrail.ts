@@ -188,7 +188,7 @@ export async function ibacGuardrailMiddleware(request: FastifyRequest, reply: Fa
   request.log.info(`[IBAC Security] Granted ephemeral credential (TTL: ${evaluation.credentialTtlSeconds}s) for agent ${body.agentId}`);
 
   // Attach execution context to request for downstream tool handlers
-  (request as any).rawContext = {
+  (request as FastifyRequest & { rawContext?: unknown }).rawContext = {
     ...body,
     ephemeralCredential: scopedCredential,
     riskTier: evaluation.riskTier

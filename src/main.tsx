@@ -54,7 +54,7 @@ class RyanAIClient {
 
   async getGovernanceErrors(filter?: string) {
     return this.request(
-      `/api/governance/errors${filter ? `?filter=\${filter}` : ''}`,
+      `/api/governance/errors${filter ? `?filter=${filter}` : ''}`,
     );
   }
 
@@ -64,7 +64,7 @@ class RyanAIClient {
 
   async getRecycledItems(category?: string) {
     return this.request(
-      `/api/recycling/items${category ? `?category=\${category}` : ''}`,
+      `/api/recycling/items${category ? `?category=${category}` : ''}`,
     );
   }
 
@@ -233,9 +233,9 @@ if (APP_ENV === 'development') {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV };
-
-export const runtimeConfig = (window as unknown as Record<string, unknown>).__RUNTIME_CONFIG__ || {
+const runtimeConfig = (window as unknown as Record<string, unknown>).__RUNTIME_CONFIG__ || {
   apiUrl: import.meta.env.VITE_API_BASE_URL || '',
 };
+
+// eslint-disable-next-line react-refresh/only-export-components
+export { apiClient, APP_VERSION, API_BASE_URL, APP_ENV, runtimeConfig };

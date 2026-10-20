@@ -181,7 +181,7 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
             createdAt: user.createdAt,
           },
         });
-      } catch (err) {
+      } catch {
         return reply.status(401).send({
           success: false,
           error: "Unauthorized: Invalid or missing token.",

@@ -30,7 +30,7 @@ export class RyanAIDispatcher {
       new HumanMessage(masterObjective)
     ]);
 
-    let subTasks: SubTask[] = [];
+    let subTasks: SubTask[];
     try {
       // Clean up markdown code blocks if the model wrapped the JSON
       const rawText = planResponse.content.toString().replace(/```json/g, '').replace(/```/g, '').trim();

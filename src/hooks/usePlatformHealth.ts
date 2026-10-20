@@ -6,30 +6,41 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  // Fetch and record health; state updates happen only after the request settles.
+  const load = useCallback(
+    (signal?: AbortSignal) =>
+      getPlatformHealth(signal)
+        .then(
+          (nextHealth) => {
+            setHealth(nextHealth);
+            setError(null);
+          },
+          (cause: unknown) => {
+            if (signal?.aborted) return;
+            setHealth(null);
+            setError(cause instanceof Error ? cause.message : String(cause));
+          },
+        )
+        .finally(() => {
+          if (!signal?.aborted) setChecking(false);
+        }),
+    [],
+  );
+
+  const refresh = useCallback(() => {
     setChecking(true);
-    try {
-      const nextHealth = await getPlatformHealth(signal);
-      setHealth(nextHealth);
-      setError(null);
-    } catch (cause) {
-      if (signal?.aborted) return;
-      setHealth(null);
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      if (!signal?.aborted) setChecking(false);
-    }
-  }, []);
+    return load();
+  }, [load]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void refresh(controller.signal);
+    void load(controller.signal);
     const timer = window.setInterval(() => void refresh(), refreshIntervalMs);
     return () => {
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [refresh, refreshIntervalMs]);
+  }, [load, refresh, refreshIntervalMs]);
 
   return { health, error, checking, refresh: () => refresh() };
 }

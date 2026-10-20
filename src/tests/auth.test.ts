@@ -1,12 +1,17 @@
 // File path: ./src/tests/auth.test.ts
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { buildApp } from "../server.js";
-import { prisma } from "../lib/prisma.js";
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
+import type { PrismaClient } from "@prisma/client";
 
-describe("Authentication Routes Integration Tests", () => {
+// Integration suite: needs a migrated PostgreSQL database (DATABASE_URL).
+// Opt in with RYAN_DB_TESTS=1, e.g. against `docker compose up -d postgres`.
+const enabled =
+  process.env.RYAN_DB_TESTS === "1" && Boolean(process.env.DATABASE_URL);
+
+describe.skipIf(!enabled)("Authentication Routes Integration Tests", () => {
   let app: FastifyInstance;
+  let prisma: PrismaClient;
   const testUser = {
     email: `test_${Date.now()}@example.com`,
     password: "SecurePassword123!",
@@ -15,6 +20,9 @@ describe("Authentication Routes Integration Tests", () => {
   let authToken: string;
 
   beforeAll(async () => {
+    // Imported lazily so the skipped suite does not boot the full server.
+    ({ prisma } = await import("../lib/prisma.js"));
+    const { buildApp } = await import("../server.js");
     app = await buildApp();
     await app.ready();
   });

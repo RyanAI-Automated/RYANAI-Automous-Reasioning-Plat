@@ -9,8 +9,9 @@ const execFileAsync = promisify(execFile);
 
 const DOCKER = "/usr/bin/docker";
 const DAEMON = "unix:///var/run/docker.sock";
-const IMAGE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}\$/;
+const IMAGE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}$/;
 
+// This program is fixed application code. Candidate commands only run inside Docker.
 const VERIFY = `
 cp -R /input/. /work/
 cmp /work/package-lock.json /opt/patch-deps/package-lock.json
@@ -49,6 +50,7 @@ export async function verifyStagedPatch(
 
     const content = await readFile(stagedFilePath, 'utf-8');
 
+    // Guardrail: Block unresolved Git merge conflict markers
     if (
       content.includes('<<<<<<<') ||
       content.includes('=======') ||
@@ -57,21 +59,24 @@ export async function verifyStagedPatch(
       errors.push('Security Check Failed: Patch contains unresolved Git merge conflict markers.');
     }
 
+    // Guardrail: Check for high-risk execution primitives
     if (content.includes('eval(') || content.includes('child_process.execSync')) {
       warnings.push('Warning: Patch introduces high-risk execution primitives (eval/execSync). Review recommended.');
     }
 
+    // Isolated Syntax & Type Validation for TypeScript / JavaScript
     if (targetRelativePath.endsWith('.ts') || targetRelativePath.endsWith('.tsx')) {
       try {
         await execFileAsync('npx', ['tsc', '--noEmit', '--skipLibCheck', stagedFilePath], {
           timeout: 15000,
         });
-      } catch (execError: any) {
+      } catch (error) {
+        const execError = error as Error & { stderr?: string };
         errors.push(`TypeScript validation failed: ${execError.stderr?.trim() || execError.message}`);
       }
     }
-  } catch (err: any) {
-    errors.push(`Verification subsystem error: ${err.message}`);
+  } catch (err) {
+    errors.push(`Verification subsystem error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return {
@@ -82,7 +87,12 @@ export async function verifyStagedPatch(
 }
 
 /**
- * Validate an immutable staging tree, never the live workspace.
+ * Validate an immutable staging tree, never the live workspace. Docker and an
+ * operator-provisioned, digest-pinned image available locally are mandatory.
+ * Mounts cwd read-only and runs npm run validate on a disposable copy with matching
+ * preinstalled dependencies, followed by optional JavaScript testScript. The attached
+ * run has a five-minute timeout. Configuration, execution, and cleanup failures become
+ * { success: false, error }; candidate output is not returned. There is no host fallback.
  */
 export async function runVerificationPipeline(
   cwd: string,
@@ -106,6 +116,7 @@ export async function runVerificationPipeline(
 
   try {
     const staging = await realpath(cwd);
+    // Docker --mount uses CSV. Reject ambiguous sources instead of interpreting them.
     if (/[\r\n,]/.test(staging)) throw new Error("Unsupported staging path");
     configDirectory = await mkdtemp(join(tmpdir(), "ryan-patch-verifier-"));
     const env = {
@@ -134,6 +145,7 @@ export async function runVerificationPipeline(
       const script = join(configDirectory, "verification-script.js");
       if (/[\r\n,]/.test(script)) throw new Error("Unsupported script path");
       await writeFile(script, testScript, { mode: 0o644 });
+      // umask may have removed world-readability required by container UID 65534.
       await chmod(script, 0o644);
       mounts.push(
         "--mount",
@@ -188,6 +200,8 @@ export async function runVerificationPipeline(
         throw new Error("Verification did not exit successfully");
       result = { success: true };
     } finally {
+      // Killing the CLI does not stop its container. Always wait for removal before
+      // returning; failure keeps the caller from promoting the candidate.
       if (containerAttempted) {
         try {
           await docker(["rm", "--force", name], 30_000);
@@ -200,6 +214,7 @@ export async function runVerificationPipeline(
       }
     }
   } catch {
+    // Never expose candidate output or inherited runtime details to callers.
     if (result.success)
       result = { success: false, error: "Isolated patch validation failed." };
   } finally {

@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Clock, Zap } from 'lucide-react';
 
@@ -19,11 +18,7 @@ export default function TelemetryPanel({
   steps,
   sending,
 }: TelemetryPanelProps) {
-  const [displaySteps, setDisplaySteps] = useState<ToolStep[]>([]);
-
-  useEffect(() => {
-    setDisplaySteps(steps);
-  }, [steps]);
+  const displaySteps = steps;
 
   const getStateColor = () => {
     switch (status.state) {
