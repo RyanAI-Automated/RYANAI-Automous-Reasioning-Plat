@@ -12,7 +12,7 @@ src-tauri/gen
 src-tauri/icons
 *.log
 .env
-.env.*
+.env.local
 .env.example
 .agents
 .bolt
@@ -28,8 +28,3 @@ src-tauri
 .idea
 coverage
 .nyc_output
-*.backup
-*.backup.gz
-*.sql.gz
-test
-coverage

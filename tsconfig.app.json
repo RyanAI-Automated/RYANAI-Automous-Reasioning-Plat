@@ -57,8 +57,6 @@
     "src/**/*.test.tsx",
     "src/**/*.spec.ts",
     "src/**/*.spec.tsx",
-    "src/**/*.js",
-    "src/lib/supabase/server.ts",
-    "src/lib/supabase/middleware.ts"
+    "src/**/*.js"
   ]
 }

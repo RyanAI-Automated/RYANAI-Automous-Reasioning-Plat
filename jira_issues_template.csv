@@ -1,0 +1,6 @@
+Issue Key,Issue Type,Summary,Description,Priority,Status,Assignee,Reporter,Story Points,Sprint,Component,Created Date,Due Date
+PROJ-101,Story,Implement OAuth2 User Authentication Flow,Develop secure login and token refresh logic using OAuth2 standard.,High,In Progress,alex.chen@example.com,sarah.jenkins@example.com,5,Sprint 14,Backend,2026-10-01,2026-10-25
+PROJ-102,Bug,Fix layout shift on mobile dashboard cards,Cards overlap when rendered on screen widths below 375px.,Medium,To Do,priya.sharma@example.com,alex.chen@example.com,2,Sprint 14,Frontend,2026-10-05,2026-10-28
+PROJ-103,Task,Upgrade PostgreSQL database instance to v16,Perform major version upgrade on staging database and verify migration scripts.,High,Done,marcus.vance@example.com,marcus.vance@example.com,3,Sprint 13,DevOps,2026-09-20,2026-10-10
+PROJ-104,Epic,Zero-Trust Security & API Gateway Overhaul,Comprehensive security upgrade across all internal microservices and APIs.,Highest,In Progress,sarah.jenkins@example.com,sarah.jenkins@example.com,13,Q4-Security-Roadmap,Security,2026-09-01,2026-12-15
+PROJ-105,Story,Add CSV and PDF export options for analytics reports,Allow users to download reporting dashboard data directly into formatted CSV/PDF files.,Low,To Do,priya.sharma@example.com,alex.chen@example.com,3,Sprint 15,Analytics,2026-10-12,2026-11-05

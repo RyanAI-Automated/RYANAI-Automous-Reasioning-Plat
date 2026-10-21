@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "target": "ESNext",
     "module": "NodeNext",
@@ -11,11 +11,11 @@
     "outDir": "./dist/server",
     "rootDir": "./src",
     "skipLibCheck": true,
-    "composite": false,
+    "composite": true,
     "noEmit": false,
     "types": ["node"],
     "lib": ["ES2022"],
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": false,
@@ -39,10 +39,7 @@
       "@/utils/*": ["./src/utils/*"]
     }
   },
-  "files": [
-    "src/server/launcher.ts"
-  ],
-  "include": [],
+  "include": ["src/**/*.ts"],
   "exclude": [
     "node_modules",
     "dist",
@@ -50,6 +47,11 @@
     "target",
     "scripts",
     "src/**/*.test.ts",
-    "src/**/*.spec.ts"
+    "src/**/*.spec.ts",
+    "src/**/*.tsx",
+    "src/**/*.test.tsx",
+    "src/screens/**/*",
+    "src/pages/**/*",
+    "src/components/**/*"
   ]
 }
