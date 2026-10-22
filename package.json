@@ -139,7 +139,7 @@
     "exceljs": "^4.4.0",
     "fastify": "^5.12.4",
     "fastify-plugin": "^6.0.0",
-    "fastify-raw-body": "^6.0.3",
+    "fastify-raw-body": "^5.0.0",
     "framer-motion": "^13.2.0",
     "google-auth-library": "^11.2.0",
     "googleapis": "^181.0.0",
@@ -198,7 +198,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.3.0",
     "vite": "^8.3.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.1"
   },
   "overrides": {
     "exceljs": {
