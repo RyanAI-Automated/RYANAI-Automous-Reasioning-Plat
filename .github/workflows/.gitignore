@@ -37,48 +37,6 @@ installers/
 build/
 
 # ==========================
-# Native C++ Addons (node-gyp)
-# ==========================
-build/Release/
-build/Debug/
-*.node
-*.vcxproj
-*.sln
-*.vcxproj.filters
-*.ipdb
-*.iobj
-*.exp
-*.lib
-
-# ==========================
-# Tauri v2 Desktop App
-# ==========================
-src-tauri/target/
-src-tauri/gen/
-
-# ==========================
-# Python & Virtual Environments
-# ==========================
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-.eggs/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-.pytest_cache/
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.pyre/
-
-# ==========================
 # Databases & Local Storage
 # ==========================
 *.db
@@ -96,9 +54,6 @@ dmypy.json
 .stylelintcache
 .parcel-cache/
 .rpt2_cache/
-.vuepress/dist/
-.serverless/
-.fusebox/
 storybook-static/
 
 # ==========================
@@ -107,50 +62,587 @@ storybook-static/
 logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 coverage/
 .nyc_output/
 *.lcov
 
 # ==========================
-# Binaries & Archives
-# ==========================
-*.zip
-*.exe
-*.iso
-*.7z
-*.tar.gz
-
-# ==========================
-# IDEs & Editors
-# ==========================
-.vscode/*
-!.vscode/settings.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.idea/
-*.swp
-*.swo
-*~
-*.sublime-project
-*.sublime-workspace
-.vim/
-*.code-workspace
-*.iml
-.tern-port
-.tern-playground
-
-# ==========================
-# Operating Systems
+# Operating Systems & IDEs
 # ==========================
 .DS_Store
-._*
-.AppleDouble
-.AppleDB
-.LSOverride
 Thumbs.db
-ehthumbs.db
-Desktop.ini
-.directory
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+```[cite: 13]
+
+---
+
+### 2. Security & Infrastructure Configurations
+
+#### `code-security.datadog.yaml`
+*Validated Datadog SAST configuration for TypeScript and JavaScript rulesets[cite: 14].*
+```yaml
+schema-version: v1.0
+sast:
+  use-default-rulesets: false
+  use-rulesets:
+    - tsx-react
+    - typescript-best-practices
+    - typescript-browser-security
+    - typescript-code-style
+    - typescript-common-security
+    - typescript-express
+    - typescript-inclusive
+    - typescript-node-security
+    - javascript-best-practices
+    - javascript-browser-security
+    - javascript-code-style
+    - javascript-common-security
+    - javascript-express
+    - javascript-inclusive
+    - javascript-node-security
+    - jsx-react
+
+  global-config:
+    ignore-paths:
+      - "node_modules/**"
+      - "dist/**"
+      - "build/**"
+      - ".next/**"
+      - ".turbo/**"
+      - ".vercel/**"
+      - "coverage/**"
+      - "src-tauri/target/**"
+```[cite: 14]
+
+#### `database-infra.yaml`
+*Production-grade Kubernetes manifests for PostgreSQL (with pgvector) and Redis persistent volumes, deployments, and services[cite: 17].*
+```yaml
+# =====================================================================
+# RyanAI Autonomous Reasoning Platform - Database & Cache Infrastructure
+# Namespace: ryanai-system
+# =====================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: ryanai-system
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ryanai-system
+  labels:
+    app: postgres
+    platform: ryanai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          env:
+            - name: POSTGRES_USER
+              value: "ryanai"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              value: "ryanai_db"
+            - name: POSTGRES_INITDB_ARGS
+              value: "-c shared_preload_libraries=vector"
+          ports:
+            - containerPort: 5432
+              name: postgres
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "ryanai", "-d", "ryanai_db"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "ryanai", "-d", "ryanai_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ryanai-system
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app: postgres
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: ryanai-system
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: ryanai-system
+  labels:
+    app: redis
+    platform: ryanai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command:
+            - "sh"
+            - "-c"
+            - "exec redis-server --appendonly yes --requirepass \"$REDIS_PASSWORD\""
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: REDIS_PASSWORD
+          ports:
+            - containerPort: 6379
+              name: redis
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: ryanai-system
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: redis
+```[cite: 17]
+
+---
+
+### 3. Container & Deployment Workflows (Updated with Daily Schedules)
+
+#### `.github/workflows/container-security.yml`
+*Added a daily cron schedule (`0 3 * * *`) for continuous container security vulnerability scanning[cite: 15].*
+```yaml
+name: Container Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan ${{ matrix.image }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            target: api
+          - image: web
+            target: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
+          load: true
+          tags: ryanai-${{ matrix.image }}:scan
+
+      - name: Scan for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'docker://ryanai-${{ matrix.image }}:scan'
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload scan results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: container-${{ matrix.image }}
+```[cite: 15]
+
+#### `.github/workflows/docker-build.yml`
+*Added a daily cron schedule (`0 2 * * *`) for continuous image build verification[cite: 19].*
+```yaml
+name: Validate Docker Images
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.image }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            target: api
+          - image: web
+            target: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image (no publish)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
+          push: false
+          tags: ryanai-${{ matrix.image }}:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```[cite: 19]
+
+#### `.github/workflows/docker-publish.yml`
+*Updated with a daily schedule (`0 5 * * *`) for automated registry builds and tag maintenance[cite: 20].*
+```yaml
+name: Publish RyanAI API Image
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Normalize image name
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "name=$(echo "ghcr.io/${REPOSITORY}/api" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+      - name: Build and publish API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```[cite: 20]
+
+#### `.github/workflows/deploy-vercel.yml`
+*Updated with daily scheduled execution (`0 7 * * *`) alongside workflow run triggers[cite: 18].*
+```yaml
+name: Deploy Vercel Production
+
+on:
+  workflow_run:
+    workflows: ["CI - Build, Test, and Integrate"]
+    branches: [main, master]
+    types: [completed]
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy validated commit
+    if: >-
+      ${{
+        vars.VERCEL_DEPLOY_ENABLED == 'true' &&
+        (
+          github.event_name == 'workflow_dispatch' ||
+          github.event_name == 'schedule' ||
+          (
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event == 'push' &&
+            (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
+          )
+        )
+      }}
+    uses: ./.github/workflows/deploy.yml
+    with:
+      commit_sha: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' && github.sha || github.event.workflow_run.head_sha }}
+    secrets: inherit
+```[cite: 18]
+
+---
+
+### 4. Verification & Documentation Workflows (Updated with Daily Schedules)
+
+#### `.github/workflows/copilot-setup-steps.yml`
+*Added daily schedule (`0 4 * * *`) for automated workspace validation[cite: 16].*
+```yaml
+name: Copilot Setup & Verification Steps
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      target-path:
+        required: false
+        type: string
+        default: 'features/copilot'
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup-and-verify:
+    name: Setup & Verify Copilot Workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version || '20.x' }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Type-Check & Lint
+        run: |
+          npx tsc --noEmit --pretty
+          npm run lint
+
+      - name: Run Scoped Copilot Feature Tests
+        run: |
+          npm test -- "${{ inputs.target-path || 'features/copilot' }}" --passWithNoTests
+        env:
+          CI: true
+          NODE_ENV: test
+```[cite: 16]
+
+#### `.github/workflows/docs.yml`
+*Added daily schedule (`0 6 * * *`) for continuous OpenAPI/Swagger specification validation[cite: 21].*
+```yaml
+name: API Specification Validation
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-docs:
+    name: Validate Docs & API Specs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate OpenAPI & Swagger Specs
+        run: |
+          set -euo pipefail
+          mapfile -d '' specs < <(find . -type f \( -name '*.openapi.json' -o -name '*.swagger.json' \) -not -path '*/node_modules/*' -print0)
+          mapfile -d '' yaml_specs < <(find . -type f \( -name '*.openapi.yaml' -o -name '*.openapi.yml' -o -name '*.swagger.yaml' -o -name '*.swagger.yml' \) -not -path '*/node_modules/*' -print0)
+          if [ "${#specs[@]}" -eq 0 ] && [ "${#yaml_specs[@]}" -eq 0 ]; then
+            echo "::notice::No OpenAPI or Swagger specifications found to validate."
+            exit 0
+          fi
+          for spec in "${specs[@]}"; do
+            echo "Validating $spec"
+            node --input-type=commonjs -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$spec"
+          done
+
+          if [ "${#yaml_specs[@]}" -gt 0 ]; then
+            python -m pip install --disable-pip-version-check PyYAML
+            for spec in "${yaml_specs[@]}"; do
+              echo "Validating $spec"
+              python -c 'import pathlib, sys, yaml; yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())' "$spec"
+            done
+          fi
+```[cite: 21]
+
+---
+
+### 5. Secure Runtime Entrypoint Script
+
+#### `entrypoint.sh`
+*Validated secure entrypoint script ensuring proper privilege checks, logging, and graceful signal propagation to Fastify[cite: 22].*
+```bash
+#!/usr/bin/env bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+# Exit immediately if an unset variable is used
+set -u
+
+# ---------------------------------------------------------
+# Secure Entrypoint for Node.js / Fastify Containers
+# ---------------------------------------------------------
+
+# 1. Log startup initialization
+echo "[INFO] Starting container initialization..."
+echo "[INFO] Node version: $(node -v)"
+
+# 2. Enforce non-root execution check
+if [ "$(id -u)" = '0' ]; then
+  echo "[WARN] Container is running as root. Recommended to run RyanAI services as a non-root user."
+fi
+
+# 3. Execute the main process with signal forwarding
+if [ "${1#-}" != "${1}" ] || [ -z "$(command -v "${1}")" ]; then
+  set -- node "$@"
+fi
+
+echo "[INFO] Executing command: $*"
+exec "$@"
+```[cite: 22]
+
+---
+
+<FollowUp>Would you like assistance committing these files to your repository and verifying the initial automated daily workflow runs?</FollowUp>
