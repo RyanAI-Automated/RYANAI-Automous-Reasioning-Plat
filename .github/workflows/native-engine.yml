@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Tauri Linux dependencies
         run: |
@@ -72,7 +72,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure C++ project
         run: cmake -S native/local-inference -B "$RUNNER_TEMP/ryanai-local-inference" -DCMAKE_BUILD_TYPE=Release
