@@ -148,7 +148,7 @@
     "google-auth-library": "^11.3.1",
     "googleapis": "^181.0.0",
     "ioredis": "^6.0.0",
-    "lucide-react": "^0.446.0",
+    "lucide-react": "^1.59.0",
     "nodemailer": "^10.0.10",
     "openai": "^7.39.0",
     "pdf-parse": "^2.4.5",
