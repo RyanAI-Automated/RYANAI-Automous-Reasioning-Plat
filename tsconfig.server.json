@@ -1,9 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "allowJs": true,
     "declaration": true,
     "declarationMap": false,
@@ -11,19 +10,20 @@
     "outDir": "./dist/server",
     "rootDir": "./src",
     "skipLibCheck": true,
-    "composite": true,
+    "composite": false,
     "noEmit": false,
     "types": ["node"],
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "ES2023"],
     "strict": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitReturns": true,
+    "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": false,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
@@ -39,7 +39,10 @@
       "@/utils/*": ["./src/utils/*"]
     }
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/index.ts",
+    "src/server/launcher.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
