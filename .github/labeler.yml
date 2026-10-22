@@ -1,37 +1,32 @@
-dependencies:
-  - changed-files:
-      - any-glob-to-any-file:
-          - package.json
-          - package-lock.json
+name: Pull Request Labeler & Daily Sync
 
-docker:
-  - changed-files:
-      - any-glob-to-any-file:
-          - Dockerfile*
-          - docker-compose*.yml
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
-frontend:
-  - changed-files:
-      - any-glob-to-any-file:
-          - src/**/*.tsx
-          - index.html
-          - vite.config.ts
+permissions:
+  contents: read
+  pull-requests: write
 
-backend:
-  - changed-files:
-      - any-glob-to-any-file:
-          - server.ts
-          - src/server/**
-          - src/api/**
-          - prisma/**
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-documentation:
-  - changed-files:
-      - any-glob-to-any-file:
-          - '**/*.md'
-          - docs/**
+jobs:
+  labeler:
+    name: Auto-Label Pull Requests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
-ci:
-  - changed-files:
-      - any-glob-to-any-file:
-          - .github/**
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run GitHub Actions Labeler
+        uses: actions/labeler@v5
+        with:
+          configuration-path: '.github/labeler.yml'
+          sync-labels: true
