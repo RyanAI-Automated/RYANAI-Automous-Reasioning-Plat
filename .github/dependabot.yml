@@ -1,20 +1,20 @@
 version: 2
 updates:
-  # Monitor npm packages in the root directory
+  # Monitor npm packages in the root directory daily
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "javascript"
 
-  # Monitor GitHub Actions workflow dependencies
+  # Monitor GitHub Actions workflow dependencies daily
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     labels:
       - "dependencies"
       - "github-actions"
