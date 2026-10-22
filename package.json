@@ -14,7 +14,7 @@
     "docker:down": "docker compose down",
     "docker:up": "docker compose up --build --detach --wait",
     "dev:tunnel": "concurrently \"npm run dev:api\" \"npm run tunnel\"",
-    "dev": "npm run dev:web:docker",
+    "dev": "npm run dev:web:docker-mirror",
     "build": "tsc -p tsconfig.app.json && vite build",
     "start": "node dist/server/server/launcher.js",
     "lint": "eslint . --max-warnings 0",
@@ -93,7 +93,8 @@
     "workflow:agent:fix": "node scripts/github-workflow-agent.mjs --fix",
     "workflow:validate": "node scripts/validate-github-workflows.mjs",
     "frontend:agent:dry-run": "node scripts/frontend-platform-agent.mjs --fix --dry-run",
-    "dev:web:docker": "cross-env VITE_PORT=1420 VITE_API_URL=http://127.0.0.1:3000 VITE_API_BASE_URL=http://127.0.0.1:3000 vite"
+    "dev:web:docker": "npm run dev:web:docker-mirror",
+    "dev:web:docker-mirror": "node scripts/docker-web-mirror.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
