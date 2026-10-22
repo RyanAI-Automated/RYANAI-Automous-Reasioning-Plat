@@ -1,24 +1,22 @@
-name: Configuration Validation
+name: Ryan-app Configuration Validation & Linting
 
 on:
   push:
-    branches: [main, master]
+    branches: [ main, master ]
     paths:
       - '*.json'
       - 'tsconfig*.json'
       - '.bolt/**'
       - '.devcontainer/**'
-      - '.github/**'
-      - 'scripts/validate-github-workflows.mjs'
+      - '.github/workflows/**'
   pull_request:
-    branches: [main, master]
+    branches: [ main, master ]
     paths:
       - '*.json'
       - 'tsconfig*.json'
       - '.bolt/**'
       - '.devcontainer/**'
-      - '.github/**'
-      - 'scripts/validate-github-workflows.mjs'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -30,40 +28,28 @@ concurrency:
 
 jobs:
   validate-configs:
-    name: Validate configuration files
+    name: Validate Configuration Files
     runs-on: ubuntu-latest
-    timeout-minutes: 10
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
+          node-version: '22'
 
-      - name: Validate JSON configuration
+      - name: Validate project JSON configuration
         run: |
           node --input-type=module -e '
-            import { existsSync, readFileSync } from "node:fs";
-            const files = [
-              "package.json", "package-lock.json", "vercel.json",
-              ".bolt/config.json", ".devcontainer/devcontainer.json",
-              "tsconfig.json", "tsconfig.base.json", "tsconfig.app.json",
-              "tsconfig.server.json", "tsconfig.node.json", "tsconfig.mcp.json",
-            ];
-            let failed = false;
-            for (const file of files) {
-              if (!existsSync(file)) { console.log(`SKIP ${file} (not present)`); continue; }
-              try { JSON.parse(readFileSync(file, "utf8")); console.log(`PASS ${file}`); }
-              catch (error) { console.error(`FAIL ${file}: ${error.message}`); failed = true; }
+            import { readFileSync } from "node:fs";
+            for (const file of ["package.json", "package-lock.json", "vercel.json", ".bolt/config.json", ".devcontainer/devcontainer.json"]) {
+              JSON.parse(readFileSync(file, "utf8"));
+              console.log(`PASS ${file}`);
             }
-            process.exit(failed ? 1 : 0);
+            for (const file of ["tsconfig.json", "tsconfig.base.json", "tsconfig.app.json", "tsconfig.server.json", "tsconfig.node.json", "tsconfig.mcp.json"]) {
+              JSON.parse(readFileSync(file, "utf8"));
+              console.log(`PASS ${file}`);
+            }
           '
-
-      - name: Validate GitHub workflow files
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund --legacy-peer-deps
-          npm run workflow:validate

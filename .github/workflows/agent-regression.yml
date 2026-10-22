@@ -1,0 +1,95 @@
+name: Agent API Regression Tests
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Test agent API contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ryanai
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ryanai_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ryanai -d ryanai_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_db
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_only_secret_at_least_32_characters_long
+      OPENAI_API_KEY: ""
+      API_BASE_URL: http://localhost:3000
+      WEB_BASE_URL: http://localhost:9090
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Set up Database Schema
+        run: npm run db:setup
+
+      - name: Build API and frontend
+        run: npm run build:server && npm run build:client
+
+      - name: Run unit and agent API regression tests
+        shell: bash
+        run: |
+          npm run start > api.log 2>&1 &
+          api_pid=$!
+          npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
+          web_pid=$!
+          
+          cleanup() {
+            echo "Shutting down background services..."
+            kill "$api_pid" "$web_pid" 2>/dev/null || true
+            wait "$api_pid" "$web_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          echo "Waiting for API server to become healthy..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/health | grep -q "true" || curl -s http://localhost:3000/health | grep -q "ok"; then
+              echo "API is healthy!"
+              break
+            fi
+            sleep 1
+          done
+
+          npm test
+          npm run test:integration
+          npm run test:e2e

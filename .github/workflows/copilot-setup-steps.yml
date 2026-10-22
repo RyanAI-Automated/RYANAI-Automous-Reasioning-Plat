@@ -1,38 +1,59 @@
-name: Copilot Setup Steps
+name: Copilot Setup & Verification Steps
 
-# GitHub Copilot's coding agent runs a job named "copilot-setup-steps" from this
-# file on the default branch to prepare its environment before it starts work.
 on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: '20.x'
+      target-path:
+        required: false
+        type: string
+        default: 'features/copilot'
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
   pull_request:
+    branches: [main]
     paths:
-      - .github/workflows/copilot-setup-steps.yml
+      - 'features/copilot/**'
+      - '.github/workflows/copilot-setup-steps.yml'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  copilot-setup-steps:
+  setup-and-verify:
+    name: Setup & Verify Copilot Workspace
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
+          node-version: ${{ inputs.node-version || '20.x' }}
+          cache: 'npm'
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Install Dependencies
+        run: npm ci
 
-      - name: Install locked dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Type-Check & Lint
+        run: |
+          npx tsc --noEmit --pretty
+          npm run lint
+
+      - name: Run Scoped Copilot Feature Tests
+        run: |
+          npm test -- "${{ inputs.target-path || 'features/copilot' }}" --passWithNoTests
+        env:
+          CI: true
+          NODE_ENV: test

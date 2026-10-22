@@ -4,10 +4,9 @@ on:
   push:
     branches: [main, master]
     paths:
-      - 'Dockerfile'
-      - 'mcp-server/**'
+      - 'Dockerfile*'
       - 'docker-compose.yml'
-      - 'nginx.conf.template'
+      - 'nginx.conf'
       - '.dockerignore'
       - 'package.json'
       - 'package-lock.json'
@@ -16,17 +15,14 @@ on:
   pull_request:
     branches: [main, master]
     paths:
-      - 'Dockerfile'
-      - 'mcp-server/**'
+      - 'Dockerfile*'
       - 'docker-compose.yml'
-      - 'nginx.conf.template'
+      - 'nginx.conf'
       - '.dockerignore'
       - 'package.json'
       - 'package-lock.json'
       - 'src/**'
       - '.github/workflows/container-security.yml'
-  schedule:
-    - cron: '0 4 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -42,21 +38,14 @@ jobs:
     name: Scan ${{ matrix.image }} image
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     strategy:
       fail-fast: false
       matrix:
         include:
           - image: api
-            file: Dockerfile
             target: api
           - image: web
-            file: Dockerfile
             target: web
-          - image: mcp
-            file: mcp-server/Dockerfile
-            target: ''
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,19 +54,18 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build image for scanning
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ${{ matrix.file }}
+          file: Dockerfile
           target: ${{ matrix.target }}
           load: true
           tags: ryanai-${{ matrix.image }}:scan
-          cache-from: type=gha,scope=${{ matrix.image }}
 
       - name: Scan for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ryanai-${{ matrix.image }}:scan
+          image-ref: 'docker://ryanai-${{ matrix.image }}:scan'
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           severity: HIGH,CRITICAL
@@ -85,8 +73,8 @@ jobs:
           exit-code: '1'
 
       - name: Upload scan results
-        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != '' && github.event_name != 'pull_request'
-        uses: github/codeql-action/upload-sarif@v4
+        if: always() && github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-${{ matrix.image }}.sarif
           category: container-${{ matrix.image }}

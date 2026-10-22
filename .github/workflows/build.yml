@@ -1,0 +1,32 @@
+name: Build (Manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Frontend, API, and workflow builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate and build root application
+        run: npm run validate
+
+      - name: Build standalone MCP manager
+        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check
