@@ -49,6 +49,7 @@
     "src/lib/**/*.ts",
     "src/shared/**/*.ts",
     "src/types.ts",
+    "src/types/**/*.ts",
     "src/main.tsx",
     "src/App.tsx"
   ],
