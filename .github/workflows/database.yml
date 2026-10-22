@@ -13,6 +13,8 @@ on:
       - 'prisma/**'
       - 'src/db/**'
       - '.github/workflows/database.yml'
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 permissions:
