@@ -134,7 +134,7 @@
     "@vercel/analytics": "^2.0.1",
     "axios": "^1.20.0",
     "bcrypt": "^6.0.0",
-    "docx": "^9.10.0",
+    "docx": "^9.12.0",
     "dotenv": "^18.0.5",
     "exceljs": "^4.4.0",
     "fastify": "^5.12.4",
