@@ -108,6 +108,8 @@
     "@grafana/faro-react": "^2.12.1",
     "@grafana/faro-web-sdk": "^2.12.1",
     "@grafana/faro-web-tracing": "^2.12.1",
+    "@langchain/core": "^1.2.18",
+    "@langchain/langgraph": "^1.4.15",
     "@langchain/core": "^1.2.11",
     "@langchain/langgraph": "^1.5.1",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
