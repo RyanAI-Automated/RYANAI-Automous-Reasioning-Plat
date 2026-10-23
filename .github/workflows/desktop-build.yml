@@ -51,7 +51,7 @@ jobs:
         run: npm run build:desktop
 
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ryanai-windows-installers
           path: |
