@@ -87,7 +87,7 @@ jobs:
 
       - name: Snyk scan
         if: steps.snyk-token.outputs.configured == 'true'
-        uses: snyk/actions/node@0.4.0
+        uses: snyk/actions/node@v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
