@@ -1,0 +1,15 @@
+{
+  "project": {
+    "name": "ryanai-sovereign",
+    "description": "RyanAI Sovereign Autonomous Reasoning Engine",
+    "version": "2.4.0"
+  },
+  "runtime": {
+    "nodeVersion": "22",
+    "packageManager": "npm"
+  },
+  "features": {
+    "typescript": true,
+    "tailwind": true
+  }
+}

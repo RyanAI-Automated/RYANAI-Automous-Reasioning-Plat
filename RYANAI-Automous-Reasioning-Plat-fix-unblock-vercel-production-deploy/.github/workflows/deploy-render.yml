@@ -1,0 +1,41 @@
+name: Deploy API to Render
+
+# Triggers the Render deploy hook once fresh images have been published.
+# Optional: does nothing until the RENDER_DEPLOY_HOOK_URL secret is configured.
+on:
+  workflow_run:
+    workflows: ['Docker - Build and Publish Images']
+    branches: [main, master]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Trigger Render deploy
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+
+    steps:
+      - name: Call Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL is not configured; skipping the Render deploy."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
+          echo "Render deploy triggered."

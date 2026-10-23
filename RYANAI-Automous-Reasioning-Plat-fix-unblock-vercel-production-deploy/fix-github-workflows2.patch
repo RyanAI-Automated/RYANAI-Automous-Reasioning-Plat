@@ -1,0 +1,658 @@
+From 5b79ef8d12b0e3d5de42c3299b9468466e247113 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 20 Oct 2026 10:56:32 +0200
+Subject: [PATCH] fix(ci): repair corrupted workflows and misplaced files
+
+- Remove "[cite: N]" artifacts and duplicate uses:/run: keys that made
+  build, ci, codeql, config and main workflows invalid YAML
+- Rebuild main.yml (escaped \${{ }}, missing vercel-project-id)
+- Build the existing multi-target Dockerfile with `target:` instead of the
+  nonexistent Dockerfile.api / Dockerfile.web (ci-cd, docker-build,
+  docker-publish, container-security, preview, frontend maintainer paths)
+- Restore the DB password placeholder in frontend-platform-maintainer
+- Declare optional Vercel secrets on vercel-deploy workflow_call
+- Remove non-workflow YAML (k8s manifests, render, kustomization, datadog,
+  coderabbit, dependabot) that GitHub parsed as invalid workflows; identical
+  copies already exist at the repo root / .github
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MKxW7uieSpsnf9U1ngrtGU
+---
+ .github/workflows/.coderabbit.yaml            |  17 --
+ .github/workflows/build.yml                   |   9 +-
+ .github/workflows/ci-cd.yml                   |   5 +-
+ .github/workflows/ci.yml                      |  11 +-
+ .github/workflows/code-security.datadog.yaml  |  38 ----
+ .github/workflows/codeql.yml                  |   5 +-
+ .github/workflows/config.yml                  |   4 +-
+ .github/workflows/container-security.yml      |   5 +-
+ .github/workflows/database-infra.yaml         | 207 ------------------
+ .github/workflows/dependabot.yml              |  20 --
+ .github/workflows/docker-build.yml            |   5 +-
+ .github/workflows/docker-publish.yml          |   3 +-
+ .../frontend-platform-maintainer.yml          |   4 +-
+ .github/workflows/kustomization.yaml          |   8 -
+ .github/workflows/main.yml                    |  44 +---
+ .github/workflows/preview.yml                 |   5 +-
+ .github/workflows/render.yaml                 |  21 --
+ .github/workflows/ryanai-apps.yaml            | 112 ----------
+ .github/workflows/ryanai-databases.yaml       | 155 -------------
+ .github/workflows/vercel-deploy.yml           |   8 +-
+ 20 files changed, 38 insertions(+), 648 deletions(-)
+ delete mode 100644 .github/workflows/.coderabbit.yaml
+ delete mode 100644 .github/workflows/code-security.datadog.yaml
+ delete mode 100644 .github/workflows/database-infra.yaml
+ delete mode 100644 .github/workflows/dependabot.yml
+ delete mode 100644 .github/workflows/kustomization.yaml
+ delete mode 100644 .github/workflows/render.yaml
+ delete mode 100644 .github/workflows/ryanai-apps.yaml
+ delete mode 100644 .github/workflows/ryanai-databases.yaml
+
+diff --git a/.github/workflows/.coderabbit.yaml b/.github/workflows/.coderabbit.yaml
+deleted file mode 100644
+index 04c86b7..0000000
+--- a/.github/workflows/.coderabbit.yaml
++++ /dev/null
+@@ -1,17 +0,0 @@
+-language: "en-US"
+-reviews:
+-  profile: "chill"
+-  request_changes_workflow: false
+-  high_level_summary: true
+-  poem: true
+-  review_status: true
+-  review_details: false
+-  auto_review:
+-    enabled: true
+-    drafts: false
+-chat:
+-  auto_reply: true
+-remote_config:
+-  repository: "shared-configs"
+-  ref: "main"
+-  path: ".shared-coderabbit.yaml"
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index abbeedc..0c3943d 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -14,25 +14,22 @@ jobs:
+ 
+     steps:
+       - name: Checkout
+-        uses: actions/checkout@v4[cite: 7]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+         uses: actions/setup-node@v7
+-        uses: actions/setup-node@v4[cite: 7]
+         with:
+           node-version: 22
+           cache: npm
+ 
+       - name: Install root dependencies
+-        run: npm ci --legacy-peer-deps[cite: 7]
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Validate and build root application
+-        run: npm run validate[cite: 7]
++        run: npm run validate
+ 
+       - name: Build standalone MCP manager
+-        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check[cite: 7]
++        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check
+ 
+       - name: Build workflow worker
+-        run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build[cite: 7]
+         run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build
+diff --git a/.github/workflows/ci-cd.yml b/.github/workflows/ci-cd.yml
+index 513c9bb..399c8a5 100644
+--- a/.github/workflows/ci-cd.yml
++++ b/.github/workflows/ci-cd.yml
+@@ -46,9 +46,7 @@ jobs:
+       matrix:
+         include:
+           - image: api
+-            dockerfile: Dockerfile.api
+           - image: web
+-            dockerfile: Dockerfile.web
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v4
+@@ -85,7 +83,8 @@ jobs:
+         uses: docker/build-push-action@v6
+         with:
+           context: .
+-          file: ${{ matrix.dockerfile }}
++          file: Dockerfile
++          target: ${{ matrix.image }}
+           push: true
+           tags: ${{ steps.meta.outputs.tags }}
+           labels: ${{ steps.meta.outputs.labels }}
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 700999a..e0c3b68 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -56,27 +56,25 @@ jobs:
+ 
+     steps:
+       - name: Checkout
+-        uses: actions/checkout@v4[cite: 8]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+         uses: actions/setup-node@v7
+-        uses: actions/setup-node@v4[cite: 8]
+         with:
+           node-version: 22
+           cache: npm
+ 
+       - name: Install locked dependencies
+-        run: npm ci --legacy-peer-deps[cite: 8]
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Validate application
+-        run: npm run validate[cite: 8]
++        run: npm run validate
+ 
+       - name: Validate Python tooling
+-        run: npm run core:check[cite: 8]
++        run: npm run core:check
+ 
+       - name: Validate standalone MCP manager
+-        run: npm run mcp:check[cite: 8]
++        run: npm run mcp:check
+ 
+       - name: Start API and frontend and run integration checks
+         shell: bash
+@@ -92,5 +90,4 @@ jobs:
+           trap cleanup EXIT
+           npm run startup:verify
+           npm run test:integration
+-          npm run test:e2e[cite: 8]
+           npm run test:e2e
+diff --git a/.github/workflows/code-security.datadog.yaml b/.github/workflows/code-security.datadog.yaml
+deleted file mode 100644
+index 7316915..0000000
+--- a/.github/workflows/code-security.datadog.yaml
++++ /dev/null
+@@ -1,38 +0,0 @@
+-schema-version: v1.0
+-sast:
+-  # Controls whether default global rulesets are included alongside your custom list.
+-  # Set to 'false' if you want your explicitly listed rulesets to be the absolute source of truth.
+-  use-default-rulesets: false
+-
+-  use-rulesets:
+-    # --- TypeScript Rulesets ---
+-    - tsx-react
+-    - typescript-best-practices
+-    - typescript-browser-security
+-    - typescript-code-style
+-    - typescript-common-security
+-    - typescript-express
+-    - typescript-inclusive
+-    - typescript-node-security
+-
+-    # --- JavaScript Rulesets ---
+-    - javascript-best-practices
+-    - javascript-browser-security
+-    - javascript-code-style
+-    - javascript-common-security
+-    - javascript-express
+-    - javascript-inclusive
+-    - javascript-node-security
+-    - jsx-react
+-
+-  # Exclude vendor directories, caches, and build outputs to optimize scan speed
+-  global-config:
+-    ignore-paths:
+-      - "node_modules/**"
+-      - "dist/**"
+-      - "build/**"
+-      - ".next/**"
+-      - ".turbo/**"
+-      - ".vercel/**"
+-      - "coverage/**"
+-      - "src-tauri/target/**"
+diff --git a/.github/workflows/codeql.yml b/.github/workflows/codeql.yml
+index ccf737c..5969798 100644
+--- a/.github/workflows/codeql.yml
++++ b/.github/workflows/codeql.yml
+@@ -35,16 +35,15 @@ jobs:
+ 
+     steps:
+       - name: Checkout Repository
+-        uses: actions/checkout@v4[cite: 9]
+         uses: actions/checkout@v4
+ 
+       - name: Initialize CodeQL
+-        uses: github/codeql-action/init@v3[cite: 9]
++        uses: github/codeql-action/init@v3
+         with:
+           languages: ${{ matrix.language }}
+           build-mode: ${{ matrix.build-mode }}
+ 
+       - name: Perform CodeQL Analysis
+-        uses: github/codeql-action/analyze@v3[cite: 9]
++        uses: github/codeql-action/analyze@v3
+         with:
+           category: "/language:${{ matrix.language }}"
+diff --git a/.github/workflows/config.yml b/.github/workflows/config.yml
+index 36574c8..78fee05 100644
+--- a/.github/workflows/config.yml
++++ b/.github/workflows/config.yml
+@@ -33,12 +33,10 @@ jobs:
+ 
+     steps:
+       - name: Checkout Repository
+-        uses: actions/checkout@v4[cite: 17]
+         uses: actions/checkout@v4
+ 
+       - name: Setup Node.js
+         uses: actions/setup-node@v7
+-        uses: actions/setup-node@v4[cite: 17]
+         with:
+           node-version: '22'
+ 
+@@ -54,4 +52,4 @@ jobs:
+               JSON.parse(readFileSync(file, "utf8"));
+               console.log(`PASS ${file}`);
+             }
+-          '[cite: 17]
+\ No newline at end of file
++          '
+diff --git a/.github/workflows/container-security.yml b/.github/workflows/container-security.yml
+index dec3bc5..eece4f8 100644
+--- a/.github/workflows/container-security.yml
++++ b/.github/workflows/container-security.yml
+@@ -43,9 +43,7 @@ jobs:
+       matrix:
+         include:
+           - image: api
+-            dockerfile: Dockerfile.api
+           - image: web
+-            dockerfile: Dockerfile.web
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v4
+@@ -57,7 +55,8 @@ jobs:
+         uses: docker/build-push-action@v6
+         with:
+           context: .
+-          file: ${{ matrix.dockerfile }}
++          file: Dockerfile
++          target: ${{ matrix.image }}
+           load: true
+           tags: ryanai-${{ matrix.image }}:scan
+ 
+diff --git a/.github/workflows/database-infra.yaml b/.github/workflows/database-infra.yaml
+deleted file mode 100644
+index 546e1b8..0000000
+--- a/.github/workflows/database-infra.yaml
++++ /dev/null
+@@ -1,207 +0,0 @@
+-# =====================================================================
+-# RyanAI Autonomous Reasoning Platform - Database & Cache Infrastructure
+-# Namespace: ryanai-system
+-# =====================================================================
+-
+-# Local Persistent Volumes (Cluster-scoped)
+-apiVersion: v1
+-kind: PersistentVolume
+-metadata:
+-  name: postgres-pv-volume
+-spec:
+-  capacity:
+-    storage: 10Gi
+-  accessModes:
+-    - ReadWriteOnce
+-  persistentVolumeReclaimPolicy: Retain
+-  storageClassName: manual
+-  hostPath:
+-    path: "/mnt/data/postgres"
+----
+-apiVersion: v1
+-kind: PersistentVolume
+-metadata:
+-  name: redis-pv-volume
+-spec:
+-  capacity:
+-    storage: 5Gi
+-  accessModes:
+-    - ReadWriteOnce
+-  persistentVolumeReclaimPolicy: Retain
+-  storageClassName: manual
+-  hostPath:
+-    path: "/mnt/data/redis"
+----
+-# PostgreSQL Persistent Volume Claim
+-apiVersion: v1
+-kind: PersistentVolumeClaim
+-metadata:
+-  name: postgres-pvc
+-  namespace: ryanai-system
+-spec:
+-  accessModes: [ "ReadWriteOnce" ]
+-  storageClassName: manual
+-  resources:
+-    requests:
+-      storage: 10Gi
+----
+-# PostgreSQL Deployment
+-apiVersion: apps/v1
+-kind: Deployment
+-metadata:
+-  name: postgres
+-  namespace: ryanai-system
+-  labels:
+-    app: postgres
+-    platform: ryanai
+-spec:
+-  replicas: 1
+-  selector:
+-    matchLabels:
+-      app: postgres
+-  template:
+-    metadata:
+-      labels:
+-        app: postgres
+-    spec:
+-      containers:
+-        - name: postgres
+-          image: pgvector/pgvector:pg16
+-          env:
+-            - name: POSTGRES_USER
+-              value: "ryanai"
+-            - name: POSTGRES_PASSWORD
+-              valueFrom:
+-                secretKeyRef:
+-                  name: ryanai-secrets
+-                  key: DB_PASSWORD
+-            - name: POSTGRES_DB
+-              value: "ryanai_db"
+-            - name: POSTGRES_INITDB_ARGS
+-              value: "-c shared_preload_libraries=vector"
+-          ports:
+-            - containerPort: 5432
+-              name: postgres
+-          resources:
+-            requests:
+-              cpu: "250m"
+-              memory: "512Mi"
+-            limits:
+-              cpu: "1000m"
+-              memory: "2Gi"
+-          livenessProbe:
+-            exec:
+-              command: ["pg_isready", "-U", "ryanai", "-d", "ryanai_db"]
+-            initialDelaySeconds: 30
+-            periodSeconds: 10
+-          readinessProbe:
+-            exec:
+-              command: ["pg_isready", "-U", "ryanai", "-d", "ryanai_db"]
+-            initialDelaySeconds: 5
+-            periodSeconds: 10
+-          volumeMounts:
+-            - mountPath: /var/lib/postgresql/data
+-              name: postgres-storage
+-      volumes:
+-        - name: postgres-storage
+-          persistentVolumeClaim:
+-            claimName: postgres-pvc
+----
+-apiVersion: v1
+-kind: Service
+-metadata:
+-  name: postgres
+-  namespace: ryanai-system
+-spec:
+-  ports:
+-    - port: 5432
+-      targetPort: 5432
+-      name: postgres
+-  selector:
+-    app: postgres
+----
+-# Redis Persistent Volume Claim
+-apiVersion: v1
+-kind: PersistentVolumeClaim
+-metadata:
+-  name: redis-pvc
+-  namespace: ryanai-system
+-spec:
+-  accessModes: [ "ReadWriteOnce" ]
+-  storageClassName: manual
+-  resources:
+-    requests:
+-      storage: 5Gi
+----
+-# Redis Deployment
+-apiVersion: apps/v1
+-kind: Deployment
+-metadata:
+-  name: redis
+-  namespace: ryanai-system
+-  labels:
+-    app: redis
+-    platform: ryanai
+-spec:
+-  replicas: 1
+-  selector:
+-    matchLabels:
+-      app: redis
+-  template:
+-    metadata:
+-      labels:
+-        app: redis
+-    spec:
+-      containers:
+-        - name: redis
+-          image: redis:7-alpine
+-          command:
+-            - "sh"
+-            - "-c"
+-            - "exec redis-server --appendonly yes --requirepass \"$REDIS_PASSWORD\""
+-          env:
+-            - name: REDIS_PASSWORD
+-              valueFrom:
+-                secretKeyRef:
+-                  name: ryanai-secrets
+-                  key: REDIS_PASSWORD
+-          ports:
+-            - containerPort: 6379
+-              name: redis
+-          resources:
+-            requests:
+-              cpu: "100m"
+-              memory: "128Mi"
+-            limits:
+-              cpu: "500m"
+-              memory: "512Mi"
+-          livenessProbe:
+-            exec:
+-              command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" ping"]
+-            initialDelaySeconds: 15
+-            periodSeconds: 10
+-          readinessProbe:
+-            exec:
+-              command: ["sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" ping"]
+-            initialDelaySeconds: 5
+-            periodSeconds: 10
+-          volumeMounts:
+-            - mountPath: /data
+-              name: redis-storage
+-      volumes:
+-        - name: redis-storage
+-          persistentVolumeClaim:
+-            claimName: redis-pvc
+----
+-apiVersion: v1
+-kind: Service
+-metadata:
+-  name: redis
+-  namespace: ryanai-system
+-spec:
+-  ports:
+-    - port: 6379
+-      targetPort: 6379
+-      name: redis
+-  selector:
+-    app: redis
+diff --git a/.github/workflows/dependabot.yml b/.github/workflows/dependabot.yml
+deleted file mode 100644
+index 5296735..0000000
+--- a/.github/workflows/dependabot.yml
++++ /dev/null
+@@ -1,20 +0,0 @@
+-version: 2
+-updates:
+-  # Monitor npm packages in the root directory
+-  - package-ecosystem: "npm"
+-    directory: "/"
+-    schedule:
+-      interval: "weekly"
+-    open-pull-requests-limit: 10
+-    labels:
+-      - "dependencies"
+-      - "javascript"
+-
+-  # Monitor GitHub Actions workflow dependencies
+-  - package-ecosystem: "github-actions"
+-    directory: "/"
+-    schedule:
+-      interval: "weekly"
+-    labels:
+-      - "dependencies"
+-      - "github-actions"
+diff --git a/.github/workflows/docker-build.yml b/.github/workflows/docker-build.yml
+index 0e40a34..b0024b7 100644
+--- a/.github/workflows/docker-build.yml
++++ b/.github/workflows/docker-build.yml
+@@ -28,9 +28,7 @@ jobs:
+       matrix:
+         include:
+           - image: api
+-            dockerfile: Dockerfile.api
+           - image: web
+-            dockerfile: Dockerfile.web
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v4
+@@ -40,7 +38,8 @@ jobs:
+         uses: docker/build-push-action@v6
+         with:
+           context: .
+-          file: ${{ matrix.dockerfile }}
++          file: Dockerfile
++          target: ${{ matrix.image }}
+           push: false
+           tags: ryanai-${{ matrix.image }}:ci
+           cache-from: type=gha
+diff --git a/.github/workflows/docker-publish.yml b/.github/workflows/docker-publish.yml
+index 3acb0e2..4a5cef7 100644
+--- a/.github/workflows/docker-publish.yml
++++ b/.github/workflows/docker-publish.yml
+@@ -40,7 +40,8 @@ jobs:
+         uses: docker/build-push-action@v6
+         with:
+           context: .
+-          file: Dockerfile.api
++          file: Dockerfile
++          target: api
+           push: true
+           tags: ${{ steps.meta.outputs.tags }}
+           labels: ${{ steps.meta.outputs.labels }}
+diff --git a/.github/workflows/frontend-platform-maintainer.yml b/.github/workflows/frontend-platform-maintainer.yml
+index fd589ef..d814e85 100644
+--- a/.github/workflows/frontend-platform-maintainer.yml
++++ b/.github/workflows/frontend-platform-maintainer.yml
+@@ -18,7 +18,7 @@ on:
+       - 'app/routes.json'
+       - 'vite.config.ts'
+       - 'index.html'
+-      - 'Dockerfile.web'
++      - 'Dockerfile'
+       - 'nginx.conf.template'
+       - 'scripts/frontend-platform-agent.mjs'
+       - 'package.json'
+@@ -56,7 +56,7 @@ jobs:
+           --health-interval 10s --health-timeout 5s --health-retries 5
+     env:
+       NODE_ENV: test
+-      DATABASE_URL: postgresql://ryanai:[REDACTED]@127.0.0.1:5432/ryanai_db
++      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_db
+       REDIS_URL: redis://127.0.0.1:6379
+       JWT_SECRET: ci_only_secret_at_least_32_characters_long
+       VITE_API_BASE_URL: http://127.0.0.1:3000
+diff --git a/.github/workflows/kustomization.yaml b/.github/workflows/kustomization.yaml
+deleted file mode 100644
+index fd239d8..0000000
+--- a/.github/workflows/kustomization.yaml
++++ /dev/null
+@@ -1,8 +0,0 @@
+-apiVersion: kustomize.config.k8s.io/v1beta1
+-kind: Kustomization
+-
+-namespace: ryanai-system
+-
+-resources:
+-  - ryanai-databases.yaml
+-  - ryanai-apps.yaml
+diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+index aa7719f..35d64f4 100644
+--- a/.github/workflows/main.yml
++++ b/.github/workflows/main.yml
+@@ -19,13 +19,9 @@ jobs:
+   test:
+     name: Run Tests
+     runs-on: ubuntu-latest
+-    
++
+     steps:
+       - name: Checkout Code
+-        uses: actions/checkout@v4[cite: 15]
+-
+-      - name: Set up Node.js
+-        uses: actions/setup-node@v4[cite: 15]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+@@ -35,14 +31,7 @@ jobs:
+           cache: 'npm'
+ 
+       - name: Install Dependencies
+-        run: npm ci[cite: 15]
+-
+-      - name: Run Linter
+-        run: npm run lint --if-present[cite: 15]
+-
+-      - name: Run Tests
+-        run: npm test --if-present[cite: 15]
+-        run: npm ci
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Run Linter
+         run: npm run lint --if-present
+@@ -54,13 +43,9 @@ jobs:
+     name: Build Artifacts
+     needs: test
+     runs-on: ubuntu-latest
+-    
++
+     steps:
+       - name: Checkout Code
+-        uses: actions/checkout@v4[cite: 15]
+-
+-      - name: Set up Node.js
+-        uses: actions/setup-node@v4[cite: 15]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+@@ -70,14 +55,7 @@ jobs:
+           cache: 'npm'
+ 
+       - name: Install Dependencies
+-        run: npm ci[cite: 15]
+-
+-      - name: Build Application
+-      

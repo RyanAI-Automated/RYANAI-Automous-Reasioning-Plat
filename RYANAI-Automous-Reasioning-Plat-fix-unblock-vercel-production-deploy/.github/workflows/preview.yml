@@ -1,0 +1,60 @@
+name: Pull Request Vercel Preview
+
+# Container image builds for pull requests live in docker.yml.
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vercel-preview:
+    name: Deploy Vercel preview (same-repository pull requests only)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+
+    steps:
+      - name: Check preview configuration
+        id: config
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Vercel secrets are incomplete; skipping the preview deployment."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        if: steps.config.outputs.enabled == 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Build and deploy preview
+        if: steps.config.outputs.enabled == 'true'
+        run: |
+          npx --yes vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest build --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN"

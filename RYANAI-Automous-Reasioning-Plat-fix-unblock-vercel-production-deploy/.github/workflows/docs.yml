@@ -1,0 +1,66 @@
+name: API Specification Validation
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - '**/*.openapi.json'
+      - '**/*.openapi.yaml'
+      - '**/*.openapi.yml'
+      - '**/*.swagger.json'
+      - '**/*.swagger.yaml'
+      - '**/*.swagger.yml'
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - '**/*.openapi.json'
+      - '**/*.openapi.yaml'
+      - '**/*.openapi.yml'
+      - '**/*.swagger.json'
+      - '**/*.swagger.yaml'
+      - '**/*.swagger.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-docs:
+    name: Validate Docs & API Specs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate OpenAPI & Swagger Specs
+        run: |
+          set -euo pipefail
+          mapfile -d '' specs < <(find . -type f \( -name '*.openapi.json' -o -name '*.swagger.json' \) -not -path '*/node_modules/*' -print0)
+          mapfile -d '' yaml_specs < <(find . -type f \( -name '*.openapi.yaml' -o -name '*.openapi.yml' -o -name '*.swagger.yaml' -o -name '*.swagger.yml' \) -not -path '*/node_modules/*' -print0)
+          if [ "${#specs[@]}" -eq 0 ] && [ "${#yaml_specs[@]}" -eq 0 ]; then
+            echo "::error::This workflow only runs for API specification changes, but no OpenAPI or Swagger specification was found."
+            exit 1
+          fi
+          for spec in "${specs[@]}"; do
+            echo "Validating $spec"
+            node --input-type=commonjs -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$spec"
+          done
+
+          if [ "${#yaml_specs[@]}" -gt 0 ]; then
+            python -m pip install --disable-pip-version-check PyYAML
+            for spec in "${yaml_specs[@]}"; do
+              echo "Validating $spec"
+              python -c 'import pathlib, sys, yaml; yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())' "$spec"
+            done
+          fi

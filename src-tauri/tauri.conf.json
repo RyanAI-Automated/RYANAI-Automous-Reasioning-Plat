@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ryan-app",
+  "version": "0.1.0",
+  "identifier": "com.ryanapp.dev",
+  "build": {
+    "beforeDevCommand": "npm run dev:desktop-stack",
+    "devUrl": "http://localhost:1422",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Ryan AI Platform",
+        "width": 1280,
+        "height": 800
+      }
+    ]
+  }
+}

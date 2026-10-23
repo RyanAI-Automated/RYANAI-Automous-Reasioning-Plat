@@ -1,0 +1,55 @@
+name: GitHub Workflow Maintainer
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit or deterministic fix mode
+        required: false
+        default: audit
+        type: choice
+        options: [audit, fix]
+  schedule:
+    - cron: '17 3 * * 1'
+  push:
+    branches: [main, master]
+    paths:
+      - '.github/**'
+      - 'scripts/github-workflow-agent.mjs'
+      - 'scripts/validate-github-workflows.mjs'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-workflow-maintainer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  maintain:
+    name: Audit GitHub workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install workflow validation dependency
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run workflow maintainer
+        env:
+          WORKFLOW_AGENT_MODE: ${{ inputs.mode || 'audit' }}
+        run: |
+          if [ "$WORKFLOW_AGENT_MODE" = "fix" ]; then
+            npm run workflow:agent:fix
+          else
+            npm run workflow:agent
+          fi

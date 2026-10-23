@@ -1,0 +1,55 @@
+name: Ryan-app Configuration Validation & Linting
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - '*.json'
+      - 'tsconfig*.json'
+      - '.bolt/**'
+      - '.devcontainer/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - '*.json'
+      - 'tsconfig*.json'
+      - '.bolt/**'
+      - '.devcontainer/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-configs:
+    name: Validate Configuration Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate project JSON configuration
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            for (const file of ["package.json", "package-lock.json", "vercel.json", ".bolt/config.json", ".devcontainer/devcontainer.json"]) {
+              JSON.parse(readFileSync(file, "utf8"));
+              console.log(`PASS ${file}`);
+            }
+            for (const file of ["tsconfig.json", "tsconfig.base.json", "tsconfig.app.json", "tsconfig.server.json", "tsconfig.node.json", "tsconfig.mcp.json"]) {
+              JSON.parse(readFileSync(file, "utf8"));
+              console.log(`PASS ${file}`);
+            }
+          '

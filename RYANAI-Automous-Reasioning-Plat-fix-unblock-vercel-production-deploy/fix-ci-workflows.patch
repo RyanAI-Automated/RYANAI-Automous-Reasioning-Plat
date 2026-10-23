@@ -1,0 +1,268 @@
+From 2fac1f39a83b325229816856fbccaa8ae5fac324 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 19:11:27 +0200
+Subject: [PATCH] fix(ci): repair five corrupted workflow files that failed at
+ parse time
+
+ci.yml, build.yml, main.yml, codeql.yml and config.yml contained pasted
+"[cite: N]" tokens and duplicated `uses:`/`run:` keys from conflicting
+Dependabot merges, making them invalid YAML so every run failed instantly.
+
+- strip stray "[cite: N]" tokens
+- de-duplicate `uses:` steps, keeping the newer Dependabot-bumped version
+- rewrite main.yml: remove duplicated steps, fix escaped \${{ secrets.* }}
+  expressions, add missing vercel-project-id, pair upload/download-artifact v7
+- all 35 workflow files now parse with no duplicate keys
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WtxWSYZrHMCVoKhm9cyQhV
+---
+ .github/workflows/build.yml  |  9 ++----
+ .github/workflows/ci.yml     | 12 ++++----
+ .github/workflows/codeql.yml |  5 ++--
+ .github/workflows/config.yml |  4 +--
+ .github/workflows/main.yml   | 53 ++++++++++--------------------------
+ 5 files changed, 26 insertions(+), 57 deletions(-)
+
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index abbeedc..0c3943d 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -14,25 +14,22 @@ jobs:
+ 
+     steps:
+       - name: Checkout
+-        uses: actions/checkout@v4[cite: 7]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+         uses: actions/setup-node@v7
+-        uses: actions/setup-node@v4[cite: 7]
+         with:
+           node-version: 22
+           cache: npm
+ 
+       - name: Install root dependencies
+-        run: npm ci --legacy-peer-deps[cite: 7]
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Validate and build root application
+-        run: npm run validate[cite: 7]
++        run: npm run validate
+ 
+       - name: Build standalone MCP manager
+-        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check[cite: 7]
++        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check
+ 
+       - name: Build workflow worker
+-        run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build[cite: 7]
+         run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 700999a..a7d3d49 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -56,27 +56,25 @@ jobs:
+ 
+     steps:
+       - name: Checkout
+-        uses: actions/checkout@v4[cite: 8]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+         uses: actions/setup-node@v7
+-        uses: actions/setup-node@v4[cite: 8]
+         with:
+           node-version: 22
+           cache: npm
+ 
+       - name: Install locked dependencies
+-        run: npm ci --legacy-peer-deps[cite: 8]
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Validate application
+-        run: npm run validate[cite: 8]
++        run: npm run validate
+ 
+       - name: Validate Python tooling
+-        run: npm run core:check[cite: 8]
++        run: npm run core:check
+ 
+       - name: Validate standalone MCP manager
+-        run: npm run mcp:check[cite: 8]
++        run: npm run mcp:check
+ 
+       - name: Start API and frontend and run integration checks
+         shell: bash
+@@ -92,5 +90,5 @@ jobs:
+           trap cleanup EXIT
+           npm run startup:verify
+           npm run test:integration
+-          npm run test:e2e[cite: 8]
++          npm run test:e2e
+           npm run test:e2e
+diff --git a/.github/workflows/codeql.yml b/.github/workflows/codeql.yml
+index ccf737c..5969798 100644
+--- a/.github/workflows/codeql.yml
++++ b/.github/workflows/codeql.yml
+@@ -35,16 +35,15 @@ jobs:
+ 
+     steps:
+       - name: Checkout Repository
+-        uses: actions/checkout@v4[cite: 9]
+         uses: actions/checkout@v4
+ 
+       - name: Initialize CodeQL
+-        uses: github/codeql-action/init@v3[cite: 9]
++        uses: github/codeql-action/init@v3
+         with:
+           languages: ${{ matrix.language }}
+           build-mode: ${{ matrix.build-mode }}
+ 
+       - name: Perform CodeQL Analysis
+-        uses: github/codeql-action/analyze@v3[cite: 9]
++        uses: github/codeql-action/analyze@v3
+         with:
+           category: "/language:${{ matrix.language }}"
+diff --git a/.github/workflows/config.yml b/.github/workflows/config.yml
+index 36574c8..8f48378 100644
+--- a/.github/workflows/config.yml
++++ b/.github/workflows/config.yml
+@@ -33,12 +33,10 @@ jobs:
+ 
+     steps:
+       - name: Checkout Repository
+-        uses: actions/checkout@v4[cite: 17]
+         uses: actions/checkout@v4
+ 
+       - name: Setup Node.js
+         uses: actions/setup-node@v7
+-        uses: actions/setup-node@v4[cite: 17]
+         with:
+           node-version: '22'
+ 
+@@ -54,4 +52,4 @@ jobs:
+               JSON.parse(readFileSync(file, "utf8"));
+               console.log(`PASS ${file}`);
+             }
+-          '[cite: 17]
+\ No newline at end of file
++          '
+\ No newline at end of file
+diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+index aa7719f..4013efd 100644
+--- a/.github/workflows/main.yml
++++ b/.github/workflows/main.yml
+@@ -11,6 +11,9 @@ on:
+       - develop
+   workflow_dispatch:
+ 
++permissions:
++  contents: read
++
+ concurrency:
+   group: ${{ github.workflow }}-${{ github.ref }}
+   cancel-in-progress: true
+@@ -19,30 +22,19 @@ jobs:
+   test:
+     name: Run Tests
+     runs-on: ubuntu-latest
+-    
++
+     steps:
+       - name: Checkout Code
+-        uses: actions/checkout@v4[cite: 15]
+-
+-      - name: Set up Node.js
+-        uses: actions/setup-node@v4[cite: 15]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+         uses: actions/setup-node@v7
+         with:
+           node-version: 22
+-          cache: 'npm'
++          cache: npm
+ 
+       - name: Install Dependencies
+-        run: npm ci[cite: 15]
+-
+-      - name: Run Linter
+-        run: npm run lint --if-present[cite: 15]
+-
+-      - name: Run Tests
+-        run: npm test --if-present[cite: 15]
+-        run: npm ci
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Run Linter
+         run: npm run lint --if-present
+@@ -54,30 +46,19 @@ jobs:
+     name: Build Artifacts
+     needs: test
+     runs-on: ubuntu-latest
+-    
++
+     steps:
+       - name: Checkout Code
+-        uses: actions/checkout@v4[cite: 15]
+-
+-      - name: Set up Node.js
+-        uses: actions/setup-node@v4[cite: 15]
+         uses: actions/checkout@v4
+ 
+       - name: Set up Node.js
+         uses: actions/setup-node@v7
+         with:
+           node-version: 22
+-          cache: 'npm'
++          cache: npm
+ 
+       - name: Install Dependencies
+-        run: npm ci[cite: 15]
+-
+-      - name: Build Application
+-        run: npm run build --if-present[cite: 15]
+-
+-      - name: Upload Build Artifacts
+-        uses: actions/upload-artifact@v4[cite: 15]
+-        run: npm ci
++        run: npm ci --legacy-peer-deps
+ 
+       - name: Build Application
+         run: npm run build --if-present
+@@ -95,25 +76,21 @@ jobs:
+     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+     runs-on: ubuntu-latest
+     environment: production
+-    
++
+     steps:
+       - name: Checkout Code
+-        uses: actions/checkout@v4[cite: 15]
+-
+-      - name: Download Build Artifacts
+-        uses: actions/download-artifact@v4[cite: 15]
+         uses: actions/checkout@v4
+ 
+       - name: Download Build Artifacts
+-        uses: actions/download-artifact@v4
++        uses: actions/download-artifact@v7
+         with:
+           name: build-output
+           path: dist/
+ 
+       - name: Deploy to Vercel
+         uses: amondnet/vercel-action@v42
+-        uses: amondnet/vercel-action@v20[cite: 15]
+-        uses: amondnet/vercel-action@v20
+         with:
+-          vercel-token: \${{ secrets.VERCEL_TOKEN }}
+-          vercel-org-id: \${{ secrets.VERCEL_ORG_ID }}
+\ No newline at end of file
++          vercel-token: ${{ secrets.VERCEL_TOKEN }}
++          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
++          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
++          vercel-args: --prod
+-- 
+2.43.0
+

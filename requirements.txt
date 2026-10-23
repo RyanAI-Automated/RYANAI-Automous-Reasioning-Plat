@@ -1,0 +1,9 @@
+# =====================================================================
+# RyanAI Autonomous Reasoning Platform - Dependency Notice
+# =====================================================================
+# RyanAI has no Python runtime or Python package dependencies.
+# 
+# - Frontend & API dependencies are declared in package.json and package-lock.json.
+# - Desktop app dependencies are declared in src-tauri/Cargo.toml and Cargo.lock.
+# - Container environments are managed via Dockerfiles and docker-compose.yml.
+# =====================================================================

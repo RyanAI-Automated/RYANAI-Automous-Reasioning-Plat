@@ -1,0 +1,29 @@
+{
+  "mcpVersion": "1.0.0",
+  "serverName": "ryanai-autonomous-sentinel",
+  "capabilities": {
+    "filesystem": {
+      "root": "."
+    },
+    "terminal": {
+      "allowedCommands": [
+        "npm run check",
+        "npm run rust:check",
+        "npm run rust:build",
+        "npm run docker:up",
+        "npm run docker:down",
+        "docker compose config",
+        "git status",
+        "git diff --check",
+        "git add",
+        "git commit",
+        "git push"
+      ]
+    },
+    "diagnostics": {
+      "autoFix": true,
+      "requireExplicitDeploy": true,
+      "requireExplicitPush": true
+    }
+  }
+}

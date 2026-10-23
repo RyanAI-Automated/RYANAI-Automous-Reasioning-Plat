@@ -1,0 +1,19 @@
+{
+  "defaultModel": "gpt-4o",
+  "models": [
+    {
+      "id": "gpt-4o",
+      "label": "GPT-4o",
+      "provider": "OpenAI-compatible API",
+      "description": "General-purpose RyanAI reasoning model.",
+      "contextWindow": 128000
+    },
+    {
+      "id": "gpt-4o-mini",
+      "label": "GPT-4o mini",
+      "provider": "OpenAI-compatible API",
+      "description": "Fast and efficient RyanAI reasoning model.",
+      "contextWindow": 128000
+    }
+  ]
+}

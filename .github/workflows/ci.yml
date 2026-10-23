@@ -1,0 +1,95 @@
+name: CI - Build, Test, and Integrate
+
+on:
+  push:
+    branches: [main, master, dev, develop]
+  pull_request:
+    branches: [main, master, dev, develop]
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ryanai
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ryanai_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ryanai -d ryanai_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_db
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_only_secret_at_least_32_characters_long
+      OPENAI_API_KEY: ""
+      API_BASE_URL: http://localhost:3000
+      WEB_BASE_URL: http://localhost:9090
+      NODE_OPTIONS: --max-old-space-size=6144
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate application
+        run: npm run validate
+
+      - name: Validate Python tooling
+        run: npm run core:check
+
+      - name: Validate standalone MCP manager
+        run: npm run mcp:check
+
+      - name: Start API and frontend and run integration checks
+        shell: bash
+        run: |
+          npm run start > api.log 2>&1 &
+          api_pid=$!
+          npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$api_pid" "$web_pid" 2>/dev/null || true
+            wait "$api_pid" "$web_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          npm run startup:verify
+          npm run test:integration
+          npm run test:e2e

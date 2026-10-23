@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "mode": "audit",
+  "platforms": {
+    "windows": { "kernelEnforcement": false },
+    "linux": { "kernelEnforcement": false, "attachment": "operator-approved-ebpf-cgroup-program" }
+  },
+  "defaultAction": "record",
+  "allowedIngress": ["127.0.0.1", "::1"],
+  "requireSignedPolicyForEnforcement": true,
+  "auditLog": "data/sentinel-events.jsonl"
+}

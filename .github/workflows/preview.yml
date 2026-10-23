@@ -1,0 +1,81 @@
+name: Pull Request Preview Checks
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build API and web images
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            target: api
+          - image: web
+            target: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
+          push: false
+          tags: ryanai-${{ matrix.image }}:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  vercel-preview:
+    name: Deploy Vercel preview (trusted pull requests only)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate preview configuration
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        run: |
+          test -n "$VERCEL_ORG_ID" || { echo "::error::Set VERCEL_ORG_ID"; exit 1; }
+          test -n "$VERCEL_PROJECT_ID" || { echo "::error::Set VERCEL_PROJECT_ID"; exit 1; }
+          test -n "$VITE_API_BASE_URL" || { echo "::error::Set VITE_API_BASE_URL"; exit 1; }
+      - name: Install locked dependencies
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        run: npm ci --legacy-peer-deps
+      - name: Build and deploy preview
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        run: |
+          npx --yes vercel@latest pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest build --token="$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prebuilt --token="$VERCEL_TOKEN"
+      - name: Explain skipped Vercel preview
+        if: ${{ env.VERCEL_TOKEN == '' }}
+        run: echo "Vercel preview skipped because VERCEL_TOKEN is not configured."

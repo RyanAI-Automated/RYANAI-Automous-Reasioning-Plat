@@ -1,0 +1,65 @@
+name: Release Management
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Existing tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag_name || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag_name || github.ref_name }}
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: ryanai-${{ env.RELEASE_TAG }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: ryanai-${{ env.RELEASE_TAG }}.cyclonedx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Release ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(env.RELEASE_TAG, '-alpha') || contains(env.RELEASE_TAG, '-beta') || contains(env.RELEASE_TAG, '-rc') }}
+          files: |
+            ryanai-${{ env.RELEASE_TAG }}.spdx.json
+            ryanai-${{ env.RELEASE_TAG }}.cyclonedx.json

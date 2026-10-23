@@ -1,0 +1,81 @@
+name: Frontend Platform Maintainer
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit or deterministic fix mode
+        required: false
+        default: audit
+        type: choice
+        options: [audit, fix]
+  schedule:
+    - cron: '37 3 * * 2'
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'app/routes.json'
+      - 'vite.config.ts'
+      - 'index.html'
+      - 'Dockerfile.web'
+      - 'nginx.conf.template'
+      - 'scripts/frontend-platform-agent.mjs'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-platform-maintainer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  maintain:
+    name: Audit frontend platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ryanai
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ryanai_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ryanai -d ryanai_db"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_db
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_SECRET: ci_only_secret_at_least_32_characters_long
+      VITE_API_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Run frontend maintainer
+        env:
+          FRONTEND_AGENT_MODE: ${{ inputs.mode || 'audit' }}
+        run: |
+          if [ "$FRONTEND_AGENT_MODE" = "fix" ]; then
+            npm run frontend:agent:fix
+          else
+            npm run frontend:agent
+          fi

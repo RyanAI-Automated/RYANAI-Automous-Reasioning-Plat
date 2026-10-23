@@ -1,0 +1,49 @@
+name: API Performance Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Absolute URL for the API health endpoint
+        required: true
+        type: string
+      concurrency:
+        description: Number of concurrent requests (1-50)
+        required: false
+        default: "10"
+        type: string
+      duration:
+        description: Benchmark duration in seconds (1-60)
+        required: false
+        default: "10"
+        type: string
+      max_p95_ms:
+        description: Maximum accepted p95 latency in milliseconds
+        required: false
+        default: "1000"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Measure API latency and throughput
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run API benchmark
+        env:
+          BENCHMARK_URL: ${{ inputs.target_url }}
+          BENCHMARK_CONCURRENCY: ${{ inputs.concurrency || '10' }}
+          BENCHMARK_DURATION: ${{ inputs.duration || '10' }}
+          BENCHMARK_MAX_P95_MS: ${{ inputs.max_p95_ms || '1000' }}
+        run: npm run benchmark:api

@@ -1,0 +1,31 @@
+# Cargo build target directory
+/target/
+
+# Cargo lock files (optional to track depending on lib/app binary patterns)
+# Cargo.lock
+
+# Tauri build & native bundle output
+src-tauri/target/
+src-tauri/gen/
+
+# Node / Web Frontend build artifacts (if applicable)
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Environment and sensitive keys
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE and OS artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,10 @@
+allowBuilds:
+  '@prisma/client': false
+  '@prisma/engines': false
+  '@sentry/node-cpu-profiler': false
+  esbuild: false
+  msgpackr-extract: false
+  prisma: false
+  protobufjs: false
+  puppeteer: false
+  workerd: false

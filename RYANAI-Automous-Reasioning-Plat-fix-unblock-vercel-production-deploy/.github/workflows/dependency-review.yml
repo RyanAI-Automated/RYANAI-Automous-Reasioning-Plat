@@ -1,0 +1,40 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'mcp-server/package*.json'
+      - 'workflows-ryanai/package*.json'
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review dependency changes
+    # The dependency-review API only supports pull_request events.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Review dependencies
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

@@ -1,0 +1,579 @@
+From 46b942cc3eb562dc4130e4deec43ce148e9e4623 Mon Sep 17 00:00:00 2001
+From: "coderabbitai[bot]"
+ <136622811+coderabbitai[bot]@users.noreply.github.com>
+Date: Tue, 6 Oct 2026 12:14:53 +0000
+Subject: [PATCH] fix: mount RyanAI UI independently of backend health
+
+---
+ README.md                        |  20 ++++++
+ index.html                       | 114 +++++++++++++++++++++++++------
+ src/App.tsx                      |  22 ++++--
+ src/components/ErrorBoundary.tsx |  43 +++++++++++-
+ src/lib/platformHealth.test.ts   |  76 +++++++++++++++++++++
+ src/lib/platformHealth.ts        |  56 ++++++++++-----
+ src/main.test.tsx                |  56 +++++++++++++++
+ src/main.tsx                     |  91 ++++++++++++------------
+ 8 files changed, 390 insertions(+), 88 deletions(-)
+ create mode 100644 src/lib/platformHealth.test.ts
+ create mode 100644 src/main.test.tsx
+
+diff --git a/README.md b/README.md
+index ad58680..c1d3465 100644
+--- a/README.md
++++ b/README.md
+@@ -174,6 +174,26 @@ vite.config.ts             # Vite config
+ 
+ ## 🛠️ Development
+ 
++### Load only the UI
++
++```bash
++npm ci --legacy-peer-deps
++npm run dev:web
++```
++
++Open http://localhost:1420. The React UI mounts without waiting for the API,
++PostgreSQL, Redis, MCP, or model credentials. Health checks use `/api/health` and
++time out after five seconds; unavailable services are reported in the UI.
++Navigation and the local workspace remain available, while live reasoning needs
++the configured API. For a built UI, run `npm run build` then `npm run preview`.
++
++Keep `index.html` at the project root and `App.tsx` under `src/`. The supported
++API entrypoint is `src/server/launcher.ts` (`npm run dev:api`); the standalone
++`server.ts` and `src/server.ts` scripts are legacy alternatives and do not serve
++the React UI. Docker Compose serves the UI through `Dockerfile.web`/Nginx on
++http://localhost:9090. Preserve the repository's full `.dockerignore` when
++integrating standalone file copies.
++
+ ### All Services at Once
+ ```bash
+ npm run dev
+diff --git a/index.html b/index.html
+index 00afb81..ba1dc78 100644
+--- a/index.html
++++ b/index.html
+@@ -4,47 +4,119 @@
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <meta name="theme-color" content="#0b0f19" />
+-    <meta name="description" content="RyanAI Autonomous Reasoning Engine & Developer Workspace by Ntsiyeni Ganyane." />
++    <meta
++      name="description"
++      content="RyanAI Autonomous Reasoning Engine & Developer Workspace by Ntsiyeni Ganyane."
++    />
+     <meta name="author" content="Ntsiyeni Ganyane" />
+-    
++
+     <!-- Favicon -->
+-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E" />
+-    
++    <link
++      rel="icon"
++      type="image/svg+xml"
++      href="data:image/svg+xml,%3Csvg xmlns='[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E"
++    />
++
+     <title>RyanAI | Autonomous Reasoning & Dev Platform</title>
+-    
++
+     <!-- Fonts -->
+     <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)" />
+     <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin />
+-    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&display=swap)" rel="stylesheet" />
+-    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
+-    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin>
+-    <link href="[https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap](https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap)" rel="stylesheet">
++    <link
++      href="[https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap)"
++      rel="stylesheet"
++    />
+ 
+     <!-- Open Graph / Social Meta -->
+     <meta property="og:type" content="website" />
+-    <meta property="og:title" content="RyanAI | Autonomous Reasoning & Dev Platform" />
+-    <meta property="og:description" content="Sovereign AI reasoning agent platform with integrated terminal, GitHub, and VS Code workspaces." />
++    <meta
++      property="og:title"
++      content="RyanAI | Autonomous Reasoning & Dev Platform"
++    />
++    <meta
++      property="og:description"
++      content="Sovereign AI reasoning agent platform with integrated terminal, GitHub, and VS Code workspaces."
++    />
+     <meta name="twitter:card" content="summary_large_image" />
+   </head>
+-  <body class="bg-[#0b0f19] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 overflow-hidden">
++  <body
++    class="bg-[#0b0f19] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 overflow-hidden"
++  >
+     <div id="root">
+-      <div style="height:100vh;display:grid;place-items:center;padding:2rem;background:#0b0f19;color:#94a3b8;font:500 14px/1.5 'Inter',system-ui,sans-serif;text-align:center">
++      <div
++        style="
++          height: 100vh;
++          display: grid;
++          place-items: center;
++          padding: 2rem;
++          background: #0b0f19;
++          color: #94a3b8;
++          font:
++            500 14px/1.5 'Inter',
++            system-ui,
++            sans-serif;
++          text-align: center;
++        "
++      >
+         <div>
+-          <strong style="display:block;color:#22d3ee;font:900 26px/1.2 'Orbitron',system-ui,sans-serif;letter-spacing:.08em;margin-bottom:0.75rem">RYANAI PLATFORM</strong>
+-          <span style="opacity:0.85">Mounting autonomous reasoning workspace & developer tools...</span>
++          <strong
++            style="
++              display: block;
++              color: #22d3ee;
++              font:
++                900 26px/1.2 'Orbitron',
++                system-ui,
++                sans-serif;
++              letter-spacing: 0.08em;
++              margin-bottom: 0.75rem;
++            "
++            >RYANAI PLATFORM</strong
++          >
++          <span style="opacity: 0.85"
++            >Mounting autonomous reasoning workspace & developer tools...</span
++          >
+         </div>
+       </div>
+     </div>
+-    
++
+     <noscript>
+-      <div style="height:100vh;display:grid;place-items:center;padding:2rem;background:#0b0f19;color:#f87171;font:500 14px/1.5 system-ui,sans-serif;text-align:center">
++      <style>
++        #root {
++          display: none;
++        }
++      </style>
++      <div
++        style="
++          height: 100vh;
++          display: grid;
++          place-items: center;
++          padding: 2rem;
++          background: #0b0f19;
++          color: #f87171;
++          font:
++            500 14px/1.5 system-ui,
++            sans-serif;
++          text-align: center;
++        "
++      >
+         <div>
+-          <strong style="display:block;color:#22d3ee;font-size:22px;letter-spacing:.08em">RYANAI</strong>
+-          <p>JavaScript is required to run the reasoning agent interface and developer workspaces.</p>
++          <strong
++            style="
++              display: block;
++              color: #22d3ee;
++              font-size: 22px;
++              letter-spacing: 0.08em;
++            "
++            >RYANAI</strong
++          >
++          <p>
++            JavaScript is required to run the reasoning agent interface and
++            developer workspaces.
++          </p>
+         </div>
+       </div>
+     </noscript>
+-    
++
+     <script type="module" src="/src/main.tsx"></script>
+   </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/src/App.tsx b/src/App.tsx
+index 9f9d890..34b6560 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -47,18 +47,27 @@ export default function App() {
+   return (
+     <div className="flex h-screen min-h-[480px] flex-col overflow-hidden bg-slate-950 text-slate-100">
+       <header className="z-20 flex min-h-14 items-center justify-between border-b border-cyan-400/15 bg-slate-950/95 px-4 sm:px-8">
+-        <a href="#/" className="flex items-center gap-2 font-display text-sm font-black tracking-[0.18em] text-cyan-200">
++        <a
++          href="#/"
++          className="flex items-center gap-2 font-display text-sm font-black tracking-[0.18em] text-cyan-200"
++        >
+           <Cpu className="h-5 w-5 text-cyan-400"/>
+           RYANAI
+         </a>
+-        <nav aria-label="Main navigation" className="flex items-center gap-1 overflow-x-auto">
++        <nav
++          aria-label="Main navigation"
++          className="flex items-center gap-1 overflow-x-auto"
++        >
+           {destinations.map(({ id, path, label, icon: Icon }) => (
+             <a
+               key={id}
+               href={id === 'landing' ? '#/' : `#${path}`}
++              aria-label={label}
+               aria-current={route === id ? 'page' : undefined}
+               className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
+-                route === id ? 'bg-cyan-400/10 text-cyan-200' : 'text-slate-400 hover:bg-white/5 hover:text-white'
++                route === id
++                  ? 'bg-cyan-400/10 text-cyan-200'
++                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+               }`}
+             >
+               <Icon className="h-4 w-4"/>
+@@ -74,7 +83,12 @@ export default function App() {
+         {route === 'cockpit' && <RyanAICockpit/>}
+         {route === 'workspace' && (
+           <div className="h-full min-h-[calc(100vh-3.5rem)]">
+-            <CommandCenter onSignOut="{()"> { window.location.hash = '/'; }} userFullName="Operator" />
++            <CommandCenter + onSignOut="{()"> {
++                window.location.hash = '/';
++              }}
++              userFullName="Operator"
++            />
+           </div>
+         )}
+       </main>
+diff --git a/src/components/ErrorBoundary.tsx b/src/components/ErrorBoundary.tsx
+index 7feda2a..9b9423f 100644
+--- a/src/components/ErrorBoundary.tsx
++++ b/src/components/ErrorBoundary.tsx
+@@ -1,3 +1,42 @@
+-export default function ErrorBoundary({ children }: { children: React.ReactNode }) {
+-  return <>{children}</>;
++import { Component, type ErrorInfo, type ReactNode } from 'react';
++
++export default class ErrorBoundary extends Component<
++  { children: ReactNode },
++  { failed: boolean }
++> {
++  state = { failed: false };
++
++  static getDerivedStateFromError() {
++    return { failed: true };
++  }
++
++  componentDidCatch(error: Error, info: ErrorInfo) {
++    console.error('RyanAI UI failed to render', error, info);
++    window.dispatchEvent(
++      new CustomEvent('ryanai-error', { detail: { error: error.message } }),
++    );
++  }
++
++  render() {
++    if (this.state.failed) {
++      return (
++        <div
++          role="alert"
++          className="grid min-h-screen place-content-center gap-4 bg-slate-950 p-8 text-slate-100"
++        >
++          <h1 className="text-xl font-bold text-cyan-200">
++            RyanAI could not load this view
++          </h1>
++          <p>Reload the page to try again.</p>
++          <button
++            className="rounded-lg bg-cyan-400 px-4 py-2 text-slate-950"
++            onClick={() => window.location.reload()}
++          >
++            Reload RyanAI
++          </button>
++        </div>
++      );
++    }
++    return this.props.children;
++  }
+ }
+diff --git a/src/lib/platformHealth.test.ts b/src/lib/platformHealth.test.ts
+new file mode 100644
+index 0000000..b6ecd75
+--- /dev/null
++++ b/src/lib/platformHealth.test.ts
+@@ -0,0 +1,76 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { getPlatformHealth } from './platformHealth';
++
++function pendingFetch() {
++  vi.stubGlobal(
++    'fetch',
++    vi.fn(
++      (_url, options: RequestInit) =>
++        new Promise((_resolve, reject) => {
++          const signal = options.signal!;
++          const abort = () => reject(new DOMException('Aborted', 'AbortError'));
++          if (signal.aborted) abort();
++          else signal.addEventListener('abort', abort, { once: true });
++        }),
++    ),
++  );
++}
++
++afterEach(() => {
++  vi.unstubAllGlobals();
++  vi.useRealTimers();
++});
++
++describe('platform health', () => {
++  it('uses the proxied API endpoint and clears the deadline after success', async () => {
++    vi.useFakeTimers();
++    vi.stubGlobal(
++      'fetch',
++      vi
++        .fn()
++        .mockResolvedValue(new Response(JSON.stringify({ status: 'online' }))),
++    );
++    await expect(getPlatformHealth()).resolves.toEqual({ status: 'online' });
++    expect(fetch).toHaveBeenCalledWith(
++      expect.stringMatching(/\/api\/health$/),
++      expect.objectContaining({
++        headers: { Accept: 'application/json' },
++      }),
++    );
++    expect(vi.getTimerCount()).toBe(0);
++  });
++
++  it('aborts an unresponsive backend after five seconds', async () => {
++    vi.useFakeTimers();
++    pendingFetch();
++    const outcome = expect(getPlatformHealth()).rejects.toThrow('timed out');
++    await vi.advanceTimersByTimeAsync(5000);
++    await outcome;
++    expect(vi.getTimerCount()).toBe(0);
++  });
++
++  it.each([false, true])(
++    'preserves caller cancellation (already aborted: %s)',
++    async (alreadyAborted) => {
++      vi.useFakeTimers();
++      pendingFetch();
++      const controller = new AbortController();
++      if (alreadyAborted) controller.abort();
++      const outcome = expect(
++        getPlatformHealth(controller.signal),
++      ).rejects.toMatchObject({ name: 'AbortError' });
++      if (!alreadyAborted) controller.abort();
++      await outcome;
++      expect(vi.getTimerCount()).toBe(0);
++    },
++  );
++
++  it.each([
++    new Response('unavailable', { status: 503 }),
++    new Response('<!doctype html>'),
++    new Response(JSON.stringify({ status: 'degraded' })),
++  ])('rejects unhealthy or non-API responses', async (response) => {
++    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
++    await expect(getPlatformHealth()).rejects.toThrow();
++  });
++});
+diff --git a/src/lib/platformHealth.ts b/src/lib/platformHealth.ts
+index c82fdbb..5d2d95a 100644
+--- a/src/lib/platformHealth.ts
++++ b/src/lib/platformHealth.ts
+@@ -10,25 +10,45 @@ export interface PlatformHealth {
+   activeGraph?: string;
+ }
+ 
+-export async function getPlatformHealth(signal?: AbortSignal): Promise<PlatformHealth> {
+-  const response = await fetch(`${API_BASE_URL}${API_ROUTES.healthPath}`, {
+-    headers: { Accept: 'application/json' },
+-    signal,
+-  });
+-  const body = await response.text();
++export async function getPlatformHealth(
++  signal?: AbortSignal,
++): Promise<PlatformHealth> {
++  const controller = new AbortController();
++  const abort = () => controller.abort();
++  if (signal?.aborted) controller.abort();
++  else signal?.addEventListener('abort', abort, { once: true });
++  const timeout = setTimeout(abort, 5000);
+ 
+-  if (!response.ok) {
+-    throw new Error(`API health check failed (HTTP ${response.status})${body ? `: ${body.slice(0, 200)}` : ''}`);
+-  }
+-
+-  let health: PlatformHealth;
+   try {
+-    health = JSON.parse(body) as PlatformHealth;
+-  } catch {
+-    throw new Error('API health endpoint returned invalid JSON.');
+-  }
+-  if (health.status !== 'online') {
+-    throw new Error('RyanAI API did not report an online status.');
++    const response = await fetch(`${API_BASE_URL}${API_ROUTES.healthPath}`, {
++      headers: { Accept: 'application/json' },
++      signal: controller.signal,
++    });
++    const body = await response.text();
++
++    if (!response.ok) {
++      throw new Error(
++        `API health check failed (HTTP ${response.status})${body ? `: ${body.slice(0, 200)}` : ''}`,
++      );
++    }
++
++    let health: PlatformHealth;
++    try {
++      health = JSON.parse(body) as PlatformHealth;
++    } catch {
++      throw new Error('API health endpoint returned invalid JSON.');
++    }
++    if (health.status !== 'online') {
++      throw new Error('RyanAI API did not report an online status.');
++    }
++    return health;
++  } catch (error) {
++    if (controller.signal.aborted && !signal?.aborted) {
++      throw new Error('API health check timed out after 5 seconds.');
++    }
++    throw error;
++  } finally {
++    clearTimeout(timeout);
++    signal?.removeEventListener('abort', abort);
+   }
+-  return health;
+ }
+diff --git a/src/main.test.tsx b/src/main.test.tsx
+new file mode 100644
+index 0000000..7df83be
+--- /dev/null
++++ b/src/main.test.tsx
+@@ -0,0 +1,56 @@
++// @vitest-environment happy-dom
++import { act } from 'react';
++import { createRoot } from 'react-dom/client';
++import { afterEach, expect, it, vi } from 'vitest';
++import ErrorBoundary from './components/ErrorBoundary';
++
++vi.mock('./App', () => ({
++  default: () => <nav aria-label="Main navigation">RyanAI workspace</nav>,
++}));
++vi.mock('./lib/platformHealth', () => ({
++  getPlatformHealth: () => new Promise(() => {}),
++}));
++
++Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
++
++afterEach(() => vi.restoreAllMocks());
++
++it('mounts the UI while the backend health request remains pending', async () => {
++  document.body.innerHTML = '<div id="root">Loading...</div>';
++  await act(async () => {
++    await import('./main');
++    document.dispatchEvent(new Event('DOMContentLoaded'));
++  });
++  expect(document.querySelector('nav')?.textContent).toBe('RyanAI workspace');
++  expect(document.getElementById('root')?.textContent).not.toContain(
++    'Loading...',
++  );
++});
++
++it('shows a recovery action when a view throws during rendering', async () => {
++  vi.spyOn(console, 'error').mockImplementation(() => {});
++  const container = document.createElement('div');
++  document.body.appendChild(container);
++  const root = createRoot(container);
++  function BrokenView(): never {
++    throw new Error('view failed');
++  }
++  try {
++    await act(async () => {
++      root.render(
++        <ErrorBoundary>
++          <BrokenView/>
++        </ErrorBoundary>,
++      );
++    });
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
++      'RyanAI could not load this view',
++    );
++    expect(container.querySelector('button')?.textContent).toBe(
++      'Reload RyanAI',
++    );
++  } finally {
++    await act(async () => root.unmount());
++    container.remove();
++  }
++});
+diff --git a/src/main.tsx b/src/main.tsx
+index 1a2c8be..93f8d27 100644
+--- a/src/main.tsx
++++ b/src/main.tsx
+@@ -9,6 +9,8 @@ import ReactDOM from 'react-dom/client';
+ import App from './App';
+ import './index.css';
+ import { API_BASE_URL } from './lib/apiBaseUrl';
++import { getPlatformHealth } from './lib/platformHealth';
++import ErrorBoundary from './components/ErrorBoundary';
+ 
+ // ============================================================================
+ // ENVIRONMENT CONFIGURATION
+@@ -31,7 +33,9 @@ class RyanAIClient {
+   constructor(baseURL: string, version: string) {
+     this.baseURL = baseURL;
+     this.version = version;
+-    console.log(`🚀 RyanAI Client initialized | API: ${baseURL} | Version: ${version}`);
++    console.log(
++      `🚀 RyanAI Client initialized | API: ${baseURL} | Version: ${version}`,
++    );
+   }
+ 
+   /**
+@@ -39,7 +43,7 @@ class RyanAIClient {
+    */
+   async request<T any>(
+     endpoint: string,
+-    options: RequestInit & { method?: string } = {}
++    options: RequestInit & { method?: string } = {},
+   ): Promise<T> {
+     const url = `${this.baseURL}${endpoint}`;
+     const method = options.method || 'GET';
+@@ -87,7 +91,37 @@ class RyanAIClient {
+    * Get Governance Errors
+    */
+-  async getGovernanceErrors(filter?: st
++  async getGovernanceErrors(filter?: string) {
++    const query = filter ? `?filter=${encodeURIComponent(filter)}` : '';
++    return this.request(`/governance/errors${query}`);
++  }
++}
++
++export const ryanClient = new RyanAIClient(API_BASE_URL, '1.1.0');
++
++// ============================================================================
++// NON-BLOCKING BACKGROUND HEALTH CHECK
++// ============================================================================
++
++getPlatformHealth()
++  .then((health) => {
++    console.log('✅ RyanAI Platform Health Verified:', health);
++  })
++  .catch((err) => {
++    console.warn('⚠️ RyanAI Backend API offline or unreachable (UI mounted in standalone mode):', err.message);
++  });
++
++// ============================================================================
++// DOM MOUNTING
++// ============================================================================
++
++const rootElement = document.getElementById('root');
++
++if (rootElement) {
++  ReactDOM.createRoot(rootElement).render(
++    <React.StrictMode>
++      <ErrorBoundary>
++        <App/>
++      </ErrorBoundary>
++    </React.StrictMode>
++  );
++} else {
++  console.error('Fatal: Root DOM element #root not found in document.');
++}

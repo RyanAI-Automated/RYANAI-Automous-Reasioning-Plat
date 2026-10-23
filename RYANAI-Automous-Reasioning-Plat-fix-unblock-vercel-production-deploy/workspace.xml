@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="29750ef9-01a6-47e1-843a-8fe1baf07a27" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/pnpm-lock.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/pnpm-lock.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsconfig.app.tsbuildinfo" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsconfig.node.tsbuildinfo" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MavenImportPreferences">
+    <option name="generalSettings">
+      <MavenGeneralSettings>
+        <option name="mavenHomeTypeForPersistence" value="WRAPPER" />
+      </MavenGeneralSettings>
+    </option>
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 4,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3JLo0fFx6BRNZE0KVrdxFRNdt54" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.test_model.executor": "Run",
+    "Python.test_ryan.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/General/Downloads/RYANAI Autonomous Reasoning Plat",
+    "nodejs_package_manager_path": "pnpm",
+    "python.packages.toolwindow.project.migrated.to.right.top.v2": "true",
+    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings"
+  }
+}]]></component>
+  <component name="PyDebuggerOptionsProvider">
+    <option name="myDebuggerBackend" value="DEBUGPY" />
+  </component>
+  <component name="RunManager" selected="Python.test_model">
+    <configuration name="test_model" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+      <module name="RYANAI Autonomous Reasoning Plat" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="false" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/test_model.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="test_ryan" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+      <module name="RYANAI Autonomous Reasoning Plat" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="false" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/test_ryan.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-a203e0a19954-intellij.indexing.shared.core-IU-262.10315.125" />
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-IU-262.10315.125" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="29750ef9-01a6-47e1-843a-8fe1baf07a27" name="Changes" comment="" />
+      <created>1789449489484</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1789449489484</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+    <option name="exactExcludedFiles">
+      <list>
+        <option value="$PROJECT_DIR$/src/db/pool.js" />
+        <option value="$PROJECT_DIR$/src/api/reasoningRoute.js" />
+        <option value="$PROJECT_DIR$/src/api/mcpRoute.js" />
+        <option value="$PROJECT_DIR$/src/lib/airGapCache.test.js" />
+        <option value="$PROJECT_DIR$/src/lib/airGapCache.js" />
+        <option value="$PROJECT_DIR$/src/lib/useVoiceRecognition.js" />
+        <option value="$PROJECT_DIR$/src/lib/vectorStore.js" />
+        <option value="$PROJECT_DIR$/src/lib/reasoning.js" />
+        <option value="$PROJECT_DIR$/src/lib/models.js" />
+        <option value="$PROJECT_DIR$/src/lib/storage.js" />
+        <option value="$PROJECT_DIR$/src/lib/useAuth.js" />
+        <option value="$PROJECT_DIR$/src/lib/supabase.js" />
+        <option value="$PROJECT_DIR$/src/lib/types.js" />
+        <option value="$PROJECT_DIR$/src/mcp/systemServer.js" />
+        <option value="$PROJECT_DIR$/src/mcp/runSystemServer.js" />
+        <option value="$PROJECT_DIR$/src/agent/reactGraph.js" />
+        <option value="$PROJECT_DIR$/src/agent/nodes.js" />
+        <option value="$PROJECT_DIR$/src/agent/react.js" />
+        <option value="$PROJECT_DIR$/src/store/agentStore.js" />
+        <option value="$PROJECT_DIR$/src/config/env.js" />
+        <option value="$PROJECT_DIR$/src/config/reasoningSkill.js" />
+        <option value="$PROJECT_DIR$/src/config/models.js" />
+        <option value="$PROJECT_DIR$/src/middleware/selfHealing.js" />
+        <option value="$PROJECT_DIR$/src/pages/CommandCenter.js" />
+        <option value="$PROJECT_DIR$/src/pages/AuthPage.js" />
+      </list>
+    </option>
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
+  </component>
+</project>

@@ -1,0 +1,37 @@
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - package.json
+          - package-lock.json
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - Dockerfile*
+          - docker-compose*.yml
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/**/*.tsx
+          - index.html
+          - vite.config.ts
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - server.ts
+          - src/server/**
+          - src/api/**
+          - prisma/**
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - docs/**
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**

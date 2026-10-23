@@ -1,0 +1,156 @@
+# ==========================
+# Environment & Secrets
+# ==========================
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+private/
+ci-tokens/
+
+# ==========================
+# Dependencies & Package Managers
+# ==========================
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+.npm/
+.yarn-integrity
+*.tgz
+vendor/
+
+# ==========================
+# Build Outputs & Distribution
+# ==========================
+dist/
+out/
+release/
+releases/
+installers/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+*.tsbuildinfo
+build/
+
+# ==========================
+# Native C++ Addons (node-gyp)
+# ==========================
+build/Release/
+build/Debug/
+*.node
+*.vcxproj
+*.sln
+*.vcxproj.filters
+*.ipdb
+*.iobj
+*.exp
+*.lib
+
+# ==========================
+# Tauri v2 Desktop App
+# ==========================
+src-tauri/target/
+src-tauri/gen/
+
+# ==========================
+# Python & Virtual Environments
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# ==========================
+# Databases & Local Storage
+# ==========================
+*.db
+*.sqlite
+*.sqlite3
+.pgdata/
+.dynamodb/
+
+# ==========================
+# Caches & Build Tooling
+# ==========================
+.cache/
+.turbo/
+.eslintcache
+.stylelintcache
+.parcel-cache/
+.rpt2_cache/
+.vuepress/dist/
+.serverless/
+.fusebox/
+storybook-static/
+
+# ==========================
+# Logs & Testing
+# ==========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage/
+.nyc_output/
+*.lcov
+
+# ==========================
+# Binaries & Archives
+# ==========================
+*.zip
+*.exe
+*.iso
+*.7z
+*.tar.gz
+
+# ==========================
+# IDEs & Editors
+# ==========================
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.vim/
+*.code-workspace
+*.iml
+.tern-port
+.tern-playground
+
+# ==========================
+# Operating Systems
+# ==========================
+.DS_Store
+._*
+.AppleDouble
+.AppleDB
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.directory

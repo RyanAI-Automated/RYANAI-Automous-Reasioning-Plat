@@ -1,0 +1,201 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AgentStatus {
+  IDLE
+  RUNNING
+  COMPLETED
+  FAILED
+  PAUSED
+}
+
+// ==========================================
+// CUSTOM RYANAI BACKEND MODELS
+// ==========================================
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  passwordHash  String          @map("password_hash")
+  name          String?         @map("name")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  sessions      Session[]
+  agentSessions AgentSession[]
+  memories      MemoryVault[]
+  agents        AgentInstance[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String    @id @default(uuid())
+  title     String    @default("New Reasoning Session")
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      Role
+  content   String   @db.Text
+  reasoning String?  @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sessionId])
+  @@map("session_messages")
+}
+
+model AgentSession {
+  id          String         @id @default(uuid())
+  operator    String         @default("Ntsiyeni Ganyane")
+  activeGraph String         @default("ReAct-v2.1") @map("active_graph")
+  cudaActive  Boolean        @default(true) @map("cuda_active")
+  userId      String?        @map("user_id")
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  messages    AgentMessage[]
+
+  @@index([createdAt])
+  @@index([userId])
+  @@map("agent_sessions")
+}
+
+model AgentMessage {
+  id             String       @id @default(uuid())
+  sessionId      String       @map("session_id")
+  session        AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role           Role         @default(USER)
+  content        String       @db.Text
+  reasoningSteps String       @db.Text @map("reasoning_steps")
+  latencyMs      Int          @default(14) @map("latency_ms")
+  timestamp      String
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([sessionId])
+  @@map("agent_messages")
+}
+
+model AgentInstance {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  status      AgentStatus @default(IDLE)
+  userId      String      @map("user_id")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config      Json?
+  lastActive  DateTime    @default(now()) @map("last_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("agent_instances")
+}
+
+model MemoryVault {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  category  String   @default("general")
+  tags      String[]
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("memory_vault")
+}
+
+model SystemTelemetry {
+  id          String   @id @default(uuid())
+  cpuUsage    Float?   @map("cpu_usage")
+  memoryUsage Float?   @map("memory_usage")
+  activeNodes Int?     @map("active_nodes")
+  status      String   @default("healthy")
+  payload     Json?
+  recordedAt  DateTime @default(now()) @map("recorded_at")
+
+  @@map("system_telemetry")
+}
+
+// ==========================================
+// SUPABASE INTEGRATED MODELS
+// ==========================================
+
+model Profile {
+  id        String    @id @db.Uuid
+  email     String?
+  fullName  String?   @map("full_name")
+  avatarUrl String?   @map("avatar_url")
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @map("updated_at")
+
+  @@map("profiles")
+}
+
+model Conversation {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  title     String           @default("New Thread")
+  model     String           @default("claude-sonnet-4.6")
+  createdAt DateTime?        @default(now()) @map("created_at")
+  updatedAt DateTime?        @default(now()) @map("updated_at")
+  messages  ChatSqlMessage[]
+
+  @@index([userId])
+  @@map("conversations")
+}
+
+model ChatSqlMessage {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String       @db.Text
+  model          String?
+  steps          Json?
+  createdAt      DateTime?    @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model MemoryEntry {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  key       String
+  value     String    @db.Text
+  category  String    @default("preference")
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("memory_entries")
+}

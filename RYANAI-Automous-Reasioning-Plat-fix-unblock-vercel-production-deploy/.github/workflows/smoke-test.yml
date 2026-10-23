@@ -1,0 +1,53 @@
+name: Production and Preview Smoke Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: Environment to verify
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - preview
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-test:
+    name: Verify configured frontend and API endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check configured frontend and API endpoints
+        env:
+          TARGET_ENV: ${{ inputs.target_env || 'production' }}
+          PROD_API_URL: ${{ secrets.PROD_GATEWAY_URL }}
+          PROD_FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL }}
+          PREVIEW_API_URL: ${{ secrets.PREVIEW_GATEWAY_URL }}
+          PREVIEW_FRONTEND_URL: ${{ secrets.PREVIEW_FRONTEND_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET_ENV" == "production" ]]; then
+            api_url="$PROD_API_URL"
+            frontend_url="$PROD_FRONTEND_URL"
+          else
+            api_url="$PREVIEW_API_URL"
+            frontend_url="$PREVIEW_FRONTEND_URL"
+          fi
+          [[ -n "$api_url" ]] || { echo "::error::Configure the API URL secret for $TARGET_ENV."; exit 1; }
+          [[ -n "$frontend_url" ]] || { echo "::error::Configure the frontend URL secret for $TARGET_ENV."; exit 1; }
+          echo "Checking frontend endpoint."
+          curl --fail --silent --show-error --location --max-time 20 "$frontend_url" --output /dev/null
+          echo "Checking API health endpoint."
+          curl --fail --silent --show-error --location --max-time 20 "$api_url" --output /dev/null

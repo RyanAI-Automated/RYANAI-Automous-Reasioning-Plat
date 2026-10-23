@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#020617" />
+    <title>RyanAI Runtime Sandbox (v1.1.0)</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #020617; color: #cbd5e1; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 0%, #083344, #020617 60%); }
+      main { width: min(92vw, 680px); padding: 2rem; border: 1px solid rgba(34, 211, 238, .25); border-radius: 18px; background: rgba(15, 23, 42, .82); box-shadow: 0 20px 80px rgba(0, 0, 0, .45); }
+      h1 { margin: 0; color: #22d3ee; letter-spacing: .12em; font-size: clamp(1.6rem, 5vw, 2.5rem); }
+      p { color: #94a3b8; line-height: 1.6; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; margin-top: 1.5rem; }
+      a, button { display: block; width: 100%; padding: .8rem 1rem; border-radius: 10px; border: 1px solid rgba(34, 211, 238, .3); background: rgba(34, 211, 238, .1); color: #a5f3fc; text-decoration: none; font: inherit; cursor: pointer; text-align: center; }
+      a:hover, button:hover { background: rgba(34, 211, 238, .2); }
+      #status { margin-top: 1.5rem; padding: .8rem; border-radius: 10px; background: rgba(2, 6, 23, .7); color: #64748b; font-family: ui-monospace, monospace; font-size: .8rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>RYANAI</h1>
+      <p>Runtime sandbox and launch check for the v1.1.0 autonomous reasoning platform.</p>
+      <div class="grid">
+        <a href="http://localhost:1420/" target="_blank" rel="noreferrer">Open Vite / Tauri Dev App</a>
+        <a href="http://localhost:9090/" target="_blank" rel="noreferrer">Open Docker Production App</a>
+        <button id="health" type="button">Check API Docker Health</button>
+      </div>
+      <div id="status">Ready. Choose a runtime to continue.</div>
+    </main>
+    <script>
+      document.getElementById('health').addEventListener('click', async () => {
+        const status = document.getElementById('status');
+        status.textContent = 'Checking http://localhost:3000/health...';
+        try {
+          const response = await fetch('http://localhost:3000/health');
+          status.textContent = response.ok ? `Healthy: HTTP ${response.status}` : `Unhealthy: HTTP ${response.status}`;
+        } catch (error) {
+          status.textContent = `Unavailable: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      });
+    </script>
+  </body>
+</html>
