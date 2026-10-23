@@ -24,11 +24,11 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Automated Path-Based Labeler
         if: github.event_name == 'pull_request_target'
-        uses: actions/labeler@v6
+        uses: actions/labeler@v7
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           configuration-path: '.github/labeler.yml'
