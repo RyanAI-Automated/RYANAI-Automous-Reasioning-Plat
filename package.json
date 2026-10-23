@@ -128,7 +128,7 @@
     "@sentry/profiling-node": "11.4.0",
     "@supabase/server": "^1.6.1",
     "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.116.0",
+    "@supabase/supabase-js": "^2.118.0",
     "@tauri-apps/api": "^2.2.0",
     "@types/pg": "^8.23.1",
     "@vercel/analytics": "^2.0.1",
