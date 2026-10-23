@@ -1,3 +1,7 @@
+# =====================================================================
+# RyanAI Autonomous Reasoning Platform - Production Docker Compose
+# =====================================================================
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -14,7 +18,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./prisma/migrations/init_vector_memory.sql:/docker-entrypoint-initdb.d/001-init-vector-memory.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=\"$$POSTGRES_PASSWORD\" psql -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -w -c 'SELECT 1' > /dev/null"]
+      test:
+        - CMD-SHELL
+        - >-
+          PGPASSWORD="$$POSTGRES_PASSWORD" psql -h 127.0.0.1
+          -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -w -c 'SELECT 1' > /dev/null
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +47,9 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +85,15 @@ services:
     ports:
       - '127.0.0.1:3000:3000'
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
+      test:
+        [
+          'CMD',
+          'wget',
+          '--quiet',
+          '--tries=1',
+          '--spider',
+          'http://127.0.0.1:3000/health',
+        ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -109,7 +127,13 @@ services:
     ports:
       - '127.0.0.1:8765:8765'
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8765/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -139,7 +163,15 @@ services:
     ports:
       - '127.0.0.1:9090:80'
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      test:
+        [
+          'CMD',
+          'wget',
+          '--quiet',
+          '--tries=1',
+          '--spider',
+          'http://127.0.0.1/health',
+        ]
       interval: 15s
       timeout: 5s
       retries: 5

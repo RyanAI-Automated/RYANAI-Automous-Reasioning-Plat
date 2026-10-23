@@ -2,7 +2,7 @@
 // LLM model definitions and metadata
 
 import type { ModelId } from './types.js';
-import modelCatalog from '../../models/catalog.json' assert { type: 'json' };
+import modelCatalog from '../../models/catalog.json';
 
 export interface ModelMeta {
   id: ModelId;
@@ -12,7 +12,7 @@ export interface ModelMeta {
   description: string;
 }
 
-export const DEFAULT_MODEL: ModelId = modelCatalog.defaultModel as ModelId;
+export const DEFAULT_MODEL: ModelId = modelCatalog.defaultModel;
 export const MODELS = Object.fromEntries(
   modelCatalog.models.map((model) => [model.id, model]),
 ) as Record<ModelId, ModelMeta>;

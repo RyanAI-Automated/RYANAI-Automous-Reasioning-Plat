@@ -5,15 +5,6 @@ interface ReasoningBody {
   model?: string;
 }
 
-// Example pattern for Fastify route handlers:
-fastify.post('/api/v1/...', async (request, reply) => {
-  if (!request.authUser) {
-    return reply.code(401).send({ error: 'Unauthorized' });
-  }
-  // ... core logic ...
-  return reply.send({ success: true });
-});
-
 export async function reasoningRoutes(fastify: FastifyInstance) {
   fastify.post('/api/v1/reasoning/stream', async (request: FastifyRequest<{ Body: ReasoningBody }>, reply: FastifyReply) => {
     const { prompt, model = 'RyanAI-ReAct-v4' } = request.body;

@@ -1,5 +1,5 @@
 // src/config/fallback.ts
-import { primaryBrain, secondaryBrain, logicBrain } from './brains.js';
+import { primaryBrain, secondaryBrain, logicBrain } from './brains';
 import { BaseMessage } from '@langchain/core/messages';
 
 export class BrainFallbackHandler {

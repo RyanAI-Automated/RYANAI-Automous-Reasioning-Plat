@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: serverPort,
-      strictPort: mode === 'desktop' || process.env.VITE_STRICT_PORT === 'true',
+      strictPort: true,
       watch: {
         usePolling: true,
       },

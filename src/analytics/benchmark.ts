@@ -1,4 +1,4 @@
-// File path: ./src/analytics/benchmark.ts
+// src/analytics/benchmark.ts
 import { db } from '../database/db';
 import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains';
 import { HumanMessage } from '@langchain/core/messages';
@@ -15,6 +15,9 @@ export interface BenchmarkResult {
 export class RyanAIBenchmarkEngine {
   /**
    * Run a telemetry benchmark across all three configured brain nodes.
+   * Return latency in milliseconds and throughput estimated at four characters per
+   * token. Model failures become failed results; database archival is attempted,
+   * but persistence failures do not prevent returning the results.
    */
   static async runClusterBenchmark(testPrompt = "Evaluate the efficiency of eBPF packet filtering over standard socket routing."): Promise<BenchmarkResult[]> {
     console.log("[Benchmark] Initiating cluster performance analysis...");
@@ -44,6 +47,7 @@ export class RyanAIBenchmarkEngine {
       const endTime = performance.now();
       const latencyMs = parseFloat((endTime - startTime).toFixed(2));
       
+      // Rough token estimation (approx. 4 chars per token)
       const tokenCountEstimate = Math.ceil(responseContent.length / 4);
       const tokensPerSecond = latencyMs > 0 ? parseFloat(((tokenCountEstimate / latencyMs) * 1000).toFixed(2)) : 0;
 
@@ -59,7 +63,9 @@ export class RyanAIBenchmarkEngine {
       console.log(`[Benchmark] ${b.name} -> Latency: ${latencyMs}ms | Speed: ${tokensPerSecond} tok/s | Status: ${success ? 'PASS' : 'FAIL'}`);
     }
 
+    // Persist benchmark metrics to PostgreSQL
     await this.saveBenchmarkMetrics(results);
+
     return results;
   }
 

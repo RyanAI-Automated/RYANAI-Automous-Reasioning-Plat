@@ -1,6 +1,4 @@
-version: 2
 language: "en-US"
-
 reviews:
   profile: "chill"
   request_changes_workflow: false
@@ -11,25 +9,8 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-  
-  # 1. Path instructions: Teach CodeRabbit your codebase rules per directory
-  path_instructions:
-    - path: "src/api/**"
-      instructions: |
-        - All endpoints must validate input via Zod schemas.
-        - Auth middleware is required before route handlers.
-
-  # 2. Pre-merge checks: Block or warn on PRs that violate standards
-  pre_merge_checks:
-    docstrings:
-      mode: "warning" # Tip: Change to "error" once your team is aligned
-      threshold: 80
-    description:
-      mode: "warning" # Tip: Change to "error" once your team is aligned
-
 chat:
   auto_reply: true
-
 remote_config:
   repository: "shared-configs"
   ref: "main"

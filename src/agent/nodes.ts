@@ -28,12 +28,11 @@ const databaseQueryTool = new DynamicTool({
   func: async (query: string) => {
     const normalizedQuery = query.trim();
     if (!normalizedQuery) throw new Error("A non-empty memory search query is required.");
-    
-    const records = await db.agentMemory.findMany({
+    const records = await db.agentMessage.findMany({
       where: { content: { contains: normalizedQuery } },
       orderBy: { createdAt: "desc" },
       take: 10,
-      select: { sessionId: true, brainSource: true, content: true, metadata: true, createdAt: true },
+      select: { sessionId: true, role: true, content: true, reasoningSteps: true, createdAt: true },
     });
     return JSON.stringify({ query: normalizedQuery, count: records.length, records });
   },

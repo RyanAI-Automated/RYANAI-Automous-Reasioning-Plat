@@ -7,15 +7,6 @@ export enum RiskTier {
   CRITICAL = 'DENY'           // Block destructive operations / policy violation[span_4](start_span)[span_4](end_span)
 }
 
-// Example pattern for Fastify route handlers:
-fastify.post('/api/v1/...', async (request, reply) => {
-  if (!request.authUser) {
-    return reply.code(401).send({ error: 'Unauthorized' });
-  }
-  // ... core logic ...
-  return reply.send({ success: true });
-});
-
 export interface AgentIntentRequest {
   agentId: string;
   principal: string;          // Operator or user identity

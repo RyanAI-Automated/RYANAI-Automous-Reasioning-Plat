@@ -1,6 +1,6 @@
 // src/index.ts
 import { RyanMCPServer } from "./mcp/ryanMcpServer.js";
-import { buildServer } from "./server/routes/server.js";
+import { buildServer } from "./server/server.js";
 
 async function main() {
   try {

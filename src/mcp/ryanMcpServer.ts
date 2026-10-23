@@ -209,11 +209,10 @@ export class RyanMCPServer {
         "filePath and patchContent must be strings; testScript must be a string when supplied",
       );
     }
-    const validatedTestScript = typeof testScript === 'string' ? testScript : undefined;
     const result = await SelfPatchSkill.applyAndVerifyPatch({
       filePath,
       patchContent,
-      testScript: validatedTestScript,
+      testScript,
     });
     return {
       content: [

@@ -5,8 +5,6 @@ on:
     branches: [main, master, dev, develop]
   pull_request:
     branches: [main, master, dev, develop]
-  schedule:
-    - cron: '0 4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -16,11 +14,71 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_OPTIONS: --max-old-space-size=6144
+
 jobs:
   validate:
-    name: Validate (Node 22)
+    name: Validate (typecheck, lint, test, build)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate application
+        run: npm run validate
+
+      - name: Validate Python tooling
+        run: npm run core:check
+
+      - name: Validate GitHub workflows
+        run: npm run workflow:validate
+
+  subprojects:
+    name: MCP server and workflow worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            mcp-server/package-lock.json
+            workflows-ryanai/package-lock.json
+
+      - name: Check standalone MCP server
+        run: npm ci --prefix mcp-server && npm --prefix mcp-server run check
+
+      - name: Build workflow worker
+        run: npm ci --prefix workflows-ryanai && npm --prefix workflows-ryanai run build
+
+  integration:
+    name: Integration and end-to-end checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate
 
     services:
       postgres:
@@ -47,14 +105,15 @@ jobs:
           --health-retries 5
 
     env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_db
-      REDIS_URL: redis://localhost:6379
+      NODE_ENV: production
+      HOST: 127.0.0.1
+      PORT: '3000'
+      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_db
+      REDIS_URL: redis://127.0.0.1:6379
       JWT_SECRET: ci_only_secret_at_least_32_characters_long
-      OPENAI_API_KEY: ""
-      API_BASE_URL: http://localhost:3000
-      WEB_BASE_URL: http://localhost:9090
-      NODE_OPTIONS: --max-old-space-size=6144
+      OPENAI_API_KEY: ''
+      API_BASE_URL: http://127.0.0.1:3000
+      WEB_BASE_URL: http://127.0.0.1:9090
 
     steps:
       - name: Checkout
@@ -69,27 +128,46 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Validate application
-        run: npm run validate
+      - name: Prepare database
+        run: npm run db:setup
 
-      - name: Validate Python tooling
-        run: npm run core:check
+      - name: Build API and frontend
+        run: npm run build:server && npm run build:client
 
-      - name: Validate standalone MCP manager
-        run: npm run mcp:check
-
-      - name: Start API and frontend and run integration checks
+      - name: Start services and run integration checks
         shell: bash
         run: |
+          set -euo pipefail
           npm run start > api.log 2>&1 &
           api_pid=$!
-          npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 9090 > web.log 2>&1 &
           web_pid=$!
           cleanup() {
             kill "$api_pid" "$web_pid" 2>/dev/null || true
             wait "$api_pid" "$web_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
+
+          echo "Waiting for the API health endpoint..."
+          for _ in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/health > /dev/null; then
+              echo "API is healthy."
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:3000/health > /dev/null
+
           npm run startup:verify
           npm run test:integration
           npm run test:e2e
+
+      - name: Upload service logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-logs
+          path: |
+            api.log
+            web.log
+          retention-days: 7

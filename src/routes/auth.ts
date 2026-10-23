@@ -3,6 +3,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import rateLimit from "@fastify/rate-limit";
 import { prisma } from "../lib/prisma.js";
 
 // Strict validation schemas using Zod
@@ -23,7 +24,10 @@ const SigninSchema = z.object({
 });
 
 export async function registerAuthRoutes(fastify: FastifyInstance) {
-  
+  await fastify.register(rateLimit, {
+    global: false,
+  });
+
   /**
    * POST /api/auth/signup
    * Registers a new user account with strict validation, secure hashing, and JWT token generation.
@@ -143,36 +147,47 @@ export async function registerAuthRoutes(fastify: FastifyInstance) {
    * GET /api/auth/me
    * Protected profile endpoint requiring valid JWT authorization header.
    */
-  fastify.get("/api/auth/me", async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      await request.jwtVerify();
-      const payload = request.user as { id: string; email: string };
+  fastify.get(
+    "/api/auth/me",
+    {
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        await request.jwtVerify();
+        const payload = request.user as { id: string; email: string };
 
-      // Lookup user in database
-      const user = await prisma.user.findUnique({ where: { id: payload.id } });
+        // Lookup user in database
+        const user = await prisma.user.findUnique({ where: { id: payload.id } });
 
-      if (!user) {
-        return reply.status(404).send({
+        if (!user) {
+          return reply.status(404).send({
+            success: false,
+            error: "User not found.",
+          });
+        }
+
+        return reply.status(200).send({
+          success: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            createdAt: user.createdAt,
+          },
+        });
+      } catch (err) {
+        return reply.status(401).send({
           success: false,
-          error: "User not found.",
+          error: "Unauthorized: Invalid or missing token.",
         });
       }
-
-      return reply.status(200).send({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          createdAt: user.createdAt,
-        },
-      });
-    } catch (err) {
-      return reply.status(401).send({
-        success: false,
-        error: "Unauthorized: Invalid or missing token.",
-      });
     }
-  });
+  );
 
 }

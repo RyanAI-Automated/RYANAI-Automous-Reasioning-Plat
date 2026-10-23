@@ -1,3 +1,5 @@
 {
-    "cmake.sourceDirectory": "C:/Users/General/Downloads/RYANAI-Automous-Reasioning-Plat-main/RYANAI-Automous-Reasioning-Plat-main/native/local-inference"
+    "cmake.sourceDirectory": "${workspaceFolder}/native/local-inference",
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "robotcode.disableExtension": true
 }

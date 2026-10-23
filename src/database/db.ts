@@ -2,13 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-import pg from 'pg';
-
-export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-export const db = pool;
 const DB_PATH = path.resolve(process.cwd(), 'data');
 const USERS_FILE = path.join(DB_PATH, 'users.json');
 

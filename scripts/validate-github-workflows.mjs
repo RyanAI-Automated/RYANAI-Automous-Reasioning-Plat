@@ -32,21 +32,7 @@ function fail(file, message) {
   errors.push(`${relative(root, file)}: ${message}`);
 }
 
-const ignoredFiles = new Set([
-  '.coderabbit.yaml',
-  '.gitignore',
-  'code-security.datadog.yaml',
-  'database-infra.yaml',
-  'dependabot.yml',
-  'entrypoint.sh',
-  'kustomization.yaml',
-  'render.yaml',
-  'ryanai-apps.yaml',
-  'ryanai-databases.yaml',
-]);
-const files = walk(workflowDir).filter((file) =>
-  /\.(yml|yaml)$/i.test(file) && !ignoredFiles.has(file.split(/[\\/]/).pop()),
-);
+const files = walk(workflowDir).filter((file) => /\.(yml|yaml)$/i.test(file));
 if (files.length === 0) errors.push('No workflow YAML files found');
 
 for (const file of files) {

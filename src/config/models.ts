@@ -23,7 +23,6 @@ export function getEnv(key: string, defaultValue = ''): string {
 // Types & Interfaces
 // ==========================================
 
-type HeadersInit = Record<string, string> | [string, string][] | Headers;
 export type ModelProvider = 'nvidia' | 'qwen' | 'together' | 'openrouter' | 'gateway' | 'local';
 
 export interface ModelCapabilities {

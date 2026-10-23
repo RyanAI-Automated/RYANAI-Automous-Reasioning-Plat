@@ -1,6 +1,7 @@
-import { RyanAIDispatcher } from './dispatcher.js';
-import { AgenticReflectionLoop } from './reflection.js';
-import { RyanAICheckpointer } from './checkpointer.js';
+// src/engine/autonomousLoop.ts
+import { RyanAIDispatcher } from './dispatcher';
+import { AgenticReflectionLoop } from './reflection';
+import { RyanAICheckpointer } from './checkpointer';
 
 export interface MissionResult {
   missionId: string;

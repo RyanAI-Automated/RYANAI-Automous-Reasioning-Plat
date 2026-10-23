@@ -18,7 +18,7 @@ on:
       - 'app/routes.json'
       - 'vite.config.ts'
       - 'index.html'
-      - 'Dockerfile'
+      - 'Dockerfile.web'
       - 'nginx.conf.template'
       - 'scripts/frontend-platform-agent.mjs'
       - 'package.json'
@@ -56,7 +56,7 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://ryanai:[REDACTED]@127.0.0.1:5432/ryanai_db
+      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_db
       REDIS_URL: redis://127.0.0.1:6379
       JWT_SECRET: ci_only_secret_at_least_32_characters_long
       VITE_API_BASE_URL: http://127.0.0.1:3000

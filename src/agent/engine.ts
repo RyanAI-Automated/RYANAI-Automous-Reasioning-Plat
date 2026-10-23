@@ -22,16 +22,6 @@ const allowedModels = new Set(
 allowedModels.add(defaultModel);
 const reasoningAgents = new Map<string, ReturnType<typeof createReactAgent>>();
 
-// Local-first resolution: accept OPENAI_API_KEY, LOCAL_LLM_KEY, or fall back for local inference
-const activeApiKey = process.env.OPENAI_API_KEY || process.env.LOCAL_LLM_KEY || 'local-fallback';
-const hasBaseUrl = Boolean(process.env.OPENAI_BASE_URL);
-
-if (!process.env.OPENAI_API_KEY && !process.env.LOCAL_LLM_KEY && !hasBaseUrl) {
-  throw new Error(
-    'OpenAI API access or local LLM base URL is not configured. Set OPENAI_API_KEY, LOCAL_LLM_KEY, or OPENAI_BASE_URL in .env and restart the API.'
-  );
-}
-
 /**
  * Return the cached reasoning agent for a trimmed, enabled model name.
  * Creates and caches an agent on first use. Rejects disabled models and propagates
@@ -45,18 +35,6 @@ export function getReasoningAgent(requestedModel = defaultModel) {
     );
   }
 
-  const configuredApiKey = process.env.OPENAI_API_KEY?.trim() || process.env.LOCAL_LLM_KEY?.trim() || 'local-fallback';
-  const hasPlaceholderKey = /your_|placeholder|example|actual|here|\[REDACTED\]/i.test(
-    configuredApiKey,
-  );
-
-  // Allow placeholder or fallback keys if a local base URL or local key is active
-  if ((!configuredApiKey || hasPlaceholderKey) && !hasBaseUrl && !process.env.LOCAL_LLM_KEY) {
-    throw new Error(
-      'OpenAI API access is not configured. Set a valid OPENAI_API_KEY in .env before sending a reasoning request.',
-    );
-  }
-
   let reasoningAgent = reasoningAgents.get(model);
   if (!reasoningAgent) {
     const llm = new ChatOpenAI({
@@ -66,7 +44,9 @@ export function getReasoningAgent(requestedModel = defaultModel) {
         ...(process.env.OPENAI_BASE_URL
           ? { baseURL: process.env.OPENAI_BASE_URL }
           : {}),
-        apiKey: configuredApiKey,
+        ...(process.env.OPENAI_API_KEY
+          ? { apiKey: process.env.OPENAI_API_KEY }
+          : {}),
       },
     });
 

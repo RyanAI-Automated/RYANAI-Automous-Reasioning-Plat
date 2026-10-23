@@ -1,4 +1,0 @@
-{
-    "cmake.sourceDirectory": "${workspaceFolder}/native/local-inference",
-    "python-envs.defaultEnvManager": "ms-python.python:system"
-}

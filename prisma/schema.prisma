@@ -31,40 +31,18 @@ enum AgentStatus {
 // ==========================================
 
 model User {
-  id             String          @id @default(uuid())
-  email          String          @unique
-  passwordHash   String          @map("password_hash")
-  name           String?
-  username       String?
-  role           String          @default("USER")
-  provider       String?
-  googleTokens   Json?           @map("google_tokens")
-  isSubscribed   Boolean         @default(false) @map("is_subscribed")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  
-  // Relations
-  sessions       Session[]
-  agentSessions  AgentSession[]
-  agentInstances AgentInstance[]
-  memoryVaults   MemoryVault[]
-  subscription   Subscription?
+  id            String          @id @default(uuid())
+  email         String          @unique
+  passwordHash  String          @map("password_hash")
+  name          String?         @map("name")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  sessions      Session[]
+  agentSessions AgentSession[]
+  memories      MemoryVault[]
+  agents        AgentInstance[]
 
   @@map("users")
-}
-
-model Subscription {
-  id           String    @id @default(uuid())
-  userId       String    @unique @map("user_id")
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planTier     String    @default("FREE") @map("plan_tier")
-  status       String    @default("ACTIVE")
-  startDate    DateTime  @default(now()) @map("start_date")
-  endDate      DateTime? @map("end_date")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  @@map("subscriptions")
 }
 
 model Session {

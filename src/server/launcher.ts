@@ -1,4 +1,3 @@
-// File path: ./src/server/launcher.ts
 // Load local configuration before tracing and application imports.
 import '../loadEnv.js';
 
@@ -10,7 +9,9 @@ import Fastify, { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyRedis from '@fastify/redis';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyCors from '@fastify/cors';
 import pg from 'pg';
+import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 
@@ -19,13 +20,15 @@ import { API_ROUTES } from '../config/core.js';
 import { getReasoningAgent } from '../agent/engine.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
-import { commsPlugin } from './comms.js';
+import authSigninRoute from '../api/auth/signin.js';
+import { commsPlugin } from './comms/index.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
-import { pool } from '../database/db.js';
+
+const { Pool } = pg;
 
 console.log('🚀 RyanAI Platform Initialization');
 console.log('==================================\n');
@@ -50,13 +53,13 @@ const config = {
 };
 
 console.log(`📋 Configuration:`);
-console.log(`     - Node Env: ${config.nodeEnv}`);
-console.log(`     - Host: ${config.host}:${config.port}`);
+console.log(`    - Node Env: ${config.nodeEnv}`);
+console.log(`    - Host: ${config.host}:${config.port}`);
 console.log(
-  `     - Database: ${process.env.DATABASE_URL ? 'URL supplied' : 'Local default'} (connection not yet checked)`,
+  `    - Database: ${process.env.DATABASE_URL ? 'URL supplied' : 'Local default'} (connection not yet checked)`,
 );
 console.log(
-  `     - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Unauthenticated local default'} (connection not yet checked)\n`,
+  `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Unauthenticated local default'} (connection not yet checked)\n`,
 );
 
 // Initialize Fastify instance with trustProxy and telemetry-aware logger
@@ -75,25 +78,20 @@ const fastify = Fastify({
   },
 });
 
-// CORS Hook
-fastify.addHook('onRequest', (req, reply, done) => {
-  reply.header('Access-Control-Allow-Origin', '*');
-  reply.header(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS',
-  );
-  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') {
-    reply.code(200).send();
-    return;
-  }
-  done();
+// Initialize and decorate Prisma Client
+const prisma = new PrismaClient();
+fastify.decorate('prisma', prisma);
+
+// Register CORS Plugin
+await fastify.register(fastifyCors, {
+  origin: true,
+  credentials: true,
 });
 
 installAuthentication(fastify);
 
-// Database pool reference
-let dbPool: pg.Pool = pool;
+// Database pool
+let dbPool: pg.Pool;
 
 // Service health status
 const serviceStatus = {
@@ -124,6 +122,7 @@ function registerCoreRoutes() {
     };
   };
 
+  // Collision-free health check registrations
   fastify.get('/health', healthCheck);
   if ((API_ROUTES.healthPath as string) !== '/health') {
     fastify.get(API_ROUTES.healthPath, healthCheck);
@@ -132,10 +131,12 @@ function registerCoreRoutes() {
     fastify.get('/api/health', healthCheck);
   }
 
+  // Sentry integration test route
   fastify.get('/debug-sentry', async () => {
     throw new Error('RyanAI Sentry Integration Test Exception!');
   });
 
+  // Root
   fastify.get('/', async () => {
     return {
       status: 'online',
@@ -196,6 +197,7 @@ function registerCoreRoutes() {
     }
   };
 
+  // Collision-free reasoning endpoint registrations
   fastify.post<{ Body: { prompt?: string; model?: string } }>(
     API_ROUTES.reasonPath,
     handleReasoningRequest,
@@ -207,6 +209,7 @@ function registerCoreRoutes() {
     );
   }
 
+  // Reasoning stream endpoint
   fastify.post<{
     Body: { prompt?: string; sessionId?: string; model?: string };
   }>(API_ROUTES.streamPath, async (request, reply) => {
@@ -263,6 +266,7 @@ function registerCoreRoutes() {
     }
   });
 
+  // MCP routes
   fastify.post<{
     Body: { action?: string; tool?: string; payload?: Record<string, unknown> };
   }>('/api/mcp', async (request, reply) => {
@@ -284,6 +288,7 @@ function registerCoreRoutes() {
     });
   });
 
+  // System info
   fastify.get('/api/system', async () => {
     return {
       platform: process.platform,
@@ -302,6 +307,13 @@ function registerCoreRoutes() {
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
+    dbPool = new Pool({
+      connectionString: config.database.url,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
+
     const result = await dbPool.query('SELECT NOW()');
 
     console.log(`✓ Database connected: ${result.rows[0].now}`);
@@ -352,6 +364,7 @@ async function verifyRedis() {
 async function registerPlugins() {
   const redis = await connectRedis(config.redis.url);
 
+  // 1. Register foundational Fastify plugins first (Websocket, Redis, Rate Limit)
   await fastify.register(fastifyWebsocket);
 
   await fastify.register(fastifyRedis, {
@@ -365,10 +378,14 @@ async function registerPlugins() {
     redis: fastify.redis,
   });
 
+  // 2. Register WebSocket routes after rate-limiting and redis are fully decorated
   await registerWebSocketRoutes(fastify);
+
   registerCoreRoutes();
 
+  // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
+  await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
   await fastify.register(slackInteractionsPlugin);
@@ -394,9 +411,10 @@ async function start() {
 
     console.log(`\n✓ RyanAI API Gateway is running!`);
     console.log(`\n📍 Endpoints:`);
-    console.log(`     - Root: http://${config.host}:${config.port}/`);
-    console.log(`     - Health: http://${config.host}:${config.port}/health`);
-    console.log(`     - System: http://${config.host}:${config.port}/api/system`);
+    console.log(`    - Root: http://${config.host}:${config.port}/`);
+    console.log(`    - Health: http://${config.host}:${config.port}/health`);
+    console.log(`    - System: http://${config.host}:${config.port}/api/system`);
+    console.log(`    - Signin: http://${config.host}:${config.port}/signin`);
     console.log(`\n🟢 All services ready!\n`);
 
     serviceStatus.api = true;
@@ -406,9 +424,11 @@ async function start() {
   }
 }
 
+// Graceful shutdown hooks
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   if (dbPool) await dbPool.end();
+  if (prisma) await prisma.$disconnect();
   await fastify.close();
   process.exit(0);
 };

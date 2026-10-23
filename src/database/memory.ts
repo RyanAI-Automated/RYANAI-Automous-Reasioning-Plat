@@ -1,6 +1,5 @@
-// File path: ./src/database/memory.ts
+// src/database/memory.ts
 import { db } from './db';
-import { db } from '../database/db.js';
 
 interface SaveSessionParams {
   taskPayload: string;
@@ -23,9 +22,9 @@ export class MemoryRepository {
           finalValidation: params.finalValidation,
           memoryLogs: {
             create: [
-              { sessionId: "active-session", brainSource: 'logic', content: params.logicPlan },
-              { sessionId: "active-session", brainSource: 'primary', content: params.primarySynthesis },
-              { sessionId: "active-session", brainSource: 'secondary', content: params.finalValidation }
+              { brainSource: 'logic', content: params.logicPlan },
+              { brainSource: 'primary', content: params.primarySynthesis },
+              { brainSource: 'secondary', content: params.finalValidation }
             ]
           }
         },

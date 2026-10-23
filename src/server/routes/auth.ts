@@ -5,13 +5,13 @@ import type {
   FastifyRequest,
 } from 'fastify';
 import { createContextClient } from '@supabase/server/core';
+import bcrypt from 'bcrypt';
 
-export async function authRoutes(fastify: FastifyInstance) {
-  fastify.post('/api/v1/auth/login', async (request, reply) => {
-    // route implementation
-  });
+// --- Interfaces & Types ---
 
-  // remaining auth routes...
+interface SigninRequestBody {
+  email: string;
+  password: string;
 }
 
 export interface AuthenticatedUser {
@@ -20,28 +20,32 @@ export interface AuthenticatedUser {
   role: 'user' | 'admin';
 }
 
+// Augment Fastify types to include custom request properties and Prisma instance
 declare module 'fastify' {
   interface FastifyRequest {
     authUser: AuthenticatedUser | null;
   }
+  interface FastifyInstance {
+    prisma: any; // Replace 'any' with your generated PrismaClient type if available
+  }
 }
+
+// --- Middleware & Guards (Supabase Auth) ---
 
 /**
  * Verify with Supabase Auth; never trust a decoded token or browser metadata.
  * Attach a non-anonymous authUser after bearer-token verification.
- * Reuses an existing authUser. Roles come from app_metadata. Missing or invalid
- * sessions receive 401. Missing configuration, provider errors with no status or
- * status >= 500, and caught exceptions receive 503.
- * Provider exceptions are converted to responses, with a five-second fetch timeout.
  */
 export async function requireUser(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
   if (request.authUser) return;
+  
   const token = /^Bearer ([^\s]+)$/i.exec(
     request.headers.authorization || '',
   )?.[1];
+  
   if (!token) {
     return reply.code(401).send({ error: 'Sign in to continue.' });
   }
@@ -63,7 +67,9 @@ export async function requireUser(
         },
       },
     });
+
     const { data, error } = await client.auth.getUser(token);
+    
     if (error || !data.user || data.user.is_anonymous) {
       const status =
         error && (!error.status || error.status >= 500) ? 503 : 401;
@@ -74,10 +80,10 @@ export async function requireUser(
             : 'Invalid or expired session. Please sign in again.',
       });
     }
+
     request.authUser = {
       id: data.user.id,
       email: data.user.email,
-      // app_metadata can only be assigned by a trusted server/admin.
       role: data.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
     };
   } catch {
@@ -89,7 +95,6 @@ export async function requireUser(
 
 /**
  * Require a verified user, responding with 403 unless authUser has the admin role.
- * Preserves authentication error responses from requireUser.
  */
 export async function requireAdmin(
   request: FastifyRequest,
@@ -102,36 +107,46 @@ export async function requireAdmin(
   }
 }
 
+// --- Global Hook Installer ---
+
 /**
  * Install authentication before routes, including WebSocket upgrades.
- * Allow OPTIONS, public health/index routes, retired login/logout routes, and webhooks
- * with their own signature checks. Reasoning and verification routes require a user;
- * all remaining routes require an admin.
  */
 export function installAuthentication(fastify: FastifyInstance) {
   fastify.decorateRequest('authUser', null);
-  // Run after onRequest rate limits, before route handlers or websocket upgrades.
+
   fastify.addHook('preValidation', async (request, reply) => {
     const path = request.url.split('?')[0];
     if (request.method === 'OPTIONS') return;
+    
     if (
       ['GET', 'HEAD'].includes(request.method) &&
       ['/', '/health', '/api/health'].includes(path)
-    )
+    ) {
       return;
-    // These routes perform their own provider-signature verification.
+    }
+
+    // Webhooks with their own signature verification
     if (
       request.method === 'POST' &&
-      ['/api/slack/interactions', '/api/webhooks/twilio/whatsapp'].includes(
-        path,
-      )
-    )
+      ['/api/slack/interactions', '/api/webhooks/twilio/whatsapp'].includes(path)
+    ) {
       return;
+    }
+
+    // Public auth signin route
+    if (request.method === 'POST' && path === '/api/auth/signin') {
+      return;
+    }
+
+    // Retired legacy login/logout routes
     if (
       request.method === 'POST' &&
       ['/api/auth/login', '/api/auth/logout'].includes(path)
-    )
+    ) {
       return;
+    }
+
     if (
       (request.method === 'POST' &&
         ['/api/reason', '/api/reasoning/stream'].includes(path)) ||
@@ -139,13 +154,65 @@ export function installAuthentication(fastify: FastifyInstance) {
     ) {
       return requireUser(request, reply);
     }
-    // Approvals, communications, metrics and shared websocket channels are admin-only.
+
     return requireAdmin(request, reply);
   });
 }
 
-/** Register session verification and respond with 410 for retired login/logout endpoints. */
+// --- Fastify Plugin Registration ---
+
 export const authPlugin: FastifyPluginAsync = async (fastify) => {
+  // 1. Prisma-backed local sign-in route (/api/auth/signin)
+  fastify.post('/api/auth/signin', async (request: FastifyRequest<{ Body: SigninRequestBody }>, reply: FastifyReply) => {
+    const { email, password } = request.body ?? {};
+
+    if (!email || !password) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Both email and password are required.',
+      });
+    }
+
+    try {
+      const user = await fastify.prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user || !user.password) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          message: 'Invalid email or password.',
+        });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+
+      if (!isPasswordValid) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          message: 'Invalid email or password.',
+        });
+      }
+
+      const token = fastify.jwt ? fastify.jwt.sign({ id: user.id, email: user.email }) : null;
+
+      return reply.status(200).send({
+        success: true,
+        message: 'Signed in successfully.',
+        ...(token && { token }),
+      });
+
+    } catch (error: any) {
+      request.log.error(error, '[Auth] Database error encountered during signin');
+
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: 'Service temporarily unavailable. Please try again later.',
+      });
+    }
+  });
+
+  // 2. Session verification route
   fastify.get(
     '/api/auth/verify',
     { preHandler: requireUser },
@@ -155,13 +222,11 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
     }),
   );
 
-  // Retire the separate shared-password/cookie identity. Accounts and sign-out
-  // now use Supabase Auth directly, including its refresh-token lifecycle.
+  // 3. Retire legacy shared-password/cookie endpoints
   for (const path of ['/api/auth/login', '/api/auth/logout']) {
     fastify.post(path, async (_request, reply) =>
       reply.code(410).send({
-        error:
-          'Use the application sign-in and sign-out controls (Supabase Auth).',
+        error: 'Use the application sign-in and sign-out controls.',
       }),
     );
   }

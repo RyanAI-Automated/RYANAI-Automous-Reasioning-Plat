@@ -1,28 +1,11 @@
-// File path: ./src/database/db.ts
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
-import pkg from 'pg';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 
-const { Pool } = pkg;
-
-// 1. Explicit PostgreSQL Connection Pool Export
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/ryanai';
-export const pool = new Pool({ connectionString });
-
-pool.on('error', (err) => {
-  console.error('Unexpected PostgreSQL pool error:', err.message);
-});
-
-// 2. Prisma Client Export
-export const db = new PrismaClient();
-export default db;
-
-// 3. Local JSON User Store Fallback
 const DB_PATH = path.resolve(process.cwd(), 'data');
 const USERS_FILE = path.join(DB_PATH, 'users.json');
 
+// Ensure database directory and storage file exist
 if (!fs.existsSync(DB_PATH)) {
   fs.mkdirSync(DB_PATH, { recursive: true });
 }
@@ -57,5 +40,7 @@ export function saveUser(user: UserRecord): void {
 }
 
 export function hashPassword(password: string): string {
+  // Note: For high-security production apps, consider bcrypt or argon2. 
+  // SHA-256 with crypto works well for lightweight local JSON stores.
   return crypto.createHash('sha256').update(password).digest('hex');
 }

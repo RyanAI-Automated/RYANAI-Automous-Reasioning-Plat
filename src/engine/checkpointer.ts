@@ -1,6 +1,5 @@
-// File path: ./src/engine/checkpointer.ts
+// src/engine/checkpointer.ts
 import { db } from '../database/db';
-import { db } from '../database/db.js';
 
 export interface ThreadCheckpoint {
   threadId: string;
@@ -9,11 +8,15 @@ export interface ThreadCheckpoint {
 }
 
 export class RyanAICheckpointer {
+  /**
+   * Append a checkpoint record for the thread, serializing state as JSON.
+   * Serialization and database failures are caught; completion does not confirm a write.
+   */
   static async saveCheckpoint(threadId: string, step: number, state: unknown): Promise<void> {
     try {
       await db.agentMemory.create({
         data: {
-          sessionId: threadId,
+          sessionId: threadId, // Mapping thread to session ID
           brainSource: `checkpoint_step_${step}`,
           content: JSON.stringify(state),
           metadata: { step, timestamp: Date.now() }
@@ -25,6 +28,10 @@ export class RyanAICheckpointer {
     }
   }
 
+  /**
+   * Return the newest memory record for the thread as parsed state and a step (default 0).
+   * Returns null when no record exists or when querying or parsing fails.
+   */
   static async getLatestCheckpoint(threadId: string): Promise<{ step: number; state: unknown } | null> {
     try {
       const latestLog = await db.agentMemory.findFirst({

@@ -1,6 +1,5 @@
 // src/engine/dispatcher.ts
 import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains';
-import { db } from '../database/db.js';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 export interface SubTask {

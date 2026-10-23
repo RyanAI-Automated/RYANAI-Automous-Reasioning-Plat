@@ -1,5 +1,7 @@
-name: Security - Scan & Analyze
+name: Security - Scan and Audit
 
+# CodeQL lives in codeql.yml, secret scanning in secret-scan.yml and
+# container image scanning in container-security.yml.
 on:
   push:
     branches: [main, master]
@@ -7,14 +9,19 @@ on:
     branches: [main, master]
   schedule:
     - cron: '0 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
   security-events: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   trivy:
-    name: Trivy Filesystem Scan
+    name: Trivy filesystem scan
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -25,53 +32,47 @@ jobs:
       - name: Run Trivy scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: '0'
-          skip-dirs: 'node_modules,**/node_modules,.cache'
-          scanners: 'vuln'
+          skip-dirs: node_modules,**/node_modules,.cache,src-tauri/target
+          scanners: vuln
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
+          category: trivy-fs
 
   dependencies:
-    name: Check Dependencies
+    name: Dependency audit
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - name: Install dependencies
-        run: |
-          if [ -f pnpm-lock.yaml ]; then
-            corepack enable && corepack prepare pnpm@latest --activate
-            pnpm install --no-frozen-lockfile
-          elif [ -f package-lock.json ]; then
-            npm ci --legacy-peer-deps
-          else
-            npm install --legacy-peer-deps
-          fi
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
 
-      - name: Audit dependencies
-        run: |
-          if [ -f pnpm-lock.yaml ]; then
-            pnpm audit --audit-level high || true
-          else
-            npm audit --audit-level=high || true
-          fi
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit full dependency tree (informational)
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
       - name: Check Snyk token availability
         id: snyk-token
@@ -85,44 +86,9 @@ jobs:
           fi
 
       - name: Snyk scan
-        uses: snyk/actions/node@0.4.0
         if: steps.snyk-token.outputs.configured == 'true'
+        uses: snyk/actions/node@0.4.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-  codeql:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    strategy:
-      matrix:
-        language: ['javascript-typescript']
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: |
-          if [ -f pnpm-lock.yaml ]; then
-            corepack enable && corepack prepare pnpm@latest --activate
-            pnpm install --no-frozen-lockfile
-          elif [ -f package-lock.json ]; then
-            npm ci --legacy-peer-deps
-          else
-            npm install --legacy-peer-deps
-          fi
-
-      - name: CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+          args: --severity-threshold=high
