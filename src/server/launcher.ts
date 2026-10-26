@@ -151,10 +151,16 @@ function registerCoreRoutes() {
     return JSON.stringify(content) ?? String(content);
   }
 
-  async function runReasoning(prompt: string, model?: string) {
-    const result = await getReasoningAgent(model).invoke({
-      messages: [{ role: 'user', content: prompt }],
-    });
+  async function runReasoning(
+    prompt: string,
+    model?: string,
+    user?: FastifyRequest['authUser'],
+  ) {
+    // The memory and workspace tools read the verified user from this config.
+    const result = await getReasoningAgent(model).invoke(
+      { messages: [{ role: 'user', content: prompt }] },
+      { configurable: { userId: user?.id, role: user?.role } },
+    );
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
@@ -184,7 +190,7 @@ function registerCoreRoutes() {
     }
 
     try {
-      return await runReasoning(prompt, request.body?.model);
+      return await runReasoning(prompt, request.body?.model, request.authUser);
     } catch (err) {
       fastify.log.error({ err }, 'Reasoning request failed');
       return reply.code(502).send({
@@ -248,7 +254,7 @@ function registerCoreRoutes() {
         status: 'processing',
         message: `Running reasoning for ${sessionId || 'default'}...`,
       });
-      const result = await runReasoning(prompt, request.body?.model);
+      const result = await runReasoning(prompt, request.body?.model, request.authUser);
       sendEvent({
         status: 'complete',
         result: result.output,

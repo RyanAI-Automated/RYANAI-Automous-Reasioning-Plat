@@ -13,9 +13,10 @@ export const reasonPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      const result = await getReasoningAgent(request.body?.model).invoke({
-        messages: [{ role: 'user', content: prompt }],
-      });
+      const result = await getReasoningAgent(request.body?.model).invoke(
+        { messages: [{ role: 'user', content: prompt }] },
+        { configurable: { userId: request.authUser?.id, role: request.authUser?.role } },
+      );
 
       const lastMessage = result.messages[result.messages.length - 1];
       const output = typeof lastMessage?.content === 'string'

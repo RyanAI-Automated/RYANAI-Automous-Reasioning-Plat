@@ -1,8 +1,8 @@
 import { Annotation, MessagesAnnotation, StateGraph, START, END } from '@langchain/langgraph';
-import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { commsSubAgent, complianceSubAgent } from './subAgents.js';
 import { checkpointer } from './approvalEngine.js';
+import { createChatModel } from '../config/llm.js';
 
 // 1. Extend MessagesAnnotation to track the routing target key
 export const SupervisorStateAnnotation = Annotation.Root({
@@ -23,10 +23,9 @@ const routeSchema = z.object({
   reasoning: z.string().describe('Reasoning behind the delegation or termination decision.'),
 });
 
-const supervisorLlm = new ChatOpenAI({
-  modelName: 'gpt-4o',
-  temperature: 0,
-}).withStructuredOutput(routeSchema, { name: 'supervisor_route' });
+const supervisorLlm = createChatModel().withStructuredOutput(routeSchema, {
+  name: 'supervisor_route',
+});
 
 // 2. Supervisor decision node
 async function supervisorNode(state: typeof SupervisorStateAnnotation.State) {

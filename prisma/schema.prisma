@@ -196,6 +196,7 @@ model MemoryEntry {
   category  String    @default("preference")
   createdAt DateTime? @default(now()) @map("created_at")
 
+  @@unique([userId, key])
   @@index([userId])
   @@map("memory_entries")
 }

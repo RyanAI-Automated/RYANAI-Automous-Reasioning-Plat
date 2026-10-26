@@ -1,14 +1,11 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { ChatOpenAI } from '@langchain/openai';
 import { tool } from '@langchain/core/tools';
 import { SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 import { sendWhatsAppTool } from './tools/whatsappTool.js';
+import { createChatModel } from '../config/llm.js';
 
-const llm = new ChatOpenAI({
-  modelName: 'gpt-4o',
-  temperature: 0,
-});
+const llm = createChatModel();
 
 /**
  * Compliance verification tool definition
