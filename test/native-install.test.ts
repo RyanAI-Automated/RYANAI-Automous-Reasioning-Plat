@@ -32,7 +32,10 @@ function evaluateSubstitution(expression: string, cudaPath?: string): string {
   });
   expect(result.error).toBeUndefined();
   expect(result.status, result.stderr).toBe(0);
-  return result.stdout.trim();
+  const output = result.stdout.trim();
+  return output.length >= 2 && output.startsWith('"') && output.endsWith('"')
+    ? output.slice(1, -1)
+    : output;
 }
 
 describe("optional native addon installation", () => {
@@ -86,9 +89,7 @@ describe("optional native addon installation", () => {
   }, 30_000);
 
   it("resolves node-addon-api headers and GYP dependency through the shell", () => {
-    const includePath = JSON.parse(
-      evaluateSubstitution(target.include_dirs[0]),
-    );
+    const includePath = evaluateSubstitution(target.include_dirs[0]);
     expect(existsSync(path.join(includePath, "napi.h"))).toBe(true);
     const dependency = evaluateSubstitution(target.dependencies[0]);
     expect(dependency).toMatch(/:nothing$/);

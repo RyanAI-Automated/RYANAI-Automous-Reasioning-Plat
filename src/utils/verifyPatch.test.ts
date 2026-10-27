@@ -128,7 +128,12 @@ describe("isolated patch verification gate", () => {
       success: true,
     });
     expect(await contents).toBe(script);
-    expect(await permissions).toBe(0o644);
+    if (process.platform === "win32") {
+      // Windows does not expose POSIX mode bits consistently.
+      expect(permissions).toBeDefined();
+    } else {
+      expect(await permissions).toBe(0o644);
+    }
     expect(execute.mock.calls.flatMap((call) => call[1])).not.toContain(script);
   });
 

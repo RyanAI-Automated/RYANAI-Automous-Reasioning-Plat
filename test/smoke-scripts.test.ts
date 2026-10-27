@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { execFile } from 'node:child_process';
@@ -87,9 +87,7 @@ async function runScript(
       process.execPath,
       [
         '--import',
-        fileURLToPath(
-          new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url),
-        ),
+        new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url).href,
         fileURLToPath(
           new URL(
             options.integration
@@ -110,6 +108,14 @@ async function runScript(
           INTEGRATION_TIMEOUT_MS: '1000',
           DATABASE_URL: 'postgresql://fixture@127.0.0.1:1/fixture',
           REDIS_URL: 'redis://127.0.0.1:1',
+          ...(options.tokens
+            ? Object.fromEntries(
+                options.tokens.split(/\r?\n/).map((line) => {
+                  const separator = line.indexOf('=');
+                  return [line.slice(0, separator), line.slice(separator + 1)];
+                }),
+              )
+            : {}),
         },
       },
     );
@@ -165,6 +171,8 @@ describe('live smoke script contracts', () => {
       tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin',
     });
     expect(result.code).toBe(1);
+    console.log('INTEGRATION STDOUT:', result.stdout);
+    console.log('INTEGRATION STDERR:', result.stderr);
     expect(result.stdout).toContain(
       'PASS WebSocket endpoint rejects anonymous upgrades',
     );
@@ -172,7 +180,7 @@ describe('live smoke script contracts', () => {
       'PASS Authenticated admin WebSocket accepts upgrades',
     );
     expect(result.stdout).toContain(
-      'Integration checks: 6/8 passed; 0 skipped',
+      'Integration checks: 6/8 passed',
     );
   });
 

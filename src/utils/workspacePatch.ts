@@ -211,7 +211,7 @@ async function snapshot(root: string): Promise<Snapshot> {
   const files: Snapshot["files"] = new Map();
   let size = 0;
   for (const entry of entries.split("\0").filter(Boolean)) {
-    const match = /^(\d+) ([a-f0-9]+) (\d)\t([\s\S]+)\$/.exec(entry);
+    const match = /^(\d+) ([a-f0-9]+) (\d)\t([\s\S]+)$/.exec(entry);
     if (!match || match[3] !== "0")
       throw new Error("Resolve the Git index conflicts before patching.");
     const [, mode, , , relative] = match;

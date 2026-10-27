@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 
 const DOCKER = "/usr/bin/docker";
 const DAEMON = "unix:///var/run/docker.sock";
-const IMAGE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}\$/;
+const IMAGE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/:-]*@sha256:[a-f0-9]{64}$/;
 
 const VERIFY = `
 cp -R /input/. /work/

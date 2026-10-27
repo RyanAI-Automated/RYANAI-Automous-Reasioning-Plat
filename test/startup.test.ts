@@ -78,7 +78,7 @@ describe('Redis startup', () => {
     directories.push(cwd);
     try {
       const result = await exec(process.execPath, [
-        '--import', fileURLToPath(new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url)),
+        '--import', new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url).href,
         fileURLToPath(new URL('../scripts/test-integration.ts', import.meta.url)),
       ], {
         cwd,
@@ -89,12 +89,13 @@ describe('Redis startup', () => {
           DATABASE_URL: 'postgresql://fixture@127.0.0.1:1/fixture',
           REDIS_URL: `redis://127.0.0.1:${address.port}`,
           API_BASE_URL: 'http://127.0.0.1:1', WEB_BASE_URL: 'http://127.0.0.1:1',
+          MCP_URL: 'http://127.0.0.1:1',
           INTEGRATION_TIMEOUT_MS: '200',
         },
       }).catch((error: { code: number; stdout: string; stderr: string }) => error);
       expect(result).toMatchObject({ code: 1 });
       expect(result.stderr).toContain('FAIL Redis connection: Redis connection or PING timed out');
-      expect(result.stdout).toContain('Integration checks: 0/7 passed');
+      expect(result.stdout).toContain('Integration checks: 0/8 passed');
     } finally {
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -3,12 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+
 
 const loader = new URL('./loadEnv.ts', import.meta.url).href;
-const tsx = fileURLToPath(
-  new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url),
-);
+const tsx = new URL('../node_modules/tsx/dist/loader.mjs', import.meta.url).href;
 const directories: string[] = [];
 
 function runWithEnv(contents?: string, overrides: NodeJS.ProcessEnv = {}) {

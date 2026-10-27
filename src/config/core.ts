@@ -6,7 +6,7 @@ export const API_ROUTES = Object.freeze({
 });
 
 export const UI_CONFIG = Object.freeze({
-  defaultRoute: '/dashboard',
+  defaultRoute: 'landing',
 });
 
 export const RYANAI_CORE = Object.freeze({
