@@ -36,7 +36,7 @@ export async function invokeReasoningAgent({
   return {
     ...result,
     messages: result.messages.filter(
-      (message) =>
+   (message: (typeof result.messages)[number]) =>
         !(typeof message.content === 'string' && message.content.startsWith(MEMORY_CONTEXT_PREFIX)),
     ),
   };
