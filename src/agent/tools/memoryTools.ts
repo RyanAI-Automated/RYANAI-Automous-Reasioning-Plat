@@ -1,7 +1,16 @@
 import { tool } from '@langchain/core/tools';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { z } from 'zod';
-import { prisma } from '../../lib/prisma.js';
+
+/**
+ * Load the Prisma client on first use. The shared client is created when its
+ * module loads, and the engine imports this file, so a static import would
+ * create a database client in every test and script that loads the engine.
+ */
+async function getPrisma() {
+  const { prisma } = await import('../../lib/prisma.js');
+  return prisma;
+}
 
 /**
  * Read the signed-in user's id from the run config (configurable.userId).
@@ -19,6 +28,7 @@ function requireUserId(config?: RunnableConfig): string {
 export const rememberFactTool = tool(
   async ({ key, value, category }, config) => {
     const userId = requireUserId(config);
+    const prisma = await getPrisma();
     // One row for each (userId, key). The unique index makes the upsert atomic.
     const entry = await prisma.memoryEntry.upsert({
       where: { userId_key: { userId, key } },
@@ -42,6 +52,7 @@ export const rememberFactTool = tool(
 export const recallMemoryTool = tool(
   async ({ query }, config) => {
     const userId = requireUserId(config);
+    const prisma = await getPrisma();
     const entries = await prisma.memoryEntry.findMany({
       where: {
         userId,
@@ -68,6 +79,7 @@ export const recallMemoryTool = tool(
 export const forgetMemoryTool = tool(
   async ({ key }, config) => {
     const userId = requireUserId(config);
+    const prisma = await getPrisma();
     const { count } = await prisma.memoryEntry.deleteMany({ where: { userId, key } });
     return JSON.stringify({ deleted: count });
   },
