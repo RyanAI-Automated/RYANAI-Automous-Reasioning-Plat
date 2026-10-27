@@ -1,6 +1,7 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { commsTools } from './tools/commsTools.js';
 import { memoryTools } from './tools/memoryTools.js';
+import { scheduleTools } from './tools/scheduleTools.js';
 import { workspaceTools } from './tools/workspaceTools.js';
 import { AUTONOMOUS_REASONING_SKILL } from '../skills/index.js';
 import modelCatalog from '../../models/catalog.json' with { type: 'json' };
@@ -40,7 +41,7 @@ export function getReasoningAgent(requestedModel = defaultModel) {
   if (!reasoningAgent) {
     reasoningAgent = createReactAgent({
       llm: createChatModel(model),
-      tools: [...commsTools, ...memoryTools, ...workspaceTools],
+      tools: [...commsTools, ...memoryTools, ...scheduleTools, ...workspaceTools],
       stateModifier: AUTONOMOUS_REASONING_SKILL.systemPrompt,
     });
     reasoningAgents.set(model, reasoningAgent);

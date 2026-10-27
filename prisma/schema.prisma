@@ -200,3 +200,21 @@ model MemoryEntry {
   @@index([userId])
   @@map("memory_entries")
 }
+
+model ScheduledTask {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  prompt          String    @db.Text
+  runAt           DateTime  @map("run_at")
+  intervalMinutes Int?      @map("interval_minutes")
+  status          String    @default("active")
+  lastRunAt       DateTime? @map("last_run_at")
+  lastResult      String?   @map("last_result") @db.Text
+  lastError       String?   @map("last_error") @db.Text
+  lockedUntil     DateTime? @map("locked_until")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([status, runAt])
+  @@index([userId])
+  @@map("scheduled_tasks")
+}
