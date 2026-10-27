@@ -13,7 +13,7 @@ if (sentryDsn) {
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.NODE_ENV || 'development',
-      integrations: [profiling.nodeProfilingIntegration()],
+      integrations: [profiling.nodeProfilingIntegration() as any],
       tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
       profileSessionSampleRate: 1.0,
       profileLifecycle: 'trace',
