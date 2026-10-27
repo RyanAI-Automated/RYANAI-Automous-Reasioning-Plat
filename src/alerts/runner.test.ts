@@ -14,7 +14,7 @@ const notify = vi.fn();
 const listOpenActions = vi.fn();
 
 const fetcher = (async (url: string) => {
-  if (url.startsWith('https://api.github.com')) {
+  if (url.startsWith('https://api.github.com/')) {
     return reply(githubStatus, { check_runs: githubRuns });
   }
   return reply(healthStatus);
