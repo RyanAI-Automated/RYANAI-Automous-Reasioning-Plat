@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
+export const db = ...; 
 const DB_PATH = path.resolve(process.cwd(), 'data');
 const USERS_FILE = path.join(DB_PATH, 'users.json');
 
