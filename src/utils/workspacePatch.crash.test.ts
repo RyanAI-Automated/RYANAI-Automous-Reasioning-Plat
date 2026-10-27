@@ -92,7 +92,7 @@ async function standardFixture() {
       "fixture",
     ],
   ]) {
-    await execFileAsync("/usr/bin/git", ["-C", root, ...args]);
+    await execFileAsync(process.platform === "win32" ? "git.exe" : "/usr/bin/git", ["-C", root, ...args]);
   }
   return root;
 }

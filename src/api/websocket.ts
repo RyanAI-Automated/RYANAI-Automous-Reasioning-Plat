@@ -15,6 +15,9 @@ interface ConnectionContext {
   subscriptions: Set<string>;
   messageCount: number;
   connectedAt: number;
+  expiryTimer?: ReturnType<typeof setTimeout>;
+  messageWindowTimer?: ReturnType<typeof setTimeout>;
+  closed?: boolean;
 }
 
 const connections = new Map<string, ConnectionContext>();
@@ -23,57 +26,107 @@ const channels = new Map<string, Set<string>>();
 export async function registerWebSocketRoutes(fastify: FastifyInstance) {
   logger.info('Registering WebSocket routes');
 
-  // Upgrade HTTP to WebSocket
-  fastify.get('/ws', { websocket: true, preValidation: requireAdmin, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (socket, request: FastifyRequest) => {
-    const connId = uuid();
-    const auth = extractAuth(request);
+  fastify.get(
+    '/ws',
+    {
+      websocket: true,
+      preValidation: requireAdmin,
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (socket, request: FastifyRequest) => {
+      const connId = uuid();
+      const auth = extractAuth(request);
 
-    const context: ConnectionContext = {
-      id: connId,
-      ws: socket as WebSocket,
-      auth,
-      subscriptions: new Set(),
-      messageCount: 0,
-      connectedAt: Date.now(),
-    };
+      const context: ConnectionContext = {
+        id: connId,
+        ws: socket as WebSocket,
+        auth,
+        subscriptions: new Set(),
+        messageCount: 0,
+        connectedAt: Date.now(),
+        closed: false,
+      };
 
-    connections.set(connId, context);
-    logger.info({ connId, auth: auth?.email }, 'WebSocket connected');
+      connections.set(connId, context);
+      logger.info({ connId, auth: auth?.email }, 'WebSocket connected');
 
-    socket.on('message', async (data: Buffer) => {
-      try {
-        const message = JSON.parse(data.toString()) as WebSocketMessage;
-        context.messageCount += 1;
-        if (context.messageCount > 60) {
-          socket.close(1008, 'Message budget exceeded');
+      context.expiryTimer = setTimeout(() => {
+        if (socket.readyState === socket.OPEN) {
+          socket.close(1008, 'Reauthenticate');
+        }
+      }, 300_000);
+
+      socket.on('message', async (data: Buffer) => {
+        if (context.closed || socket.readyState !== socket.OPEN) return;
+
+        // Start one fixed 60-second window when the first message arrives.
+        if (context.messageCount === 0 && !context.messageWindowTimer) {
+          context.messageWindowTimer = setTimeout(() => {
+            context.messageCount = 0;
+            context.messageWindowTimer = undefined;
+          }, 60_000);
+        }
+
+        // Count every message, including malformed JSON.
+        if (context.messageCount >= 60) {
+          sendError(
+            socket as WebSocket,
+            'RATE_LIMITED',
+            'Message rate limit exceeded',
+          );
+          socket.close(1008, 'Message rate limit exceeded');
           return;
         }
-        await handleMessage(context, message);
-      } catch (err) {
-        logger.error({ err, connId }, 'Message handling error');
-        sendError(socket, 'PARSE_ERROR', 'Invalid message format');
-      }
-    });
 
-    socket.on('close', () => {
-      connections.delete(connId);
-      context.subscriptions.forEach(channel => {
-        const channelSubs = channels.get(channel);
-        if (channelSubs) {
-          channelSubs.delete(connId);
-          if (channelSubs.size === 0) channels.delete(channel);
+        context.messageCount += 1;
+
+        try {
+          const message = JSON.parse(data.toString()) as WebSocketMessage;
+          await handleMessage(context, message);
+        } catch (err) {
+          logger.error({ err, connId }, 'Message handling error');
+          sendError(
+            socket as WebSocket,
+            'PARSE_ERROR',
+            'Invalid message format',
+          );
         }
       });
-      logger.info({ connId }, 'WebSocket disconnected');
-    });
 
-    socket.on('error', (err) => {
-      logger.error({ err, connId }, 'WebSocket error');
-    });
-  });
+      socket.on('close', () => {
+        context.closed = true;
+
+        if (context.expiryTimer) {
+          clearTimeout(context.expiryTimer);
+          context.expiryTimer = undefined;
+        }
+
+        if (context.messageWindowTimer) {
+          clearTimeout(context.messageWindowTimer);
+          context.messageWindowTimer = undefined;
+        }
+
+        connections.delete(connId);
+
+        context.subscriptions.forEach((channel) => {
+          const channelSubs = channels.get(channel);
+          if (channelSubs) {
+            channelSubs.delete(connId);
+            if (channelSubs.size === 0) channels.delete(channel);
+          }
+        });
+
+        context.subscriptions.clear();
+        logger.info({ connId }, 'WebSocket disconnected');
+      });
+
+      socket.on('error', (err) => {
+        logger.error({ err, connId }, 'WebSocket error');
+      });
+    },
+  );
 }
 
-/** Dispatches an inbound WebSocket request/stream message to the right channel handler and sends back a response. */
 async function handleMessage(context: ConnectionContext, message: WebSocketMessage) {
   const { id, type, channel, data } = message;
 

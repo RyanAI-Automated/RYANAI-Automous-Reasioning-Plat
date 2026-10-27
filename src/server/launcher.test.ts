@@ -98,7 +98,7 @@ describe('launcher reasoning routes', () => {
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.headers['access-control-allow-origin']).toBe('*');
+    expect(response.headers['access-control-allow-origin']).toBe('https://frontend.vercel.app');
     expect(response.headers['content-type']).toBe('text/event-stream');
     expect(response.body).toContain('"status":"complete","result":"answer"');
   });
@@ -112,7 +112,7 @@ describe('launcher reasoning routes', () => {
         'access-control-request-method': 'POST',
       },
     });
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(204);
     expect(response.headers['access-control-allow-methods']).toContain('POST');
     expect(response.headers['access-control-allow-headers']).toContain(
       'Content-Type',
