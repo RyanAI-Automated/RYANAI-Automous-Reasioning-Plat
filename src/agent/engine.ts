@@ -1,9 +1,12 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { ChatOpenAI } from '@langchain/openai';
 import { commsTools } from './tools/commsTools.js';
+import { memoryTools } from './tools/memoryTools.js';
+import { scheduleTools } from './tools/scheduleTools.js';
+import { workspaceTools } from './tools/workspaceTools.js';
 import { AUTONOMOUS_REASONING_SKILL } from '../skills/index.js';
 import modelCatalog from '../../models/catalog.json' with { type: 'json' };
 import { RYANAI_CORE } from '../config/core.js';
+import { createChatModel, defaultModel } from '../config/llm.js';
 
 if (!RYANAI_CORE.activeSkills.includes('autonomous-reasoning')) {
   throw new Error(
@@ -12,7 +15,6 @@ if (!RYANAI_CORE.activeSkills.includes('autonomous-reasoning')) {
 }
 
 const catalogModels = modelCatalog.models.map((model) => model.id);
-const defaultModel = process.env.OPENAI_MODEL || modelCatalog.defaultModel;
 const allowedModels = new Set(
   (process.env.OPENAI_ALLOWED_MODELS || catalogModels.join(','))
     .split(',')
@@ -37,22 +39,9 @@ export function getReasoningAgent(requestedModel = defaultModel) {
 
   let reasoningAgent = reasoningAgents.get(model);
   if (!reasoningAgent) {
-    const llm = new ChatOpenAI({
-      modelName: model,
-      temperature: 0,
-      configuration: {
-        ...(process.env.OPENAI_BASE_URL
-          ? { baseURL: process.env.OPENAI_BASE_URL }
-          : {}),
-        ...(process.env.OPENAI_API_KEY
-          ? { apiKey: process.env.OPENAI_API_KEY }
-          : {}),
-      },
-    });
-
     reasoningAgent = createReactAgent({
-      llm,
-      tools: commsTools,
+      llm: createChatModel(model),
+      tools: [...commsTools, ...memoryTools, ...scheduleTools, ...workspaceTools],
       stateModifier: AUTONOMOUS_REASONING_SKILL.systemPrompt,
     });
     reasoningAgents.set(model, reasoningAgent);

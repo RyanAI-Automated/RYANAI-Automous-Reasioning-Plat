@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { getReasoningAgent } from '../../agent/engine.js';
+import { invokeReasoningAgent } from '../../agent/invoke.js';
 
 /**
  * Register a reasoning endpoint returning the final output and full message trace.
@@ -13,8 +13,10 @@ export const reasonPlugin: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      const result = await getReasoningAgent(request.body?.model).invoke({
-        messages: [{ role: 'user', content: prompt }],
+      const result = await invokeReasoningAgent({
+        prompt,
+        model: request.body?.model,
+        user: request.authUser,
       });
 
       const lastMessage = result.messages[result.messages.length - 1];

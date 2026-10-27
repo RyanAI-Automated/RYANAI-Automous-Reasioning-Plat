@@ -17,7 +17,8 @@ import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 
 import { API_ROUTES } from '../config/core.js';
 
-import { getReasoningAgent } from '../agent/engine.js';
+import { invokeReasoningAgent } from '../agent/invoke.js';
+import { startScheduler } from '../scheduler/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
@@ -26,6 +27,7 @@ import { approvalRoutes } from './routes/approvalRoutes.js';
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
+import { tasksRoutes } from './routes/tasks.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 
 const { Pool } = pg;
@@ -151,10 +153,12 @@ function registerCoreRoutes() {
     return JSON.stringify(content) ?? String(content);
   }
 
-  async function runReasoning(prompt: string, model?: string) {
-    const result = await getReasoningAgent(model).invoke({
-      messages: [{ role: 'user', content: prompt }],
-    });
+  async function runReasoning(
+    prompt: string,
+    model?: string,
+    user?: FastifyRequest['authUser'],
+  ) {
+    const result = await invokeReasoningAgent({ prompt, model, user });
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
@@ -184,7 +188,7 @@ function registerCoreRoutes() {
     }
 
     try {
-      return await runReasoning(prompt, request.body?.model);
+      return await runReasoning(prompt, request.body?.model, request.authUser);
     } catch (err) {
       fastify.log.error({ err }, 'Reasoning request failed');
       return reply.code(502).send({
@@ -248,7 +252,7 @@ function registerCoreRoutes() {
         status: 'processing',
         message: `Running reasoning for ${sessionId || 'default'}...`,
       });
-      const result = await runReasoning(prompt, request.body?.model);
+      const result = await runReasoning(prompt, request.body?.model, request.authUser);
       sendEvent({
         status: 'complete',
         result: result.output,
@@ -391,6 +395,7 @@ async function registerPlugins() {
   await fastify.register(slackInteractionsPlugin);
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
+  await fastify.register(tasksRoutes);
 }
 
 // ============================================================================
@@ -418,6 +423,12 @@ async function start() {
     console.log(`\n🟢 All services ready!\n`);
 
     serviceStatus.api = true;
+
+    // Scheduled tasks start AI runs with no person present, and those runs cost
+    // money. Turn them on with an explicit setting.
+    if (process.env.SCHEDULER_ENABLED === 'true') {
+      stopScheduler = startScheduler();
+    }
   } catch (err) {
     fastify.log.fatal(err);
     process.exit(1);
@@ -425,8 +436,10 @@ async function start() {
 }
 
 // Graceful shutdown hooks
+let stopScheduler: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
+  stopScheduler?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
   await fastify.close();

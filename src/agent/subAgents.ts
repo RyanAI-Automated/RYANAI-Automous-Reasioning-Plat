@@ -1,33 +1,29 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { ChatOpenAI } from '@langchain/openai';
 import { tool } from '@langchain/core/tools';
 import { SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 import { sendWhatsAppTool } from './tools/whatsappTool.js';
+import { createChatModel } from '../config/llm.js';
 
-const llm = new ChatOpenAI({
-  modelName: 'gpt-4o',
-  temperature: 0,
-});
+const llm = createChatModel();
 
 /**
  * Compliance verification tool definition
  */
 export const verifyComplianceTool = tool(
   async ({ deploymentId, framework }) => {
-    // Audit check implementation
+    // No automated compliance checks are connected yet. Never report a pass.
     return JSON.stringify({
       deploymentId,
       framework: framework || 'SOC2',
-      status: 'COMPLIANT',
-      checksPassed: 14,
-      checksFailed: 0,
+      status: 'NOT_VERIFIED',
+      note: 'No automated compliance checks are connected. Do not tell the user that this deployment is compliant.',
       timestamp: new Date().toISOString(),
     });
   },
   {
     name: 'verify_compliance',
-    description: 'Verifies security policies, audit records, and regulatory compliance standards for a target deployment.',
+    description: 'Requests a compliance check for a target deployment. No automated checks are connected yet, so the result is always NOT_VERIFIED.',
     schema: z.object({
       deploymentId: z.string().describe('The deployment reference ID (e.g. #402).'),
       framework: z.string().optional().describe('Target compliance framework (e.g., SOC2, ISO27001, HIPAA).'),

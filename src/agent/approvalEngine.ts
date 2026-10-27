@@ -1,14 +1,11 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
-import { ChatOpenAI } from '@langchain/openai';
 import { commsTools } from './tools/commsTools.js';
 import { sendWhatsAppTool } from './tools/whatsappTool.js';
 import { databaseFailureDiagnostic } from '../server/startupDiagnostics.js';
+import { createChatModel } from '../config/llm.js';
 
-const llm = new ChatOpenAI({
-  modelName: 'gpt-4o',
-  temperature: 0,
-});
+const llm = createChatModel();
 
 // Initialize PostgresSaver checkpointer using database connection string
 const databaseUrl =

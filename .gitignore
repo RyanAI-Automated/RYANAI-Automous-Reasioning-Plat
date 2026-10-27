@@ -191,3 +191,14 @@ complete-ryanal-reasoning-platform/
 vercel-build-failure-npm-script/complete-ryanai-reasoning-platform/ 
 .vercel
 .env*
+
+# Database dumps and backups. Never commit these to a public repo.
+*.backup
+*.backup.gz
+*.dump
+*.sql.gz
+db_cluster-*
+
+# Docs in docs/ stay tracked even though *.md is ignored above.
+!docs/
+!docs/**/*.md
