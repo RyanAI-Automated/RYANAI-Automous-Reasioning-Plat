@@ -28,6 +28,7 @@ import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { tasksRoutes } from './routes/tasks.js';
+import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 
 const { Pool } = pg;
@@ -396,6 +397,7 @@ async function registerPlugins() {
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
   await fastify.register(tasksRoutes);
+  await fastify.register(pendingActionsRoutes);
 }
 
 // ============================================================================

@@ -29,7 +29,7 @@ Do not write a model name in agent code.
 
 | Tool | Purpose | Access |
 |---|---|---|
-| `send_email`, `send_whatsapp_message`, `make_voice_call` | Communication | Any signed-in user |
+| `send_email`, `send_whatsapp_message`, `make_voice_call` | Ask to send a message or place a call. The action is queued, not sent. | Any signed-in user can queue. Only an administrator can approve. |
 | `remember_fact`, `recall_memory`, `forget_memory` | Long-term memory in the `memory_entries` table | Each user sees only their own entries |
 | `schedule_task`, `list_scheduled_tasks`, `cancel_scheduled_task` | Tasks that run later, once or on a repeat | Each user sees only their own tasks |
 | `list_workspace_files`, `read_workspace_file` | Read-only access to code | Administrators only. Set `AGENT_WORKSPACE_ROOT`. |
@@ -42,6 +42,27 @@ To make an administrator, set `app_metadata.role` to `admin` for that user in Su
 ### Memory
 
 Every request starts with the user's saved notes (up to 20) as a system message, so the agent knows the user without a tool call. `src/agent/invoke.ts` adds the message. The message is removed from the API response. The notes are marked as data, not instructions.
+
+### Approvals for outbound actions
+
+The email, WhatsApp, and voice-call tools of the reasoning agent never send anything. They save the request in the `pending_actions` table and tell the agent that the action waits for approval.
+
+- `GET /api/actions` lists the open actions. Each one shows the full arguments, so the approver sees the exact message.
+- `POST /api/actions/:id/approve` sends the message through Twilio or SMTP and returns the result.
+- `POST /api/actions/:id/reject` closes the action without sending.
+- All three routes are for administrators only.
+
+Rules that the code enforces:
+
+- An action is decided once. Approval is one conditional update, so a second click or a second server gets HTTP 404.
+- An action expires after 24 hours. An expired action cannot be approved.
+- The arguments are checked when the action is queued and again when it is sent. The recipient must be one email address or one phone number in international format. The subject must be one line. The spoken text of a call is escaped, so it cannot add TwiML elements.
+- A user can have at most 20 open actions.
+- An approved action is sent at most once. If the server stops between the approval and the end of the send, the row stays `approved` and nothing sends it again. Check the table.
+
+Set these variables for the channels that you use: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`, `TWILIO_PHONE_NUMBER`, `SMTP_USER`, `SMTP_PASS` (and optional `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`). A channel that is not configured fails with a clear message when you approve.
+
+The older tools in `src/agent/tools/commsTools.ts` stay for `humanInTheLoopAgent`, which has its own approval flow. They call `/api/comms/*` over HTTP without a token, and the server does not register the routes that they need, so they cannot send today. The reasoning agent does not use them.
 
 ### Scheduled tasks
 
@@ -70,7 +91,8 @@ Nothing in the production path imports these files. Remove them after you confir
 ## Known gaps
 
 - `verify_compliance` in `src/agent/subAgents.ts` always returns `NOT_VERIFIED`, because no compliance checks are connected.
-- The reasoning agent can send email, WhatsApp messages, and calls without approval. Only `humanInTheLoopAgent` asks for approval.
+- There is no screen for approvals yet. Use `GET /api/actions` and the approve and reject routes. Nothing tells the administrator that an action waits.
+- Through the global authentication hook, every route that is not in its short allow-list needs an administrator, including `GET /api/tasks`. The comments in `tasks.ts` say "signed-in user". In practice only an administrator can use those routes.
 - The agent cannot run commands. It cannot use a calendar, because that needs OAuth credentials for each user.
 - There is no wake word. The voice stream goes to the OpenAI Realtime API.
 - The agent does not start work by itself except through scheduled tasks.

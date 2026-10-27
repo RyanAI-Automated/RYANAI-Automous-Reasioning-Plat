@@ -218,3 +218,23 @@ model ScheduledTask {
   @@index([userId])
   @@map("scheduled_tasks")
 }
+
+// An outbound action that the agent asked for. Nothing leaves the server until an
+// administrator approves it. status: pending, approved, rejected, executed, failed.
+model PendingAction {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tool      String
+  args      Json
+  summary   String    @db.Text
+  status    String    @default("pending")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime  @map("expires_at")
+  decidedAt DateTime? @map("decided_at")
+  decidedBy String?   @map("decided_by")
+  result    String?   @db.Text
+
+  @@index([status, expiresAt])
+  @@index([userId])
+  @@map("pending_actions")
+}
