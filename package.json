@@ -11,6 +11,9 @@
         "npm": ">=10.0.0"
     },
     "scripts": {
+        "db:generate": "prisma contract emit",
+        "build:web": "prisma contract emit && tsc -p tsconfig.app.json && vite build",
+        "build": "prisma contract emit && tsc -p tsconfig.app.json && vite build",
         "build:client": "tsc -p tsconfig.app.json && vite build",
         "build": "prisma generate && tsc -p tsconfig.app.json && vite build",
         "build:web": "prisma generate && tsc -p tsconfig.app.json && vite build",
