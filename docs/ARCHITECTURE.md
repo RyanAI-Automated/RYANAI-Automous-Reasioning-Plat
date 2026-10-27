@@ -31,11 +31,31 @@ Do not write a model name in agent code.
 |---|---|---|
 | `send_email`, `send_whatsapp_message`, `make_voice_call` | Communication | Any signed-in user |
 | `remember_fact`, `recall_memory`, `forget_memory` | Long-term memory in the `memory_entries` table | Each user sees only their own entries |
+| `schedule_task`, `list_scheduled_tasks`, `cancel_scheduled_task` | Tasks that run later, once or on a repeat | Each user sees only their own tasks |
 | `list_workspace_files`, `read_workspace_file` | Read-only access to code | Administrators only. Set `AGENT_WORKSPACE_ROOT`. |
+| `write_workspace_file` | Create or replace a file | Administrators only. Set `AGENT_WORKSPACE_ROOT` and `AGENT_WORKSPACE_WRITE=true`. |
 
-The routes pass the verified user in `configurable.userId` and `configurable.role`. The memory and workspace tools fail when these values are missing.
+The routes pass the verified user in `configurable.userId` and `configurable.role`. The memory, schedule, and workspace tools fail when these values are missing.
 
 To make an administrator, set `app_metadata.role` to `admin` for that user in Supabase.
+
+### Memory
+
+Every request starts with the user's saved notes (up to 20) as a system message, so the agent knows the user without a tool call. `src/agent/invoke.ts` adds the message. The message is removed from the API response. The notes are marked as data, not instructions.
+
+### Scheduled tasks
+
+A user can ask for a task such as "check my notes every morning". The server saves it in `scheduled_tasks`. A runner in the server process checks every 60 seconds and runs the due tasks.
+
+- **Off by default.** Set `SCHEDULER_ENABLED=true` to start the runner. Each run calls the model with no person present, so it costs money.
+- **Limited tools.** A scheduled run can read and save notes only. It cannot send messages, write files, or schedule more tasks, because nobody can approve those actions.
+- **Safe with many servers.** A server claims a task with one conditional update and a 10-minute lease. A task never runs on two servers at the same time. If a server stops in the middle of a run, the task runs again after the lease ends.
+- **Limits.** 20 active tasks for each user. A repeat interval from 15 minutes to 7 days. A run stops after 120 seconds.
+- **Results.** `GET /api/tasks` returns the tasks and their last result. `DELETE /api/tasks/:id` cancels a task.
+
+### Workspace safety
+
+The workspace tools work only inside `AGENT_WORKSPACE_ROOT`. They follow symbolic links before they check the path. They block `.git`, `node_modules`, env files, and key files. The write tool also blocks `.github`, because workflow files run with repository secrets. The write tool does not write through a symbolic link. An agent that reads untrusted files and can also write files is a risk, so keep `AGENT_WORKSPACE_WRITE` off unless you need it.
 
 ## Older code (not on the production path)
 
@@ -49,7 +69,8 @@ Nothing in the production path imports these files. Remove them after you confir
 
 ## Known gaps
 
-- `verify_compliance` in `src/agent/subAgents.ts` always returns `COMPLIANT`. It does not check anything.
+- `verify_compliance` in `src/agent/subAgents.ts` always returns `NOT_VERIFIED`, because no compliance checks are connected.
 - The reasoning agent can send email, WhatsApp messages, and calls without approval. Only `humanInTheLoopAgent` asks for approval.
-- The workspace tools cannot write files or run commands.
-- There is no calendar tool, scheduler, or wake word.
+- The agent cannot run commands. It cannot use a calendar, because that needs OAuth credentials for each user.
+- There is no wake word. The voice stream goes to the OpenAI Realtime API.
+- The agent does not start work by itself except through scheduled tasks.

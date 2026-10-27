@@ -1,6 +1,6 @@
 import { tool } from '@langchain/core/tools';
-import type { RunnableConfig } from '@langchain/core/runnables';
 import { z } from 'zod';
+import { requireUserId } from './toolContext.js';
 
 /**
  * Load the Prisma client on first use. The shared client is created when its
@@ -10,19 +10,6 @@ import { z } from 'zod';
 async function getPrisma() {
   const { prisma } = await import('../../lib/prisma.js');
   return prisma;
-}
-
-/**
- * Read the signed-in user's id from the run config (configurable.userId).
- * The route sets it from the verified session. Without it, the tools fail,
- * so one user can never read or change the memory of another user.
- */
-function requireUserId(config?: RunnableConfig): string {
-  const userId = config?.configurable?.userId;
-  if (typeof userId !== 'string' || !userId) {
-    throw new Error('Memory tools need an authenticated user.');
-  }
-  return userId;
 }
 
 export const rememberFactTool = tool(

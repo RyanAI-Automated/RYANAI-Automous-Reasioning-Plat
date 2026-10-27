@@ -3,48 +3,30 @@ import path from 'node:path';
 import { tool } from '@langchain/core/tools';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { z } from 'zod';
+import { isReadBlocked, resolveReadable, resolveWritable } from './workspacePaths.js';
 
 const MAX_READ_BYTES = 100_000;
+const MAX_WRITE_CHARS = 200_000;
 const MAX_LIST_ENTRIES = 200;
 
-// Never expose version-control data, dependencies, env files, or key files.
-const BLOCKED_PATH =
-  /(^|[\\/])(\.git|node_modules|\.ssh|\.aws)([\\/]|$)|(^|[\\/])\.env[^\\/]*$|\.(pem|key|p12|pfx)$/i;
-
-/**
- * Resolve a path inside AGENT_WORKSPACE_ROOT. Only an admin may use these
- * tools, and the real path (after symlinks) must stay inside the root.
- */
-async function resolveInWorkspace(relativePath: string, config?: RunnableConfig) {
+/** Only an administrator may use the workspace tools, and the root must be set. */
+function workspaceRoot(config?: RunnableConfig) {
   if (config?.configurable?.role !== 'admin') {
     throw new Error('Workspace tools are for administrators only.');
   }
-  const rootSetting = process.env.AGENT_WORKSPACE_ROOT;
-  if (!rootSetting) {
+  const root = process.env.AGENT_WORKSPACE_ROOT;
+  if (!root) {
     throw new Error('AGENT_WORKSPACE_ROOT is not set, so workspace tools are off.');
   }
-  const root = await fs.realpath(rootSetting);
-  const target = await fs.realpath(path.resolve(root, relativePath));
-  const relative = path.relative(root, target);
-  if (
-    relative === '..' ||
-    relative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relative)
-  ) {
-    throw new Error('The path is outside the workspace.');
-  }
-  if (BLOCKED_PATH.test(relative)) {
-    throw new Error('The path is blocked.');
-  }
-  return target;
+  return root;
 }
 
 export const listWorkspaceFilesTool = tool(
   async ({ path: dir }, config) => {
-    const target = await resolveInWorkspace(dir, config);
+    const target = await resolveReadable(workspaceRoot(config), dir);
     const entries = await fs.readdir(target, { withFileTypes: true });
     const visible = entries
-      .filter((entry) => !BLOCKED_PATH.test(entry.name))
+      .filter((entry) => !isReadBlocked(entry.name))
       .map((entry) => (entry.isDirectory() ? `${entry.name}/` : entry.name));
     return JSON.stringify({
       path: dir,
@@ -63,7 +45,7 @@ export const listWorkspaceFilesTool = tool(
 
 export const readWorkspaceFileTool = tool(
   async ({ path: file }, config) => {
-    const target = await resolveInWorkspace(file, config);
+    const target = await resolveReadable(workspaceRoot(config), file);
     const stat = await fs.stat(target);
     if (!stat.isFile()) throw new Error('The path is not a file.');
     const handle = await fs.open(target, 'r');
@@ -88,4 +70,30 @@ export const readWorkspaceFileTool = tool(
   },
 );
 
-export const workspaceTools = [listWorkspaceFilesTool, readWorkspaceFileTool];
+export const writeWorkspaceFileTool = tool(
+  async ({ path: file, content }, config) => {
+    const root = workspaceRoot(config);
+    if (process.env.AGENT_WORKSPACE_WRITE !== 'true') {
+      throw new Error('Writing is off. Set AGENT_WORKSPACE_WRITE=true to allow it.');
+    }
+    const target = await resolveWritable(root, file);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, content, 'utf8');
+    return JSON.stringify({ path: file, bytes: Buffer.byteLength(content, 'utf8') });
+  },
+  {
+    name: 'write_workspace_file',
+    description:
+      'Creates or replaces a text file in the code workspace. Missing folders are created. Cannot write to .git, .github, env files, or key files.',
+    schema: z.object({
+      path: z.string().min(1).describe('File path relative to the workspace root'),
+      content: z.string().max(MAX_WRITE_CHARS).describe('The full new content of the file'),
+    }),
+  },
+);
+
+export const workspaceTools = [
+  listWorkspaceFilesTool,
+  readWorkspaceFileTool,
+  writeWorkspaceFileTool,
+];
