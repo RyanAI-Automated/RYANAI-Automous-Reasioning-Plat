@@ -11,6 +11,9 @@
         "npm": ">=10.0.0"
     },
     "scripts": {
+        "build:client": "tsc -p tsconfig.app.json && vite build",
+        "build": "prisma generate && tsc -p tsconfig.app.json && vite build",
+        "build:web": "prisma generate && tsc -p tsconfig.app.json && vite build",
         "dev": "concurrently --kill-others --names api,web,mcp \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:mcp\"",
         "build": "tsc -p tsconfig.app.json && vite build",
         "start": "node dist/server/server/launcher.js",
