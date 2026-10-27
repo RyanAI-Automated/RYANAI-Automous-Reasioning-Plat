@@ -13,7 +13,6 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db;
 }
 
-export const db = ...; 
 const DB_PATH = path.resolve(process.cwd(), 'data');
 const USERS_FILE = path.join(DB_PATH, 'users.json');
 
@@ -52,7 +51,5 @@ export function saveUser(user: UserRecord): void {
 }
 
 export function hashPassword(password: string): string {
-  // Note: For high-security production apps, consider bcrypt or argon2. 
-  // SHA-256 with crypto works well for lightweight local JSON stores.
   return crypto.createHash('sha256').update(password).digest('hex');
 }
