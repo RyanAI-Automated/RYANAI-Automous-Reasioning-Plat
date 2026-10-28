@@ -103,8 +103,6 @@ if (!statSafe(jarvisSmokePath)) {
   if (!smokeText.includes("JARVIS_ALLOW_PRODUCTION_SYNC: 'false'")) {
     fail(jarvisSmokePath, 'staging smoke workflow must keep production sync disabled');
   }
-}
-
 
   const smokeDocument = parse(smokeText);
   const jobEnv = smokeDocument?.jobs?.smoke?.env ?? {};
@@ -116,6 +114,8 @@ if (!statSafe(jarvisSmokePath)) {
   if (!smokeText.includes('Enforce HTTPS-only staging origins')) {
     fail(jarvisSmokePath, 'staging smoke workflow must validate HTTPS-only origin URLs');
   }
+
+}
 
 const vercelValidationPath = join(workflowDir, 'vercel-deploy.yml');
 if (!statSafe(vercelValidationPath)) {
