@@ -5,7 +5,7 @@ import { jarvisClient, JarvisIntegrationError, type JarvisPatchSubmission } from
 import { buildRyanAIStackManifest, type StackEnvironment } from '../../integrations/jarvis/stackManifest.js';
 import { requireAdmin } from './auth.js';
 
-interface PatchBody extends Omit<JarvisPatchSubmission, 'requestedBy'> {}
+type PatchBody = Omit<JarvisPatchSubmission, 'requestedBy'>;
 interface StackBody {
   environment: StackEnvironment;
   branch?: string;
