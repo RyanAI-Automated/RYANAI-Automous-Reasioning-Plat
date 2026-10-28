@@ -38,7 +38,7 @@ jobs:
         run: |
           set -eu
           for name in AWS_REGION ECR_REPOSITORY ECS_SERVICE ECS_CLUSTER ECS_TASK_DEFINITION CONTAINER_NAME AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
-            eval "value=\${$name:-}"
+            value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::Missing required AWS deployment setting: $name"
               exit 1
