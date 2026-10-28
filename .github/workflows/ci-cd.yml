@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: containers-${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +17,8 @@ concurrency:
 jobs:
   validate:
     name: Validate application before image build
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -38,6 +39,9 @@ jobs:
 
   publish:
     name: Build and publish ${{ matrix.image }}
+    permissions:
+      contents: read
+      packages: write
     needs: validate
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest

@@ -83,6 +83,11 @@ jobs:
             if (url.hostname === 'localhost' || url.hostname.endsWith('.localhost') ||
                 url.hostname === '127.0.0.1' || url.hostname === '[::1]') {
               throw new Error(label + ' must point to a reachable staging host, not loopback');
+            const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+            if (hostname === 'localhost' || hostname.endsWith('.localhost') ||
+                hostname.startsWith('127.') || hostname === '0.0.0.0' ||
+                hostname === '[::1]' || hostname === '[::]') {
+              throw new Error(label + ' must point to a reachable staging host, not loopback or a wildcard address');
             }
             console.log('PASS ' + label + ' uses HTTPS origin (' + url.hostname + ')');
           }

@@ -20,7 +20,7 @@
     "start:dev": "tsx src/server/launcher.ts",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "build:web": "npm run build:client",
-    "validate": "npm run index:check && npm run platform:wiring:check && npm run typecheck && npm run lint && npm run test && npm run test:cs-script && npm run test:workflows && npm run workflows:check && npm run stack:validate && npm run build && npm run build:server",
+    "validate": "npm run index:check && npm run platform:wiring:check && npm run typecheck && npm run lint && npm run test && npm run test:cs-script && npm run test:workflows && npm run workflows:check && npm run test:stack-validator && npm run stack:validate && npm run build && npm run build:server",
     "build:desktop": "tauri build",
     "docker:up": "docker compose up --build --detach --wait",
     "docker:health": "docker compose exec -T api wget -q -O - http://127.0.0.1:3000/health",
@@ -98,7 +98,8 @@
     "dev:web:desktop": "cross-env VITE_PORT=1422 VITE_API_BASE_URL=http://127.0.0.1:3002 vite",
     "dev:desktop:services": "node scripts/dev-desktop.mjs",
     "platform:wiring:check": "node scripts/check-platform-wiring.mjs",
-    "index:check": "node scripts/check-index-html.mjs"
+    "index:check": "node scripts/check-index-html.mjs",
+    "test:stack-validator": "node --test scripts/validate-stack-manifest.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
