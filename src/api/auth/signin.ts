@@ -66,7 +66,8 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
         }
 
         // 4. Session / JWT Token Generation (Optional, using fastify-jwt if configured)
-        const token = fastify.jwt ? fastify.jwt.sign({ id: user.id, email: user.email }) : null;
+        const jwt = (fastify as FastifyInstance & { jwt?: { sign(payload: object, options?: object): string } }).jwt;
+        const token = jwt ? jwt.sign({ id: user.id, email: user.email }) : null;
 
         return reply.status(200).send({
           success: true,

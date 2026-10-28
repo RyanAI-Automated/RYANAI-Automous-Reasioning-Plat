@@ -7,7 +7,6 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
   const [checking, setChecking] = useState(true);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
-    setChecking(true);
     try {
       const nextHealth = await getPlatformHealth(signal);
       setHealth(nextHealth);
@@ -31,5 +30,10 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
     };
   }, [refresh, refreshIntervalMs]);
 
-  return { health, error, checking, refresh: () => refresh() };
+  const manualRefresh = useCallback(() => {
+    setChecking(true);
+    return refresh();
+  }, [refresh]);
+
+  return { health, error, checking, refresh: manualRefresh };
 }

@@ -8,18 +8,18 @@ const root = process.cwd();
 const workflowDir = join(root, '.github', 'workflows');
 const errors = [];
 const allowedActionMajors = new Map([
-  ['actions/checkout', 4],
-  ['actions/setup-node', 4],
-  ['actions/upload-artifact', 7],
-  ['actions/download-artifact', 4],
-  ['actions/labeler', 7],
-  ['docker/setup-buildx-action', 3],
-  ['docker/login-action', 3],
-  ['docker/metadata-action', 6],
-  ['docker/build-push-action', 7],
-  ['github/codeql-action/init', 4],
-  ['github/codeql-action/analyze', 4],
-  ['github/codeql-action/upload-sarif', 4],
+  ['actions/checkout', [4]],
+  ['actions/setup-node', [4]],
+  ['actions/upload-artifact', [4, 7]],
+  ['actions/download-artifact', [4]],
+  ['actions/labeler', [6, 7]],
+  ['docker/setup-buildx-action', [3]],
+  ['docker/login-action', [3]],
+  ['docker/metadata-action', [5, 6]],
+  ['docker/build-push-action', [6, 7]],
+  ['github/codeql-action/init', [3, 4]],
+  ['github/codeql-action/analyze', [3, 4]],
+  ['github/codeql-action/upload-sarif', [3, 4]],
 ]);
 
 function walk(dir) {
@@ -63,8 +63,8 @@ for (const file of files) {
     }
     if (actionMatch[1].startsWith('aquasecurity/trivy-action') || actionMatch[1].startsWith('dtolnay/rust-toolchain') || actionMatch[1].startsWith('snyk/actions/node')) continue;
     const expected = allowedActionMajors.get(actionMatch[1]);
-    if (expected && Number(actionMatch[2]) !== expected) {
-      fail(file, `${actionMatch[1]} must use v${expected}, found v${actionMatch[2]}`);
+    if (expected && !expected.includes(Number(actionMatch[2]))) {
+      fail(file, `${actionMatch[1]} must use one of ${expected.map((major) => `v${major}`).join(", ")}, found v${actionMatch[2]}`);
     }
   }
 

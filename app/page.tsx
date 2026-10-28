@@ -7,11 +7,9 @@ export default function RyanAIWorkspace() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [socketStatus, setSocketStatus] = useState<'CONNECTING' | 'CONNECTED' | 'OFFLINE'>('CONNECTING');
-  const [isHydrated, setIsHydrated] = useState(false);
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setIsHydrated(true), []);
-  useEffect(() => { consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs, isHydrated]);
+  useEffect(() => { consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
   useEffect(() => {
     const url = import.meta.env.VITE_TELEMETRY_WSS || 'ws://localhost:3000/ws';
     const socket = new WebSocket(url);
