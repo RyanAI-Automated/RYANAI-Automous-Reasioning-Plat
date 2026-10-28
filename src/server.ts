@@ -10,7 +10,6 @@ import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
 import websocket from "@fastify/websocket";
 import crypto from "node:crypto";
-import { cpus, totalmem } from "node:os";
 import twilio from "twilio";
 import dotenv from "dotenv";
 import path from "node:path";
@@ -28,7 +27,6 @@ import { voiceRealtimeGateway } from "./gateway/voiceRealtimeGateway.js";
 import transcendPlugin from "./plugins/transcendGovernance.js";
 import nativeInferencePlugin from "./plugins/nativeInference.js";
 import { eBPFSentinel } from "./security/sentinelLoader.js";
-import { TelemetryData } from "./types.js";
 
 dotenv.config();
 
@@ -106,8 +104,6 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
-
-let previousCpuSample = cpus().map((cpu) => ({ ...cpu.times }));
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
