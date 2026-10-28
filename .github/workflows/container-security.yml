@@ -6,6 +6,7 @@ on:
     paths:
       - 'Dockerfile'
       - 'Dockerfile.api'
+      - 'index.html'
       - 'mcp-server/**'
       - 'docker-compose.yml'
       - 'nginx.conf.template'
@@ -24,6 +25,7 @@ on:
     paths:
       - 'Dockerfile'
       - 'Dockerfile.api'
+      - 'index.html'
       - 'mcp-server/**'
       - 'docker-compose.yml'
       - 'nginx.conf.template'
