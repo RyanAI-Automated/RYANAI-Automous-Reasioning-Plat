@@ -165,13 +165,19 @@ export default function CommandCenter({
   }, [userId]);
 
   useEffect(() => {
-    void loadConversations();
-    const timer = window.setTimeout(() => {
+    // Defer loading so state updates do not run synchronously inside this effect.
+    const loadTimer = window.setTimeout(() => {
+      void loadConversations();
+    }, 0);
+    const githubTimer = window.setTimeout(() => {
       setGithubConnected(
         localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
       );
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(loadTimer);
+      window.clearTimeout(githubTimer);
+    };
   }, [loadConversations, userId]);
 
   useEffect(() => {
