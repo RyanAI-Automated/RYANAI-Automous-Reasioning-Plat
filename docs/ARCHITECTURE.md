@@ -74,6 +74,29 @@ A user can ask for a task such as "check my notes every morning". The server sav
 - **Limits.** 20 active tasks for each user. A repeat interval from 15 minutes to 7 days. A run stops after 120 seconds.
 - **Results.** `GET /api/tasks` returns the tasks and their last result. `DELETE /api/tasks/:id` cancels a task.
 
+### Proactive alerts
+
+The server can watch your systems and send you a message when something needs you. The code is in `src/alerts/`. It does not call the model, so it costs nothing to run.
+
+The alert loop makes three kinds of checks:
+
+- **Health URLs.** `ALERT_HEALTH_URLS` is a comma-separated list. A URL passes when it answers with a success status in 10 seconds.
+- **CI.** `ALERT_GITHUB_REPOS` is a comma-separated list of `owner/repo`. A repo fails when one finished check run of the latest commit on `ALERT_GITHUB_BRANCH` (default `main`) has a failed result. Set `ALERT_GITHUB_TOKEN` for a private repo or a higher rate limit.
+- **Approvals.** The loop sends one "APPROVAL NEEDED" message for each new open action in `pending_actions`. Set `ALERT_WATCH_APPROVALS=false` to turn this off.
+
+Rules that the code enforces:
+
+- **Off by default.** Set `ALERTS_ENABLED=true` to start the loop. The server does not start when the settings cannot work, for example when no channel has a destination or a URL is not valid.
+- **Channels.** Set at least one of `SLACK_WEBHOOK_URL` (must be `https`), `ADMIN_EMAIL`, or `ALERT_WHATSAPP_TO`. Email and WhatsApp use the SMTP and Twilio variables from the approvals section. Alerts go out without approval, because only you set the destinations, in the environment.
+- **No noise.** A check must fail `ALERT_FAILURES_BEFORE_ALERT` times in a row (default 2) before it raises "DOWN". While it stays down, it repeats every `ALERT_REMINDER_HOURS` (default 6) and says nothing between. The first good answer sends "RECOVERED".
+- **No lost alerts.** If no channel receives an alert, the same alert goes out again at the next check.
+- **Skips are not failures.** If GitHub does not answer, the check is skipped and the server logs a warning. A skipped check never raises or clears an alert. A wrong `ALERT_GITHUB_TOKEN` therefore shows only in the logs.
+- **Timing.** The loop runs every `ALERT_INTERVAL_SECONDS` (60 to 3600, default 300).
+- **State is per process.** After a restart, a check that still fails must fail again `ALERT_FAILURES_BEFORE_ALERT` times before it alerts. With many servers, each one sends its own alerts.
+- **Secrets stay out.** A health URL appears in an alert without its query string.
+
+A CI watch alerts for any failed check run, including optional ones. A job that always fails, such as a scan that needs a missing license, keeps alerting until you fix it or remove it.
+
 ### Workspace safety
 
 The workspace tools work only inside `AGENT_WORKSPACE_ROOT`. They follow symbolic links before they check the path. They block `.git`, `node_modules`, env files, and key files. The write tool also blocks `.github`, because workflow files run with repository secrets. The write tool does not write through a symbolic link. An agent that reads untrusted files and can also write files is a risk, so keep `AGENT_WORKSPACE_WRITE` off unless you need it.
@@ -91,8 +114,8 @@ Nothing in the production path imports these files. Remove them after you confir
 ## Known gaps
 
 - `verify_compliance` in `src/agent/subAgents.ts` always returns `NOT_VERIFIED`, because no compliance checks are connected.
-- There is no screen for approvals yet. Use `GET /api/actions` and the approve and reject routes. Nothing tells the administrator that an action waits.
+- There is no screen for approvals yet. Use `GET /api/actions` and the approve and reject routes. Turn on the alerts to get a message when an action waits.
 - Through the global authentication hook, every route that is not in its short allow-list needs an administrator, including `GET /api/tasks`. The comments in `tasks.ts` say "signed-in user". In practice only an administrator can use those routes.
 - The agent cannot run commands. It cannot use a calendar, because that needs OAuth credentials for each user.
 - There is no wake word. The voice stream goes to the OpenAI Realtime API.
-- The agent does not start work by itself except through scheduled tasks.
+- The agent does not start work by itself. Scheduled tasks start a run on a timer. Alerts only send you a message, and they do not start a run or fix anything.
