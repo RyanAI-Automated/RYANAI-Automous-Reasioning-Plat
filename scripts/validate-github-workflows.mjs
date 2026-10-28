@@ -105,6 +105,49 @@ if (!statSafe(jarvisSmokePath)) {
   }
 }
 
+
+  const smokeDocument = parse(smokeText);
+  const jobEnv = smokeDocument?.jobs?.smoke?.env ?? {};
+  for (const secretName of ['JARVIS_BASE_URL', 'JARVIS_API_TOKEN', 'RYANAI_STAGING_API_BASE_URL', 'JARVIS_INGRESS_TOKEN']) {
+    if (Object.prototype.hasOwnProperty.call(jobEnv, secretName)) {
+      fail(jarvisSmokePath, secretName + ' must be scoped to the step that needs it, not the whole job');
+    }
+  }
+  if (!smokeText.includes('Enforce HTTPS-only staging origins')) {
+    fail(jarvisSmokePath, 'staging smoke workflow must validate HTTPS-only origin URLs');
+  }
+
+const vercelValidationPath = join(workflowDir, 'vercel-deploy.yml');
+if (!statSafe(vercelValidationPath)) {
+  errors.push('Missing .github/workflows/vercel-deploy.yml');
+} else {
+  const vercelText = readFileSync(vercelValidationPath, 'utf8');
+  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(vercelText)) {
+    fail(vercelValidationPath, 'validation-only workflow must not receive Vercel deployment credentials');
+  }
+  if (/\bvercel(?:@latest)?\s+(?:build|deploy)\b/i.test(vercelText)) {
+    fail(vercelValidationPath, 'validation-only workflow must not build or deploy production output');
+  }
+}
+
+const productionDeployPath = join(workflowDir, 'deploy-vercel.yml');
+if (statSafe(productionDeployPath)) {
+  const productionDeployText = readFileSync(productionDeployPath, 'utf8');
+  const productionDeployDocument = parse(productionDeployText);
+  if (Object.prototype.hasOwnProperty.call(productionDeployDocument?.on ?? {}, 'workflow_dispatch')) {
+    fail(productionDeployPath, 'production deployment must not bypass the successful-CI gate through workflow_dispatch');
+  }
+  for (const required of [
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.event == 'push'",
+    "vars.VERCEL_DEPLOY_ENABLED == 'true'",
+  ]) {
+    if (!productionDeployText.includes(required)) {
+      fail(productionDeployPath, 'production deployment is missing required gate: ' + required);
+    }
+  }
+}
+
 function statSafe(path) {
   try { return statSync(path).isFile() || statSync(path).isDirectory(); } catch { return false; }
 }
