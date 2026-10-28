@@ -38,7 +38,7 @@ jobs:
         run: |
           set -eu
           for name in AZURE_CONTAINER_REGISTRY CONTAINER_NAME RESOURCE_GROUP CLUSTER_NAME KUSTOMIZE_PATH AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
-            eval "value=\${$name:-}"
+            value="${!name:-}"
             if [ -z "$value" ]; then
               echo "::error::Missing required Azure deployment setting: $name"
               exit 1
@@ -95,14 +95,14 @@ jobs:
 
       - name: Bake deployment
         id: bake
-        uses: azure/k8s-bake@v3
+        uses: azure/k8s-bake@v2
         with:
           renderEngine: kustomize
           kustomizationPath: ${{ env.KUSTOMIZE_PATH }}
           kubectl-version: latest
 
       - name: Deploy application
-        uses: Azure/k8s-deploy@v5
+        uses: Azure/k8s-deploy@v4
         with:
           action: deploy
           manifests: ${{ steps.bake.outputs.manifestsBundle }}
