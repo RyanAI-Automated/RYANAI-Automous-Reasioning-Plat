@@ -205,14 +205,38 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
 });
 
 assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
-  if (/secrets\\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
+  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
     fail(filePath, 'pull-request preview validation must not expose Vercel credentials to PR code');
   }
-  if (/vercel(?:@latest)?\\s+(?:build|deploy)\\b/i.test(text)) {
+  if (/vercel(?:@latest)?\s+(?:build|deploy)\b/i.test(text)) {
     fail(filePath, 'pull-request preview validation must not deploy from untrusted PR code');
   }
   if (document.permissions?.contents !== 'read') {
     fail(filePath, 'preview validation must use read-only repository permissions');
+  }
+});
+
+assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) => {
+  if (document.permissions?.['security-events'] === 'write') {
+    fail(filePath, 'security-events: write must not be granted at workflow scope');
+  }
+  if (document.jobs?.scan?.permissions?.['security-events'] === 'write') {
+    fail(filePath, 'container image builds and scans must not receive security-events: write');
+  }
+  if (document.jobs?.scan?.permissions?.contents !== 'read') {
+    fail(filePath, 'container scan job must use read-only repository permissions');
+  }
+  if (document.jobs?.['upload-sarif']?.permissions?.['security-events'] !== 'write') {
+    fail(filePath, 'SARIF publishing must scope security-events: write to the upload job');
+  }
+  const steps = document.jobs?.scan?.steps ?? [];
+  const gate = steps.find((step) => step.name === 'Enforce high and critical vulnerability gate');
+  if (gate?.with?.format !== 'table' || String(gate?.with?.['exit-code']) !== '1') {
+    fail(filePath, 'high/critical vulnerability gate must use the blocking table scan');
+  }
+  const report = steps.find((step) => step.name === 'Generate SARIF report (non-blocking)');
+  if (report?.continueOnError !== true || String(report?.with?.['exit-code']) !== '0') {
+    fail(filePath, 'SARIF generation must be non-blocking and separate from the vulnerability gate');
   }
 });
 
