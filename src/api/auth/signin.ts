@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcrypt';
+import type { PrismaClient } from '@prisma/client';
 
 interface SigninRequestBody {
   email: string;
@@ -9,7 +10,7 @@ interface SigninRequestBody {
 // Ensure TypeScript recognizes Fastify instance decorations for Prisma and JWT
 declare module 'fastify' {
   interface FastifyInstance {
-    prisma: any; // Replace with your generated PrismaClient type if available
+    prisma: PrismaClient;
   }
 }
 
@@ -75,9 +76,9 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
           ...(token && { token }),
         });
 
-      } catch (error: any) {
-        // Catch connection drops, pool timeouts, or unhandled database exceptions
-        request.log.error(error, '[Auth] Database error encountered during signin');
+      } catch (error: unknown) {
+        // Catch connection drops, pool timeouts, or unhandled database exceptions.
+        request.log.error({ err: error }, '[Auth] Database error encountered during signin');
 
         return reply.status(500).send({
           error: 'Internal Server Error',
