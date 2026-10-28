@@ -1,23 +1,35 @@
-name: C/C++ CI
+name: Native C++ smoke test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths:
+      - "native/local-inference/**"
+      - "scripts/cmake.mjs"
+      - ".github/workflows/c-cpp.yml"
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths:
+      - "native/local-inference/**"
+      - "scripts/cmake.mjs"
+      - ".github/workflows/c-cpp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+      - uses: actions/checkout@v4
+      - name: Configure native fallback
+        run: cmake -S native/local-inference -B build/native -DRYANAI_ENABLE_CUDA=OFF
+      - name: Build native fallback
+        run: cmake --build build/native --config Release
+      - name: Smoke test native fallback
+        run: |
+          output=$(printf 'smoke test\n' | ./build/native/ryanai-local-inference)
+          echo "$output"
+          echo "$output" | grep -q '"backend":"cpu-fallback"'
+          echo "$output" | grep -q '"status":"stub"'
