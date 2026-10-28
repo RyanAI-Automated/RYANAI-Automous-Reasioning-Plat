@@ -111,7 +111,12 @@ export default defineConfig(({ command, mode }) => {
       environment: 'node',
       // This test needs a live database and imports ../server.js, which no longer
       // exists. It cannot pass until it is rewritten against src/server/launcher.ts.
-      exclude: [...configDefaults.exclude, 'src/tests/auth.test.ts'],
+      exclude: [
+        ...configDefaults.exclude,
+        'src/tests/auth.test.ts',
+        // Written for node:test and run by `npm run test:stack-validator`.
+        'scripts/validate-stack-manifest.test.mjs',
+      ],
       env: {
         RYAN_PATCH_VERIFIER_IMAGE:
           'ryanai/verifier@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
