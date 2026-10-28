@@ -101,6 +101,9 @@ export default function CommandCenter({
             message.model && MODELS[message.model] ? message.model : undefined,
         })),
       }));
+      // Let the effect yield before applying locally loaded state.
+      await Promise.resolve();
+      if (!mountedRef.current) return;
       setConversations(supportedConversations);
       if (supportedConversations.length > 0) {
         setActiveId(supportedConversations[0].id);
