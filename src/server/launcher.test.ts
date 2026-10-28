@@ -110,6 +110,7 @@ describe('launcher reasoning routes', () => {
       headers: {
         origin: 'https://frontend.vercel.app',
         'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
       },
     });
     expect(response.statusCode).toBe(204);

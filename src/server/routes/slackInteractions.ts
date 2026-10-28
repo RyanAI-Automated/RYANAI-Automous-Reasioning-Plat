@@ -78,7 +78,7 @@ export const slackInteractionsPlugin: FastifyPluginAsync = async (fastify) => {
       const { threadId, approved } = JSON.parse(action.value);
       const config = { configurable: { thread_id: threadId } };
 
-      let resultMessage = '';
+      let resultMessage: string;
 
       if (approved) {
         const approvedResult = await humanInTheLoopAgent.invoke(null, config);

@@ -26,18 +26,18 @@ describe('checkHttp', () => {
   });
 
   it('fails with the reason when the request throws', async () => {
-    fetcher.mockImplementation(async () => {
+    const failing = (async () => {
       throw new Error('getaddrinfo ENOTFOUND a.example');
-    });
-    const result = await checkHttp('https://a.example/health', asFetch());
+    }) as unknown as typeof fetch;
+    const result = await checkHttp('https://a.example/health', failing);
     expect(result).toEqual({ status: 'fail', detail: 'The request failed: getaddrinfo ENOTFOUND a.example' });
   });
 
   it('says that there was no answer when the request times out', async () => {
-    fetcher.mockImplementation(async () => {
+    const timingOut = (async () => {
       throw Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' });
-    });
-    const result = await checkHttp('https://a.example/health', asFetch(), 10_000);
+    }) as unknown as typeof fetch;
+    const result = await checkHttp('https://a.example/health', timingOut, 10_000);
     expect(result).toEqual({ status: 'fail', detail: 'No answer within 10 seconds.' });
   });
 });

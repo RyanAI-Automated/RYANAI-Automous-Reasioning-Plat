@@ -1,5 +1,4 @@
-import { execFile, type ChildProcess } from "node:child_process";
-import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
@@ -22,7 +21,6 @@ const execFileAsync = promisify(execFile);
 const directories: string[] = [];
 const workspaces: string[] = [];
 const roots: string[] = [];
-const children = new Map<ChildProcess, Promise<void>>();
 const patch = { filePath: "src/app.ts", patchContent: "accepted" };
 
 afterEach(async () => {

@@ -109,7 +109,7 @@ function getErrorMessage(error: unknown): string {
 
 let previousCpuSample = cpus().map((cpu) => ({ ...cpu.times }));
 
-function readTelemetry(): TelemetryData {
+export function readTelemetry(): TelemetryData {
   const currentCpuSample = cpus().map((cpu) => ({ ...cpu.times }));
   let cpuUsage: number | null = null;
   if (currentCpuSample.length === previousCpuSample.length && currentCpuSample.length > 0) {
