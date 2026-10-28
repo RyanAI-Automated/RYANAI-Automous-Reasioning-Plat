@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
+import Ajv2020 from 'ajv/dist/2020.js';
 const { parse: parseYaml } = yaml;
 
 const root = process.cwd();
@@ -106,18 +107,41 @@ if (manifest) {
     fail('Jarvis sync must remain disabled by default');
   }
 
-  const forbiddenKey = /^(?:token|apiKey|password|secretValue|credentialValue)$/i;
-  function findInlineSecrets(value, location = '$') {
+  const forbiddenKey = /(?:^|_)(?:token|api_?key|access_?token|refresh_?token|password|passwd|secret(?:value)?|credential(?:value)?|private_?key|client_?secret|authorization)(?:_|$)/i;
+  function findInlineSecrets(value, location = '
+if (errors.length) {
+  console.error(errors.map((message) => 'ERROR ' + message).join('\n'));
+  process.exit(1);
+}
+console.log('PASS RyanAI stack manifest and deployment references validated');
+) {
     if (!value || typeof value !== 'object') return;
     for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKey.test(key)) fail('Do not store credentials in stack manifest at ' + location + '.' + key);
+      const normalizedKey = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_');
+      // `requiresSecret` is a reference to an environment variable name, not a credential value.
+      if (key.toLowerCase() !== 'requiressecret' && forbiddenKey.test(normalizedKey)) {
+        fail('Do not store credentials in stack manifest at ' + location + '.' + key);
+      }
       findInlineSecrets(child, location + '.' + key);
     }
   }
   findInlineSecrets(manifest);
 }
-if (schema && schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
-  fail('Stack JSON Schema draft declaration is missing or unsupported');
+
+if (schema) {
+  if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
+    fail('Stack JSON Schema draft declaration is missing or unsupported');
+  } else if (manifest) {
+    try {
+      const ajv = new Ajv2020({ allErrors: true, strict: true });
+      const validateManifest = ajv.compile(schema);
+      if (!validateManifest(manifest)) {
+        fail('Stack manifest does not conform to schema: ' + ajv.errorsText(validateManifest.errors, { separator: '; ' }));
+      }
+    } catch (error) {
+      fail('Stack JSON Schema could not be compiled: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
 }
 
 if (errors.length) {
