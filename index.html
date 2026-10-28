@@ -2,37 +2,62 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="author" content="Ntsiyeni Ganyane" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0b0f19" />
-    <meta name="description" content="RyanAI Autonomous Reasoning Engine and Developer Workspace." />
+    <meta name="application-name" content="RyanAI" />
+    <meta name="author" content="Ntsiyeni Ganyane" />
+    <meta
+      name="description"
+      content="RyanAI is an autonomous reasoning engine and developer workspace for agent operations, telemetry, and integrated workflows."
+    />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RyanAI" />
     <meta property="og:title" content="RyanAI | Autonomous Reasoning & Developer Platform" />
-    <meta property="og:description" content="RyanAI's integrated reasoning, telemetry, and developer workspace." />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      property="og:description"
+      content="Explore RyanAI's integrated reasoning, telemetry, and developer workspace."
+    />
+    <meta name="twitter:card" content="summary" />
+    <title>RyanAI | Autonomous Reasoning &amp; Developer Platform</title>
+
     <link
       rel="icon"
       type="image/svg+xml"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f19'/%3E%3Cpath d='M18 46V18h12c9 0 14 4 14 11 0 4-2 8-6 10l8 7h-9l-7-6h-4v6zm8-13h4c4 0 6-1 6-4s-2-4-6-4h-4z' fill='%2322d3ee'/%3E%3C/svg%3E"
     />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
-    <title>RyanAI | Autonomous Reasoning & Developer Platform</title>
   </head>
   <body>
     <div id="root">
-      <div role="status" aria-live="polite" style="min-height:100vh;display:grid;place-items:center;background:#0b0f19;color:#94a3b8;font:500 14px/1.5 system-ui,sans-serif;text-align:center;padding:2rem">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style="min-height:100vh;display:grid;place-items:center;background:#0b0f19;color:#94a3b8;font:500 14px/1.5 system-ui,sans-serif;text-align:center;padding:2rem"
+      >
         <div>
-          <strong style="display:block;color:#22d3ee;font-size:1.5rem;letter-spacing:.08em;margin-bottom:.75rem">RYANAI PLATFORM</strong>
+          <strong
+            style="display:block;color:#22d3ee;font-size:1.5rem;letter-spacing:.08em;margin-bottom:.75rem"
+          >
+            RYANAI PLATFORM
+          </strong>
           <span>Starting the autonomous reasoning workspace…</span>
         </div>
       </div>
     </div>
-    <noscript>JavaScript is required to run RyanAI.</noscript>
+    <noscript>
+      <p style="padding:1rem;background:#0b0f19;color:#e2e8f0">
+        JavaScript is required to run RyanAI. Enable JavaScript and reload this page.
+      </p>
+    </noscript>
+    <!-- Vite and Tauri both use src/main.tsx as the single application entry point. -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
