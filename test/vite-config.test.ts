@@ -69,3 +69,21 @@ describe('Vercel API origin validation', () => {
     expect(() => resolveConfig(build)).not.toThrow();
   });
 });
+
+
+describe('browser credential protection', () => {
+  it.each([
+    'VITE_OPENAI_API_KEY',
+    'VITE_NVIDIA_API_KEY',
+    'VITE_QWEN_API_KEY',
+    'VITE_TOGETHER_API_KEY',
+    'VITE_OPENROUTER_API_KEY',
+    'VITE_MODEL_GATEWAY_API_KEY',
+    'VITE_LOCAL_API_KEY',
+  ])('rejects provider credentials configured as %s', (name) => {
+    vi.stubEnv(name, 'test-only-not-a-real-secret');
+    expect(() => resolveConfig({ command: 'serve', mode: 'development' })).toThrow(
+      'Refusing to build with provider credentials in browser-exposed variables',
+    );
+  });
+});

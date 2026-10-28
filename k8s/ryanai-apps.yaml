@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/rmnganyane-dev/ryanai-automous-reasioning-plat/api:latest
+          image: ghcr.io/ryanai-automated/ryanai-automous-reasioning-plat/api:latest
           ports:
             - name: http
               containerPort: 3000
@@ -113,7 +113,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/rmnganyane-dev/ryanai-automous-reasioning-plat/web:latest
+          image: ghcr.io/ryanai-automated/ryanai-automous-reasioning-plat/web:latest
           ports:
             - name: http
               containerPort: 80

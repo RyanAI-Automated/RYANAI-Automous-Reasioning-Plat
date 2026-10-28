@@ -1,10 +1,16 @@
+packages:
+  - 'mcp-server'
+  - 'workflows-ryanai'
+
+# pnpm v10 build-script allowlist. npm remains the repository's documented
+# package manager; these settings apply only when a contributor uses pnpm.
 allowBuilds:
-  '@prisma/client': false
-  '@prisma/engines': false
+  '@prisma/client': true
+  '@prisma/engines': true
   '@sentry/node-cpu-profiler': false
-  esbuild: false
+  esbuild: true
   msgpackr-extract: false
-  prisma: false
+  prisma: true
   protobufjs: false
   puppeteer: false
   workerd: false

@@ -77,8 +77,6 @@ spec:
                   key: DB_PASSWORD
             - name: POSTGRES_DB
               value: "ryanai_db"
-            - name: POSTGRES_INITDB_ARGS
-              value: "-c shared_preload_libraries=vector"
           ports:
             - containerPort: 5432
               name: postgres

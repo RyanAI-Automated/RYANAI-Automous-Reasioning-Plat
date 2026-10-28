@@ -86,7 +86,7 @@ npm ci --legacy-peer-deps
 
 ## Configuration and environment variables
 
-The application loads local environment configuration from `.env`. Create that file yourself in the repository root; **never commit real credentials**.
+The application loads local environment configuration from `.env`. Start with the tracked [`.env.example`](.env.example) template, copy it to `.env`, and replace the placeholders. **Never commit real credentials.**
 
 ### Minimal Docker Compose `.env`
 
@@ -179,7 +179,7 @@ Use the environment-variable names in the code and deployment configuration as t
 
 Docker Compose is the simplest way to launch the complete local stack.
 
-1. Create the root `.env` file using the template above and replace all four required secrets.
+1. Copy `.env.example` to `.env` (PowerShell: `Copy-Item .env.example .env`; macOS/Linux: `cp .env.example .env`) and replace all four required secrets. Use distinct high-entropy values; use hex-only values for DB/Redis passwords because they are inserted into connection URLs.
 2. Build and start all services:
 
    ```bash

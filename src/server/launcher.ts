@@ -87,9 +87,32 @@ const fastify = Fastify({
 const prisma = new PrismaClient();
 fastify.decorate('prisma', prisma);
 
-// Register CORS Plugin
+// Register CORS with an explicit origin allowlist. Reflecting every Origin while
+// allowing credentials would let arbitrary websites make authenticated API calls.
+const configuredCorsOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedCorsOrigins = new Set(configuredCorsOrigins);
+
+if (process.env.NODE_ENV !== 'production') {
+  [
+    'http://localhost:1420',
+    'http://127.0.0.1:1420',
+    'http://localhost:9090',
+    'http://127.0.0.1:9090',
+  ].forEach((origin) => allowedCorsOrigins.add(origin));
+}
+
 await fastify.register(fastifyCors, {
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin || allowedCorsOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('Origin not allowed by CORS'), false);
+  },
   credentials: true,
 });
 

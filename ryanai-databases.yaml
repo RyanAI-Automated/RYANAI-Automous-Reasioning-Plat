@@ -69,8 +69,6 @@ spec:
                   key: DB_PASSWORD
             - name: POSTGRES_DB
               value: "ryanai_db"
-            - name: POSTGRES_INITDB_ARGS
-              value: "-c shared_preload_libraries=vector"
           ports:
             - containerPort: 5432
           volumeMounts:
@@ -125,7 +123,10 @@ spec:
       containers:
         - name: redis
           image: redis:7-alpine
-          command: ["redis-server", "--appendonly", "yes", "--requirepass", "$(REDIS_PASSWORD)"]
+          command:
+            - "sh"
+            - "-c"
+            - 'exec redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"'
           env:
             - name: REDIS_PASSWORD
               valueFrom:

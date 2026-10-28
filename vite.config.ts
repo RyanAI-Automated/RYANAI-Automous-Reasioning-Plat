@@ -69,6 +69,23 @@ function validateVercelApiOrigin(
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const forbiddenClientSecrets = [
+    'VITE_OPENAI_API_KEY',
+    'VITE_NVIDIA_API_KEY',
+    'VITE_QWEN_API_KEY',
+    'VITE_TOGETHER_API_KEY',
+    'VITE_OPENROUTER_API_KEY',
+    'VITE_MODEL_GATEWAY_API_KEY',
+    'VITE_LOCAL_API_KEY',
+  ];
+  const exposedSecretNames = forbiddenClientSecrets.filter(
+    (name) => Boolean(env[name]?.trim() || process.env[name]?.trim()),
+  );
+  if (exposedSecretNames.length > 0) {
+    throw new Error(
+      `Refusing to build with provider credentials in browser-exposed variables: ${exposedSecretNames.join(', ')}. Configure these as server-only variables without the VITE_ prefix.`,
+    );
+  }
 
   const primaryApiUrl =
     env.VITE_API_BASE_URL ?? process.env.VITE_API_BASE_URL;

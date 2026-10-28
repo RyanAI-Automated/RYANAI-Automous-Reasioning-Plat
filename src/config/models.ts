@@ -3,19 +3,30 @@
  * and Node.js (process.env) runtimes, auto-prefixing VITE_ where needed.
  */
 export function getEnv(key: string, defaultValue = ''): string {
+  const baseKey = key.replace(/^VITE_/, '');
+  const isCredential = /(?:API_KEY|TOKEN|SECRET|PASSWORD)$/i.test(baseKey);
+
+  // Provider credentials are server-only. Never read them from VITE_* variables:
+  // Vite embeds VITE_* values in browser bundles.
+  if (isCredential) {
+    return typeof process !== 'undefined' && process.env?.[baseKey] !== undefined
+      ? process.env[baseKey] as string
+      : defaultValue;
+  }
+
   const viteKey = key.startsWith('VITE_') ? key : `VITE_${key}`;
-  
+
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     const env = import.meta.env as Record<string, unknown>;
     if (env[viteKey] !== undefined) return env[viteKey] as string;
     if (env[key] !== undefined) return env[key] as string;
   }
-  
+
   if (typeof process !== 'undefined' && process.env) {
     if (process.env[key] !== undefined) return process.env[key] as string;
     if (process.env[viteKey] !== undefined) return process.env[viteKey] as string;
   }
-  
+
   return defaultValue;
 }
 
@@ -200,7 +211,7 @@ export const RYANAI_BRAINS: Record<string, ModelProfile> = {
     endpoint: PROVIDER_GATEWAYS.nvidia.baseUrl,
     contextWindow: AVAILABLE_MODELS['nemotron-3-ultra'].contextWindow,
     temperature: AVAILABLE_MODELS['nemotron-3-ultra'].defaultTemperature,
-    apiKey: getEnv('NVIDIA_API_KEY') || getEnv('VITE_NVIDIA_API_KEY'),
+    apiKey: getEnv('NVIDIA_API_KEY'),
   },
   qwen27b: {
     id: AVAILABLE_MODELS['qwen-3.6-27b'].id,
@@ -210,7 +221,7 @@ export const RYANAI_BRAINS: Record<string, ModelProfile> = {
     endpoint: PROVIDER_GATEWAYS.together.baseUrl,
     contextWindow: AVAILABLE_MODELS['qwen-3.6-27b'].contextWindow,
     temperature: AVAILABLE_MODELS['qwen-3.6-27b'].defaultTemperature,
-    apiKey: getEnv('TOGETHER_API_KEY') || getEnv('QWEN_API_KEY') || getEnv('VITE_TOGETHER_API_KEY'),
+    apiKey: getEnv('TOGETHER_API_KEY') || getEnv('QWEN_API_KEY'),
   },
   localDeterministic: {
     id: AVAILABLE_MODELS['local-deterministic'].id,
@@ -319,7 +330,7 @@ export function getGatewayForModel(model: ModelDefinition): {
   const gateway = PROVIDER_GATEWAYS[model.provider];
   return {
     baseUrl: gateway.baseUrl,
-    apiKey: getEnv(gateway.apiKeyEnvVar) || getEnv(`VITE_${gateway.apiKeyEnvVar}`),
+    apiKey: getEnv(gateway.apiKeyEnvVar),
     timeoutMs: gateway.timeoutMs,
   };
 }
