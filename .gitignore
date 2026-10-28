@@ -177,6 +177,7 @@ build/
 *.bat
 *.ps1
 *.sh
+!docker-entrypoint.sh
 *.gguf
 *.md
 
