@@ -169,7 +169,8 @@
     "uuid": "^14.0.2",
     "ws": "^8.21.3",
     "zod": "^4.5.4",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
