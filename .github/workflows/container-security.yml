@@ -92,7 +92,7 @@ jobs:
       - name: Enforce high and critical vulnerability gate
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ matrix.image }}:scan
+          image-ref: ryanai-${{ matrix.image }}:scan
           format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: true
@@ -103,7 +103,7 @@ jobs:
         continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ matrix.image }}:scan
+          image-ref: ryanai-${{ matrix.image }}:scan
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
