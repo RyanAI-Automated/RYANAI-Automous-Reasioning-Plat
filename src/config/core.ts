@@ -18,7 +18,7 @@ export const RYANAI_CORE = Object.freeze({
 interface CoreConfig {
   version?: string;
   environment?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 const coreConfig: CoreConfig = {
