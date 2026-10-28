@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parse as parseYaml } from 'yaml';
 
 const root = process.cwd();
 const manifestPath = path.join(root, 'stacks', 'ryanai.stack.json');
@@ -40,11 +41,29 @@ if (manifest) {
     if (!Number.isInteger(service.port) || service.port < 1 || service.port > 65535) {
       fail('Invalid port for stack service: ' + String(service.name));
     }
-    for (const key of ['dockerfile', 'persistentVolume']) {
-      if (typeof service[key] === 'string' && !existsSync(path.join(root, service[key]))) {
-        fail('Missing stack asset for ' + String(service.name) + ': ' + service[key]);
-      }
+    if (typeof service.dockerfile === 'string' && !existsSync(path.join(root, service.dockerfile))) {
+      fail('Missing Dockerfile for ' + String(service.name) + ': ' + service.dockerfile);
     }
+  }
+
+  const composePath = path.join(root, 'docker-compose.yml');
+  if (existsSync(composePath)) {
+    try {
+      const compose = parseYaml(readFileSync(composePath, 'utf8'));
+      const configuredVolumes = compose?.volumes || {};
+      for (const service of services) {
+        if (
+          typeof service.persistentVolume === 'string' &&
+          !Object.prototype.hasOwnProperty.call(configuredVolumes, service.persistentVolume)
+        ) {
+          fail('Persistent volume is not declared in docker-compose.yml: ' + service.persistentVolume);
+        }
+      }
+    } catch (error) {
+      fail('docker-compose.yml could not be parsed: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  } else {
+    fail('docker-compose.yml is missing');
   }
 
   const targets = [
