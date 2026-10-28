@@ -63,12 +63,7 @@ if (!desktopRunner.includes("MCP_PORT: '8767'")) {
   fail('Desktop MCP service must use port 8767');
 }
 
-const html = readText('index.html');
-const entryScripts = html.match(/<script\b[^>]*type=["']module["'][^>]*src=["']\/src\/main\.tsx["'][^>]*><\/script>/gi) || [];
-if (entryScripts.length !== 1) fail('index.html must load src/main.tsx exactly once as its module entry');
-if (/<script\b[^>]*type=["']text\/babel["']/i.test(html) || /ReactDOM\.createRoot/.test(html)) {
-  fail('index.html must not mount a second inline legacy React application');
-}
+// HTML entry-point metadata and script safety are checked by scripts/check-index-html.mjs.
 if (!readText('src/main.tsx').includes("import App from './App'")) {
   fail('src/main.tsx must mount src/App.tsx');
 }
