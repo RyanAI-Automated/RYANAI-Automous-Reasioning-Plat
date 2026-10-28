@@ -50,7 +50,6 @@ function fixture(t) {
     saveManifest(manifest) {
       writeFileSync(path.join(dir, 'stacks/ryanai.stack.json'), JSON.stringify(manifest, null, 2), 'utf8');
     },
-    put,
   };
 }
 
@@ -120,17 +119,9 @@ test('rejects common credential key variants without echoing secret values', (t)
 
   const result = validate(f.dir);
   assert.equal(result.status, 1);
-  for (const key of credentialKeys) {
-    assert.match(result.stderr, new RegExp('Do not store credentials in stack manifest at .*\\.' + key.replace(/[.*+?^${}()|[\\]\\]/g, '\\test('rejects inline credentials and does not echo credential values', (t) => {
-  const f = fixture(t);
-  f.manifest.services[0].password = 'secret-fixture-value-do-not-print';
-  f.saveManifest(f.manifest);
-
-  const result = validate(f.dir);
-  assert.equal(result.status, 1);
   assert.match(result.stderr, /Do not store credentials in stack manifest/);
-  assert.doesNotMatch(result.stdout + result.stderr, /secret-fixture-value-do-not-print/);
-});')));
+  for (const key of credentialKeys) {
+    assert.ok(result.stderr.includes('.' + key), 'Expected credential policy to identify ' + key);
   }
   assert.doesNotMatch(result.stdout + result.stderr, /secret-fixture-value-do-not-print/);
 });
