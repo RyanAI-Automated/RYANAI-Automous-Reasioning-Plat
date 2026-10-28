@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.ryanapp.dev",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev:desktop:services",
+    "devUrl": "http://localhost:1422",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
