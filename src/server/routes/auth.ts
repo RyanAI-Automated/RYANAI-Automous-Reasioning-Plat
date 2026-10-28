@@ -6,6 +6,7 @@ import type {
 } from 'fastify';
 import { createContextClient } from '@supabase/server/core';
 import bcrypt from 'bcrypt';
+import type { PrismaClient } from '@prisma/client';
 
 // --- Interfaces & Types ---
 
@@ -26,7 +27,7 @@ declare module 'fastify' {
     authUser: AuthenticatedUser | null;
   }
   interface FastifyInstance {
-    prisma: any; // Replace 'any' with your generated PrismaClient type if available
+    prisma: PrismaClient;
   }
 }
 
@@ -203,8 +204,8 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
         ...(token && { token }),
       });
 
-    } catch (error: any) {
-      request.log.error(error, '[Auth] Database error encountered during signin');
+    } catch (error: unknown) {
+      request.log.error({ err: error }, '[Auth] Database error encountered during signin');
 
       return reply.status(500).send({
         error: 'Internal Server Error',

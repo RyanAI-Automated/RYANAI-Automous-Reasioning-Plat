@@ -26,7 +26,7 @@ export async function registerPatchRoutes(fastify: FastifyInstance) {
         }
 
         // 3. Attach author if authenticated
-        const authUser = (request as any).user as { email?: string } | undefined;
+        const authUser = (request as FastifyRequest & { user?: { email?: string } }).user;
         if (authUser?.email && !patchRequest.author) {
           patchRequest.author = authUser.email;
         }
@@ -48,11 +48,13 @@ export async function registerPatchRoutes(fastify: FastifyInstance) {
           message: 'Patch applied successfully',
           result,
         });
-      } catch (error: any) {
-        request.log.error(error, '[PatchRoutes] Unhandled error during patch execution');
+      } catch (error: unknown) {
+        request.log.error({ err: error }, '[PatchRoutes] Unhandled error during patch execution');
         return reply.status(500).send({
           success: false,
-          error: error.message || 'Internal server error while processing patch request',
+          error: error instanceof Error
+            ? error.message
+            : 'Internal server error while processing patch request',
         });
       }
     }
