@@ -179,10 +179,17 @@ await check('WebSocket endpoint rejects anonymous upgrades', () =>
   checkWebSocket(apiBase, timeoutMs, { expectedStatus: 401 }),
 );
 
-await check('Authenticated admin WebSocket accepts upgrades', async () => {
-  if (!adminToken) throw new Error('TEST_ADMIN_ACCESS_TOKEN is required');
-  await checkWebSocket(apiBase, timeoutMs, { token: adminToken });
-});
+let skipped = 0;
+if (adminToken) {
+  await check('Authenticated admin WebSocket accepts upgrades', () =>
+    checkWebSocket(apiBase, timeoutMs, { token: adminToken }),
+  );
+} else {
+  skipped++;
+  console.log(
+    'SKIP Authenticated admin WebSocket: set TEST_ADMIN_ACCESS_TOKEN to a Supabase admin access token',
+  );
+}
 const passed = results.filter(Boolean).length;
-console.log(`\nIntegration checks: ${passed}/${results.length} passed`);
+console.log(`\nIntegration checks: ${passed}/${results.length} passed; ${skipped} skipped`);
 if (passed !== results.length) process.exitCode = 1;
