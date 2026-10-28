@@ -448,7 +448,7 @@ function validateRecoveryJournal(journal: Journal) {
   if (
     journal.version !== 1 ||
     !allowed(journal.filePath) ||
-    !/^[a-f0-9-]{36}\$/.test(journal.id) ||
+    !/^[a-f0-9-]{36}$/.test(journal.id) ||
     journal.temporaryPath !==
       path.posix.join(
         path.posix.dirname(journal.filePath),
