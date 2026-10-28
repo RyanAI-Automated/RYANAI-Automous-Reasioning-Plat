@@ -139,7 +139,7 @@ jobs:
           NODE
 
       - name: Preserve Trivy SARIF artifact
-        if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
         uses: actions/upload-artifact@v4
         with:
           name: trivy-${{ matrix.image }}-sarif
