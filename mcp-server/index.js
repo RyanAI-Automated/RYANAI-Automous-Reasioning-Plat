@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import process from 'node:process';
@@ -12,6 +12,8 @@ const projectRoot = path.resolve(process.env.RYANAI_PROJECT_ROOT || path.join(im
 const isWindows = process.platform === 'win32';
 const hasProjectManifest = existsSync(path.join(projectRoot, 'package.json'));
 const hasGitMetadata = existsSync(path.join(projectRoot, '.git'));
+const stackManifestPath = path.join(projectRoot, 'stacks', 'ryanai.stack.json');
+const hasStackManifest = existsSync(stackManifestPath);
 
 export function createMcpServer() {
   const server = new Server(
@@ -34,6 +36,11 @@ export function createMcpServer() {
       inputSchema: { type: 'object', properties: {} },
     },
     ] : []),
+    ...(hasStackManifest ? [{
+      name: 'ryanai_stack_manifest',
+      description: 'Return the non-secret RyanAI service and deployment stack manifest for Jarvis orchestration.',
+      inputSchema: { type: 'object', properties: {} },
+    }] : []),
     {
       name: 'platform_health',
       description: 'Check the configured RyanAI API health endpoint.',
@@ -75,6 +82,11 @@ export function createMcpServer() {
         const status = await run('git', ['status', '--short']);
         const diffCheck = await run('git', ['diff', '--check']);
         return textResult(`Repository status:\n${status || '(clean)'}\n\nWhitespace check:\n${diffCheck || 'clean'}`);
+      }
+
+      if (request.params.name === 'ryanai_stack_manifest') {
+        const manifest = JSON.parse(readFileSync(stackManifestPath, 'utf8'));
+        return textResult(JSON.stringify(manifest, null, 2));
       }
 
       if (request.params.name === 'platform_health') {

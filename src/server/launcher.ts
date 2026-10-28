@@ -30,6 +30,7 @@ import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
+import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 
 const { Pool } = pg;
@@ -399,6 +400,7 @@ async function registerPlugins() {
   await fastify.register(metricsRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(pendingActionsRoutes);
+  await fastify.register(jarvisRoutes);
 }
 
 // ============================================================================

@@ -20,7 +20,7 @@
         "start:dev": "tsx src/server/launcher.ts",
         "typecheck": "tsc -p tsconfig.app.json --noEmit",
         "build:web": "npm run build:client",
-        "validate": "npm run typecheck && npm run lint && npm run test && npm run test:cs-script && npm run test:workflows && npm run workflows:check && npm run build && npm run build:server",
+        "validate": "npm run typecheck && npm run lint && npm run test && npm run test:cs-script && npm run test:workflows && npm run workflows:check && npm run stack:validate && npm run build && npm run build:server",
         "build:desktop": "tauri build",
         "docker:up": "docker compose up --build --detach --wait",
         "docker:health": "docker compose exec -T api wget -q -O - http://127.0.0.1:3000/health",
@@ -89,6 +89,10 @@
         "workflow:agent": "node scripts/github-workflow-agent.mjs --audit",
         "workflow:agent:fix": "node scripts/github-workflow-agent.mjs --fix",
         "workflow:validate": "node scripts/validate-github-workflows.mjs",
+        "stack:validate": "node scripts/validate-stack-manifest.mjs",
+        "jarvis:status": "node --import tsx/esm scripts/jarvis-sync.ts status",
+        "jarvis:publish-stack": "node --import tsx/esm scripts/jarvis-sync.ts publish-stack",
+        "jarvis:submit-patch": "node --import tsx/esm scripts/jarvis-sync.ts submit-patch",
         "frontend:agent:dry-run": "node scripts/frontend-platform-agent.mjs --fix --dry-run"
     },
     "dependencies": {

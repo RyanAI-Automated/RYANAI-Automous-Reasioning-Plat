@@ -3,6 +3,7 @@ import { gatedCommsTools } from './tools/gatedCommsTools.js';
 import { memoryTools } from './tools/memoryTools.js';
 import { scheduleTools } from './tools/scheduleTools.js';
 import { workspaceTools } from './tools/workspaceTools.js';
+import { jarvisTools } from './tools/jarvisTools.js';
 import { AUTONOMOUS_REASONING_SKILL } from '../skills/index.js';
 import modelCatalog from '../../models/catalog.json' with { type: 'json' };
 import { RYANAI_CORE } from '../config/core.js';
@@ -41,7 +42,7 @@ export function getReasoningAgent(requestedModel = defaultModel) {
   if (!reasoningAgent) {
     reasoningAgent = createReactAgent({
       llm: createChatModel(model),
-      tools: [...gatedCommsTools, ...memoryTools, ...scheduleTools, ...workspaceTools],
+      tools: [...gatedCommsTools, ...memoryTools, ...scheduleTools, ...workspaceTools, ...jarvisTools],
       stateModifier: AUTONOMOUS_REASONING_SKILL.systemPrompt,
     });
     reasoningAgents.set(model, reasoningAgent);

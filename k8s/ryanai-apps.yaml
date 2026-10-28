@@ -16,6 +16,7 @@ metadata:
 ---
 # Images are published by .github/workflows/ci-cd.yml.
 # Add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to ryanai-secrets for sign-in.
+# Jarvis keys are optional: JARVIS_BASE_URL, JARVIS_API_TOKEN, and JARVIS_INGRESS_TOKEN.
 # Build the web image with matching public VITE_SUPABASE_* settings.
 apiVersion: apps/v1
 kind: Deployment
@@ -47,6 +48,36 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "3000"
+            - name: JARVIS_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: JARVIS_BASE_URL
+                  optional: true
+            - name: JARVIS_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: JARVIS_API_TOKEN
+                  optional: true
+            - name: JARVIS_INGRESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: JARVIS_INGRESS_TOKEN
+                  optional: true
+            - name: JARVIS_SYNC_ENABLED
+              value: "false"
+            - name: JARVIS_ALLOW_PRODUCTION_SYNC
+              value: "false"
+            - name: JARVIS_PATCH_INGRESS_ENABLED
+              value: "false"
+            - name: JARVIS_HEALTH_PATH
+              value: "/health"
+            - name: JARVIS_PATCH_PATH
+              value: "/api/v1/patches"
+            - name: JARVIS_STACK_PATH
+              value: "/api/v1/stacks"
           readinessProbe:
             httpGet:
               path: /health
