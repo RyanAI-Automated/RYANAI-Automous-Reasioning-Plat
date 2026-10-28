@@ -29,7 +29,7 @@ function readJson(file) {
     return JSON.parse(readFileSync(file, 'utf8'));
   } catch (error) {
     fail(path.relative(root, file) + ': ' + (error instanceof Error ? error.message : String(error)));
-    return null;
+    return undefined;
   }
 }
 
@@ -38,100 +38,100 @@ if (!existsSync(schemaPath)) fail('stacks/ryanai.stack.schema.json is missing');
 const manifest = readJson(manifestPath);
 const schema = readJson(schemaPath);
 
-if (manifest) {
-  if (manifest.schemaVersion !== 'ryanai.stack/v1') fail('Unexpected stack schemaVersion');
-  if (manifest.name !== 'ryanai') fail('Stack name must be ryanai');
-  if (typeof manifest.version !== 'string' || !manifest.version) fail('Stack version is required');
-  if (!Array.isArray(manifest.services)) fail('Stack services must be an array');
+if (manifest !== undefined) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    fail('Stack manifest root must be a JSON object');
+  } else {
+    if (manifest.schemaVersion !== 'ryanai.stack/v1') fail('Unexpected stack schemaVersion');
+    if (manifest.name !== 'ryanai') fail('Stack name must be ryanai');
+    if (typeof manifest.version !== 'string' || !manifest.version) fail('Stack version is required');
+    if (!Array.isArray(manifest.services)) fail('Stack services must be an array');
 
-  const services = Array.isArray(manifest.services) ? manifest.services : [];
-  const validServices = services.filter((service) => service && typeof service === 'object' && !Array.isArray(service));
-  if (validServices.length !== services.length) fail('Each stack service must be an object');
-  const names = validServices.map((service) => service.name);
-  if (new Set(names).size !== names.length) fail('Stack service names must be unique');
+    const services = Array.isArray(manifest.services) ? manifest.services : [];
+    const validServices = services.filter((service) => service && typeof service === 'object' && !Array.isArray(service));
+    if (validServices.length !== services.length) fail('Each stack service must be an object');
+    const names = validServices.map((service) => service.name);
+    if (new Set(names).size !== names.length) fail('Stack service names must be unique');
 
-  for (const name of ['api', 'web', 'mcp-server', 'postgres', 'redis']) {
-    if (!names.includes(name)) fail('Missing required stack service: ' + name);
-  }
-
-  for (const service of validServices) {
-    if (!Number.isInteger(service.port) || service.port < 1 || service.port > 65535) {
-      fail('Invalid port for stack service: ' + String(service.name));
+    for (const name of ['api', 'web', 'mcp-server', 'postgres', 'redis']) {
+      if (!names.includes(name)) fail('Missing required stack service: ' + name);
     }
-    if (typeof service.dockerfile === 'string') {
-      const dockerfilePath = resolveRepoPath(service.dockerfile);
-      if (!dockerfilePath) {
-        fail('Dockerfile path must stay inside the repository for ' + String(service.name));
-      } else if (!existsSync(dockerfilePath)) {
-        fail('Missing Dockerfile for ' + String(service.name) + ': ' + service.dockerfile);
+
+    for (const service of validServices) {
+      if (!Number.isInteger(service.port) || service.port < 1 || service.port > 65535) {
+        fail('Invalid port for stack service: ' + String(service.name));
       }
-    }
-  }
-
-  const composePath = path.join(root, 'docker-compose.yml');
-  if (existsSync(composePath)) {
-    try {
-      const compose = parseYaml(readFileSync(composePath, 'utf8'));
-      const configuredVolumes = compose?.volumes || {};
-      for (const service of services) {
-        if (
-          typeof service.persistentVolume === 'string' &&
-          !Object.prototype.hasOwnProperty.call(configuredVolumes, service.persistentVolume)
-        ) {
-          fail('Persistent volume is not declared in docker-compose.yml: ' + service.persistentVolume);
+      if (typeof service.dockerfile === 'string') {
+        const dockerfilePath = resolveRepoPath(service.dockerfile);
+        if (!dockerfilePath) {
+          fail('Dockerfile path must stay inside the repository for ' + String(service.name));
+        } else if (!existsSync(dockerfilePath)) {
+          fail('Missing Dockerfile for ' + String(service.name) + ': ' + service.dockerfile);
         }
       }
-    } catch (error) {
-      fail('docker-compose.yml could not be parsed: ' + (error instanceof Error ? error.message : String(error)));
     }
-  } else {
-    fail('docker-compose.yml is missing');
-  }
 
-  const targets = [
-    manifest.deploymentTargets?.dockerCompose,
-    manifest.deploymentTargets?.render,
-    manifest.deploymentTargets?.vercel,
-    ...(manifest.deploymentTargets?.kubernetes || []),
-  ];
-  for (const target of targets) {
-    const targetPath = resolveRepoPath(target);
-    if (!targetPath) {
-      fail('Deployment target must be a repository-relative path: ' + String(target));
-    } else if (!existsSync(targetPath)) {
-      fail('Missing deployment target: ' + target);
-    }
-  }
-
-  if (manifest.integrations?.jarvis?.enabledByDefault !== false) {
-    fail('Jarvis sync must remain disabled by default');
-  }
-
-  const forbiddenKey = /(?:^|_)(?:token|api_?key|access_?token|refresh_?token|password|passwd|secret(?:value)?|credential(?:value)?|private_?key|client_?secret|authorization)(?:_|$)/i;
-  function findInlineSecrets(value, location = '
-if (errors.length) {
-  console.error(errors.map((message) => 'ERROR ' + message).join('\n'));
-  process.exit(1);
-}
-console.log('PASS RyanAI stack manifest and deployment references validated');
-) {
-    if (!value || typeof value !== 'object') return;
-    for (const [key, child] of Object.entries(value)) {
-      const normalizedKey = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_');
-      // `requiresSecret` is a reference to an environment variable name, not a credential value.
-      if (key.toLowerCase() !== 'requiressecret' && forbiddenKey.test(normalizedKey)) {
-        fail('Do not store credentials in stack manifest at ' + location + '.' + key);
+    const composePath = path.join(root, 'docker-compose.yml');
+    if (existsSync(composePath)) {
+      try {
+        const compose = parseYaml(readFileSync(composePath, 'utf8'));
+        const configuredVolumes = compose?.volumes || {};
+        for (const service of validServices) {
+          if (
+            typeof service.persistentVolume === 'string' &&
+            !Object.prototype.hasOwnProperty.call(configuredVolumes, service.persistentVolume)
+          ) {
+            fail('Persistent volume is not declared in docker-compose.yml: ' + service.persistentVolume);
+          }
+        }
+      } catch (error) {
+        fail('docker-compose.yml could not be parsed: ' + (error instanceof Error ? error.message : String(error)));
       }
-      findInlineSecrets(child, location + '.' + key);
+    } else {
+      fail('docker-compose.yml is missing');
     }
+
+    const targets = [
+      manifest.deploymentTargets?.dockerCompose,
+      manifest.deploymentTargets?.render,
+      manifest.deploymentTargets?.vercel,
+      ...(Array.isArray(manifest.deploymentTargets?.kubernetes) ? manifest.deploymentTargets.kubernetes : []),
+    ];
+    for (const target of targets) {
+      const targetPath = resolveRepoPath(target);
+      if (!targetPath) {
+        fail('Deployment target must be a repository-relative path: ' + String(target));
+      } else if (!existsSync(targetPath)) {
+        fail('Missing deployment target: ' + target);
+      }
+    }
+
+    if (manifest.integrations?.jarvis?.enabledByDefault !== false) {
+      fail('Jarvis sync must remain disabled by default');
+    }
+
+    const forbiddenKey = /(?:^|_)(?:token|api_?key|access_?token|refresh_?token|password|passwd|secret(?:value)?|credential(?:value)?|private_?key|client_?secret|authorization)(?:_|$)/i;
+    function findInlineSecrets(value, location = '$') {
+      if (!value || typeof value !== 'object') return;
+      for (const [key, child] of Object.entries(value)) {
+        const normalizedKey = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/-/g, '_');
+        // requiresSecret names an environment variable; it does not contain the secret value.
+        if (key.toLowerCase() !== 'requiressecret' && forbiddenKey.test(normalizedKey)) {
+          fail('Do not store credentials in stack manifest at ' + location + '.' + key);
+        }
+        findInlineSecrets(child, location + '.' + key);
+      }
+    }
+    findInlineSecrets(manifest);
   }
-  findInlineSecrets(manifest);
 }
 
-if (schema) {
-  if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
+if (schema !== undefined) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    fail('Stack JSON Schema root must be a JSON object');
+  } else if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
     fail('Stack JSON Schema draft declaration is missing or unsupported');
-  } else if (manifest) {
+  } else if (manifest !== undefined) {
     try {
       const ajv = new Ajv2020({ allErrors: true, strict: true });
       const validateManifest = ajv.compile(schema);
@@ -148,4 +148,4 @@ if (errors.length) {
   console.error(errors.map((message) => 'ERROR ' + message).join('\n'));
   process.exit(1);
 }
-console.log('PASS RyanAI stack manifest and deployment references validated');
+console.log('PASS RyanAI stack manifest, schema, path, and credential policy validated');
