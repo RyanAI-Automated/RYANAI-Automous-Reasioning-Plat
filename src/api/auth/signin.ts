@@ -48,7 +48,7 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
           where: { email },
         });
 
-        if (!user || !user.password) {
+        if (!user || !user.passwordHash) {
           // Generic message to prevent user enumeration attacks
           return reply.status(401).send({
             error: 'Unauthorized',
@@ -57,7 +57,7 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
         }
 
         // 3. Password Verification
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
         if (!isPasswordValid) {
           return reply.status(401).send({
