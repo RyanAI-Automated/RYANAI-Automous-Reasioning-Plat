@@ -67,6 +67,10 @@ A patch proposal JSON file has `title`, `targetPath`, `patchContent`, `branch`, 
 
 For a Jarvis deployment that supports MCP Streamable HTTP, register RyanAI's MCP manager at `/mcp` and use the `MCP_AUTH_TOKEN` as a bearer token. The endpoint host must be listed in `MCP_ALLOWED_HOSTS`; if Jarvis sends an Origin header, that origin host must also be allow-listed. Expose the MCP listener only on a trusted network or behind an authenticated TLS ingress. The MCP manager provides platform health, provider-routed reasoning, project checks, and repository status where Git metadata is present.
 
+## Staging smoke test
+
+For required GitHub Actions secrets, staging-only configuration, expected HTTP outcomes, and safe manual execution, see [`JARVIS_STAGING_RUNBOOK.md`](./JARVIS_STAGING_RUNBOOK.md). The workflow is manual and never enables production sync.
+
 ## Stack deployment
 
 The manifest describes the services in `docker-compose.yml`, the Kubernetes files under `k8s/`, Render, and the Vercel workflow. It is descriptive metadata; publishing it to Jarvis does not deploy the stack. Production deployment remains subject to the configured CI gates and deployment credentials.
