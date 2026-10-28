@@ -10,9 +10,6 @@ interface SigninRequestBody {
 declare module 'fastify' {
   interface FastifyInstance {
     prisma: any; // Replace with your generated PrismaClient type if available
-    jwt?: {
-      sign(payload: object, options?: object): string;
-    };
   }
 }
 

@@ -1,10 +1,9 @@
-import { execFile, fork, type ChildProcess } from "node:child_process";
+import { execFile, type ChildProcess } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
-import { ModuleKind, ScriptTarget, transpileModule } from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyWorkspacePatch,
@@ -24,9 +23,7 @@ const directories: string[] = [];
 const workspaces: string[] = [];
 const roots: string[] = [];
 const children = new Map<ChildProcess, Promise<void>>();
-const request = { filePath: "src/app.ts", patchContent: "verified candidate" };
 const patch = { filePath: "src/app.ts", patchContent: "accepted" };
-type StopPhase = "verification" | "before-rename" | "after-rename";
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 
 async function stop(child: ChildProcess) {
