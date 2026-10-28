@@ -235,7 +235,7 @@ assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) 
     fail(filePath, 'high/critical vulnerability gate must use the blocking table scan');
   }
   const report = steps.find((step) => step.name === 'Generate SARIF report (non-blocking)');
-  if (report?.continueOnError !== true || String(report?.with?.['exit-code']) !== '0') {
+  if (report?.['continue-on-error'] !== true || String(report?.with?.['exit-code']) !== '0') {
     fail(filePath, 'SARIF generation must be non-blocking and separate from the vulnerability gate');
   }
 });

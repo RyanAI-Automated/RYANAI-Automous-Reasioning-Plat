@@ -35,8 +35,6 @@ export class TauriBridge {
         result: response.output || '',
       };
     } catch (error: unknown) {
-      console.error("[Tauri IPC Error]:", error);
-      throw new Error(String(error || "Unknown Tauri IPC execution failure."), { cause: error });
       console.error('[RyanAI bridge error]:', error);
       throw new Error(
         error instanceof Error ? error.message : String(error || 'Unknown bridge failure.'),
