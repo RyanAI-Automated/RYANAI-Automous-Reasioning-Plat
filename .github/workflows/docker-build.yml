@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - 'Dockerfile*'
+      - 'index.html'
       - 'docker-compose.yml'
       - 'nginx.conf'
       - 'nginx.conf.template'
