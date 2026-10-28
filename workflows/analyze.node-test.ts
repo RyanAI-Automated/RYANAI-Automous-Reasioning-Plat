@@ -105,3 +105,34 @@ test('rejects a response with an unsuccessful or empty result', async () => {
   );
   assert.equal(requests.length, 1);
 });
+
+test('rejects inherited object keys as unsupported modes', async () => {
+  await assert.rejects(
+    analyzeWorkflow({
+      targetId: 'staging-target',
+      payload: 'health check',
+      mode: 'toString' as 'fast',
+    }),
+    /Unsupported analysis mode/,
+  );
+  assert.equal(requests.length, 0);
+});
+
+test('rejects non-string payloads before making a network request', async () => {
+  await assert.rejects(
+    analyzeWorkflow({ targetId: 'staging-target', payload: 42 as unknown as string }),
+    /both targetId and payload are required/,
+  );
+  assert.equal(requests.length, 0);
+});
+
+test('bounds the detail included in HTTP error messages', async () => {
+  globalThis.fetch = async (input, init) => {
+    requests.push({ url: String(input), init });
+    return new Response('x'.repeat(2_000), { status: 502 });
+  };
+  await assert.rejects(
+    analyzeWorkflow({ targetId: 'staging-target', payload: 'health check' }),
+    (error: unknown) => error instanceof Error && error.message.length < 600,
+  );
+});

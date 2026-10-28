@@ -24,8 +24,10 @@ function createOpenAIClient(): OpenAI {
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY must be configured in the workflow environment.');
   }
+  const timeout = Number(process.env.OPENAI_TIMEOUT_MS || 60_000);
   return new OpenAI({
     apiKey,
+    timeout: Number.isFinite(timeout) && timeout >= 1_000 ? Math.min(timeout, 300_000) : 60_000,
     ...(process.env.OPENAI_BASE_URL ? { baseURL: process.env.OPENAI_BASE_URL } : {}),
   });
 }
@@ -80,7 +82,11 @@ export const analyzeRequest = task(
 export const analyzeConversation = task(
   { name: 'analyzeConversation', retry, timeoutSeconds: 300 },
   async function analyzeConversation(ctx: TaskContext, prompts: string[]) {
-    if (!Array.isArray(prompts) || prompts.length === 0 || prompts.some((prompt) => !prompt.trim())) {
+    if (
+      !Array.isArray(prompts) ||
+      prompts.length === 0 ||
+      prompts.some((prompt) => typeof prompt !== 'string' || !prompt.trim())
+    ) {
       throw new Error('Provide at least one non-empty prompt.');
     }
 
