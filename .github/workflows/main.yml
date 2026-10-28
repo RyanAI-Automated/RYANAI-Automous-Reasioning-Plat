@@ -2,24 +2,23 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Run Tests
+  validate:
+    name: Validate, test, lint, and build
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 30
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -28,41 +27,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: npm
 
-      - name: Install Dependencies
+      - name: Verify Node and npm versions
+        run: |
+          node --version
+          npm --version
+          node -e "const v = process.versions.node.split('.').map(Number); if (v[0] < 22 || (v[0] === 22 && v[1] < 12)) process.exit(1)"
+
+      - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run Linter
-        run: npm run lint --if-present
+      - name: Validate application and workflows
+        run: npm run validate
 
-      - name: Run Tests
-        run: npm test --if-present
+      - name: Verify production build output
+        run: test -s dist/index.html
 
-  build:
-    name: Build Artifacts
-    needs: test
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
         with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Build Application
-        run: npm run build --if-present
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-output
+          name: ryanai-web-dist
           path: dist/
+          if-no-files-found: error
           retention-days: 7
