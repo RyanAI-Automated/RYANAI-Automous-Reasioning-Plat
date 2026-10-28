@@ -126,7 +126,8 @@ jobs:
           cache: npm
 
       - name: Install locked dependencies
-        run: npm ci --legacy-peer-deps
+        # Prisma CLI is a dev dependency required by db:setup, even though the service runs in production mode.
+        run: npm ci --include=dev --legacy-peer-deps
 
       - name: Prepare database
         run: npm run db:setup
