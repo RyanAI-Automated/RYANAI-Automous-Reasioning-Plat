@@ -76,7 +76,7 @@ for (const file of files) {
     }
   }
 
-  if (name.endsWith('deploy.yml') && !document.on?.workflow_call) fail(file, 'reusable deployment workflow must define workflow_call');
+  if (name === '.github/workflows/deploy.yml' && !document.on?.workflow_call) fail(file, 'reusable deployment workflow must define workflow_call');
 }
 
 
