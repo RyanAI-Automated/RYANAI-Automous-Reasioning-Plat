@@ -79,6 +79,32 @@ for (const file of files) {
   if (name.endsWith('deploy.yml') && !document.on?.workflow_call) fail(file, 'reusable deployment workflow must define workflow_call');
 }
 
+
+const jarvisSmokePath = join(workflowDir, 'jarvis-staging-smoke.yml');
+if (!statSafe(jarvisSmokePath)) {
+  errors.push('Missing .github/workflows/jarvis-staging-smoke.yml');
+} else {
+  const smokeText = readFileSync(jarvisSmokePath, 'utf8');
+  const patchLine = smokeText.split('\n').find((line) => line.includes('patchContent:'));
+  const literalBackslashN = String.fromCharCode(92, 92) + 'n';
+  if (patchLine?.includes(literalBackslashN)) {
+    fail(jarvisSmokePath, 'test patch payload must use a newline escape, not a literal backslash-n sequence');
+  }
+  for (const secret of [
+    'JARVIS_STAGING_BASE_URL',
+    'JARVIS_STAGING_API_TOKEN',
+    'RYANAI_STAGING_API_BASE_URL',
+    'JARVIS_STAGING_INGRESS_TOKEN',
+  ]) {
+    if (!smokeText.includes(`secrets.${secret}`)) {
+      fail(jarvisSmokePath, `staging smoke workflow is missing the ${secret} secret binding`);
+    }
+  }
+  if (!smokeText.includes("JARVIS_ALLOW_PRODUCTION_SYNC: 'false'")) {
+    fail(jarvisSmokePath, 'staging smoke workflow must keep production sync disabled');
+  }
+}
+
 function statSafe(path) {
   try { return statSync(path).isFile() || statSync(path).isDirectory(); } catch { return false; }
 }

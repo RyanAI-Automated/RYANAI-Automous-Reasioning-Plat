@@ -77,7 +77,7 @@ jobs:
           const patch = {
             title: `Jarvis staging bridge smoke test #${runId}`,
             targetPath: 'docs/JARVIS_STAGING_SMOKE.md',
-            patchContent: `<!-- Jarvis staging smoke candidate ${runId}; do not merge. -->\\n`,
+            patchContent: `<!-- Jarvis staging smoke candidate ${runId}; do not merge. -->\n`,
             branch: `staging-smoke/${runId}`,
             baseBranch: 'main',
             requestedBy: 'github-actions-staging-smoke',
