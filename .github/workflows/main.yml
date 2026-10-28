@@ -31,7 +31,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run Linter
         run: npm run lint --if-present
@@ -55,7 +55,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build Application
         run: npm run build --if-present
@@ -84,8 +84,5 @@ jobs:
           name: build-output
           path: dist/
 
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v20
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+      - name: Hand off production deployment
+        run: echo "Production deployments are managed by .github/workflows/deploy-vercel.yml after the dedicated CI validation workflow succeeds."
