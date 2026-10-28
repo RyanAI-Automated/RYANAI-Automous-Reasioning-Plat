@@ -1,5 +1,12 @@
 import { motion } from 'framer-motion';
 
+function makeBinaryLine(lineIndex: number): string {
+  return Array.from({ length: 80 }, (_, charIndex) => {
+    const value = Math.imul(lineIndex + 1, charIndex + 17) + charIndex * 31;
+    return Math.abs(value % 7) < 3 ? '1' : '0';
+  }).join('');
+}
+
 export default function CodeRain() {
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-5">
@@ -8,11 +15,9 @@ export default function CodeRain() {
         transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
         className="font-mono text-xs text-cyan-500 whitespace-pre-wrap"
       >
-        {Array(50)
-          .fill(0)
-          .map((_, i) => (
-            <div key={i}>{Math.random().toString(2).substring(2).substring(0, 80)}</div>
-          ))}
+        {Array.from({ length: 50 }, (_, i) => (
+          <div key={i}>{makeBinaryLine(i)}</div>
+        ))}
       </motion.div>
     </div>
   );
