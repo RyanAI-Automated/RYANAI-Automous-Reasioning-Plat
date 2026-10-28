@@ -71,7 +71,6 @@
     "src/hooks/**/*.ts",
     "src/hooks/**/*.tsx",
     "src/store/**/*.ts",
-    "src/services/**/*.ts",
     "src/lib/**/*.ts",
     "src/shared/**/*.ts",
     "src/types.ts",
