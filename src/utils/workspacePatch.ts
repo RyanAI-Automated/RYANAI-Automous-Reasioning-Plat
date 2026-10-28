@@ -329,6 +329,12 @@ async function executePatch(
   ) {
     throw new Error("Patch content must be a string no larger than 8 MiB.");
   }
+  if (!allowed(request.filePath)) {
+    return {
+      status: "rejected",
+      error: "Patch path is outside the permitted workspace files.",
+    };
+  }
   const lock = await acquirePatchLock(root, ownership);
   const original = await readTarget(root, request.filePath);
   const baseline = await snapshot(root);
