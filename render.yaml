@@ -1,9 +1,16 @@
 services:
+  # Static frontend: API requests must target the separate Render API service.
+  # If the service names/domains change, update this origin and the API CORS list.
   - type: web
     name: ryanai-web
     runtime: static
-    buildCommand: npm run build
+    buildCommand: npm ci --legacy-peer-deps && npm run build
     staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://ryanai-api.onrender.com
+      - key: VITE_APP_ENV
+        value: production
     routes:
       - type: rewrite
         source: /*
@@ -15,7 +22,19 @@ services:
     dockerfilePath: ./Dockerfile.api
     plan: free
     envVars:
-      - key: PORT
-        value: 3000
       - key: NODE_ENV
         value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 3000
+      - key: CORS_ORIGINS
+        value: https://ryanai-web.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
