@@ -1,0 +1,92 @@
+name: Diagnostics (temporary)
+
+# TEMPORARY. This workflow exists only on the branch fix/ci-green. It runs the
+# commands of the CI jobs and posts the full output as pull request comments,
+# because a job log shows only 10 errors per step to a reader without log access.
+# Delete this file before the pull request is merged.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_OPTIONS: --max-old-space-size=6144
+
+jobs:
+  collect:
+    name: Collect full command output
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install locked dependencies
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Run the commands
+        run: |
+          mkdir -p out
+          run() {
+            name="$1"; shift
+            echo "== $name: $*"
+            set +e
+            "$@" > "out/$name.txt" 2>&1
+            echo "$?" > "out/$name.code"
+            set -e
+          }
+          run 05-vitest-stack  npx vitest run scripts/validate-stack-manifest.test.mjs
+          run 06-vitest-all    npx vitest run
+        continue-on-error: true
+
+      - name: Post the output as comments
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import glob, os, subprocess
+          sha = os.environ['SHA'][:7]
+          limit = 58000
+          for path in sorted(glob.glob('out/*.txt')):
+              name = os.path.basename(path)[:-4]
+              code = open(path[:-4] + '.code').read().strip()
+              text = open(path, errors='replace').read().replace('```', "'''")
+              if len(text) > limit:
+                  keep = limit // 2
+                  text = text[:keep] + f"\n\n... {len(text) - limit} characters removed ...\n\n" + text[-keep:]
+              body = f"### diag: {name} (commit {sha}, exit code {code})\n\n```\n{text}\n```\n"
+              with open('body.md', 'w') as f:
+                  f.write(body)
+              subprocess.run(
+                  ['gh', 'api', f"repos/{os.environ['REPO']}/issues/{os.environ['PR']}/comments", '-F', 'body=@body.md'],
+                  check=True, stdout=subprocess.DEVNULL)
+              print('posted', name)
+          PY
