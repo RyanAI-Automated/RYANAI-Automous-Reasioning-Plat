@@ -176,7 +176,7 @@
         "@types/pdf-parse": "^1.1.5",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.2.0",
-        "@types/react-native": "^0.72.8",
+        "@types/react-native": "^0.73.0",
         "@types/uuid": "^11.0.0",
         "@types/ws": "^8.18.1",
         "@vitejs/plugin-react": "^6.1.1",
