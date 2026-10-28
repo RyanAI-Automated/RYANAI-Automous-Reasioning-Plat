@@ -95,8 +95,6 @@ jobs:
           image-ref: ryanai-${{ matrix.image }}:scan
           format: table
           severity: HIGH,CRITICAL
-          # Keep SARIF at the same severity threshold as the blocking gate.
-          limit-severities-for-sarif: true
           ignore-unfixed: true
           exit-code: '1'
 
