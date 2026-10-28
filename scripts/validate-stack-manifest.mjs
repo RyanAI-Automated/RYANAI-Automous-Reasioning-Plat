@@ -1,0 +1,84 @@
+#!/usr/bin/env node
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const manifestPath = path.join(root, 'stacks', 'ryanai.stack.json');
+const schemaPath = path.join(root, 'stacks', 'ryanai.stack.schema.json');
+const errors = [];
+const fail = (message) => errors.push(message);
+
+function readJson(file) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch (error) {
+    fail(path.relative(root, file) + ': ' + (error instanceof Error ? error.message : String(error)));
+    return null;
+  }
+}
+
+if (!existsSync(manifestPath)) fail('stacks/ryanai.stack.json is missing');
+if (!existsSync(schemaPath)) fail('stacks/ryanai.stack.schema.json is missing');
+const manifest = readJson(manifestPath);
+const schema = readJson(schemaPath);
+
+if (manifest) {
+  if (manifest.schemaVersion !== 'ryanai.stack/v1') fail('Unexpected stack schemaVersion');
+  if (manifest.name !== 'ryanai') fail('Stack name must be ryanai');
+  if (typeof manifest.version !== 'string' || !manifest.version) fail('Stack version is required');
+  if (!Array.isArray(manifest.services)) fail('Stack services must be an array');
+
+  const services = Array.isArray(manifest.services) ? manifest.services : [];
+  const names = services.map((service) => service.name);
+  if (new Set(names).size !== names.length) fail('Stack service names must be unique');
+
+  for (const name of ['api', 'web', 'mcp-server', 'postgres', 'redis']) {
+    if (!names.includes(name)) fail('Missing required stack service: ' + name);
+  }
+
+  for (const service of services) {
+    if (!Number.isInteger(service.port) || service.port < 1 || service.port > 65535) {
+      fail('Invalid port for stack service: ' + String(service.name));
+    }
+    for (const key of ['dockerfile', 'persistentVolume']) {
+      if (typeof service[key] === 'string' && !existsSync(path.join(root, service[key]))) {
+        fail('Missing stack asset for ' + String(service.name) + ': ' + service[key]);
+      }
+    }
+  }
+
+  const targets = [
+    manifest.deploymentTargets?.dockerCompose,
+    manifest.deploymentTargets?.render,
+    manifest.deploymentTargets?.vercel,
+    ...(manifest.deploymentTargets?.kubernetes || []),
+  ];
+  for (const target of targets) {
+    if (typeof target !== 'string' || !existsSync(path.join(root, target))) {
+      fail('Missing deployment target: ' + String(target));
+    }
+  }
+
+  if (manifest.integrations?.jarvis?.enabledByDefault !== false) {
+    fail('Jarvis sync must remain disabled by default');
+  }
+
+  const forbiddenKey = /^(?:token|apiKey|password|secretValue|credentialValue)$/i;
+  function findInlineSecrets(value, location = '$') {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      if (forbiddenKey.test(key)) fail('Do not store credentials in stack manifest at ' + location + '.' + key);
+      findInlineSecrets(child, location + '.' + key);
+    }
+  }
+  findInlineSecrets(manifest);
+}
+if (schema && schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
+  fail('Stack JSON Schema draft declaration is missing or unsupported');
+}
+
+if (errors.length) {
+  console.error(errors.map((message) => 'ERROR ' + message).join('\n'));
+  process.exit(1);
+}
+console.log('PASS RyanAI stack manifest and deployment references validated');
