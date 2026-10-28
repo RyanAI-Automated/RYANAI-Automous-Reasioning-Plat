@@ -179,7 +179,6 @@ build/
 *.sh
 !docker-entrypoint.sh
 *.gguf
-*.md
 
 # Private workspace patch ownership, staging, and crash-recovery journal
 .ryan-patch/
@@ -191,7 +190,6 @@ RYANAI/
 complete-ryanal-reasoning-platform/
 vercel-build-failure-npm-script/complete-ryanai-reasoning-platform/ 
 .vercel
-.env*
 
 # Database dumps and backups. Never commit these to a public repo.
 *.backup
