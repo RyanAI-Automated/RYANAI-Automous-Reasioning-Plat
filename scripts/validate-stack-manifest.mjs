@@ -9,6 +9,19 @@ const schemaPath = path.join(root, 'stacks', 'ryanai.stack.schema.json');
 const errors = [];
 const fail = (message) => errors.push(message);
 
+function resolveRepoPath(candidate) {
+  if (typeof candidate !== 'string' || !candidate.trim()) return null;
+  if (path.isAbsolute(candidate) || /^[A-Za-z]:[\\/]/.test(candidate) || candidate.startsWith('\\\\')) return null;
+  if (candidate.split(/[\\/]+/).includes('..')) return null;
+
+  const resolved = path.resolve(root, candidate);
+  const relativePath = path.relative(root, resolved);
+  if (relativePath === '..' || relativePath.startsWith('..' + path.sep) || path.isAbsolute(relativePath)) {
+    return null;
+  }
+  return resolved;
+}
+
 function readJson(file) {
   try {
     return JSON.parse(readFileSync(file, 'utf8'));
@@ -30,19 +43,26 @@ if (manifest) {
   if (!Array.isArray(manifest.services)) fail('Stack services must be an array');
 
   const services = Array.isArray(manifest.services) ? manifest.services : [];
-  const names = services.map((service) => service.name);
+  const validServices = services.filter((service) => service && typeof service === 'object' && !Array.isArray(service));
+  if (validServices.length !== services.length) fail('Each stack service must be an object');
+  const names = validServices.map((service) => service.name);
   if (new Set(names).size !== names.length) fail('Stack service names must be unique');
 
   for (const name of ['api', 'web', 'mcp-server', 'postgres', 'redis']) {
     if (!names.includes(name)) fail('Missing required stack service: ' + name);
   }
 
-  for (const service of services) {
+  for (const service of validServices) {
     if (!Number.isInteger(service.port) || service.port < 1 || service.port > 65535) {
       fail('Invalid port for stack service: ' + String(service.name));
     }
-    if (typeof service.dockerfile === 'string' && !existsSync(path.join(root, service.dockerfile))) {
-      fail('Missing Dockerfile for ' + String(service.name) + ': ' + service.dockerfile);
+    if (typeof service.dockerfile === 'string') {
+      const dockerfilePath = resolveRepoPath(service.dockerfile);
+      if (!dockerfilePath) {
+        fail('Dockerfile path must stay inside the repository for ' + String(service.name));
+      } else if (!existsSync(dockerfilePath)) {
+        fail('Missing Dockerfile for ' + String(service.name) + ': ' + service.dockerfile);
+      }
     }
   }
 
@@ -73,8 +93,11 @@ if (manifest) {
     ...(manifest.deploymentTargets?.kubernetes || []),
   ];
   for (const target of targets) {
-    if (typeof target !== 'string' || !existsSync(path.join(root, target))) {
-      fail('Missing deployment target: ' + String(target));
+    const targetPath = resolveRepoPath(target);
+    if (!targetPath) {
+      fail('Deployment target must be a repository-relative path: ' + String(target));
+    } else if (!existsSync(targetPath)) {
+      fail('Missing deployment target: ' + target);
     }
   }
 
