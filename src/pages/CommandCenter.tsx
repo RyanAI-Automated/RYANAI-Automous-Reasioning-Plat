@@ -71,13 +71,14 @@ export default function CommandCenter({
     state: 'idle',
   });
   const mountedRef = useRef(true);
+  const startTimeRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
+    startTimeRef.current = Date.now();
     return () => {
       mountedRef.current = false;
     };
   }, []);
-  const startTimeRef = useRef(Date.now());
   const requestStartRef = useRef<number | null>(null);
   const voiceStopRef = useRef<() => void>(() => undefined);
 
@@ -161,10 +162,13 @@ export default function CommandCenter({
   }, [userId]);
 
   useEffect(() => {
-    loadConversations();
-    setGithubConnected(
-      localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
-    );
+    void loadConversations();
+    const timer = window.setTimeout(() => {
+      setGithubConnected(
+        localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadConversations, userId]);
 
   useEffect(() => {
@@ -571,7 +575,9 @@ export default function CommandCenter({
     onTranscript: handleVoiceTranscript,
     onCommand: handleVoiceCommand,
   });
-  voiceStopRef.current = voice.stop;
+  useEffect(() => {
+    voiceStopRef.current = voice.stop;
+  }, [voice.stop]);
 
   const lastAssistant = [...activeMessages]
     .reverse()
