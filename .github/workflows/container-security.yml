@@ -95,6 +95,8 @@ jobs:
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           severity: HIGH,CRITICAL
+          # Keep SARIF at the same severity threshold as the blocking gate.
+          limit-severities-for-sarif: true
           ignore-unfixed: true
           exit-code: '1'
 
