@@ -146,13 +146,17 @@ jobs:
           set -euo pipefail
           npm run start > api.log 2>&1 &
           api_pid=$!
+          # The MCP health check is part of startup verification, so start the
+          # standalone HTTP manager explicitly in CI before running that check.
+          MCP_HOST=127.0.0.1 MCP_PORT=8765 npm --prefix mcp-server run start:http > mcp.log 2>&1 &
+          mcp_pid=$!
           # Vite's preview proxy reads this setting at runtime. Point it at the
           # API started above (port 3000), not the local-development default (3001).
           VITE_API_BASE_URL=http://127.0.0.1:3000 npm run preview -- --host 127.0.0.1 --port 9090 > web.log 2>&1 &
           web_pid=$!
           cleanup() {
-            kill "$api_pid" "$web_pid" 2>/dev/null || true
-            wait "$api_pid" "$web_pid" 2>/dev/null || true
+            kill "$api_pid" "$mcp_pid" "$web_pid" 2>/dev/null || true
+            wait "$api_pid" "$mcp_pid" "$web_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
 
@@ -165,6 +169,16 @@ jobs:
             sleep 1
           done
           curl --fail --silent --show-error http://127.0.0.1:3000/health > /dev/null
+
+          echo "Waiting for the MCP HTTP health endpoint..."
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/health > /dev/null; then
+              echo "MCP HTTP service is healthy."
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:8765/health > /dev/null
 
           npm run startup:verify
           npm run test:integration
@@ -180,6 +194,9 @@ jobs:
           echo "::group::Web log"
           if [ -f web.log ]; then cat web.log; else echo "web.log was not created"; fi
           echo "::endgroup::"
+          echo "::group::MCP log"
+          if [ -f mcp.log ]; then cat mcp.log; else echo "mcp.log was not created"; fi
+          echo "::endgroup::"
 
       - name: Upload service logs on failure
         if: failure()
@@ -189,5 +206,6 @@ jobs:
           path: |
             api.log
             web.log
+            mcp.log
           if-no-files-found: warn
           retention-days: 7
