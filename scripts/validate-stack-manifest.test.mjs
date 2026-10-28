@@ -81,6 +81,10 @@ test('rejects a service path that traverses outside the repository', (t) => {
 });
 
 test('rejects a symlink whose target resolves outside the repository', (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Creating file symlinks can require elevated privileges on Windows');
+    return;
+  }
   const f = fixture(t);
   const outside = path.join(os.tmpdir(), 'ryanai-validator-outside-' + path.basename(f.dir) + '.txt');
   writeFileSync(outside, 'not a project file', 'utf8');
