@@ -110,7 +110,18 @@ test('reports malformed service entries without crashing', (t) => {
   assert.doesNotMatch(result.stderr, /TypeError|Cannot read properties of null/);
 });
 
-test('rejects inline credentials and does not echo credential values', (t) => {
+test('rejects common credential key variants without echoing secret values', (t) => {
+  const f = fixture(t);
+  const credentialKeys = ['password', 'apiKey', 'api_key', 'client-secret', 'accessToken', 'authorization'];
+  for (const key of credentialKeys) {
+    f.manifest.services[0][key] = 'secret-fixture-value-do-not-print-' + key;
+  }
+  f.saveManifest(f.manifest);
+
+  const result = validate(f.dir);
+  assert.equal(result.status, 1);
+  for (const key of credentialKeys) {
+    assert.match(result.stderr, new RegExp('Do not store credentials in stack manifest at .*\\.' + key.replace(/[.*+?^${}()|[\\]\\]/g, '\\test('rejects inline credentials and does not echo credential values', (t) => {
   const f = fixture(t);
   f.manifest.services[0].password = 'secret-fixture-value-do-not-print';
   f.saveManifest(f.manifest);
@@ -118,6 +129,9 @@ test('rejects inline credentials and does not echo credential values', (t) => {
   const result = validate(f.dir);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Do not store credentials in stack manifest/);
+  assert.doesNotMatch(result.stdout + result.stderr, /secret-fixture-value-do-not-print/);
+});')));
+  }
   assert.doesNotMatch(result.stdout + result.stderr, /secret-fixture-value-do-not-print/);
 });
 
