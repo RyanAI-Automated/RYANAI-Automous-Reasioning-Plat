@@ -93,9 +93,9 @@ export class AgentPASovereignCore {
     console.log(`[Masterpiece] Synthesizing new capability module: '${capabilityName}'...`);
     const registryPath = path.resolve(process.cwd(), 'src/config/capabilities.json');
     
-    let registry: any = {};
+    let registry: Record<string, unknown> = {};
     if (fs.existsSync(registryPath)) {
-      registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+      registry = JSON.parse(fs.readFileSync(registryPath, 'utf8')) as Record<string, unknown>;
     }
 
     registry[capabilityName] = {
