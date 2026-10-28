@@ -1,0 +1,103 @@
+name: Integration diagnostics (temporary)
+
+on:
+  push:
+    branches: [diag/integration]
+
+permissions:
+  contents: write
+
+jobs:
+  integration:
+    name: Integration diagnostics
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ryanai
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ryanai_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ryanai -d ryanai_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: production
+      HOST: 127.0.0.1
+      PORT: '3000'
+      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_db
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_SECRET: ci_only_secret_at_least_32_characters_long
+      OPENAI_API_KEY: ''
+      API_BASE_URL: http://127.0.0.1:3000
+      WEB_BASE_URL: http://127.0.0.1:9090
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        # Prisma CLI is a dev dependency required by db:setup, even though the service runs in production mode.
+        run: npm ci --include=dev --legacy-peer-deps
+
+      - name: Prepare database
+        run: npm run db:setup
+
+      # Vite's build uses emptyOutDir=true and clears dist/. Build the frontend
+      # first, then compile the API so the server output survives for startup.
+      - name: Build frontend and API
+        run: |
+          npm run build:client
+          npm run build:server
+          test -s dist/server/server/launcher.js
+
+      - name: Start services and run each command
+        shell: bash
+        run: |
+          mkdir -p out
+          npm run start > out/api.log 2>&1 &
+          VITE_API_BASE_URL=http://127.0.0.1:3000 npm run preview -- --host 127.0.0.1 --port 9090 > out/web.log 2>&1 &
+          for _ in $(seq 1 60); do curl --fail --silent http://127.0.0.1:3000/health > /dev/null && break; sleep 1; done
+          run() { name="$1"; shift; set +e; "$@" > "out/$name.txt" 2>&1; echo "$?" > "out/$name.code"; set -e; }
+          run 01-health curl --silent --show-error --max-time 10 http://127.0.0.1:3000/health
+          run 02-startup-verify npm run startup:verify
+          run 03-integration npm run test:integration
+          run 04-e2e npm run test:e2e
+          cp out/api.log out/05-api-log.txt
+          cp out/web.log out/06-web-log.txt
+
+      - name: Post the output as commit comments
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          for f in out/0*.txt; do
+            n=$(basename "$f" .txt)
+            code=$(cat "out/$n.code" 2>/dev/null || echo "-")
+            { printf '### diag: %s (exit %s)\n\n```\n' "$n" "$code"; head -c 50000 "$f" | sed 's/```/'"'''"'/g'; printf '\n```\n'; } > body.md
+            gh api "repos/$REPO/commits/$SHA/comments" -F body=@body.md > /dev/null
+          done
