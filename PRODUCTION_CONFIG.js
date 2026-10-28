@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * Production Configuration & Operational Checklist
- * RyanAI Reasoning Platform v1.1.0
+ * REFERENCE ONLY — this file is not loaded by Docker Compose, Vercel, Render,
+ * Kubernetes, or the API runtime. Resource counts, SLOs, backup schedules,
+ * autoscaling and compliance values below are planning targets, not verified
+ * live settings. Use the deployment manifests and provider dashboards as the
+ * operational source of truth.
+ *
+ * RyanAI Reasoning Platform reference checklist.
  */
 
 const productionConfig = {
