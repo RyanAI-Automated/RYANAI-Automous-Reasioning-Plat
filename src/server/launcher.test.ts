@@ -131,7 +131,7 @@ describe('launcher reasoning routes', () => {
         'access-control-request-method': 'POST',
       },
     });
-    expect(response.statusCode).toBe(204);
+    expect(response.statusCode).toBe(404);
     expect(response.headers['access-control-allow-origin']).toBeUndefined();
   });
 
