@@ -30,8 +30,6 @@ describe('checkHttp', () => {
       throw new Error('getaddrinfo ENOTFOUND a.example');
     }) as unknown as typeof fetch;
     const result = await checkHttp('https://a.example/health', failing);
-    fetcher.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND a.example'));
-    const result = await checkHttp('https://a.example/health', asFetch());
     expect(result).toEqual({ status: 'fail', detail: 'The request failed: getaddrinfo ENOTFOUND a.example' });
   });
 
@@ -40,10 +38,6 @@ describe('checkHttp', () => {
       throw Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' });
     }) as unknown as typeof fetch;
     const result = await checkHttp('https://a.example/health', timingOut, 10_000);
-    fetcher.mockRejectedValueOnce(
-      Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' }),
-    );
-    const result = await checkHttp('https://a.example/health', asFetch(), 10_000);
     expect(result).toEqual({ status: 'fail', detail: 'No answer within 10 seconds.' });
   });
 });
