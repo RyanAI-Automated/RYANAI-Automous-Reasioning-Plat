@@ -5,10 +5,13 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
 import Ajv2020 from 'ajv/dist/2020.js';
 const { parse: parseYaml } = yaml;
 
 const root = process.cwd();
+const realRoot = realpathSync(root);
 const manifestPath = path.join(root, 'stacks', 'ryanai.stack.json');
 const schemaPath = path.join(root, 'stacks', 'ryanai.stack.schema.json');
 const errors = [];
@@ -21,7 +22,23 @@ function resolveRepoPath(candidate) {
   if (relativePath === '..' || relativePath.startsWith('..' + path.sep) || path.isAbsolute(relativePath)) {
     return null;
   }
-  return resolved;
+
+  // Also reject symlinks whose targets escape the repository, not just lexical traversal.
+  try {
+    const actualPath = realpathSync(resolved);
+    const actualRelativePath = path.relative(realRoot, actualPath);
+    if (
+      actualRelativePath === '..' ||
+      actualRelativePath.startsWith('..' + path.sep) ||
+      path.isAbsolute(actualRelativePath)
+    ) {
+      return null;
+    }
+    return actualPath;
+  } catch {
+    // The caller reports a clear missing-target error if the candidate does not exist.
+    return resolved;
+  }
 }
 
 function readJson(file) {
@@ -136,6 +153,11 @@ if (schema !== undefined) {
       const ajv = new Ajv2020({ allErrors: true, strict: true });
       const validateManifest = ajv.compile(schema);
       if (!validateManifest(manifest)) {
+        const details = (validateManifest.errors ?? []).map((issue) => {
+          const property = issue.params?.additionalProperty;
+          return (issue.instancePath || '/') + ': ' + issue.message + (property ? ' (' + property + ')' : '');
+        }).join('; ');
+        fail('Stack manifest does not conform to schema: ' + details);
         const details = (validateManifest.errors || []).map((error) => {
           const location = error.instancePath || '/';
           const extra = error.params?.additionalProperty

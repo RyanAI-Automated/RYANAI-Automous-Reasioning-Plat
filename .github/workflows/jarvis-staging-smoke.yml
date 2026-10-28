@@ -28,12 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      JARVIS_BASE_URL: ${{ secrets.JARVIS_STAGING_BASE_URL }}
-      JARVIS_API_TOKEN: ${{ secrets.JARVIS_STAGING_API_TOKEN }}
       JARVIS_SYNC_ENABLED: 'true'
       JARVIS_ALLOW_PRODUCTION_SYNC: 'false'
-      RYANAI_STAGING_API_BASE_URL: ${{ secrets.RYANAI_STAGING_API_BASE_URL }}
-      JARVIS_INGRESS_TOKEN: ${{ secrets.JARVIS_STAGING_INGRESS_TOKEN }}
 
     steps:
       - name: Check out main
@@ -51,6 +47,11 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Require staging secrets without printing them
+        env:
+          JARVIS_BASE_URL: ${{ secrets.JARVIS_STAGING_BASE_URL }}
+          JARVIS_API_TOKEN: ${{ secrets.JARVIS_STAGING_API_TOKEN }}
+          RYANAI_STAGING_API_BASE_URL: ${{ secrets.RYANAI_STAGING_API_BASE_URL }}
+          JARVIS_INGRESS_TOKEN: ${{ secrets.JARVIS_STAGING_INGRESS_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -59,15 +60,60 @@ jobs:
           test -n "$RYANAI_STAGING_API_BASE_URL" || { echo "Missing RYANAI_STAGING_API_BASE_URL secret"; exit 1; }
           test -n "$JARVIS_INGRESS_TOKEN" || { echo "Missing JARVIS_STAGING_INGRESS_TOKEN secret"; exit 1; }
 
+      - name: Enforce HTTPS-only staging origins
+        env:
+          JARVIS_BASE_URL: ${{ secrets.JARVIS_STAGING_BASE_URL }}
+          RYANAI_STAGING_API_BASE_URL: ${{ secrets.RYANAI_STAGING_API_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const targets = [
+            ['Jarvis staging', process.env.JARVIS_BASE_URL],
+            ['RyanAI staging', process.env.RYANAI_STAGING_API_BASE_URL],
+          ];
+          for (const [label, value] of targets) {
+            let url;
+            try { url = new URL(value); } catch { throw new Error(label + ' URL is invalid'); }
+            if (url.protocol !== 'https:') throw new Error(label + ' must use HTTPS');
+            if (url.username || url.password || url.search || url.hash) {
+              throw new Error(label + ' must not include credentials, a query string, or a fragment');
+            }
+            if (url.pathname !== '/') throw new Error(label + ' must be an origin URL without a path');
+            const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+            if (hostname === 'localhost' || hostname.endsWith('.localhost') ||
+                hostname.startsWith('127.') || hostname === '0.0.0.0' ||
+                hostname === '[::1]' || hostname === '[::]') {
+              throw new Error(label + ' must point to a reachable staging host, not loopback or a wildcard address');
+            }
+            console.log('PASS ' + label + ' uses HTTPS origin (' + url.hostname + ')');
+          }
+          NODE
+
       - name: Verify outbound Jarvis bearer authentication
+        env:
+          JARVIS_BASE_URL: ${{ secrets.JARVIS_STAGING_BASE_URL }}
+          JARVIS_API_TOKEN: ${{ secrets.JARVIS_STAGING_API_TOKEN }}
+          JARVIS_SYNC_ENABLED: 'true'
+          JARVIS_ALLOW_PRODUCTION_SYNC: 'false'
         run: npm run jarvis:status
 
       - name: Publish staging stack manifest
         if: inputs.publish_staging_stack
+        env:
+          JARVIS_BASE_URL: ${{ secrets.JARVIS_STAGING_BASE_URL }}
+          JARVIS_API_TOKEN: ${{ secrets.JARVIS_STAGING_API_TOKEN }}
+          JARVIS_SYNC_ENABLED: 'true'
+          JARVIS_ALLOW_PRODUCTION_SYNC: 'false'
         run: npm run jarvis:publish-stack -- staging main "$GITHUB_SHA"
 
       - name: Submit harmless staging candidate
         if: inputs.submit_test_patch
+        env:
+          JARVIS_BASE_URL: ${{ secrets.JARVIS_STAGING_BASE_URL }}
+          JARVIS_API_TOKEN: ${{ secrets.JARVIS_STAGING_API_TOKEN }}
+          JARVIS_SYNC_ENABLED: 'true'
+          JARVIS_ALLOW_PRODUCTION_SYNC: 'false'
         shell: bash
         run: |
           set -euo pipefail
@@ -87,6 +133,9 @@ jobs:
           npm run jarvis:submit-patch -- "$RUNNER_TEMP/jarvis-staging-patch.json"
 
       - name: Verify inbound RyanAI bearer authentication without changing files
+        env:
+          RYANAI_STAGING_API_BASE_URL: ${{ secrets.RYANAI_STAGING_API_BASE_URL }}
+          JARVIS_INGRESS_TOKEN: ${{ secrets.JARVIS_STAGING_INGRESS_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
