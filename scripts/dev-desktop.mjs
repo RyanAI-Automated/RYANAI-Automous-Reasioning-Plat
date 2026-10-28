@@ -67,8 +67,8 @@ clearDesktopPorts();
 process.once('SIGINT', () => void shutdown(0));
 process.once('SIGTERM', () => void shutdown(0));
 
-start('npm run dev:api:desktop', {});
-start('npm run dev:web:desktop', {});
+start('npm run dev:api:desktop', { NODE_ENV: 'development', PORT: '3002', RYANAI_API_BASE_URL: 'http://127.0.0.1:3002' });
+start('npm run dev:web:desktop', { VITE_PORT: '1422', VITE_API_BASE_URL: 'http://127.0.0.1:3002', VITE_WS_URL: 'ws://127.0.0.1:3002' });
 start('npm --prefix mcp-server run start:http', { MCP_PORT: '8767' });
 
 console.log('[desktop] API: http://127.0.0.1:3002');
