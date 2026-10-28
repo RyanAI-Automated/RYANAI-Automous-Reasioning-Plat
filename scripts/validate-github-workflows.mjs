@@ -10,16 +10,16 @@ const errors = [];
 const allowedActionMajors = new Map([
   ['actions/checkout', 4],
   ['actions/setup-node', 4],
-  ['actions/upload-artifact', 4],
+  ['actions/upload-artifact', 7],
   ['actions/download-artifact', 4],
-  ['actions/labeler', 6],
+  ['actions/labeler', 7],
   ['docker/setup-buildx-action', 3],
   ['docker/login-action', 3],
-  ['docker/metadata-action', 5],
-  ['docker/build-push-action', 6],
-  ['github/codeql-action/init', 3],
-  ['github/codeql-action/analyze', 3],
-  ['github/codeql-action/upload-sarif', 3],
+  ['docker/metadata-action', 6],
+  ['docker/build-push-action', 7],
+  ['github/codeql-action/init', 4],
+  ['github/codeql-action/analyze', 4],
+  ['github/codeql-action/upload-sarif', 4],
 ]);
 
 function walk(dir) {
@@ -56,7 +56,7 @@ for (const file of files) {
 
   for (const match of text.matchAll(/uses:\s*([^\s#]+)/g)) {
     const action = match[1];
-    const actionMatch = action.match(/^([^@]+)@v(\d+)$/);
+    const actionMatch = action.match(/^([^@]+)@v(\d+)(?:\.\d+(?:\.\d+)?)?$/);
     if (!actionMatch) {
       if (!action.startsWith('./') && !action.startsWith('aquasecurity/trivy-action@') && !action.startsWith('dtolnay/rust-toolchain@') && !action.startsWith('snyk/actions/node@')) fail(file, `unpinned or malformed action: ${action}`);
       continue;
