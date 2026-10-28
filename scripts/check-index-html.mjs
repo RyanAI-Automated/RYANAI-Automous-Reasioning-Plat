@@ -44,7 +44,7 @@ if (title && !title[1].replace(/&[^;]+;/g, ' ').trim()) fail('<title> must not b
 const metas = [...html.matchAll(/<meta\b[^>]*>/gi)].map(([tag]) => tag);
 const metaByName = (name, attribute = 'name') =>
   metas.filter((tag) => getAttribute(tag, attribute)?.toLowerCase() === name.toLowerCase());
-const charset = assertExactlyOne(metaByName('charset'), 'charset meta tag');
+const charset = assertExactlyOne(metas.filter((tag) => getAttribute(tag, 'charset') !== null), 'charset meta tag');
 if (charset && !getAttribute(charset, 'charset')) fail('charset meta tag must specify its encoding');
 
 const viewport = assertExactlyOne(metaByName('viewport'), 'viewport meta tag');
