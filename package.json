@@ -49,7 +49,7 @@
     "db:setup": "npm run db:generate && npm run db:migrate",
     "test": "vitest run --exclude src/tests/auth.test.ts",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
-    "test:workflows": "python -m unittest discover -s workflows -p test_*.py",
+    "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
     "test:e2e": "tsx scripts/test-e2e-flow.ts",
     "test:integration": "tsx scripts/test-integration.ts --local",
