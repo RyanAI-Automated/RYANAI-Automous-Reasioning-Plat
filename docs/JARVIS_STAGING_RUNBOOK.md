@@ -2,6 +2,8 @@
 
 This runbook describes how to verify the RyanAI ↔ Jarvis bridge in staging. It does not enable production sync or claim a successful handshake before the workflow has actually passed.
 
+The smoke workflow exposes bearer tokens only to the specific step that needs them; dependency installation and build steps do not receive those secrets. The staging URL values must be HTTPS origins (no embedded credentials, path, query, or fragment) and must not point to loopback.
+
 ## Required configuration
 
 Add these as **GitHub Actions repository or environment secrets**; never commit values to the repository:
