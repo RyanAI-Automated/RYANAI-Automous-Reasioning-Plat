@@ -11,6 +11,7 @@ on:
     paths:
       - 'Dockerfile'
       - 'Dockerfile.api'
+      - 'index.html'
       - 'mcp-server/**'
       - 'docker-compose.yml'
       - 'docker-entrypoint.sh'
