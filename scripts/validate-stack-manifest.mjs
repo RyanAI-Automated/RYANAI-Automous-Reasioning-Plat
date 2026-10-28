@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { parse as parseYaml } from 'yaml';
+import yaml from 'yaml';
+const { parse: parseYaml } = yaml;
 
 const root = process.cwd();
 const manifestPath = path.join(root, 'stacks', 'ryanai.stack.json');
