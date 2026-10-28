@@ -141,7 +141,7 @@
         "fastify": "^5.12.4",
         "fastify-plugin": "^6.0.0",
         "fastify-raw-body": "^6.0.2",
-        "framer-motion": "^14.3.0",
+        "framer-motion": "^14.6.0",
         "google-auth-library": "^11.2.0",
         "googleapis": "^186.0.0",
         "ioredis": "^6.0.0",
