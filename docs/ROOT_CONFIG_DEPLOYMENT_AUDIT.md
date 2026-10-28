@@ -38,7 +38,7 @@ This audit checks the root-level Docker, environment, build, deployment, Kuberne
 
 ## Additional workflow/deployment audit
 
-The deployment workflows were checked after the root manifests. The live Datadog Synthetic run failed because `DD_API_KEY` and `DD_APP_KEY` were not configured. AWS and Azure deployment templates also contained placeholder account/cluster values and would run on main pushes without being explicitly enabled. The optional AWS, AKS, and Datadog workflows are now gated by repository variables and validate their required configuration when enabled.
+The deployment workflows were checked after the root manifests. The live Datadog Synthetic run failed because `DD_API_KEY` and `DD_APP_KEY` were not configured. AWS and Azure deployment templates also contained placeholder account/cluster values and would run on main pushes without being explicitly enabled. The optional AWS, AKS, and Datadog workflows are now gated by repository variables and validate their required configuration when enabled. The workflow validator was also corrected to accept immutable 40-character action SHA pins (including quoted YAML references) instead of incorrectly reporting them as unpinned.
 
 Generic Deno, Jekyll, Webpack, Python-publish, and duplicate Docker Image CI templates were removed because the repository is a Vite/Node platform, has no Deno/Jekyll/Python-package project configuration, and already has dedicated Docker build/publish workflows. The Python workflow now runs the actual standard-library core syntax check and compiles the optional examples. The C++ workflow now builds and smoke-tests the repository's CMake native fallback instead of invoking a missing autotools `./configure`/Makefile sequence.
 
