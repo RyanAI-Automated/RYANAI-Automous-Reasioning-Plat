@@ -146,7 +146,9 @@ jobs:
           set -euo pipefail
           npm run start > api.log 2>&1 &
           api_pid=$!
-          npm run preview -- --host 127.0.0.1 --port 9090 > web.log 2>&1 &
+          # Vite's preview proxy reads this setting at runtime. Point it at the
+          # API started above (port 3000), not the local-development default (3001).
+          VITE_API_BASE_URL=http://127.0.0.1:3000 npm run preview -- --host 127.0.0.1 --port 9090 > web.log 2>&1 &
           web_pid=$!
           cleanup() {
             kill "$api_pid" "$web_pid" 2>/dev/null || true
