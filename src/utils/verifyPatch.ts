@@ -66,12 +66,14 @@ export async function verifyStagedPatch(
         await execFileAsync('npx', ['tsc', '--noEmit', '--skipLibCheck', stagedFilePath], {
           timeout: 15000,
         });
-      } catch (execError: any) {
-        errors.push(`TypeScript validation failed: ${execError.stderr?.trim() || execError.message}`);
+      } catch (execError: unknown) {
+        const details = execError as { stderr?: string; message?: string };
+        errors.push(`TypeScript validation failed: ${details.stderr?.trim() || details.message || String(execError)}`);
       }
     }
-  } catch (err: any) {
-    errors.push(`Verification subsystem error: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    errors.push(`Verification subsystem error: ${message}`);
   }
 
   return {
