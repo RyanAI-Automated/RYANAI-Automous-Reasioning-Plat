@@ -1,12 +1,12 @@
-name: Monorepo Vercel Deployment & Validation
+name: Vercel Workspace Validation
 
 on:
   workflow_call:
     secrets: {}
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   workflow_dispatch:
 
 permissions:
@@ -17,16 +17,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-and-deploy:
-    name: Validate Workspace & Deploy to Vercel
+  validate-workspace:
+    name: Validate Workspace (No Deployment)
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       CI: "true"
 
     steps:
@@ -42,7 +38,7 @@ jobs:
       - name: Verify npm lockfile
         run: |
           if [ ! -f "package-lock.json" ]; then
-            echo "Error: package-lock.json is required for reproducible CI installs."
+            echo "::error::package-lock.json is required for reproducible CI installs."
             exit 1
           fi
           echo "npm lockfile found."
@@ -56,21 +52,10 @@ jobs:
       - name: Build web application
         run: npm run build:web
 
-      - name: Deploy to Vercel
-        if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push' }}
+      - name: Report production deployment policy
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          if [ -n "${VERCEL_TOKEN:-}" ] && [ -n "${VERCEL_ORG_ID:-}" ] && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
-            echo "[*] Linking Vercel project..."
-            npx --yes vercel@latest link --yes --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
-
-            echo "[*] Pulling Vercel production environment..."
-            npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-
-            echo "[*] Building project via Vercel CLI..."
-            npx --yes vercel@latest build --prod --token "$VERCEL_TOKEN"
-
-            echo "[*] Deploying prebuilt artifacts to Vercel production..."
-            npx --yes vercel@latest deploy --prebuilt --prod --token "$VERCEL_TOKEN"
-          else
-            echo "[!] Vercel deployment secrets are incomplete; skipping CLI deployment. Git-based Vercel deployments may still run."
-          fi
+          echo "This workflow validates the application and does not deploy."
+          echo "Production deployments are centralized in .github/workflows/deploy-vercel.yml."
+          echo "That workflow requires a successful CI run and vars.VERCEL_DEPLOY_ENABLED=true."
+          echo "Keep only one Vercel deployment source enabled to avoid duplicate builds and quota exhaustion."
