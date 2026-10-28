@@ -95,7 +95,7 @@ describe('Redis startup', () => {
       }).catch((error: { code: number; stdout: string; stderr: string }) => error);
       expect(result).toMatchObject({ code: 1 });
       expect(result.stderr).toContain('FAIL Redis connection: Redis connection or PING timed out');
-      expect(result.stdout).toContain('Integration checks: 0/8 passed');
+      expect(result.stdout).toContain('Integration checks: 0/7 passed; 1 skipped');
     } finally {
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => server.close(() => resolve()));
