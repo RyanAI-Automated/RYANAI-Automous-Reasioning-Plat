@@ -70,7 +70,7 @@ describe('Auth Sign-In Route (/signin)', () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 'test@ryanai.local',
-      password: '$2b$10$hashedpassword',
+      passwordHash: '$2b$10$hashedpassword',
     });
 
     vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
@@ -92,7 +92,7 @@ describe('Auth Sign-In Route (/signin)', () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 'test@ryanai.local',
-      password: '$2b$10$hashedpassword',
+      passwordHash: '$2b$10$hashedpassword',
     });
 
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);

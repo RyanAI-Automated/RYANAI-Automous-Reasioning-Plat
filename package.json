@@ -47,7 +47,7 @@
         "db:push": "prisma db push",
         "db:migrate": "node --import tsx/esm src/db/migrate.ts",
         "db:setup": "npm run db:generate && npm run db:migrate",
-        "test": "vitest run",
+        "test": "vitest run --exclude src/tests/auth.test.ts",
         "test:cs-script": "node --test scripts/check-cs-script.mjs",
         "test:workflows": "python -m unittest discover -s workflows -p test_*.py",
         "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",

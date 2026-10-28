@@ -179,14 +179,14 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
         where: { email },
       });
 
-      if (!user || !user.password) {
+      if (!user || !user.passwordHash) {
         return reply.status(401).send({
           error: 'Unauthorized',
           message: 'Invalid email or password.',
         });
       }
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
       if (!isPasswordValid) {
         return reply.status(401).send({
