@@ -2,10 +2,10 @@
 ; Containerized Windows Installer for RyanAI Desktop
 
 #define MyAppName "RyanAI"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "0.1.0"
 #define MyAppPublisher "RMN Ganyane (Pty) Ltd"
-#define MyAppURL "https://github.com/ryanai/platform"
-#define MyAppExeName "RyanAI.exe"
+#define MyAppURL "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat"
+#define MyAppExeName "ryan-app.exe"
 
 [Setup]
 AppId={{C8E9A341-21B4-48E2-9F93-7A3B12345678}
@@ -19,6 +19,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=LICENSE
 PrivilegesRequired=lowest
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 OutputDir=bin\installer
 OutputBaseFilename=RyanAI-Setup-x64
 Compression=lzma
