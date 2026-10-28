@@ -1,9 +1,15 @@
-# =====================================================================
-# RyanAI Autonomous Reasoning Platform - Dependency Notice
-# =====================================================================
-# RyanAI has no Python runtime or Python package dependencies.
-# 
-# - Frontend & API dependencies are declared in package.json and package-lock.json.
-# - Desktop app dependencies are declared in src-tauri/Cargo.toml and Cargo.lock.
-# - Container environments are managed via Dockerfiles and docker-compose.yml.
-# =====================================================================
+# RyanAI's main web/API platform is TypeScript/Node.js; Python is optional.
+# The CI Python core check uses only the Python standard library.
+#
+# Install these packages only if you run the optional root-level Python examples:
+#   basic.py       -> OpenAI-compatible client (can target local Ollama)
+#   reactGraph.py  -> LangGraph reasoning example
+#   test_mongo.py  -> MongoDB connectivity example (requires your own URI)
+#
+# Never put live provider credentials or database URIs in source files.
+openai>=1.0.0
+pydantic>=2.0.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langgraph>=0.2.0
+pymongo>=4.6.0
