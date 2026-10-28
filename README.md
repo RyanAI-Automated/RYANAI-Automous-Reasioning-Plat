@@ -52,7 +52,7 @@ The Compose file binds service ports to loopback (`127.0.0.1`) by default. This 
 - PostgreSQL 16-compatible database with pgvector available where vector features are used.
 - Redis 7-compatible service.
 - A terminal: PowerShell on Windows, or Bash/Zsh on Linux/macOS.
-- Optional: Python tooling, Rust/Cargo, CMake and a C/C++ build toolchain only if you intend to use the Python core, Tauri desktop app, or native inference modules. These are not required for the standard web/API development loop.
+- Optional: Python 3.10+ for the CLI and Python examples; install `requirements.txt` only if you use the optional OpenAI/LangGraph/MongoDB examples. Rust/Cargo, CMake and a C/C++ toolchain are needed only for the Tauri desktop app or native inference modules. None are required for the standard web/API development loop.
 
 ### External services (feature-dependent)
 
