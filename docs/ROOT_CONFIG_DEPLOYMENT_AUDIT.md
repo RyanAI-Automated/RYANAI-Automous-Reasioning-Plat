@@ -36,6 +36,12 @@ This audit checks the root-level Docker, environment, build, deployment, Kuberne
 - **IDE metadata:** `settings.json` was moved into `.vscode/settings.json`; stale root IntelliJ files (`compiler.xml`, `encodings.xml`, `jarRepositories.xml`, `misc.xml`, `modules.xml`, `vcs.xml`, `workspace.xml`) were removed because they described a different project or a local workstation.
 - **Operational/status files:** `PRODUCTION_CONFIG.js`, `.completion-status.txt`, `COMPLETION_CERTIFICATE.txt`, and `requirements.txt` were corrected so reference targets and optional tools are not presented as verified live capabilities.
 
+## Additional workflow/deployment audit
+
+The deployment workflows were checked after the root manifests. The live Datadog Synthetic run failed because `DD_API_KEY` and `DD_APP_KEY` were not configured. AWS and Azure deployment templates also contained placeholder account/cluster values and would run on main pushes without being explicitly enabled. The optional AWS, AKS, and Datadog workflows are now gated by repository variables and validate their required configuration when enabled.
+
+Generic Deno, Jekyll, Webpack, Python-publish, and duplicate Docker Image CI templates were removed because the repository is a Vite/Node platform, has no Deno/Jekyll/Python-package project configuration, and already has dedicated Docker build/publish workflows. The Python workflow now runs the actual standard-library core syntax check and compiles the optional examples. The C++ workflow now builds and smoke-tests the repository's CMake native fallback instead of invoking a missing autotools `./configure`/Makefile sequence.
+
 ## Items that still require deployment-owner action
 
 1. **Render:** set valid managed PostgreSQL and Redis URLs in the Render service settings. The blueprint intentionally uses `sync: false` for these secrets; it does not provision database/cache services itself.
