@@ -49,7 +49,7 @@ export async function getPlatformHealth(
     return health;
   } catch (error) {
     if (controller.signal.aborted && !signal?.aborted) {
-      throw new Error('API health check timed out after 5 seconds.');
+      throw new Error('API health check timed out after 5 seconds.', { cause: error });
     }
     throw error;
   } finally {
