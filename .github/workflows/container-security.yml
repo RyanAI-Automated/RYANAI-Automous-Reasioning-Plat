@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - 'Dockerfile'
+      - 'Dockerfile.api'
       - 'mcp-server/**'
       - 'docker-compose.yml'
       - 'nginx.conf.template'
@@ -12,11 +13,17 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'src/**'
+      - 'app/**'
+      - 'store/**'
+      - 'stacks/**'
+      - 'prisma/**'
+      - 'scripts/copy-server-assets.mjs'
       - '.github/workflows/container-security.yml'
   pull_request:
     branches: [main, master]
     paths:
       - 'Dockerfile'
+      - 'Dockerfile.api'
       - 'mcp-server/**'
       - 'docker-compose.yml'
       - 'nginx.conf.template'
@@ -24,6 +31,11 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'src/**'
+      - 'app/**'
+      - 'store/**'
+      - 'stacks/**'
+      - 'prisma/**'
+      - 'scripts/copy-server-assets.mjs'
       - '.github/workflows/container-security.yml'
   schedule:
     - cron: '0 4 * * 1'

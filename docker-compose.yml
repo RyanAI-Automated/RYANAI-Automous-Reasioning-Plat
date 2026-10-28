@@ -61,6 +61,8 @@ services:
       dockerfile: Dockerfile
       target: api
     container_name: ryanai-api
+    # Keep optional .env settings available to the API while supporting Compose
+    # installations where an env file has not been created yet.
     env_file:
       - path: .env
         required: false
@@ -71,9 +73,9 @@ services:
       DATABASE_URL: postgresql://ryanai:${DB_PASSWORD}@postgres:5432/ryanai_db
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       JARVIS_BASE_URL: ${JARVIS_BASE_URL:-}
       JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
@@ -156,9 +158,9 @@ services:
       target: web
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
     container_name: ryanai-web
     environment:
       PORT: 80

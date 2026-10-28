@@ -58,7 +58,10 @@ RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 COPY tsconfig*.json ./
 COPY vite.config.ts postcss.config.js tailwind.config.js index.html ./
 COPY src ./src
-COPY app/routes.json ./app/routes.json
+# The TypeScript composite app config includes these root-level workspace files.
+# Keep this source set in sync with tsconfig.app.json and src/App.tsx imports.
+COPY app/page.tsx app/routes.json ./app/
+COPY store/useLogStore.ts ./store/useLogStore.ts
 COPY models/catalog.json ./models/catalog.json
 
 ARG VITE_SUPABASE_URL=""

@@ -10,6 +10,7 @@ on:
     branches: [main, master]
     paths:
       - 'Dockerfile'
+      - 'Dockerfile.api'
       - 'mcp-server/**'
       - 'docker-compose.yml'
       - 'docker-entrypoint.sh'
@@ -22,6 +23,9 @@ on:
       - 'prisma/**'
       - 'models/**'
       - 'app/**'
+      - 'store/**'
+      - 'stacks/**'
+      - 'scripts/copy-server-assets.mjs'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
 
