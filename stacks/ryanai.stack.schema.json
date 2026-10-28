@@ -13,27 +13,6 @@
     "integrations"
   ],
   "properties": {
-    "$schema": {
-      "type": "string",
-      "const": "./ryanai.stack.schema.json"
-    },
-    "schemaVersion": {
-      "const": "ryanai.stack/v1"
-    },
-    "name": {
-      "const": "ryanai"
-    },
-    "version": {
-      "type": "string",
-      "minLength": 1
-    },
-    "repository": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-    },
-    "description": {
-      "type": "string"
-    },
     "$schema": { "const": "./ryanai.stack.schema.json" },
     "schemaVersion": { "const": "ryanai.stack/v1" },
     "name": { "const": "ryanai" },
