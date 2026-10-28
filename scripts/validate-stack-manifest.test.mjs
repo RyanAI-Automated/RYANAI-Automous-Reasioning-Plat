@@ -79,6 +79,19 @@ test('rejects a service path that traverses outside the repository', (t) => {
   assert.match(result.stderr, /Dockerfile path must stay inside the repository/);
 });
 
+test('rejects absolute and traversal deployment targets', (t) => {
+  const unsafeTargets = ['../outside.yaml', '/tmp/outside.yaml', 'C:\\outside.yaml'];
+  for (const target of unsafeTargets) {
+    const f = fixture(t);
+    f.manifest.deploymentTargets.render = target;
+    f.saveManifest(f.manifest);
+
+    const result = validate(f.dir);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Deployment target must be a repository-relative path/);
+  }
+});
+
 test('rejects a symlink whose target resolves outside the repository', (t) => {
   if (process.platform === 'win32') {
     t.skip('Creating file symlinks can require elevated privileges on Windows');
