@@ -21,3 +21,9 @@ When that limit is active:
 ## Staging integration
 
 Use the manual **Jarvis Staging Bridge Smoke** workflow for RyanAI ↔ Jarvis verification. Configure the four staging secrets described in [the staging runbook](./JARVIS_STAGING_RUNBOOK.md). Do not put tokens in files, command-line arguments, logs, or issue/PR comments. A green build is not proof of a live staging handshake; record the successful smoke run URL after the real endpoints have been tested.
+
+## Pull request previews and token exposure
+
+The GitHub Actions workflow `.github/workflows/preview.yml` now validates the locked install, typecheck and web build without using Vercel deployment credentials or publishing a deployment. If pull-request preview URLs are needed, use Vercel's Git integration as the sole preview deployment source. Do not restore a GitHub Actions preview deploy path with account-scoped tokens in a workflow that executes pull-request code.
+
+The Docker image workflow also separates read-only PR image builds from publishing. Only the trusted publish job receives `packages: write`; manual image publishing is restricted to `main` or `master`.
