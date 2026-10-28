@@ -19,6 +19,7 @@ import { API_ROUTES } from '../config/core.js';
 
 import { invokeReasoningAgent } from '../agent/invoke.js';
 import { startScheduler } from '../scheduler/runner.js';
+import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
@@ -431,6 +432,13 @@ async function start() {
     if (process.env.SCHEDULER_ENABLED === 'true') {
       stopScheduler = startScheduler();
     }
+
+    // Alerts send messages to the owner with no person present. Turn them on
+    // with an explicit setting. A setting that cannot work stops the start with
+    // a clear error, so a typo never leaves you without alerts.
+    if (process.env.ALERTS_ENABLED === 'true') {
+      stopAlerts = startAlerts();
+    }
   } catch (err) {
     fastify.log.fatal(err);
     process.exit(1);
@@ -439,9 +447,11 @@ async function start() {
 
 // Graceful shutdown hooks
 let stopScheduler: (() => void) | undefined;
+let stopAlerts: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   stopScheduler?.();
+  stopAlerts?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
   await fastify.close();
