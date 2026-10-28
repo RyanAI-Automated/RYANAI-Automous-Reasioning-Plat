@@ -11,7 +11,3 @@ reviews:
     drafts: false
 chat:
   auto_reply: true
-remote_config:
-  repository: "shared-configs"
-  ref: "main"
-  path: ".shared-coderabbit.yaml"
