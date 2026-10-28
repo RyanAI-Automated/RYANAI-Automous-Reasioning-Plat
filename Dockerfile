@@ -102,6 +102,7 @@ COPY --from=api-builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
+COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
 
 USER node
 EXPOSE 3000
