@@ -45,7 +45,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -56,6 +55,8 @@ jobs:
     name: Scan ${{ matrix.image }} image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
 
     strategy:
       fail-fast: false
@@ -88,15 +89,26 @@ jobs:
           tags: ryanai-${{ matrix.image }}:scan
           cache-from: type=gha,scope=${{ matrix.image }}
 
-      - name: Scan for high and critical vulnerabilities
+      - name: Enforce high and critical vulnerability gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ryanai-${{ matrix.image }}:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Generate SARIF report (non-blocking)
+        if: always()
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ryanai-${{ matrix.image }}:scan
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
-          severity: HIGH,CRITICAL
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: '0'
 
       - name: Summarize Trivy SARIF findings on pull requests
         if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
@@ -126,27 +138,39 @@ jobs:
           console.log(JSON.stringify(findings, null, 2));
           NODE
 
-      - name: Preserve Trivy SARIF on pull requests
-        if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
+      - name: Preserve Trivy SARIF artifact
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
         uses: actions/upload-artifact@v4
         with:
           name: trivy-${{ matrix.image }}-sarif
           path: trivy-${{ matrix.image }}.sarif
           retention-days: 7
 
-      - name: Print vulnerability details for failed scans
-        if: failure()
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ryanai-${{ matrix.image }}:scan
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '0'
 
-      - name: Upload scan results
-        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != '' && github.event_name != 'pull_request'
+
+
+  upload-sarif:
+    name: Upload container SARIF (${{ matrix.image }})
+    needs: scan
+    if: always() && github.event_name != 'pull_request' && needs.scan.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, web, mcp]
+    steps:
+      - name: Download SARIF artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-${{ matrix.image }}-sarif
+          path: sarif
+
+      - name: Upload scan results to GitHub code scanning
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: trivy-${{ matrix.image }}.sarif
+          sarif_file: sarif/trivy-${{ matrix.image }}.sarif
           category: container-${{ matrix.image }}
