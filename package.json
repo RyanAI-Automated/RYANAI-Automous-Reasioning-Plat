@@ -14,7 +14,7 @@
     "dev": "concurrently --kill-others --names api,web,mcp \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:mcp\"",
     "build": "tsc -p tsconfig.app.json && vite build",
     "start": "node dist/server/server/launcher.js",
-    "lint": "eslint . --max-warnings 40",
+    "lint": "eslint . --max-warnings 0",
     "build:server": "tsc -p tsconfig.server.json && node scripts/copy-server-assets.mjs",
     "agent:pa": "ts-node src/skills/agentPAScript.ts",
     "start:dev": "tsx src/server/launcher.ts",
