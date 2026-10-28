@@ -1,7 +1,7 @@
 mod commands;
 mod tray;
 
-use commands::{get_hardware_telemetry, trigger_local_agent};
+use commands::{get_hardware_telemetry, trigger_agent_objective};
 use tray::create_system_tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,7 +16,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_hardware_telemetry,
-            trigger_local_agent
+            trigger_agent_objective
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
