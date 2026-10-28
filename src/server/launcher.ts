@@ -111,7 +111,7 @@ await fastify.register(fastifyCors, {
       return;
     }
 
-    callback(new Error('Origin not allowed by CORS'), false);
+    callback(null, false);
   },
   credentials: true,
 });

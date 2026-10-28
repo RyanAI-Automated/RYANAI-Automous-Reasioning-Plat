@@ -74,6 +74,7 @@ const originalListeners = new Map(
 );
 
 beforeAll(async () => {
+  vi.stubEnv('CORS_ORIGINS', 'https://frontend.vercel.app');
   await import('./launcher');
   await vi.waitFor(() => expect(state.listen).toHaveBeenCalledOnce());
 });
@@ -86,6 +87,7 @@ afterAll(async () => {
         process.removeListener(signal, listener);
     }
   }
+  vi.unstubAllEnvs();
 });
 
 describe('launcher reasoning routes', () => {
@@ -118,6 +120,19 @@ describe('launcher reasoning routes', () => {
     expect(response.headers['access-control-allow-headers']?.toLowerCase()).toContain(
       'content-type',
     );
+  });
+
+  it('does not grant CORS access to an unconfigured origin', async () => {
+    const response = await state.app!.inject({
+      method: 'OPTIONS',
+      url: '/api/reasoning/stream',
+      headers: {
+        origin: 'https://attacker.invalid',
+        'access-control-request-method': 'POST',
+      },
+    });
+    expect(response.statusCode).toBe(204);
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('keeps the JSON reasoning endpoint available', async () => {
