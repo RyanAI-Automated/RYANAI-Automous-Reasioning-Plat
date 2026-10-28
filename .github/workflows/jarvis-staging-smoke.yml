@@ -80,6 +80,9 @@ jobs:
               throw new Error(label + ' must not include credentials, a query string, or a fragment');
             }
             if (url.pathname !== '/') throw new Error(label + ' must be an origin URL without a path');
+            if (url.hostname === 'localhost' || url.hostname.endsWith('.localhost') ||
+                url.hostname === '127.0.0.1' || url.hostname === '[::1]') {
+              throw new Error(label + ' must point to a reachable staging host, not loopback');
             const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
             if (hostname === 'localhost' || hostname.endsWith('.localhost') ||
                 hostname.startsWith('127.') || hostname === '0.0.0.0' ||
