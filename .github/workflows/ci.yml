@@ -132,8 +132,13 @@ jobs:
       - name: Prepare database
         run: npm run db:setup
 
-      - name: Build API and frontend
-        run: npm run build:server && npm run build:client
+      # Vite's build uses emptyOutDir=true and clears dist/. Build the frontend
+      # first, then compile the API so the server output survives for startup.
+      - name: Build frontend and API
+        run: |
+          npm run build:client
+          npm run build:server
+          test -s dist/server/server/launcher.js
 
       - name: Start services and run integration checks
         shell: bash
@@ -163,12 +168,24 @@ jobs:
           npm run test:integration
           npm run test:e2e
 
+      - name: Print service logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "::group::API log"
+          if [ -f api.log ]; then cat api.log; else echo "api.log was not created"; fi
+          echo "::endgroup::"
+          echo "::group::Web log"
+          if [ -f web.log ]; then cat web.log; else echo "web.log was not created"; fi
+          echo "::endgroup::"
+
       - name: Upload service logs on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: integration-logs
           path: |
             api.log
             web.log
+          if-no-files-found: warn
           retention-days: 7
