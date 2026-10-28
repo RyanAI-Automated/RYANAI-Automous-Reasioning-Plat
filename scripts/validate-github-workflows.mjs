@@ -205,10 +205,10 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
 });
 
 assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
-  if (/secrets\\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
+  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
     fail(filePath, 'pull-request preview validation must not expose Vercel credentials to PR code');
   }
-  if (/vercel(?:@latest)?\\s+(?:build|deploy)\\b/i.test(text)) {
+  if (/vercel(?:@latest)?\s+(?:build|deploy)\b/i.test(text)) {
     fail(filePath, 'pull-request preview validation must not deploy from untrusted PR code');
   }
   if (document.permissions?.contents !== 'read') {
