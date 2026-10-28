@@ -26,8 +26,6 @@ services:
         value: production
       - key: HOST
         value: 0.0.0.0
-      - key: PORT
-        value: 3000
       - key: CORS_ORIGINS
         value: https://ryanai-web.onrender.com
       - key: JWT_SECRET
