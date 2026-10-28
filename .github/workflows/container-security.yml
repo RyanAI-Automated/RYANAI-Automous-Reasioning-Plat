@@ -98,6 +98,42 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
 
+      - name: Summarize Trivy SARIF findings on pull requests
+        if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
+        env:
+          SARIF_PATH: trivy-${{ matrix.image }}.sarif
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync(process.env.SARIF_PATH, 'utf8'));
+          const findings = (report.runs || []).flatMap((run) =>
+            (run.results || []).map((result) => ({
+              ruleId: result.ruleId || result.rule?.id || 'unknown',
+              level: result.level || 'unknown',
+              locations: (result.locations || []).map((location) => ({
+                path: location.physicalLocation?.artifactLocation?.uri || 'unknown',
+                line: location.physicalLocation?.region?.startLine ?? null,
+              })),
+            })),
+          );
+          const counts = {};
+          for (const finding of findings) {
+            counts[finding.level] = (counts[finding.level] || 0) + 1;
+          }
+          console.log(`Trivy SARIF results: ${findings.length}; levels: ${JSON.stringify(counts)}`);
+          // Never print secret contents or SARIF messages; only rule IDs and source locations.
+          console.log(JSON.stringify(findings, null, 2));
+          NODE
+
+      - name: Preserve Trivy SARIF on pull requests
+        if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.image }}-sarif
+          path: trivy-${{ matrix.image }}.sarif
+          retention-days: 7
+
       - name: Print vulnerability details for failed scans
         if: failure()
         uses: aquasecurity/trivy-action@v0.36.0
