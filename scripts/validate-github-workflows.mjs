@@ -148,6 +148,74 @@ if (statSafe(productionDeployPath)) {
   }
 }
 
+
+function assertPermissionsWorkflow(relativePath, checkDocument) {
+  const filePath = join(workflowDir, relativePath);
+  if (!statSafe(filePath)) {
+    errors.push('Missing .github/workflows/' + relativePath);
+    return;
+  }
+  const text = readFileSync(filePath, 'utf8');
+  let document;
+  try {
+    document = parse(text);
+  } catch (error) {
+    fail(filePath, 'invalid YAML: ' + error.message);
+    return;
+  }
+  checkDocument(filePath, text, document);
+}
+
+assertPermissionsWorkflow('ci-cd.yml', (filePath, _text, document) => {
+  if (document.permissions?.packages === 'write') {
+    fail(filePath, 'packages: write must not be granted at workflow scope');
+  }
+  if (document.jobs?.validate?.permissions?.packages === 'write') {
+    fail(filePath, 'validation job must not receive packages: write');
+  }
+  if (document.jobs?.publish?.permissions?.packages !== 'write') {
+    fail(filePath, 'publish job must declare its required packages: write permission locally');
+  }
+});
+
+assertPermissionsWorkflow('docker.yml', (filePath, _text, document) => {
+  if (document.permissions?.packages === 'write') {
+    fail(filePath, 'pull-request image builds must not inherit packages: write');
+  }
+  if (document.jobs?.validate?.permissions?.packages === 'write' ||
+      document.jobs?.['build-pr']?.permissions?.packages === 'write') {
+    fail(filePath, 'validation and pull-request image build jobs must not receive packages: write');
+  }
+  if (document.jobs?.publish?.permissions?.packages !== 'write') {
+    fail(filePath, 'image publish job must scope packages: write to that job');
+  }
+});
+
+assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
+  if (document.permissions?.packages === 'write') {
+    fail(filePath, 'manual publish workflow must not grant packages: write at workflow scope');
+  }
+  if (document.jobs?.publish?.permissions?.packages !== 'write') {
+    fail(filePath, 'manual publish job must scope packages: write locally');
+  }
+  const condition = String(document.jobs?.publish?.if ?? '');
+  if (!condition.includes("refs/heads/main") || !condition.includes("refs/heads/master")) {
+    fail(filePath, 'manual image publishing must be restricted to main/master');
+  }
+});
+
+assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
+  if (/secrets\\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
+    fail(filePath, 'pull-request preview validation must not expose Vercel credentials to PR code');
+  }
+  if (/vercel(?:@latest)?\\s+(?:build|deploy)\\b/i.test(text)) {
+    fail(filePath, 'pull-request preview validation must not deploy from untrusted PR code');
+  }
+  if (document.permissions?.contents !== 'read') {
+    fail(filePath, 'preview validation must use read-only repository permissions');
+  }
+});
+
 function statSafe(path) {
   try { return statSync(path).isFile() || statSync(path).isDirectory(); } catch { return false; }
 }
