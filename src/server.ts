@@ -105,6 +105,41 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
+let previousCpuSample = cpus().map((cpu) => ({ ...cpu.times }));
+
+export function readTelemetry(): TelemetryData {
+  const currentCpuSample = cpus().map((cpu) => ({ ...cpu.times }));
+  let cpuUsage: number | null = null;
+  if (currentCpuSample.length === previousCpuSample.length && currentCpuSample.length > 0) {
+    const current = currentCpuSample.reduce(
+      (result, cpu) => ({
+        idle: result.idle + cpu.idle,
+        total: result.total + Object.values(cpu).reduce((sum, value) => sum + value, 0),
+      }),
+      { idle: 0, total: 0 },
+    );
+    const previous = previousCpuSample.reduce(
+      (result, cpu) => ({
+        idle: result.idle + cpu.idle,
+        total: result.total + Object.values(cpu).reduce((sum, value) => sum + value, 0),
+      }),
+      { idle: 0, total: 0 },
+    );
+    const elapsed = current.total - previous.total;
+    cpuUsage = elapsed > 0
+      ? Math.round(((elapsed - (current.idle - previous.idle)) / elapsed) * 100)
+      : null;
+  }
+  previousCpuSample = currentCpuSample;
+
+  return {
+    cpuUsage,
+    memoryUsage: Math.round((process.memoryUsage().rss / totalmem()) * 100),
+    networkLatency: null,
+    activeThreads: null,
+  };
+}
+
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {

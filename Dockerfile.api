@@ -33,7 +33,7 @@ RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && npm install --global npm@11.21.0 \
     && npm install --prefix /tmp/npm-security-patches --install-strategy=nested \
         --ignore-scripts --no-audit --no-fund \
-        brace-expansion@5.0.11 http-cache-semantics@4.3.0 undici@6.28.1 \
+        brace-expansion@5.0.11 http-cache-semantics@4.3.0 undici@6.29.1 \
     && rm -rf /usr/local/lib/node_modules/npm/node_modules/brace-expansion \
         /usr/local/lib/node_modules/npm/node_modules/http-cache-semantics \
         /usr/local/lib/node_modules/npm/node_modules/undici \

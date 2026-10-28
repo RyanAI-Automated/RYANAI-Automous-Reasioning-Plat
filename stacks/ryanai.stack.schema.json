@@ -3,8 +3,17 @@
   "$id": "https://ryanai.dev/schemas/ryanai.stack.schema.json",
   "title": "RyanAI Stack Manifest",
   "type": "object",
-  "required": ["schemaVersion", "name", "version", "repository", "services", "deploymentTargets", "integrations"],
+  "required": [
+    "schemaVersion",
+    "name",
+    "version",
+    "repository",
+    "services",
+    "deploymentTargets",
+    "integrations"
+  ],
   "properties": {
+    "$schema": { "const": "./ryanai.stack.schema.json" },
     "schemaVersion": { "const": "ryanai.stack/v1" },
     "name": { "const": "ryanai" },
     "version": { "type": "string", "minLength": 1 },
@@ -15,48 +24,120 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["name", "runtime", "port"],
+        "required": [
+          "name",
+          "runtime",
+          "port"
+        ],
         "properties": {
-          "name": { "type": "string", "minLength": 1 },
-          "runtime": { "type": "string", "enum": ["docker", "container"] },
-          "dockerfile": { "type": "string" },
-          "target": { "type": "string" },
-          "image": { "type": "string" },
-          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-          "healthPath": { "type": "string" },
-          "dependsOn": { "type": "array", "items": { "type": "string" } },
-          "persistentVolume": { "type": "string" },
-          "requiresSecret": { "type": "string" },
-          "transport": { "type": "string" }
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runtime": {
+            "type": "string",
+            "enum": [
+              "docker",
+              "container"
+            ]
+          },
+          "dockerfile": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "healthPath": {
+            "type": "string"
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "persistentVolume": {
+            "type": "string"
+          },
+          "requiresSecret": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
     },
     "deploymentTargets": {
       "type": "object",
-      "required": ["dockerCompose", "kubernetes", "render", "vercel"],
+      "required": [
+        "dockerCompose",
+        "kubernetes",
+        "render",
+        "vercel"
+      ],
       "properties": {
-        "dockerCompose": { "type": "string" },
-        "kubernetes": { "type": "array", "items": { "type": "string" } },
-        "render": { "type": "string" },
-        "vercel": { "type": "string" }
+        "dockerCompose": {
+          "type": "string"
+        },
+        "kubernetes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "render": {
+          "type": "string"
+        },
+        "vercel": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "integrations": {
       "type": "object",
-      "required": ["jarvis"],
+      "required": [
+        "jarvis"
+      ],
       "properties": {
         "jarvis": {
           "type": "object",
-          "required": ["contract", "enabledByDefault", "patchPath", "stackPath", "healthPath"],
+          "required": [
+            "contract",
+            "enabledByDefault",
+            "patchPath",
+            "stackPath",
+            "healthPath"
+          ],
           "properties": {
-            "contract": { "const": "ryanai.jarvis/v1" },
-            "enabledByDefault": { "const": false },
-            "patchPath": { "type": "string" },
-            "stackPath": { "type": "string" },
-            "healthPath": { "type": "string" },
-            "notes": { "type": "string" }
+            "contract": {
+              "const": "ryanai.jarvis/v1"
+            },
+            "enabledByDefault": {
+              "const": false
+            },
+            "patchPath": {
+              "type": "string"
+            },
+            "stackPath": {
+              "type": "string"
+            },
+            "healthPath": {
+              "type": "string"
+            },
+            "notes": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
         }

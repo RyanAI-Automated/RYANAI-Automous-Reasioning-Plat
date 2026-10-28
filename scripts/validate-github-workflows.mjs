@@ -76,7 +76,7 @@ for (const file of files) {
     }
   }
 
-  if (name.endsWith('deploy.yml') && !document.on?.workflow_call) fail(file, 'reusable deployment workflow must define workflow_call');
+  if (name === '.github/workflows/deploy.yml' && !document.on?.workflow_call) fail(file, 'reusable deployment workflow must define workflow_call');
 }
 
 
@@ -103,7 +103,142 @@ if (!statSafe(jarvisSmokePath)) {
   if (!smokeText.includes("JARVIS_ALLOW_PRODUCTION_SYNC: 'false'")) {
     fail(jarvisSmokePath, 'staging smoke workflow must keep production sync disabled');
   }
+
+  const smokeDocument = parse(smokeText);
+  const jobEnv = smokeDocument?.jobs?.smoke?.env ?? {};
+  for (const secretName of ['JARVIS_BASE_URL', 'JARVIS_API_TOKEN', 'RYANAI_STAGING_API_BASE_URL', 'JARVIS_INGRESS_TOKEN']) {
+    if (Object.prototype.hasOwnProperty.call(jobEnv, secretName)) {
+      fail(jarvisSmokePath, secretName + ' must be scoped to the step that needs it, not the whole job');
+    }
+  }
+  if (!smokeText.includes('Enforce HTTPS-only staging origins')) {
+    fail(jarvisSmokePath, 'staging smoke workflow must validate HTTPS-only origin URLs');
+  }
+
 }
+
+const vercelValidationPath = join(workflowDir, 'vercel-deploy.yml');
+if (!statSafe(vercelValidationPath)) {
+  errors.push('Missing .github/workflows/vercel-deploy.yml');
+} else {
+  const vercelText = readFileSync(vercelValidationPath, 'utf8');
+  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(vercelText)) {
+    fail(vercelValidationPath, 'validation-only workflow must not receive Vercel deployment credentials');
+  }
+  if (/\bvercel(?:@latest)?\s+(?:build|deploy)\b/i.test(vercelText)) {
+    fail(vercelValidationPath, 'validation-only workflow must not build or deploy production output');
+  }
+}
+
+const productionDeployPath = join(workflowDir, 'deploy-vercel.yml');
+if (statSafe(productionDeployPath)) {
+  const productionDeployText = readFileSync(productionDeployPath, 'utf8');
+  const productionDeployDocument = parse(productionDeployText);
+  if (Object.prototype.hasOwnProperty.call(productionDeployDocument?.on ?? {}, 'workflow_dispatch')) {
+    fail(productionDeployPath, 'production deployment must not bypass the successful-CI gate through workflow_dispatch');
+  }
+  for (const required of [
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.event == 'push'",
+    "vars.VERCEL_DEPLOY_ENABLED == 'true'",
+  ]) {
+    if (!productionDeployText.includes(required)) {
+      fail(productionDeployPath, 'production deployment is missing required gate: ' + required);
+    }
+  }
+}
+
+
+function assertPermissionsWorkflow(relativePath, checkDocument) {
+  const filePath = join(workflowDir, relativePath);
+  if (!statSafe(filePath)) {
+    errors.push('Missing .github/workflows/' + relativePath);
+    return;
+  }
+  const text = readFileSync(filePath, 'utf8');
+  let document;
+  try {
+    document = parse(text);
+  } catch (error) {
+    fail(filePath, 'invalid YAML: ' + error.message);
+    return;
+  }
+  checkDocument(filePath, text, document);
+}
+
+assertPermissionsWorkflow('ci-cd.yml', (filePath, _text, document) => {
+  if (document.permissions?.packages === 'write') {
+    fail(filePath, 'packages: write must not be granted at workflow scope');
+  }
+  if (document.jobs?.validate?.permissions?.packages === 'write') {
+    fail(filePath, 'validation job must not receive packages: write');
+  }
+  if (document.jobs?.publish?.permissions?.packages !== 'write') {
+    fail(filePath, 'publish job must declare its required packages: write permission locally');
+  }
+});
+
+assertPermissionsWorkflow('docker.yml', (filePath, _text, document) => {
+  if (document.permissions?.packages === 'write') {
+    fail(filePath, 'pull-request image builds must not inherit packages: write');
+  }
+  if (document.jobs?.validate?.permissions?.packages === 'write' ||
+      document.jobs?.['build-pr']?.permissions?.packages === 'write') {
+    fail(filePath, 'validation and pull-request image build jobs must not receive packages: write');
+  }
+  if (document.jobs?.publish?.permissions?.packages !== 'write') {
+    fail(filePath, 'image publish job must scope packages: write to that job');
+  }
+});
+
+assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
+  if (document.permissions?.packages === 'write') {
+    fail(filePath, 'manual publish workflow must not grant packages: write at workflow scope');
+  }
+  if (document.jobs?.publish?.permissions?.packages !== 'write') {
+    fail(filePath, 'manual publish job must scope packages: write locally');
+  }
+  const condition = String(document.jobs?.publish?.if ?? '');
+  if (!condition.includes("refs/heads/main") || !condition.includes("refs/heads/master")) {
+    fail(filePath, 'manual image publishing must be restricted to main/master');
+  }
+});
+
+assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
+  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
+    fail(filePath, 'pull-request preview validation must not expose Vercel credentials to PR code');
+  }
+  if (/vercel(?:@latest)?\s+(?:build|deploy)\b/i.test(text)) {
+    fail(filePath, 'pull-request preview validation must not deploy from untrusted PR code');
+  }
+  if (document.permissions?.contents !== 'read') {
+    fail(filePath, 'preview validation must use read-only repository permissions');
+  }
+});
+
+assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) => {
+  if (document.permissions?.['security-events'] === 'write') {
+    fail(filePath, 'security-events: write must not be granted at workflow scope');
+  }
+  if (document.jobs?.scan?.permissions?.['security-events'] === 'write') {
+    fail(filePath, 'container image builds and scans must not receive security-events: write');
+  }
+  if (document.jobs?.scan?.permissions?.contents !== 'read') {
+    fail(filePath, 'container scan job must use read-only repository permissions');
+  }
+  if (document.jobs?.['upload-sarif']?.permissions?.['security-events'] !== 'write') {
+    fail(filePath, 'SARIF publishing must scope security-events: write to the upload job');
+  }
+  const steps = document.jobs?.scan?.steps ?? [];
+  const gate = steps.find((step) => step.name === 'Enforce high and critical vulnerability gate');
+  if (gate?.with?.format !== 'table' || String(gate?.with?.['exit-code']) !== '1') {
+    fail(filePath, 'high/critical vulnerability gate must use the blocking table scan');
+  }
+  const report = steps.find((step) => step.name === 'Generate SARIF report (non-blocking)');
+  if (report?.['continue-on-error'] !== true || String(report?.with?.['exit-code']) !== '0') {
+    fail(filePath, 'SARIF generation must be non-blocking and separate from the vulnerability gate');
+  }
+});
 
 function statSafe(path) {
   try { return statSync(path).isFile() || statSync(path).isDirectory(); } catch { return false; }

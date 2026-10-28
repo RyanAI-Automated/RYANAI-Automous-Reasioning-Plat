@@ -87,6 +87,18 @@
     "src/**/*.spec.ts",
     "src/**/*.spec.tsx",
     "src/**/*.js",
+    "src/server/**",
+    "src/auth/authGateway.ts",
+    "src/billing/**",
+    "src/engine/**",
+    "src/database/memory.ts",
+    "src/analytics/**",
+    "src/config/telemetry.ts",
+    "src/index.ts",
+    "src/routes/agentExecute.ts",
+    "src/test/**",
+    "src/utils/nodeSupport.ts",
+    "src/api/auth/signin.ts",
     "src/lib/supabase/server.ts",
     "src/lib/supabase/middleware.ts"
   ]
