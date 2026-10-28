@@ -84,7 +84,10 @@ export class JarvisClient {
     }
 
     try {
-      const result = await this.request(config, config.healthPath, 'GET');
+      // Narrow the config once after the explicit guard above; TypeScript does not
+      // preserve property narrowing across the config object passed to request().
+      const activeConfig = config as JarvisConfig & { baseUrl: URL; token: string };
+      const result = await this.request(activeConfig, activeConfig.healthPath, 'GET');
       return {
         provider: 'jarvis',
         enabled: true,

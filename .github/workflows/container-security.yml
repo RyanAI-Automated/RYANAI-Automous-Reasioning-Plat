@@ -84,6 +84,16 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
 
+      - name: Print vulnerability details for failed scans
+        if: failure()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ryanai-${{ matrix.image }}:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '0'
+
       - name: Upload scan results
         if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != '' && github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@v4
