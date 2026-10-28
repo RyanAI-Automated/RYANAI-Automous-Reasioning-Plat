@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   JarvisClient,
@@ -134,4 +135,93 @@ describe('JarvisClient', () => {
     expect(fetcher).toHaveBeenCalledOnce();
     expect(fetcher.mock.calls[0][1]?.redirect).toBe('error');
   });
+  it('round-trips authenticated health, patch, and staging-stack requests over HTTP', async () => {
+    const authorizationHeaders: Array<string | undefined> = [];
+    const paths: string[] = [];
+    const payloads: unknown[] = [];
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk: Buffer | string) => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      request.on('end', () => {
+        authorizationHeaders.push(request.headers.authorization);
+        paths.push(request.url || '/');
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        payloads.push(rawBody ? JSON.parse(rawBody) as unknown : undefined);
+
+        if (request.headers.authorization !== 'Bearer staging-contract-token') {
+          response.writeHead(401, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ error: 'unauthorized' }));
+          return;
+        }
+        response.writeHead(request.method === 'GET' ? 200 : 202, {
+          'content-type': 'application/json',
+        });
+        if (request.method === 'GET') {
+          response.end(JSON.stringify({ status: 'ok' }));
+        } else if (request.url === '/api/v1/patches') {
+          response.end(JSON.stringify({ id: 'stage-patch-1', status: 'accepted' }));
+        } else if (request.url === '/api/v1/stacks') {
+          response.end(JSON.stringify({ id: 'stage-stack-1', status: 'accepted' }));
+        } else {
+          response.end(JSON.stringify({ error: 'not found' }));
+        }
+      });
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Local Jarvis contract fixture did not bind a TCP port.');
+      }
+      const client = new JarvisClient({
+        JARVIS_BASE_URL: `http://127.0.0.1:${address.port}`,
+        JARVIS_API_TOKEN: 'staging-contract-token',
+        JARVIS_SYNC_ENABLED: 'true',
+      });
+
+      const status = await client.status();
+      expect(status).toMatchObject({ enabled: true, reachable: true, remoteStatus: 'ok' });
+
+      const patch = await client.submitPatch({
+        title: 'Contract fixture patch',
+        targetPath: 'src/health.ts',
+        patchContent: 'export const healthy = true;',
+        branch: 'feature/health',
+        baseBranch: 'main',
+      });
+      expect(patch).toMatchObject({ accepted: true, statusCode: 202, remoteId: 'stage-patch-1' });
+
+      const stack = await client.publishStack(buildRyanAIStackManifest('staging', {
+        branch: 'staging',
+        commitSha: 'abcdef1234567',
+      }));
+      expect(stack).toMatchObject({ accepted: true, statusCode: 202, remoteId: 'stage-stack-1' });
+
+      expect(paths).toEqual(['/health', '/api/v1/patches', '/api/v1/stacks']);
+      expect(authorizationHeaders).toEqual([
+        'Bearer staging-contract-token',
+        'Bearer staging-contract-token',
+        'Bearer staging-contract-token',
+      ]);
+      expect(payloads[1]).toMatchObject({
+        schemaVersion: 'ryanai.jarvis.patch/v1',
+        source: 'ryanai',
+        targetPath: 'src/health.ts',
+      });
+      expect(payloads[2]).toMatchObject({
+        schemaVersion: 'ryanai.jarvis.stack/v1',
+        stack: { environment: 'staging' },
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
 });
