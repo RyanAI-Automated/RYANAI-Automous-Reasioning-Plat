@@ -6,6 +6,7 @@ import type {
 } from 'fastify';
 import { createContextClient } from '@supabase/server/core';
 import bcrypt from 'bcrypt';
+import type { PrismaClient } from '@prisma/client';
 
 // --- Interfaces & Types ---
 
@@ -26,7 +27,7 @@ declare module 'fastify' {
     authUser: AuthenticatedUser | null;
   }
   interface FastifyInstance {
-    prisma: any; // Replace 'any' with your generated PrismaClient type if available
+    prisma: PrismaClient;
   }
 }
 
@@ -118,6 +119,8 @@ export function installAuthentication(fastify: FastifyInstance) {
   fastify.addHook('preValidation', async (request, reply) => {
     const path = request.url.split('?')[0];
     if (request.method === 'OPTIONS') return;
+    // This machine-to-machine route verifies JARVIS_INGRESS_TOKEN in its own preHandler.
+    if (request.method === 'POST' && path === '/api/jarvis/patches/apply') return;
     
     if (
       ['GET', 'HEAD'].includes(request.method) &&
@@ -178,14 +181,14 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
         where: { email },
       });
 
-      if (!user || !user.password) {
+      if (!user || !user.passwordHash) {
         return reply.status(401).send({
           error: 'Unauthorized',
           message: 'Invalid email or password.',
         });
       }
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
       if (!isPasswordValid) {
         return reply.status(401).send({
@@ -194,7 +197,8 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const token = fastify.jwt ? fastify.jwt.sign({ id: user.id, email: user.email }) : null;
+      const jwt = (fastify as FastifyInstance & { jwt?: { sign(payload: object, options?: object): string } }).jwt;
+      const token = jwt ? jwt.sign({ id: user.id, email: user.email }) : null;
 
       return reply.status(200).send({
         success: true,
@@ -202,8 +206,8 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
         ...(token && { token }),
       });
 
-    } catch (error: any) {
-      request.log.error(error, '[Auth] Database error encountered during signin');
+    } catch (error: unknown) {
+      request.log.error({ err: error }, '[Auth] Database error encountered during signin');
 
       return reply.status(500).send({
         error: 'Internal Server Error',

@@ -82,7 +82,7 @@ function allowed(relative: string) {
         !part.startsWith(".env") &&
         !part.startsWith(".ryan-patch-") &&
         ![".npmrc", ".netrc", ".git-credentials"].includes(part) &&
-        !/\.(pem|key|p12|pfx)\$/i.test(part),
+        !/\.(pem|key|p12|pfx)$/i.test(part),
     )
   );
 }
@@ -328,6 +328,12 @@ async function executePatch(
     Buffer.byteLength(request.patchContent) > 8 * 1024 * 1024
   ) {
     throw new Error("Patch content must be a string no larger than 8 MiB.");
+  }
+  if (!allowed(request.filePath)) {
+    return {
+      status: "rejected",
+      error: "Patch path is outside the permitted workspace files.",
+    };
   }
   const lock = await acquirePatchLock(root, ownership);
   const original = await readTarget(root, request.filePath);

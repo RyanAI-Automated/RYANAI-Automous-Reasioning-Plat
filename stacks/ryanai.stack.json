@@ -1,0 +1,73 @@
+{
+  "$schema": "./ryanai.stack.schema.json",
+  "schemaVersion": "ryanai.stack/v1",
+  "name": "ryanai",
+  "version": "0.1.0",
+  "repository": "RyanAI-Automated/RYANAI-Automous-Reasioning-Plat",
+  "description": "RyanAI autonomous reasoning stack: API, web client, MCP manager, PostgreSQL/pgvector, and Redis.",
+  "services": [
+    {
+      "name": "api",
+      "runtime": "docker",
+      "dockerfile": "Dockerfile",
+      "target": "api",
+      "port": 3000,
+      "healthPath": "/health",
+      "dependsOn": ["postgres", "redis"]
+    },
+    {
+      "name": "web",
+      "runtime": "docker",
+      "dockerfile": "Dockerfile",
+      "target": "web",
+      "port": 80,
+      "healthPath": "/health",
+      "dependsOn": ["api"]
+    },
+    {
+      "name": "mcp-server",
+      "runtime": "docker",
+      "dockerfile": "mcp-server/Dockerfile",
+      "port": 8765,
+      "healthPath": "/health",
+      "dependsOn": ["api"],
+      "transport": "streamable-http"
+    },
+    {
+      "name": "postgres",
+      "runtime": "container",
+      "image": "pgvector/pgvector:pg16",
+      "port": 5432,
+      "persistentVolume": "postgres_data",
+      "requiresSecret": "DB_PASSWORD"
+    },
+    {
+      "name": "redis",
+      "runtime": "container",
+      "image": "redis:7-alpine",
+      "port": 6379,
+      "persistentVolume": "redis_data",
+      "requiresSecret": "REDIS_PASSWORD"
+    }
+  ],
+  "deploymentTargets": {
+    "dockerCompose": "docker-compose.yml",
+    "kubernetes": [
+      "k8s/kustomization.yaml",
+      "k8s/ryanai-apps.yaml",
+      "k8s/ryanai-databases.yaml"
+    ],
+    "render": "render.yaml",
+    "vercel": ".github/workflows/deploy-vercel.yml"
+  },
+  "integrations": {
+    "jarvis": {
+      "contract": "ryanai.jarvis/v1",
+      "enabledByDefault": false,
+      "patchPath": "/api/v1/patches",
+      "stackPath": "/api/v1/stacks",
+      "healthPath": "/health",
+      "notes": "Requires JARVIS_BASE_URL, JARVIS_API_TOKEN, and JARVIS_SYNC_ENABLED=true. No credentials are stored in this manifest."
+    }
+  }
+}

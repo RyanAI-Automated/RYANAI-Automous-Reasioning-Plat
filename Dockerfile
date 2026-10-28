@@ -38,6 +38,7 @@ COPY scripts/copy-server-assets.mjs ./scripts/copy-server-assets.mjs
 COPY models/catalog.json ./models/catalog.json
 COPY app/routes.json ./app/routes.json
 COPY prisma ./prisma
+COPY stacks ./stacks
 
 RUN npm run db:generate \
     && npm run build:server \
@@ -57,7 +58,10 @@ RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 COPY tsconfig*.json ./
 COPY vite.config.ts postcss.config.js tailwind.config.js index.html ./
 COPY src ./src
-COPY app/routes.json ./app/routes.json
+# The TypeScript composite app config includes these root-level workspace files.
+# Keep this source set in sync with tsconfig.app.json and src/App.tsx imports.
+COPY app/page.tsx app/routes.json ./app/
+COPY store/useLogStore.ts ./store/useLogStore.ts
 COPY models/catalog.json ./models/catalog.json
 
 ARG VITE_SUPABASE_URL=""
@@ -86,7 +90,7 @@ RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && npm install --global npm@11.21.0 \
     && npm install --prefix /tmp/npm-security-patches --install-strategy=nested \
         --ignore-scripts --no-audit --no-fund \
-        brace-expansion@5.0.11 http-cache-semantics@4.3.0 undici@6.28.1 \
+        brace-expansion@5.0.11 http-cache-semantics@4.3.0 undici@6.29.1 \
     && rm -rf /usr/local/lib/node_modules/npm/node_modules/brace-expansion \
         /usr/local/lib/node_modules/npm/node_modules/http-cache-semantics \
         /usr/local/lib/node_modules/npm/node_modules/undici \
@@ -101,6 +105,7 @@ COPY --from=api-builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
+COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
 
 USER node
 EXPOSE 3000

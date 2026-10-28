@@ -21,6 +21,8 @@ let root: Root;
 let container: HTMLDivElement;
 
 function Probe() {
+  // The test reads the hook result after root.render; this external capture is test-only.
+  // eslint-disable-next-line react-hooks/globals
   state = useAuth();
   return null;
 }

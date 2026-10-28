@@ -71,13 +71,14 @@ export default function CommandCenter({
     state: 'idle',
   });
   const mountedRef = useRef(true);
+  const startTimeRef = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
+    startTimeRef.current = Date.now();
     return () => {
       mountedRef.current = false;
     };
   }, []);
-  const startTimeRef = useRef(Date.now());
   const requestStartRef = useRef<number | null>(null);
   const voiceStopRef = useRef<() => void>(() => undefined);
 
@@ -100,6 +101,9 @@ export default function CommandCenter({
             message.model && MODELS[message.model] ? message.model : undefined,
         })),
       }));
+      // Let the effect yield before applying locally loaded state.
+      await Promise.resolve();
+      if (!mountedRef.current) return;
       setConversations(supportedConversations);
       if (supportedConversations.length > 0) {
         setActiveId(supportedConversations[0].id);
@@ -161,10 +165,19 @@ export default function CommandCenter({
   }, [userId]);
 
   useEffect(() => {
-    loadConversations();
-    setGithubConnected(
-      localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
-    );
+    // Defer loading so state updates do not run synchronously inside this effect.
+    const loadTimer = window.setTimeout(() => {
+      void loadConversations();
+    }, 0);
+    const githubTimer = window.setTimeout(() => {
+      setGithubConnected(
+        localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
+      );
+    }, 0);
+    return () => {
+      window.clearTimeout(loadTimer);
+      window.clearTimeout(githubTimer);
+    };
   }, [loadConversations, userId]);
 
   useEffect(() => {
@@ -571,7 +584,9 @@ export default function CommandCenter({
     onTranscript: handleVoiceTranscript,
     onCommand: handleVoiceCommand,
   });
-  voiceStopRef.current = voice.stop;
+  useEffect(() => {
+    voiceStopRef.current = voice.stop;
+  }, [voice.stop]);
 
   const lastAssistant = [...activeMessages]
     .reverse()

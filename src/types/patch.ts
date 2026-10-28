@@ -21,7 +21,7 @@ export enum PatchTargetType {
 export interface PatchOperation {
   op: 'add' | 'remove' | 'replace' | 'set';
   path: string;
-  value?: any;
+  value?: unknown;
 }
 
 export interface PatchRequest {
@@ -40,5 +40,5 @@ export interface PatchResult {
   version: string;
   appliedAt: string;
   error?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }

@@ -4,7 +4,11 @@
     "composite": true,
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -14,7 +18,10 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
+    "types": [
+      "vite/client",
+      "node"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -25,35 +32,56 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@/components/*": ["./src/components/*"],
-      "@/pages/*": ["./src/pages/*"],
-      "@/services/*": ["./src/services/*"],
-      "@/lib/*": ["./src/lib/*"],
-      "@/store/*": ["./src/store/*"],
-      "@/hooks/*": ["./src/hooks/*"],
-      "@/types/*": ["./src/types/*"],
-      "@/config/*": ["./src/config/*"],
-      "@/utils/*": ["./src/utils/*"]
-    },
-    "types": ["vite/client", "node"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@/components/*": [
+        "./src/components/*"
+      ],
+      "@/pages/*": [
+        "./src/pages/*"
+      ],
+      "@/services/*": [
+        "./src/services/*"
+      ],
+      "@/lib/*": [
+        "./src/lib/*"
+      ],
+      "@/store/*": [
+        "./src/store/*"
+      ],
+      "@/hooks/*": [
+        "./src/hooks/*"
+      ],
+      "@/types/*": [
+        "./src/types/*"
+      ],
+      "@/config/*": [
+        "./src/config/*"
+      ],
+      "@/utils/*": [
+        "./src/utils/*"
+      ]
+    }
   },
   "include": [
+    "store/useLogStore.ts",
+    "app/page.tsx",
     "src/config/core.ts",
-    "src/**/*",
     "src/pages/**/*.tsx",
     "src/components/**/*.tsx",
     "src/hooks/**/*.ts",
     "src/hooks/**/*.tsx",
     "src/store/**/*.ts",
-    "src/services/**/*.ts",
     "src/lib/**/*.ts",
     "src/shared/**/*.ts",
     "src/types.ts",
     "src/main.tsx",
-    "src/App.tsx"
+    "src/App.tsx",
+    "src/services/api.ts",
+    "src/services/tauriBridge.ts"
   ],
-"exclude": [
+  "exclude": [
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/**/*.spec.ts",

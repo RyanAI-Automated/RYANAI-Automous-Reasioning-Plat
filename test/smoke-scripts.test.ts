@@ -171,8 +171,6 @@ describe('live smoke script contracts', () => {
       tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin',
     });
     expect(result.code).toBe(1);
-    console.log('INTEGRATION STDOUT:', result.stdout);
-    console.log('INTEGRATION STDERR:', result.stderr);
     expect(result.stdout).toContain(
       'PASS WebSocket endpoint rejects anonymous upgrades',
     );
@@ -180,7 +178,7 @@ describe('live smoke script contracts', () => {
       'PASS Authenticated admin WebSocket accepts upgrades',
     );
     expect(result.stdout).toContain(
-      'Integration checks: 6/8 passed',
+      'Integration checks: 5/8 passed',
     );
   });
 

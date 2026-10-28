@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcrypt';
+import type { PrismaClient } from '@prisma/client';
 
 interface SigninRequestBody {
   email: string;
@@ -9,10 +10,7 @@ interface SigninRequestBody {
 // Ensure TypeScript recognizes Fastify instance decorations for Prisma and JWT
 declare module 'fastify' {
   interface FastifyInstance {
-    prisma: any; // Replace with your generated PrismaClient type if available
-    jwt?: {
-      sign(payload: object, options?: object): string;
-    };
+    prisma: PrismaClient;
   }
 }
 
@@ -50,7 +48,7 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
           where: { email },
         });
 
-        if (!user || !user.password) {
+        if (!user || !user.passwordHash) {
           // Generic message to prevent user enumeration attacks
           return reply.status(401).send({
             error: 'Unauthorized',
@@ -59,7 +57,7 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
         }
 
         // 3. Password Verification
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
         if (!isPasswordValid) {
           return reply.status(401).send({
@@ -69,7 +67,8 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
         }
 
         // 4. Session / JWT Token Generation (Optional, using fastify-jwt if configured)
-        const token = fastify.jwt ? fastify.jwt.sign({ id: user.id, email: user.email }) : null;
+        const jwt = (fastify as FastifyInstance & { jwt?: { sign(payload: object, options?: object): string } }).jwt;
+        const token = jwt ? jwt.sign({ id: user.id, email: user.email }) : null;
 
         return reply.status(200).send({
           success: true,
@@ -77,9 +76,9 @@ export default async function authSigninRoute(fastify: FastifyInstance) {
           ...(token && { token }),
         });
 
-      } catch (error: any) {
-        // Catch connection drops, pool timeouts, or unhandled database exceptions
-        request.log.error(error, '[Auth] Database error encountered during signin');
+      } catch (error: unknown) {
+        // Catch connection drops, pool timeouts, or unhandled database exceptions.
+        request.log.error({ err: error }, '[Auth] Database error encountered during signin');
 
         return reply.status(500).send({
           error: 'Internal Server Error',

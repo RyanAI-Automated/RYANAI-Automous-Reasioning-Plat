@@ -5,13 +5,21 @@ on:
     branches: [main, master]
     paths:
       - 'Dockerfile*'
+      - 'index.html'
       - 'docker-compose.yml'
       - 'nginx.conf'
       - 'nginx.conf.template'
+      - 'docker-entrypoint.sh'
       - '.dockerignore'
       - 'package.json'
       - 'package-lock.json'
       - 'src/**'
+      - 'app/**'
+      - 'store/**'
+      - 'stacks/**'
+      - 'prisma/**'
+      - 'scripts/copy-server-assets.mjs'
+      - 'mcp-server/**'
       - '.github/workflows/docker-build.yml'
   workflow_dispatch:
 
@@ -19,6 +27,26 @@ permissions:
   contents: read
 
 jobs:
+  compose-config:
+    name: Validate Docker Compose configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate Compose configuration with CI-only credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'rm -f .env' EXIT
+          cat > .env <<'EOF'
+          DB_PASSWORD=ci_db_password_1234567890
+          REDIS_PASSWORD=ci_redis_password_1234567890
+          JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
+          MCP_AUTH_TOKEN=ci_only_mcp_token_1234567890_abcdefgh
+          EOF
+          docker compose config --quiet
+
   build:
     name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest
@@ -28,8 +56,13 @@ jobs:
       matrix:
         include:
           - image: api
+            file: Dockerfile
             target: api
+          - image: api-standalone
+            file: Dockerfile.api
+            target: ''
           - image: web
+            file: Dockerfile
             target: web
     steps:
       - name: Checkout
@@ -40,7 +73,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: Dockerfile
+          file: ${{ matrix.file }}
           target: ${{ matrix.target }}
           push: false
           tags: ryanai-${{ matrix.image }}:ci

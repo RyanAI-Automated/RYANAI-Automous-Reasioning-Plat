@@ -7,7 +7,6 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
   const [checking, setChecking] = useState(true);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
-    setChecking(true);
     try {
       const nextHealth = await getPlatformHealth(signal);
       setHealth(nextHealth);
@@ -23,7 +22,11 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void refresh(controller.signal);
+    // Defer the async fetch kickoff so this effect does not synchronously trigger state updates.
+    void Promise.resolve().then(async () => {
+      if (controller.signal.aborted) return;
+      await refresh(controller.signal);
+    });
     const timer = window.setInterval(() => void refresh(), refreshIntervalMs);
     return () => {
       controller.abort();
@@ -31,5 +34,10 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
     };
   }, [refresh, refreshIntervalMs]);
 
-  return { health, error, checking, refresh: () => refresh() };
+  const manualRefresh = useCallback(() => {
+    setChecking(true);
+    return refresh();
+  }, [refresh]);
+
+  return { health, error, checking, refresh: manualRefresh };
 }

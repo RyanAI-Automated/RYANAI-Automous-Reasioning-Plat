@@ -1,9 +1,14 @@
 # Namespace for the RyanAI stack.
 # Create secrets out-of-band (never commit real values):
+# Set these in a trusted shell/session; do not commit their values:
+#   DB_PASSWORD, REDIS_PASSWORD, DATABASE_URL, REDIS_URL, JWT_SECRET
+# Then create the secret out-of-band:
 #   kubectl -n ryanai-system create secret generic ryanai-secrets \
-#     --from-literal=DB_PASSWORD="$(openssl rand -hex 24)" \
-#     --from-literal=REDIS_PASSWORD="$(openssl rand -hex 24)" \
-#     --from-literal=JWT_SECRET="$(openssl rand -hex 32)"
+#     --from-literal=DB_PASSWORD="$DB_PASSWORD" \
+#     --from-literal=REDIS_PASSWORD="$REDIS_PASSWORD" \
+#     --from-literal=DATABASE_URL="$DATABASE_URL" \
+#     --from-literal=REDIS_URL="$REDIS_URL" \
+#     --from-literal=JWT_SECRET="$JWT_SECRET"
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -11,6 +16,7 @@ metadata:
 ---
 # Images are published by .github/workflows/ci-cd.yml.
 # Add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to ryanai-secrets for sign-in.
+# Jarvis keys are optional: JARVIS_BASE_URL, JARVIS_API_TOKEN, and JARVIS_INGRESS_TOKEN.
 # Build the web image with matching public VITE_SUPABASE_* settings.
 apiVersion: apps/v1
 kind: Deployment
@@ -42,10 +48,36 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "3000"
-            - name: DATABASE_URL
-              value: "postgresql://ryanai:$(DB_PASSWORD)@postgres:5432/ryanai_db"
-            - name: REDIS_URL
-              value: "redis://:$(REDIS_PASSWORD)@redis:6379"
+            - name: JARVIS_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: JARVIS_BASE_URL
+                  optional: true
+            - name: JARVIS_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: JARVIS_API_TOKEN
+                  optional: true
+            - name: JARVIS_INGRESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ryanai-secrets
+                  key: JARVIS_INGRESS_TOKEN
+                  optional: true
+            - name: JARVIS_SYNC_ENABLED
+              value: "false"
+            - name: JARVIS_ALLOW_PRODUCTION_SYNC
+              value: "false"
+            - name: JARVIS_PATCH_INGRESS_ENABLED
+              value: "false"
+            - name: JARVIS_HEALTH_PATH
+              value: "/health"
+            - name: JARVIS_PATCH_PATH
+              value: "/api/v1/patches"
+            - name: JARVIS_STACK_PATH
+              value: "/api/v1/stacks"
           readinessProbe:
             httpGet:
               path: /health

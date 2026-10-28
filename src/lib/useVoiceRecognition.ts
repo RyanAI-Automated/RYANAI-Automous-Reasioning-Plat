@@ -1,7 +1,7 @@
 // src/lib/useVoiceRecognition.ts
 // Voice recognition hook
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
 export const VOICE_COMMANDS = {
   new_thread: { keywords: ['new', 'start'], action: 'Create new conversation' },
@@ -28,14 +28,10 @@ export interface UseVoiceRecognitionOptions {
 export function useVoiceRecognition(_options: UseVoiceRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
-  const [isSupported, setIsSupported] = useState(false);
-
-  useEffect(() => {
-    const supported =
-      'webkitSpeechRecognition' in window ||
-      'SpeechRecognition' in window;
-    setIsSupported(supported);
-  }, []);
+  const isSupported = typeof window !== 'undefined' && (
+    'webkitSpeechRecognition' in window ||
+    'SpeechRecognition' in window
+  );
 
   const toggle = useCallback(() => {
     if (!isSupported) return;

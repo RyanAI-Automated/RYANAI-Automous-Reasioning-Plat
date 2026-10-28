@@ -104,4 +104,24 @@ describe("workspace patch transaction", () => {
     expect((await applyWorkspacePatch(root, patch)).status).toBe("rejected");
     expect(await read(root)).toBe("original");
   });
+
+  it.each([
+    "src/private.pem",
+    "src/server.key",
+    "src/identity.p12",
+    "src/certificate.pfx",
+  ])("rejects private-key file targets: %s", async (filePath) => {
+    const root = await standardFixture();
+    const original = "fixture-private-key";
+    await fs.writeFile(path.join(root, filePath), original);
+
+    const result = await applyWorkspacePatch(root, {
+      filePath,
+      patchContent: "replacement-content",
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(await fs.readFile(path.join(root, filePath), "utf8")).toBe(original);
+    expect(verify).not.toHaveBeenCalled();
+  });
 });

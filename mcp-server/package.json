@@ -11,9 +11,12 @@
   "scripts": {
     "start": "node stdio.js",
     "start:http": "node http.js",
-    "check": "node --check index.js && node --check stdio.js && node --check http.js && node --check provider-router.js"
+    "check": "node --check index.js && node --check stdio.js && node --check http.js && node --check provider-router.js && node check-dependency-policy.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0"
+  },
+  "overrides": {
+    "body-parser": "2.4.0"
   }
 }

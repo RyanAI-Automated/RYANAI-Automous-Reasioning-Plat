@@ -115,8 +115,8 @@ describe('launcher reasoning routes', () => {
     });
     expect(response.statusCode).toBe(204);
     expect(response.headers['access-control-allow-methods']).toContain('POST');
-    expect(response.headers['access-control-allow-headers']).toContain(
-      'Content-Type',
+    expect(response.headers['access-control-allow-headers']?.toLowerCase()).toContain(
+      'content-type',
     );
   });
 

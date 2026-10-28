@@ -11,10 +11,10 @@ export class CsScriptTool extends Tool {
         status: 'success',
         output: `Executed C# script payload successfully: ${input}`
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       return JSON.stringify({
         status: 'error',
-        message: error.message
+        message: error instanceof Error ? error.message : String(error)
       });
     }
   }
