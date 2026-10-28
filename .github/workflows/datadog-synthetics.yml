@@ -21,6 +21,8 @@ on:
 
 jobs:
   build:
+    # Optional external integration; set the repository variable only after DD_API_KEY and DD_APP_KEY are configured.
+    if: ${{ vars.DATADOG_SYNTHETICS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
