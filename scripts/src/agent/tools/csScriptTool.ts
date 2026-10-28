@@ -23,8 +23,12 @@ export class CsScriptTool {
       await writeFile(tempFile, scriptContent, "utf-8");
       const { stdout, stderr } = await execFileAsync("syntaxer", [tempFile], { timeout: 10000 });
       return { success: true, output: stdout || stderr };
-    } catch (err: any) {
-      return { success: false, error: err.stderr?.trim() || err.message };
+    } catch (err: unknown) {
+      const executionError = err as { stderr?: string; message?: string };
+      return {
+        success: false,
+        error: executionError.stderr?.trim() || executionError.message || String(err),
+      };
     } finally {
       await unlink(tempFile).catch(() => {});
     }
@@ -39,8 +43,17 @@ export class CsScriptTool {
       await writeFile(tempFile, scriptContent, "utf-8");
       const { stdout, stderr } = await execFileAsync("css", [tempFile, ...args], { timeout: 30000 });
       return { success: true, output: stdout, error: stderr };
-    } catch (err: any) {
-      return { success: false, output: err.stdout, error: err.stderr?.trim() || err.message };
+    } catch (err: unknown) {
+      const executionError = err as {
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
+      return {
+        success: false,
+        output: executionError.stdout,
+        error: executionError.stderr?.trim() || executionError.message || String(err),
+      };
     } finally {
       await unlink(tempFile).catch(() => {});
     }
