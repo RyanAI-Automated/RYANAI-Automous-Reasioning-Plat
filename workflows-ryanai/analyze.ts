@@ -59,7 +59,7 @@ export async function analyzeWorkflow(input: AnalyzeInput): Promise<AnalyzeResul
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'TimeoutError') {
-      throw new Error(`RyanAI reasoning request timed out after ${timeoutMs}ms.`);
+      throw new Error(`RyanAI reasoning request timed out after ${timeoutMs}ms.`, { cause: error });
     }
     throw error;
   }
