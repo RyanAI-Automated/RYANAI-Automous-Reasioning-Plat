@@ -23,8 +23,9 @@ export function usePlatformHealth(refreshIntervalMs = 30_000) {
   useEffect(() => {
     const controller = new AbortController();
     // Defer the async fetch kickoff so this effect does not synchronously trigger state updates.
-    void Promise.resolve().then(() => {
-      if (!controller.signal.aborted) return refresh(controller.signal);
+    void Promise.resolve().then(async () => {
+      if (controller.signal.aborted) return;
+      await refresh(controller.signal);
     });
     const timer = window.setInterval(() => void refresh(), refreshIntervalMs);
     return () => {
