@@ -136,7 +136,11 @@ if (schema !== undefined) {
       const ajv = new Ajv2020({ allErrors: true, strict: true });
       const validateManifest = ajv.compile(schema);
       if (!validateManifest(manifest)) {
-        fail('Stack manifest does not conform to schema: ' + ajv.errorsText(validateManifest.errors, { separator: '; ' }));
+        const details = (validateManifest.errors ?? []).map((issue) => {
+          const property = issue.params?.additionalProperty;
+          return (issue.instancePath || '/') + ': ' + issue.message + (property ? ' (' + property + ')' : '');
+        }).join('; ');
+        fail('Stack manifest does not conform to schema: ' + details);
       }
     } catch (error) {
       fail('Stack JSON Schema could not be compiled: ' + (error instanceof Error ? error.message : String(error)));
