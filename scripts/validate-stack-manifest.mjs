@@ -158,14 +158,6 @@ if (schema !== undefined) {
           return (issue.instancePath || '/') + ': ' + issue.message + (property ? ' (' + property + ')' : '');
         }).join('; ');
         fail('Stack manifest does not conform to schema: ' + details);
-        const details = (validateManifest.errors || []).map((error) => {
-          const location = error.instancePath || '/';
-          const extra = error.params?.additionalProperty
-            ? ` (property "${error.params.additionalProperty}")`
-            : '';
-          return `${location}: ${error.message || 'invalid'}${extra}`;
-        });
-        fail('Stack manifest does not conform to schema: ' + details.join('; '));
       }
     } catch (error) {
       fail('Stack JSON Schema could not be compiled: ' + (error instanceof Error ? error.message : String(error)));
