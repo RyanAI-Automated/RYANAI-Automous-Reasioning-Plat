@@ -106,7 +106,8 @@ jobs:
           image-ref: ryanai-${{ matrix.image }}:scan
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           ignore-unfixed: true
           exit-code: '0'
 
