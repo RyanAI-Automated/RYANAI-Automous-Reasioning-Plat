@@ -65,6 +65,8 @@
     }
   },
   "include": [
+    "store/useLogStore.ts",
+    "app/page.tsx",
     "src/config/core.ts",
     "src/pages/**/*.tsx",
     "src/components/**/*.tsx",
