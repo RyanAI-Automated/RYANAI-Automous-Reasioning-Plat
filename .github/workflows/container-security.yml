@@ -111,7 +111,7 @@ jobs:
           exit-code: '0'
 
       - name: Summarize Trivy SARIF findings on pull requests
-        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
+        if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
         env:
           SARIF_PATH: trivy-${{ matrix.image }}.sarif
         shell: bash
