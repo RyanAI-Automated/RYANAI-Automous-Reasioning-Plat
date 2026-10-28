@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { parse } from 'yaml';
+import yaml from 'yaml';
+const { parse } = yaml;
 
 const root = process.cwd();
 const workflowDir = join(root, '.github', 'workflows');
