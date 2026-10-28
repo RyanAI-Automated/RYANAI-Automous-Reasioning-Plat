@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload scan results
         if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != '' && github.event_name != 'pull_request'
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.image }}.sarif
           category: container-${{ matrix.image }}
