@@ -82,7 +82,7 @@ function allowed(relative: string) {
         !part.startsWith(".env") &&
         !part.startsWith(".ryan-patch-") &&
         ![".npmrc", ".netrc", ".git-credentials"].includes(part) &&
-        !/\.(pem|key|p12|pfx)\$/i.test(part),
+        !/\.(pem|key|p12|pfx)$/i.test(part),
     )
   );
 }
