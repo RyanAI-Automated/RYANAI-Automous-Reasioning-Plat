@@ -15,7 +15,7 @@ if (sentryDsn) {
       environment: process.env.NODE_ENV || 'development',
       integrations: [
         profiling.nodeProfilingIntegration() as unknown as NonNullable<
-          Parameters<typeof Sentry.init>[0]['integrations']
+          NonNullable<Parameters<typeof Sentry.init>[0]>['integrations']
         >[number],
       ],
       tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
