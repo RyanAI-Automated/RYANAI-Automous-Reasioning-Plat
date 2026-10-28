@@ -22,15 +22,52 @@ env:
   NODE_OPTIONS: --max-old-space-size=6144
 
 jobs:
+  lock:
+    name: Regenerate the lockfile
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout the branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Update package-lock.json and push it when it changed
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: |
+          npm install --package-lock-only --legacy-peer-deps --ignore-scripts
+          if git diff --quiet -- package-lock.json; then
+            echo "The lockfile already matches package.json."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore: regenerate package-lock.json for pinned Prisma 6.19.3"
+            git push
+          fi
+
   collect:
     name: Collect full command output
+    needs: lock
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
     steps:
-      - name: Checkout
+      - name: Checkout the branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -62,7 +99,7 @@ jobs:
           run 01-db-generate   npm run db:generate
           run 02-typecheck-app npx tsc -p tsconfig.app.json --noEmit
           run 03-typecheck-srv npx tsc -p tsconfig.server.json --noEmit
-          run 04-lint          npx eslint . --max-warnings 0 -f unix
+          run 04-lint          npx eslint . --max-warnings 0
           run 05-vitest        npx vitest run
           run 06-cs-script     node --test scripts/check-cs-script.mjs
           run 07-workflows-py  python -m unittest discover -s workflows -p "test_*.py"
