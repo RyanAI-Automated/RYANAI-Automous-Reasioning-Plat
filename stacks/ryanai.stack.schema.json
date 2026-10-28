@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["schemaVersion", "name", "version", "repository", "services", "deploymentTargets", "integrations"],
   "properties": {
+    "$schema": { "const": "./ryanai.stack.schema.json" },
     "schemaVersion": { "const": "ryanai.stack/v1" },
     "name": { "const": "ryanai" },
     "version": { "type": "string", "minLength": 1 },
