@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isTauri } from '@tauri-apps/api/core';
 import {
   Cpu,
   LayoutDashboard,
@@ -12,6 +13,8 @@ import {
 import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 import RyanAICockpit from '@/components/dashboard/RyanAICockpit';
+import { AgentControlPanel } from '@/components/AgentControlPanel';
+import RyanAIWorkspace from '../app/page';
 import CommandCenter from '@/pages/CommandCenter.tsx';
 import DashboardPage from '@/pages/Dashboard';
 import LandingPage from '@/pages/LandingPage';
@@ -148,8 +151,18 @@ export default function App() {
           />
         ) : (
           <>
-            {route === 'dashboard' && <DashboardPage />}
-            {route === 'cockpit' && <RyanAICockpit />}
+            {route === 'dashboard' && (
+              <>
+                <DashboardPage />
+                <RyanAIWorkspace />
+              </>
+            )}
+            {route === 'cockpit' && (
+              <>
+                <RyanAICockpit />
+                {isTauri() && <AgentControlPanel />}
+              </>
+            )}
             {(route === 'workspace' || isAuthRoute) && (
               <div className="h-full min-h-[calc(100vh-3.5rem)]">
                 <CommandCenter
