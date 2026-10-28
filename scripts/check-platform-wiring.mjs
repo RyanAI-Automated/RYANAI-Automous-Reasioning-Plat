@@ -73,6 +73,13 @@ if (!readText('src/main.tsx').includes("import App from './App'")) {
   fail('src/main.tsx must mount src/App.tsx');
 }
 
+const tsconfig = readJson('tsconfig.app.json');
+for (const file of ['app/page.tsx', 'store/useLogStore.ts']) {
+  if (!tsconfig.include?.includes(file)) {
+    fail(`tsconfig.app.json must explicitly include ${file} for the composite TypeScript project`);
+  }
+}
+
 const app = readText('src/App.tsx');
 if (!app.includes("import appManifest from '../app/routes.json'")) {
   fail('src/App.tsx must use app/routes.json as the route manifest');
