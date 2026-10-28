@@ -85,7 +85,7 @@ if (!statSafe(jarvisSmokePath)) {
   errors.push('Missing .github/workflows/jarvis-staging-smoke.yml');
 } else {
   const smokeText = readFileSync(jarvisSmokePath, 'utf8');
-  const patchLine = smokeText.split('\\n').find((line) => line.includes('patchContent:'));
+  const patchLine = smokeText.split('\n').find((line) => line.includes('patchContent:'));
   const literalBackslashN = String.fromCharCode(92, 92) + 'n';
   if (patchLine?.includes(literalBackslashN)) {
     fail(jarvisSmokePath, 'test patch payload must use a newline escape, not a literal backslash-n sequence');
