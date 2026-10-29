@@ -11,7 +11,6 @@ interface SidebarProps {
   onMemory: () => void;
   onConsole: () => void;
   onGithub: () => void;
-  githubConnected: boolean;
 }
 
 /** Render thread selection and workspace actions, including GitHub connection status. */
@@ -24,7 +23,6 @@ export default function Sidebar({
   onMemory,
   onConsole,
   onGithub,
-  githubConnected,
 }: SidebarProps) {
 
   return (
@@ -85,13 +83,9 @@ export default function Sidebar({
         </button>
         <button
           onClick={onGithub}
-          className={`w-full px-2 py-1 text-xs rounded transition-colors ${
-            githubConnected
-              ? 'bg-green-500/10 text-green-400'
-              : 'hover:bg-cyan-500/10 text-ink-400 hover:text-cyan-300'
-          }`}
+          className="w-full px-2 py-1 text-xs rounded hover:bg-cyan-500/10 text-ink-400 hover:text-cyan-300 transition-colors"
         >
-          {githubConnected ? '✓ GitHub' : '⚙️ GitHub'}
+          ⚙️ GitHub setup
         </button>
       </div>
     </div>
