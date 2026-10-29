@@ -39,11 +39,12 @@ This audit checks the root-level Docker, environment, build, deployment, Kuberne
 ## Items that still require deployment-owner action
 
 1. **Render:** set valid managed PostgreSQL and Redis URLs in the Render service settings. The blueprint intentionally uses `sync: false` for these secrets; it does not provision database/cache services itself.
-2. **Vercel:** production deployment remains conditional on the repository's deployment flag and Vercel credentials. A successful workspace validation or preview does not mean production deployed.
+2. **Vercel:** production deployment remains conditional on the repository's deployment flag and Vercel credentials. A successful workspace validation or preview does not mean production deployed. On 2026-10-28, Vercel explicitly rejected a deployment with `api-deployments-free-per-day` (`Resource is limited - try again in 24 hours`, more than 100 deployments/day). This is an account/project deployment quota, not a source-code build error. Pause unnecessary redeploys until the quota resets or the project owner upgrades/changes the Vercel plan; then deploy the intended commit and inspect its result. Do not attempt to bypass the platform limit.
 3. **Kubernetes:** replace the local `hostPath` storage with an approved production StorageClass/PVC strategy before production use; ensure the GHCR packages are pullable by the target cluster.
 4. **CORS/custom domains:** if Render service names or custom domains change, update `VITE_API_BASE_URL` and `CORS_ORIGINS` together.
 5. **Provider calls:** configure provider credentials only as server-side secrets and test actual provider requests in staging. Health endpoints alone do not prove model availability or billing/quota access.
-6. **Release validation:** check all required CI, integration, security and image-publish runs for the exact commit SHA. The config changes alone do not certify production readiness.
+6. **Smoke-test secrets:** configure `PROD_GATEWAY_URL`, `PROD_FRONTEND_URL`, `PREVIEW_GATEWAY_URL`, and `PREVIEW_FRONTEND_URL` as GitHub Actions secrets before running `.github/workflows/smoke-test.yml`. Each value must be the real HTTPS endpoint for that environment; the API values must resolve to a health endpoint returning a successful HTTP status.
+7. **Release validation:** check all required CI, integration, security and image-publish runs for the exact commit SHA. The config changes alone do not certify production readiness.
 
 ## Validation evidence
 
