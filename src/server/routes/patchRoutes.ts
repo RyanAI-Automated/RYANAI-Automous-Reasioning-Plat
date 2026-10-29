@@ -1,8 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { requireAdmin } from './auth.js';
 import { patchService } from '../../services/patchService.js';
 import { PatchRequest, PatchStatus } from '../../types/patch.js';
 
 export async function registerPatchRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', requireAdmin);
   fastify.post(
     '/api/patches/apply',
     async (request: FastifyRequest<{ Body: PatchRequest }>, reply: FastifyReply) => {
