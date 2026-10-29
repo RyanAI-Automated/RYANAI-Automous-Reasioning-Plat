@@ -2,6 +2,7 @@
 
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { API_BASE_URL } from '../lib/apiBaseUrl';
+import { API_ROUTES } from '@/config/core';
 
 export interface ReasoningRequest {
   prompt: string;
@@ -26,7 +27,7 @@ export const apiClient = {
     payload: ReasoningRequest,
     onChunk: (chunk: ReasoningChunk) => void,
   ): Promise<void> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/api/reasoning`, {
+    const response = await authenticatedFetch(`${API_BASE_URL}${API_ROUTES.streamPath}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
