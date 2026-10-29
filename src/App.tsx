@@ -14,7 +14,6 @@ import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 import RyanAICockpit from '@/components/dashboard/RyanAICockpit';
 import { AgentControlPanel } from '@/components/AgentControlPanel';
-import RyanAIWorkspace from '../app/page';
 import CommandCenter from '@/pages/CommandCenter.tsx';
 import DashboardPage from '@/pages/Dashboard';
 import LandingPage from '@/pages/LandingPage';
@@ -151,12 +150,7 @@ export default function App() {
           />
         ) : (
           <>
-            {route === 'dashboard' && (
-              <>
-                <DashboardPage />
-                <RyanAIWorkspace />
-              </>
-            )}
+            {route === 'dashboard' && <DashboardPage />}
             {route === 'cockpit' && (
               <>
                 <RyanAICockpit />
