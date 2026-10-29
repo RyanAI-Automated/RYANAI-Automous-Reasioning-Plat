@@ -1,5 +1,6 @@
 import '../loadEnv.js';
 import Fastify from 'fastify';
+import fastifyCors from '@fastify/cors';
 import fastifyRedis from '@fastify/redis';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { installAuthentication, authPlugin } from './routes/auth.js';
@@ -13,24 +14,37 @@ const server = Fastify({
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// CORS middleware
-server.addHook('onRequest', (req, reply, done) => {
-  reply.header('Access-Control-Allow-Origin', '*');
-  reply.header(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS',
-  );
-  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') {
-    reply.code(200).send();
-    return;
-  }
-  done();
+// Keep the CLI/legacy entry point aligned with the supported launcher: never
+// reflect arbitrary browser origins on authenticated API routes.
+const allowedCorsOrigins = new Set(
+  (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+if (process.env.NODE_ENV !== 'production') {
+  [
+    'http://localhost:1420',
+    'http://127.0.0.1:1420',
+    'http://localhost:9090',
+    'http://127.0.0.1:9090',
+  ].forEach((origin) => allowedCorsOrigins.add(origin));
+}
+
+await server.register(fastifyCors, {
+  origin: (origin, callback) => {
+    if (!origin || allowedCorsOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
+  },
+  credentials: true,
 });
 
 await server.register(fastifyRateLimit, { max: 100, timeWindow: '1 minute' });
 installAuthentication(server);
-server.register(authPlugin);
+await server.register(authPlugin);
 
 // Root endpoint
 server.get('/', async () => {
