@@ -84,6 +84,7 @@ if (!app.includes("import DashboardPage from '@/pages/Dashboard'")) {
 }
 if (!app.includes("import CommandCenter from '@/pages/CommandCenter.tsx'")) {
   fail('src/App.tsx must import the workspace command center');
+}
 if (!app.includes("import { AgentControlPanel } from '@/components/AgentControlPanel'")) {
   fail('Desktop cockpit must import AgentControlPanel');
 }
