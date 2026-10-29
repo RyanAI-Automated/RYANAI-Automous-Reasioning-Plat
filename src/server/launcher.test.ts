@@ -163,7 +163,8 @@ describe('launcher reasoning routes', () => {
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('"error":"Provider unavailable"');
+    expect(response.body).toContain('"error":"Reasoning provider request failed. Please try again later."');
+    expect(response.body).not.toContain('Provider unavailable');
     expect(response.body).not.toContain('"status":"complete"');
   });
 
@@ -179,5 +180,20 @@ describe('launcher reasoning routes', () => {
       error: expect.stringContaining('dedicated Streamable HTTP MCP service'),
     });
     expect(response.body).not.toContain('processedPayload');
+  });
+
+  it('redacts provider details from JSON reasoning errors', async () => {
+    state.invoke.mockRejectedValueOnce(new Error('provider secret: upstream-key-123'));
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/reason',
+      payload: { prompt: 'hello' },
+    });
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toMatchObject({
+      success: false,
+      error: 'Reasoning provider request failed. Please try again later.',
+    });
+    expect(response.body).not.toContain('upstream-key-123');
   });
 });

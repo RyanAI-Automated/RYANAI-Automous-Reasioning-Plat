@@ -219,10 +219,7 @@ function registerCoreRoutes() {
       fastify.log.error({ err }, 'Reasoning request failed');
       return reply.code(502).send({
         success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Reasoning provider request failed',
+        error: 'Reasoning provider request failed. Please try again later.',
       });
     }
   };
@@ -285,10 +282,10 @@ function registerCoreRoutes() {
         reasoningTrace: result.reasoningTrace,
       });
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Internal Server Error';
       fastify.log.error({ err }, 'Streaming reasoning request failed');
-      sendEvent({ error: errorMessage });
+      sendEvent({
+        error: 'Reasoning provider request failed. Please try again later.',
+      });
     } finally {
       if (!raw.writableEnded) {
         raw.end();
