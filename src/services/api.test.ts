@@ -9,6 +9,9 @@ vi.mock('@/lib/authenticatedFetch', () => ({ authenticatedFetch }));
 vi.mock('../lib/apiBaseUrl', () => ({
   API_BASE_URL: 'https://api.example.test',
 }));
+vi.mock('@/config/core', () => ({
+  API_ROUTES: { streamPath: '/api/reasoning/stream', reasonPath: '/api/reason' },
+}));
 
 beforeEach(() => {
   authenticatedFetch.mockReset();
@@ -60,7 +63,7 @@ describe('authenticated API service clients', () => {
     const onChunk = vi.fn();
     await apiClient.triggerReasoning(payload, onChunk);
     expect(authenticatedFetch).toHaveBeenCalledExactlyOnceWith(
-      'https://api.example.test/api/reasoning',
+      'https://api.example.test/api/reasoning/stream',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
