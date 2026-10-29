@@ -76,9 +76,6 @@ export default function ChatPanel(props: ChatPanelProps) {
           >
             <Download size={16} />
           </button>
-          <button className="p-1.5 rounded hover:bg-cyan-500/10 text-cyan-400 transition-colors">
-            <MoreVertical size={16} />
-          </button>
         </div>
       </div>
 
