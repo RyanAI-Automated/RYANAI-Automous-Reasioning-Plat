@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node stdio.js",
     "start:http": "node http.js",
-    "check": "node --check index.js && node --check stdio.js && node --check http.js && node --check provider-router.js && node check-dependency-policy.mjs"
+    "check": "node --check index.js && node --check stdio.js && node --check http.js && node --check provider-router.js && node --check health-url.js && node --test health-url.test.js && node check-dependency-policy.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0"
