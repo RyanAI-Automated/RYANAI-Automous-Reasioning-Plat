@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square, MoreVertical } from 'lucide-react';
+import { Send, Download, Mic, Square } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { getAvailableModels, modelMeta } from '@/lib/models';
 
@@ -75,9 +75,6 @@ export default function ChatPanel(props: ChatPanelProps) {
             title="Export"
           >
             <Download size={16} />
-          </button>
-          <button className="p-1.5 rounded hover:bg-cyan-500/10 text-cyan-400 transition-colors">
-            <MoreVertical size={16} />
           </button>
         </div>
       </div>
