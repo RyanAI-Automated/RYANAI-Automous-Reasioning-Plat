@@ -79,8 +79,11 @@ const app = readText('src/App.tsx');
 if (!app.includes("import appManifest from '../app/routes.json'")) {
   fail('src/App.tsx must use app/routes.json as the route manifest');
 }
-if (!app.includes("import RyanAIWorkspace from '../app/page'")) {
-  fail('Dashboard must import the app workspace component');
+if (!app.includes("import DashboardPage from '@/pages/Dashboard'")) {
+  fail('src/App.tsx must import the focused system dashboard');
+}
+if (!app.includes("import CommandCenter from '@/pages/CommandCenter.tsx'")) {
+  fail('src/App.tsx must import the workspace command center');
 }
 if (!app.includes("import { AgentControlPanel } from '@/components/AgentControlPanel'")) {
   fail('Desktop cockpit must import AgentControlPanel');
@@ -90,7 +93,15 @@ for (const id of ['dashboard', 'cockpit', 'workspace']) {
     fail(`app/routes.json is missing the ${id} route`);
   }
 }
-if (!app.includes('<RyanAIWorkspace />')) fail('Dashboard does not render RyanAIWorkspace');
+if (!app.includes("{route === 'dashboard' && <DashboardPage />}")) {
+  fail('Dashboard route must render the focused DashboardPage');
+}
+if (!app.includes("(route === 'workspace' || isAuthRoute)")) {
+  fail('Workspace route must remain connected to the authenticated CommandCenter');
+}
+if (!app.includes('<CommandCenter')) {
+  fail('Workspace route does not render CommandCenter');
+}
 if (!app.includes('{isTauri() && <AgentControlPanel />}')) {
   fail('AgentControlPanel must be limited to the native Tauri runtime');
 }
