@@ -296,11 +296,13 @@ function registerCoreRoutes() {
     }
   });
 
-  // MCP routes
+  // This legacy route previously echoed a requested tool/action and returned
+  // success without executing anything. Fail explicitly instead of reporting a
+  // false success; real MCP calls belong on the dedicated Streamable HTTP server.
   fastify.post<{
     Body: { action?: string; tool?: string; payload?: Record<string, unknown> };
   }>('/api/mcp', async (request, reply) => {
-    const { action, tool, payload } = request.body || {};
+    const { action, tool } = request.body || {};
 
     if (!action && !tool) {
       return reply
@@ -308,13 +310,9 @@ function registerCoreRoutes() {
         .send({ success: false, error: 'Missing action or tool parameter' });
     }
 
-    return reply.send({
-      success: true,
-      data: {
-        receivedAction: action,
-        receivedTool: tool,
-        processedPayload: payload ?? {},
-      },
+    return reply.code(501).send({
+      success: false,
+      error: 'MCP tool execution is not available through this legacy API route. Use the dedicated Streamable HTTP MCP service at /mcp.',
     });
   });
 
