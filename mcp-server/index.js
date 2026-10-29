@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import process from 'node:process';
 import { routeReasoning } from './provider-router.js';
+import { resolveHealthUrl } from './health-url.js';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = path.resolve(process.env.RYANAI_PROJECT_ROOT || path.join(import.meta.dirname, '..'));
@@ -90,11 +91,9 @@ export function createMcpServer() {
       }
 
       if (request.params.name === 'platform_health') {
-        const rawUrl = typeof args.url === 'string'
-          ? args.url
-          : process.env.RYANAI_API_HEALTH_URL || 'http://localhost:3000/health';
-        const url = new URL(rawUrl);
-        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Health URL must use HTTP or HTTPS.');
+        const configuredUrl = process.env.RYANAI_API_HEALTH_URL || 'http://localhost:3000/health';
+        const requestedUrl = typeof args.url === 'string' ? args.url : undefined;
+        const url = resolveHealthUrl(requestedUrl, configuredUrl);
 
         const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
         const body = await response.text();
