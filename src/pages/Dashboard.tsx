@@ -56,10 +56,10 @@ export default function DashboardPage() {
       {isStale && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">The API timestamp is more than 90 seconds old. Treat this snapshot as stale until a fresh health response is received.</div>}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatusCard title="API gateway" value={health?.status === 'online' ? 'Online' : checking ? 'Checking' : 'Unavailable'} icon={Server} healthy={health?.status === 'online'} />
-        <StatusCard title="PostgreSQL" value={serviceLabel(health?.services?.database, checking)} icon={Database} healthy={health?.services?.database} />
-        <StatusCard title="Redis" value={serviceLabel(health?.services?.redis, checking)} icon={Wifi} healthy={health?.services?.redis} />
-        <StatusCard title="Agent checkpointer" value={serviceLabel(health?.services?.agentCheckpointer, checking)} icon={Activity} healthy={health?.services?.agentCheckpointer} />
+        <StatusCard title="API gateway" value={isStale ? 'Stale signal' : health?.status === 'online' ? 'Online' : checking ? 'Checking' : 'Unavailable'} icon={Server} healthy={isStale ? undefined : health?.status === 'online'} />
+        <StatusCard title="PostgreSQL" value={serviceLabel(health?.services?.database, checking, isStale)} icon={Database} healthy={isStale ? undefined : health?.services?.database} />
+        <StatusCard title="Redis" value={serviceLabel(health?.services?.redis, checking, isStale)} icon={Wifi} healthy={isStale ? undefined : health?.services?.redis} />
+        <StatusCard title="Agent checkpointer" value={serviceLabel(health?.services?.agentCheckpointer, checking, isStale)} icon={Activity} healthy={isStale ? undefined : health?.services?.agentCheckpointer} />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -112,7 +112,8 @@ function StatusCard({ title, value, icon: Icon, healthy }: { title: string; valu
   );
 }
 
-function serviceLabel(healthy: boolean | undefined, checking: boolean) {
+function serviceLabel(healthy: boolean | undefined, checking: boolean, stale: boolean) {
+  if (stale) return 'Stale signal';
   if (healthy === true) return 'Healthy';
   if (healthy === false) return 'Unavailable';
   return checking ? 'Checking' : 'Not reported';
