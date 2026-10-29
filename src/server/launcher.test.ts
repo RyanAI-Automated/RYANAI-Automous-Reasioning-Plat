@@ -163,7 +163,8 @@ describe('launcher reasoning routes', () => {
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('"error":"Provider unavailable"');
+    expect(response.body).toContain('"error":"Reasoning provider request failed. Please try again later."');
+    expect(response.body).not.toContain('Provider unavailable');
     expect(response.body).not.toContain('"status":"complete"');
   });
 
