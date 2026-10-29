@@ -181,4 +181,19 @@ describe('launcher reasoning routes', () => {
     });
     expect(response.body).not.toContain('processedPayload');
   });
+
+  it('redacts provider details from JSON reasoning errors', async () => {
+    state.invoke.mockRejectedValueOnce(new Error('provider secret: upstream-key-123'));
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/reason',
+      payload: { prompt: 'hello' },
+    });
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toMatchObject({
+      success: false,
+      error: 'Reasoning provider request failed. Please try again later.',
+    });
+    expect(response.body).not.toContain('upstream-key-123');
+  });
 });
