@@ -40,9 +40,11 @@ export const reasonPlugin: FastifyPluginAsync = async (fastify) => {
         timestamp: new Date().toISOString(),
       };
     } catch (err: unknown) {
-      reply.status(500);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      return { success: false, error: errorMessage };
+      fastify.log.error({ err }, 'Reasoning request failed');
+      return reply.code(502).send({
+        success: false,
+        error: 'Reasoning provider request failed. Please try again later.',
+      });
     }
   });
 };
