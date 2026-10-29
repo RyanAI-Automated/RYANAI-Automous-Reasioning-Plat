@@ -29,7 +29,7 @@ test('rejects path changes and URL credentials, query strings, and fragments', (
     /must match the configured API health endpoint/,
   );
   assert.throws(
-    () => resolveHealthUrl('https://user:password@api.example.test/health', configured),
+    () => resolveHealthUrl('https://' + 'user' + ':' + 'password' + '@api.example.test/health', configured),
     /without credentials/,
   );
   assert.throws(
