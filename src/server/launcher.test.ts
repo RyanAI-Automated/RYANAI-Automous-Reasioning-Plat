@@ -166,4 +166,18 @@ describe('launcher reasoning routes', () => {
     expect(response.body).toContain('"error":"Provider unavailable"');
     expect(response.body).not.toContain('"status":"complete"');
   });
+
+  it('does not report success for an MCP action the API gateway did not execute', async () => {
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/mcp',
+      payload: { action: 'run_project_checks', payload: { target: 'main' } },
+    });
+    expect(response.statusCode).toBe(501);
+    expect(response.json()).toMatchObject({
+      success: false,
+      error: expect.stringContaining('dedicated Streamable HTTP MCP service'),
+    });
+    expect(response.body).not.toContain('processedPayload');
+  });
 });
