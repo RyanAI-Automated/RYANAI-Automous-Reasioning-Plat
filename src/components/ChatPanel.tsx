@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square, MoreVertical } from 'lucide-react';
+import { Send, Download, Mic, Square } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { getAvailableModels, modelMeta } from '@/lib/models';
 
