@@ -27,7 +27,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: CORS_ORIGINS
-        value: https://ryanai-web.onrender.com
+        value: https://ryanai-web.onrender.com,https://ryanai-automous-reasioning-plat-uss1632.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_URL
