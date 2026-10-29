@@ -196,4 +196,27 @@ describe('launcher reasoning routes', () => {
     });
     expect(response.body).not.toContain('upstream-key-123');
   });
+
+  it('rejects oversized JSON reasoning prompts before invoking the agent', async () => {
+    state.invoke.mockClear();
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/reason',
+      payload: { prompt: 'x'.repeat(20001) },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(state.invoke).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized streaming prompts before opening an SSE response', async () => {
+    state.invoke.mockClear();
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/reasoning/stream',
+      payload: { prompt: 'x'.repeat(20001) },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.headers['content-type']).not.toContain('text/event-stream');
+    expect(state.invoke).not.toHaveBeenCalled();
+  });
 });
