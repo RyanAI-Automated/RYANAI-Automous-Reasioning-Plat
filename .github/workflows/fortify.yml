@@ -16,14 +16,11 @@
 name: Fortify AST Scan
 
 # Customize trigger events based on your DevSecOps process and/or policy
+# Optional vendor scan. It needs an account and secrets that this repository does not
+# have, so it ran on every push and pull request and always failed. It now runs only
+# when started by hand. To run it on pushes again, add the secrets, then restore the
+# push, pull_request and schedule triggers.
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "main" ]
-  schedule:
-    - cron: '27 22 * * 4'
   workflow_dispatch:
 
 jobs:

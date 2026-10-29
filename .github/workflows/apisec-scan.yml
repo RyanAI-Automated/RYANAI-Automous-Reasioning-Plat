@@ -28,17 +28,11 @@
 name: APIsec
 
 # Controls when the workflow will run
+# Optional vendor scan. It needs an account and secrets that this repository does not
+# have, so it ran on every push and pull request and always failed. It now runs only
+# when started by hand. To run it on pushes again, add the secrets, then restore the
+# push, pull_request and schedule triggers.
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  # Customize trigger events based on your DevSecOps processes.
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  schedule:
-    - cron: '16 2 * * 2'
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 
