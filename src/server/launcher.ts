@@ -202,6 +202,18 @@ function registerCoreRoutes() {
     };
   }
 
+  const reasoningBodySchema = {
+    body: {
+      type: 'object',
+      required: ['prompt'],
+      properties: {
+        prompt: { type: 'string', minLength: 1, maxLength: 20000 },
+        model: { type: 'string', maxLength: 100 },
+        sessionId: { type: 'string', maxLength: 200 },
+      },
+    },
+  };
+
   const handleReasoningRequest = async (
     request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
     reply: FastifyReply,
@@ -227,11 +239,13 @@ function registerCoreRoutes() {
   // Collision-free reasoning endpoint registrations
   fastify.post<{ Body: { prompt?: string; model?: string } }>(
     API_ROUTES.reasonPath,
+    { schema: reasoningBodySchema },
     handleReasoningRequest,
   );
   if (API_ROUTES.reasonPath !== '/api/reason') {
     fastify.post<{ Body: { prompt?: string; model?: string } }>(
       '/api/reason',
+      { schema: reasoningBodySchema },
       handleReasoningRequest,
     );
   }
@@ -239,7 +253,7 @@ function registerCoreRoutes() {
   // Reasoning stream endpoint
   fastify.post<{
     Body: { prompt?: string; sessionId?: string; model?: string };
-  }>(API_ROUTES.streamPath, async (request, reply) => {
+  }>(API_ROUTES.streamPath, { schema: reasoningBodySchema }, async (request, reply) => {
     const prompt = request.body?.prompt?.trim();
     const { sessionId } = request.body || {};
     if (!prompt) {
