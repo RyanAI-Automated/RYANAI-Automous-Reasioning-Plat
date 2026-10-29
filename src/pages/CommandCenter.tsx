@@ -57,7 +57,6 @@ export default function CommandCenter({
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [githubOpen, setGithubOpen] = useState(false);
-  const [githubConnected, setGithubConnected] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [status, setStatus] = useState<SystemStatus>({
@@ -169,14 +168,8 @@ export default function CommandCenter({
     const loadTimer = window.setTimeout(() => {
       void loadConversations();
     }, 0);
-    const githubTimer = window.setTimeout(() => {
-      setGithubConnected(
-        localStorage.getItem(`ryanai_github_connected:${userId}`) === 'true',
-      );
-    }, 0);
     return () => {
       window.clearTimeout(loadTimer);
-      window.clearTimeout(githubTimer);
     };
   }, [loadConversations, userId]);
 
@@ -604,7 +597,6 @@ export default function CommandCenter({
       onMemory={() => setMemoryOpen(true)}
       onConsole={() => setConsoleOpen(true)}
       onGithub={() => setGithubOpen(true)}
-      githubConnected={githubConnected}
     />
   );
 
@@ -774,7 +766,6 @@ export default function CommandCenter({
       <GithubModal
         open={githubOpen}
         onClose={() => setGithubOpen(false)}
-        connected={githubConnected}
       />
     </div>
   );
