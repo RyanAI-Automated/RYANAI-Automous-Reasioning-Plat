@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { registerPatchRoutes } from './routes/patchRoutes.js';
+import { registerPatchRoutes } from './patchRoutes.js';
 
 export async function buildServer() {
   const fastify = Fastify({
