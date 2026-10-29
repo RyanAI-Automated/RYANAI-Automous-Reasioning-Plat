@@ -212,7 +212,7 @@ function registerCoreRoutes() {
         sessionId: { type: 'string', maxLength: 200 },
       },
     },
-  } as const;
+  };
 
   const handleReasoningRequest = async (
     request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
