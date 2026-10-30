@@ -5,7 +5,7 @@ export function getOwnerTitle(): string {
 }
 
 export function getOwnerLanguage(): string {
-  return resolveCommunicationLanguage(process.env.RYANAI_OWNER_LANGUAGE, true);
+  return resolveCommunicationLanguage(process.env.RYANAI_OWNER_LANGUAGE || 'en-ZA');
 }
 
 export function getTwilioVoiceLanguage(): string {
