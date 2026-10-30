@@ -56,6 +56,7 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
+  vi.stubEnv('RYANAI_OWNER_LANGUAGE', 've-ZA');
   invoke.mockResolvedValue({ messages: [{ content: 'RyanAI says hello & welcome' }] });
 });
 
