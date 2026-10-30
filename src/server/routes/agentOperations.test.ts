@@ -61,6 +61,16 @@ describe('agent operations routes', () => {
     expect(allowed.json().knowledge).toHaveLength(1);
   });
 
+  it('restricts live provider probes to administrators', async () => {
+    const denied = await app.inject({ method: 'POST', url: '/api/agent/ops/brains/probe', headers: { 'x-test-user': 'user-1' } });
+    expect(denied.statusCode).toBe(403);
+    expect(operations.probeAllBrains).not.toHaveBeenCalled();
+    operations.probeAllBrains.mockResolvedValue([{ brain: 'primary', status: 'HEALTHY' }]);
+    const allowed = await app.inject({ method: 'POST', url: '/api/agent/ops/brains/probe', headers: { 'x-test-user': 'admin-1', 'x-test-role': 'admin' } });
+    expect(allowed.statusCode).toBe(200);
+    expect(operations.probeAllBrains).toHaveBeenCalledTimes(1);
+  });
+
   it('requires authentication before dispatch', async () => {
     const response = await app.inject({ method: 'POST', url: '/api/agent/ops/tasks', payload: { objective: 'Run a test task' } });
     expect(response.statusCode).toBe(401);
