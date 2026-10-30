@@ -35,6 +35,21 @@ function encodePcm16(samples: Float32Array): string {
   return btoa(binary);
 }
 
+function resampleTo24k(samples: Float32Array, sourceRate: number): Float32Array {
+  if (sourceRate === REALTIME_SAMPLE_RATE) return samples;
+  const outputLength = Math.floor(samples.length * REALTIME_SAMPLE_RATE / sourceRate);
+  const output = new Float32Array(outputLength);
+  const ratio = sourceRate / REALTIME_SAMPLE_RATE;
+  for (let index = 0; index < outputLength; index += 1) {
+    const sourcePosition = index * ratio;
+    const left = Math.floor(sourcePosition);
+    const right = Math.min(left + 1, samples.length - 1);
+    const fraction = sourcePosition - left;
+    output[index] = samples[left] * (1 - fraction) + samples[right] * fraction;
+  }
+  return output;
+}
+
 function decodePcm16(encoded: string): Float32Array {
   const binary = atob(encoded);
   const view = new DataView(new ArrayBuffer(binary.length));
@@ -57,9 +72,11 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   const processor = useRef<ScriptProcessorNode | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const playbackTime = useRef(0);
+  const attemptId = useRef(0);
   const playbackNodes = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const stop = useCallback(() => {
+    attemptId.current += 1;
     if (processor.current) {
       processor.current.onaudioprocess = null;
       processor.current.disconnect();
@@ -92,6 +109,8 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   useEffect(() => () => stop(), [stop]);
 
   const start = useCallback(async () => {
+    const attempt = ++attemptId.current;
+    let pendingContext: AudioContext | null = null;
     setStatus('connecting');
     setError('');
     try {
@@ -99,11 +118,22 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
         throw new Error('Microphone access is not available in this browser.');
       }
       const context = new AudioContext({ sampleRate: REALTIME_SAMPLE_RATE });
+      pendingContext = context;
       audioContext.current = context;
       await context.resume();
-      mediaStream.current = await navigator.mediaDevices.getUserMedia({
+      if (attemptId.current !== attempt) {
+        await context.close();
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
       });
+      if (attemptId.current !== attempt) {
+        stream.getTracks().forEach((track) => track.stop());
+        if (context.state !== 'closed') await context.close();
+        return;
+      }
+      mediaStream.current = stream;
 
       const ticketResponse = await authenticatedFetch('/api/v1/realtime/voice-ticket', {
         method: 'POST',
@@ -111,6 +141,7 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
         body: JSON.stringify({ language }),
       });
       const ticketBody = await ticketResponse.json() as VoiceTicketResponse;
+      if (attemptId.current !== attempt) return;
       if (!ticketResponse.ok || !ticketBody.ticket) {
         throw new Error(ticketBody.error || 'Could not authorize the realtime voice session.');
       }
@@ -118,6 +149,7 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
       const endpoint = new URL('/api/v1/realtime/voice', API_BASE_URL);
       endpoint.protocol = endpoint.protocol === 'https:' ? 'wss:' : 'ws:';
       endpoint.searchParams.set('ticket', ticketBody.ticket);
+      if (attemptId.current !== attempt) return;
       const ws = new WebSocket(endpoint.toString());
       socket.current = ws;
 
@@ -146,7 +178,8 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
           silentOutput.connect(activeContext.destination);
           node.onaudioprocess = (audioEvent) => {
             if (ws.readyState !== WebSocket.OPEN) return;
-            const audio = encodePcm16(audioEvent.inputBuffer.getChannelData(0));
+            const input = audioEvent.inputBuffer.getChannelData(0);
+            const audio = encodePcm16(resampleTo24k(input, activeContext.sampleRate));
             ws.send(JSON.stringify({ type: 'session.input_audio.append', audio }));
           };
           mediaSource.current = source;
@@ -197,6 +230,12 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
         if (socket.current === ws) stop();
       };
     } catch (cause) {
+      if (attemptId.current !== attempt) {
+        if (pendingContext && pendingContext.state !== 'closed' && audioContext.current !== pendingContext) {
+          await pendingContext.close();
+        }
+        return;
+      }
       stop();
       setStatus('error');
       setError(cause instanceof Error ? cause.message : 'Could not start realtime voice.');
