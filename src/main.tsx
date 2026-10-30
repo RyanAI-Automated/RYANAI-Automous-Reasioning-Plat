@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import '@fontsource-variable/jetbrains-mono/wght.css';
 import { API_BASE_URL } from './lib/apiBaseUrl';
 import { getPlatformHealth } from './lib/platformHealth';
 import ErrorBoundary from './components/ErrorBoundary';

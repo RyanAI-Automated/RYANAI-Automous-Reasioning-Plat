@@ -99,7 +99,8 @@
     "dev:desktop:services": "node scripts/dev-desktop.mjs",
     "platform:wiring:check": "node scripts/check-platform-wiring.mjs",
     "index:check": "node scripts/check-index-html.mjs",
-    "test:stack-validator": "node --test scripts/validate-stack-manifest.test.mjs"
+    "test:stack-validator": "node --test scripts/validate-stack-manifest.test.mjs",
+    "audit:inspector": "node scripts/ai-inspector-audit.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
