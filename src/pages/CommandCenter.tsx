@@ -349,7 +349,16 @@ export default function CommandCenter({
         throw error;
       }
 
-      const storedUserMessage = { ...userMsg, attachments };
+      const displayAttachments = await Promise.all(attachments.map(async (attachment) => {
+        if (!supabase) return attachment;
+        try {
+          return await signConversationAttachment(supabase, userId, convId, attachment);
+        } catch (error) {
+          console.warn('Attachment uploaded but preview URL could not be created:', error);
+          return attachment;
+        }
+      }));
+      const storedUserMessage = { ...userMsg, attachments: displayAttachments };
       setConversations((prev) => {
         const next = prev.map((c) =>
           c.id === convId
