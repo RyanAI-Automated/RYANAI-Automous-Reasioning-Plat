@@ -31,7 +31,10 @@ export class RyanAICheckpointer {
   static async getLatestCheckpoint(threadId: string): Promise<{ step: number; state: unknown } | null> {
     try {
       const latestLog = await db.agentMemory.findFirst({
-        where: { sessionId: threadId },
+        where: {
+          sessionId: threadId,
+          brainSource: { startsWith: 'checkpoint_step_' },
+        },
         orderBy: { createdAt: 'desc' },
       });
       if (!latestLog) return null;
