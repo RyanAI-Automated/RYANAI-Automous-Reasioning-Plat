@@ -60,6 +60,12 @@ export async function listBrainHealth() {
 
 /** Periodically probes all configured brains; unavailable providers never block API startup. */
 export function startBrainHealthMonitor(intervalMs = Number(process.env.RYANAI_BRAIN_HEALTH_INTERVAL_MS || 300_000)) {
+  // Brain health is persisted in PostgreSQL; skip background writes in CI/local environments without a database.
+  if (!process.env.DATABASE_URL) {
+    console.warn('[brain-monitor] Disabled: DATABASE_URL is not configured.');
+    return () => undefined;
+  }
+
   let running = false;
   const tick = async () => {
     if (running) return;
