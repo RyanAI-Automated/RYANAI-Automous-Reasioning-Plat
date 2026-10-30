@@ -39,7 +39,9 @@ export async function runGovernmentProcurementAgent(
   const query = request.query.trim().slice(0, 300);
   if (!query) throw new Error('A procurement search query is required.');
 
-  if (!request.apiUrl) {
+  const apiUrl = request.apiUrl ?? process.env.ZA_GOV_PROCUREMENT_API_URL;
+
+  if (!apiUrl) {
     return {
       agentName: 'RyanAI South African Government Procurement Agent',
       mode: 'public-data-only',
@@ -51,7 +53,7 @@ export async function runGovernmentProcurementAgent(
     };
   }
 
-  const url = safeApiUrl(request.apiUrl);
+  const url = safeApiUrl(apiUrl);
   // The caller supplies the exact documented, read-only API URL and filters.
   // Do not invent query parameter names: National Treasury's OpenAPI spec is authoritative.
   const response = await fetchImpl(url, {
