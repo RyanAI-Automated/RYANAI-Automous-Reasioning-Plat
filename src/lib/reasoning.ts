@@ -1,3 +1,4 @@
+import { getLanguageName, DEFAULT_LANGUAGE, isRyanLanguage } from '@/shared/languages';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 // src/lib/reasoning.ts
 // Autonomous reasoning engine integration
@@ -17,8 +18,12 @@ export async function streamReasoning(
   model: ModelId,
   callbacks: ReasoningCallbacks,
 ): Promise<void> {
+  const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
+  const language = isRyanLanguage(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
   try {
-    const response = await authenticatedFetch(
+    const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
+  const language = isRyanLanguage(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
+  const response = await authenticatedFetch(
       `${API_BASE_URL}${API_ROUTES.streamPath}`,
       {
         method: 'POST',
@@ -28,6 +33,7 @@ export async function streamReasoning(
         body: JSON.stringify({
           prompt,
           model,
+          language,
         }),
       },
     );
@@ -121,7 +127,7 @@ export async function quickReason(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model }),
+      body: JSON.stringify({ prompt, model, language }),
     },
   );
   const data = (await response.json()) as {
