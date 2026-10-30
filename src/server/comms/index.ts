@@ -48,7 +48,7 @@ function twimlSay(text: string, gather = true): string {
   const voiceAttribute = voice ? ` voice="${escapeXml(voice)}"` : '';
   const say = `<Say language="en-ZA"${voiceAttribute}>${safe}</Say>`;
   if (!action || !gather) return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Hangup/></Response>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Gather input="speech" action="${escapeXml(action)}" method="POST" speechTimeout="auto" timeout="5"><Say language="en-ZA"${voiceAttribute}>Please speak after the tone.</Say></Gather><Say language="en-ZA"${voiceAttribute}>I did not hear a response. Goodbye.</Say><Hangup/></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Gather input="speech" language="en-ZA" action="${escapeXml(action)}" method="POST" speechTimeout="auto" timeout="5"><Say language="en-ZA"${voiceAttribute}>Please speak after the tone.</Say></Gather><Say language="en-ZA"${voiceAttribute}>I did not hear a response. Goodbye.</Say><Hangup/></Response>`;
 }
 async function askRyanAI(text: string, threadId: string): Promise<string> {
   const result = await humanInTheLoopAgent.invoke(
