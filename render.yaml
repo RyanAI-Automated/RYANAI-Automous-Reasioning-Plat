@@ -109,6 +109,16 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: RYANAI_OWNER_TITLE
+        value: Sir G
+      - key: RYANAI_OWNER_NAME
+        value: Ntsiyeni Ganyane
+      - key: RYANAI_OWNER_LANGUAGE
+        value: en-ZA
+      - key: RYANAI_TWILIO_LANGUAGE
+        value: en-ZA
+      - key: RYANAI_TWILIO_VOICE
+        value: Polly.Ayanda-Neural
       - key: RYANAI_OWNER_PHONE
         sync: false
       - key: RYANAI_OWNER_EMAIL
