@@ -7,6 +7,7 @@ import type {
 import { createContextClient } from '@supabase/server/core';
 import bcrypt from 'bcrypt';
 import type { PrismaClient } from '@prisma/client';
+import { isSupportedRyanLanguage, DEFAULT_RYANAI_LANGUAGE } from '../../shared/languages.js';
 
 // --- Interfaces & Types ---
 
@@ -21,6 +22,8 @@ export interface AuthenticatedUser {
   role: 'user' | 'admin';
   displayName?: string;
   isOwner: boolean;
+  preferredTitle?: string;
+  preferredLanguage: string;
 }
 
 // Augment Fastify types to include custom request properties and Prisma instance
@@ -90,6 +93,8 @@ export async function requireUser(
       role: data.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
       displayName: typeof data.user.user_metadata?.full_name === 'string' ? data.user.user_metadata.full_name : undefined,
       isOwner: Boolean(data.user.email && process.env.RYANAI_OWNER_EMAIL?.trim() && data.user.email.toLowerCase() === process.env.RYANAI_OWNER_EMAIL.trim().toLowerCase()),
+      preferredTitle: typeof data.user.user_metadata?.preferred_title === 'string' ? data.user.user_metadata.preferred_title : undefined,
+      preferredLanguage: typeof data.user.user_metadata?.preferred_language === 'string' && isSupportedRyanLanguage(data.user.user_metadata.preferred_language) ? data.user.user_metadata.preferred_language : DEFAULT_RYANAI_LANGUAGE,
     };
   } catch {
     return reply
