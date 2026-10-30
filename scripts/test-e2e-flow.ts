@@ -91,6 +91,37 @@ async function main(): Promise<void> {
     );
   }
 
+  if (process.env.RYANAI_LIVE_PROVIDER_TESTS === 'true') {
+    if (!adminToken) {
+      await test('Live three-brain provider connectivity', async () => {
+        throw new Error('TEST_ADMIN_ACCESS_TOKEN is required when RYANAI_LIVE_PROVIDER_TESTS=true');
+      });
+    } else {
+      await test('Live three-brain provider connectivity', async () => {
+        const providerTimeoutMs = Number(process.env.PROVIDER_PROBE_TIMEOUT_MS || 90_000);
+        const response = await fetch(`${apiUrl}/api/agent/ops/brains/probe`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${adminToken}` },
+          signal: AbortSignal.timeout(providerTimeoutMs),
+        });
+        if (!response.ok) throw new Error(`Provider probe returned HTTP ${response.status}`);
+        const body = await response.json();
+        const brains = Array.isArray(body?.brains) ? body.brains : [];
+        const expected = ['primary', 'secondary', 'logic'];
+        const statuses = new Map(brains.map((brain: { brain: string; status: string }) => [brain.brain, brain.status]));
+        const unhealthy = expected.filter((brain) => statuses.get(brain) !== 'HEALTHY');
+        if (unhealthy.length) {
+          const summary = expected.map((brain) => `${brain}:${statuses.get(brain) || 'MISSING'}`).join(', ');
+          throw new Error(`Expected all three providers HEALTHY; received ${summary}`);
+        }
+        console.log('Live provider connectivity: 3/3 brains HEALTHY');
+      });
+    }
+  } else {
+    skipped++;
+    console.log('SKIP Live three-brain provider connectivity: set RYANAI_LIVE_PROVIDER_TESTS=true with an admin token and configured provider credentials');
+  }
+
   const failed = results.filter((result) => result.error);
   console.log(
     `\nEnd-to-end checks: ${results.length - failed.length}/${results.length} passed; ${skipped} skipped`,
