@@ -42,6 +42,7 @@ const redis = {
 };
 
 async function createApp() {
+  vi.stubEnv('OPENAI_API_KEY', 'test-upstream-key');
   const app = Fastify();
   apps.push(app);
   app.decorateRequest('authUser', null);
@@ -99,13 +100,13 @@ describe('authenticated realtime voice gateway', () => {
   it('rejects missing and replayed WebSocket tickets', async () => {
     const app = await createApp();
     await expect(app.injectWS('/api/v1/realtime/voice')).rejects.toThrow(
-      'Unexpected server response: 1008',
+      'Unexpected server response: 401',
     );
     tickets.set('ryanai:realtime-voice:one-use', JSON.stringify({ userId: 'user-123', isOwner: true }));
     const socket = await app.injectWS('/api/v1/realtime/voice?ticket=one-use');
     const closed = new Promise<number>((resolve) => socket.once('close', (code) => resolve(code)));
     await expect(app.injectWS('/api/v1/realtime/voice?ticket=one-use')).rejects.toThrow(
-      'Unexpected server response: 1008',
+      'Unexpected server response: 401',
     );
     socket.close();
     await closed;
@@ -119,7 +120,7 @@ describe('authenticated realtime voice gateway', () => {
     tickets.set('ryanai:realtime-voice:origin-check', JSON.stringify({ userId: 'user-123', isOwner: true }));
     await expect(app.injectWS('/api/v1/realtime/voice?ticket=origin-check', {
       headers: { origin: 'https://attacker.invalid' },
-    })).rejects.toThrow('Unexpected server response: 1008');
+    })).rejects.toThrow('Unexpected server response: 403');
     expect(redis.getdel).not.toHaveBeenCalled();
   });
 });
