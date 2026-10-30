@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square } from 'lucide-react';
+import { Send, Download, Mic, Square, Volume2 } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { getAvailableModels, modelMeta } from '@/lib/models';
 
@@ -28,6 +28,9 @@ export default function ChatPanel(props: ChatPanelProps) {
   const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousSending = useRef(false);
+  const lastSpokenMessageId = useRef<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,6 +39,43 @@ export default function ChatPanel(props: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom();
   }, [props.messages, props.liveText]);
+
+  const readAloud = (message: Message) => {
+    if (!window.speechSynthesis || typeof window.speechSynthesis.speak !== 'function' || typeof SpeechSynthesisUtterance === 'undefined') return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    utterance.lang = 'en-ZA';
+    try {
+      const selectedUri = window.localStorage.getItem('ryanai:voice-greeting-uri');
+      const selectedVoice = window.speechSynthesis.getVoices().find((voice) => voice.voiceURI === selectedUri)
+        ?? window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase().startsWith('en-za'));
+      if (selectedVoice) utterance.voice = selectedVoice;
+    } catch { /* device voice settings may be unavailable */ }
+    utterance.onstart = () => setSpeakingMessageId(message.id);
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+    setSpeakingMessageId(message.id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  useEffect(() => {
+    if (props.sending) {
+      previousSending.current = true;
+      return;
+    }
+    if (!previousSending.current) return;
+    previousSending.current = false;
+    const latestAssistant = [...props.messages].reverse().find((message) => message.role === 'assistant');
+    if (!latestAssistant || latestAssistant.id === lastSpokenMessageId.current) return;
+    lastSpokenMessageId.current = latestAssistant.id;
+    try {
+      if (window.localStorage.getItem('ryanai:voice-greetings-enabled') !== 'false') readAloud(latestAssistant);
+    } catch { readAloud(latestAssistant); }
+  }, [props.messages, props.sending]);
+
+  useEffect(() => () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }, []);
 
   const handleSend = () => {
     if (inputValue.trim()) {
@@ -131,6 +171,16 @@ export default function ChatPanel(props: ChatPanelProps) {
               }`}
             >
               {msg.content}
+              {msg.role === 'assistant' && (
+                <button
+                  type="button"
+                  onClick={() => readAloud(msg)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-100"
+                  aria-label={`Read RyanAI message aloud in South African English`}
+                >
+                  <Volume2 size={14} /> {speakingMessageId === msg.id ? 'Speaking…' : 'Read aloud'}
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
