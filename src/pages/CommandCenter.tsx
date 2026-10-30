@@ -55,8 +55,12 @@ export default function CommandCenter({
   const [sending, setSending] = useState(false);
   const [voiceLanguage, setVoiceLanguage] = useState(() => {
     if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
-    const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
-    return isRyanLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+    try {
+      const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
+      return isRyanLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+    } catch {
+      return DEFAULT_LANGUAGE;
+    }
   });
   const [liveText, setLiveText] = useState('');
   const [liveSteps, setLiveSteps] = useState<ToolStep[]>([]);
