@@ -1,4 +1,4 @@
-import { getLanguageName, DEFAULT_LANGUAGE, isRyanLanguage } from '@/shared/languages';
+import { DEFAULT_LANGUAGE, isRyanLanguage } from '@/shared/languages';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 // src/lib/reasoning.ts
 // Autonomous reasoning engine integration
@@ -18,12 +18,10 @@ export async function streamReasoning(
   model: ModelId,
   callbacks: ReasoningCallbacks,
 ): Promise<void> {
-  const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
-  const language = isRyanLanguage(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
   try {
     const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
-  const language = isRyanLanguage(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
-  const response = await authenticatedFetch(
+    const language = isRyanLanguage(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
+    const response = await authenticatedFetch(
       `${API_BASE_URL}${API_ROUTES.streamPath}`,
       {
         method: 'POST',
