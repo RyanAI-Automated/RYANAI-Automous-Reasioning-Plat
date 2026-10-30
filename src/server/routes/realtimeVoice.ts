@@ -2,16 +2,18 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import WebSocket from 'ws';
 import { randomBytes } from 'node:crypto';
 import { requireUser } from './auth.js';
-import { ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
+import { getOwnerResponseLanguage, ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
+import { DEFAULT_LANGUAGE, isRyanLanguage, languageInstruction } from '../../shared/languages.js';
 
 const TICKET_TTL_SECONDS = 30;
 const MAX_CLIENT_MESSAGE_BYTES = 64 * 1024;
-const MAX_MESSAGES_PER_MINUTE = 120;
-const REALTIME_MODEL = process.env.RYANAI_REALTIME_MODEL?.trim() || 'gpt-4o-realtime-preview-2024-10-01';
+const MAX_MESSAGES_PER_MINUTE = 1800;
+const REALTIME_MODEL = process.env.RYANAI_REALTIME_MODEL?.trim() || 'gpt-live-1';
 
 interface VoiceTicket {
   userId: string;
   isOwner: boolean;
+  language: string;
 }
 
 interface RedisTicketClient {
@@ -39,15 +41,21 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
   const redis = fastify.redis as unknown as RedisTicketClient;
 
-  fastify.post('/api/v1/realtime/voice-ticket', {
+  fastify.post<{ Body: { language?: string } }>('/api/v1/realtime/voice-ticket', {
     preHandler: requireUser,
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (request, reply) => {
     const user = request.authUser;
     if (!user?.id) return reply.code(401).send({ error: 'Sign in to start a voice session.' });
 
+    const requestedLanguage = request.body?.language;
+    const language = user.isOwner
+      ? getOwnerResponseLanguage()
+      : requestedLanguage && isRyanLanguage(requestedLanguage)
+        ? requestedLanguage
+        : DEFAULT_LANGUAGE;
     const ticket = randomBytes(32).toString('base64url');
-    const value: VoiceTicket = { userId: user.id, isOwner: user.isOwner };
+    const value: VoiceTicket = { userId: user.id, isOwner: user.isOwner, language };
     const stored = await redis.set(
       `ryanai:realtime-voice:${ticket}`,
       JSON.stringify(value),
@@ -82,7 +90,7 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const identity = JSON.parse(serialized) as VoiceTicket;
-        if (!identity.userId || typeof identity.isOwner !== 'boolean') {
+        if (!identity.userId || typeof identity.isOwner !== 'boolean' || !isRyanLanguage(identity.language)) {
           return reply.code(401).send({ error: 'Invalid voice session.' });
         }
         (request as VoiceRequest).voiceIdentity = identity;
@@ -105,11 +113,10 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const upstream = new WebSocket(
-      `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(REALTIME_MODEL)}`,
+      'wss://api.openai.com/v1/live/sessions',
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          'OpenAI-Beta': 'realtime=v1',
         },
         maxPayload: MAX_CLIENT_MESSAGE_BYTES,
       },
@@ -117,17 +124,20 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
 
     let messageWindowStarted = Date.now();
     let messageCount = 0;
+    let sessionStarted = false;
     let closed = false;
     let upstreamTimeout: ReturnType<typeof setTimeout> | undefined;
+    let finalizeTimeout: ReturnType<typeof setTimeout> | undefined;
     const closeBoth = (code = 1000, reason = 'Voice session ended') => {
       if (closed) return;
       closed = true;
       clearTimeout(upstreamTimeout);
+      clearTimeout(finalizeTimeout);
       if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close();
       if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
     };
     upstreamTimeout = setTimeout(
-      () => closeBoth(1011, 'Realtime upstream connection timed out'),
+      () => closeBoth(1011, 'Live upstream connection timed out'),
       10_000,
     );
 
@@ -140,28 +150,48 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       const instructions = identity.isOwner
         ? ownerCommunicationInstruction()
-        : 'You are RyanAI, a helpful voice assistant. Respect the signed-in user and their configured language preference. Do not claim to perform actions unless a connected tool confirms completion.';
+        : [
+            'You are RyanAI, a helpful voice assistant for the signed-in user.',
+            languageInstruction(identity.language),
+            'Do not claim to perform actions unless a connected tool confirms completion.',
+          ].join(' ');
       upstream.send(JSON.stringify({
-        type: 'session.update',
+        type: 'session.start',
+        event_id: randomBytes(12).toString('hex'),
         session: {
-          modalities: ['text', 'audio'],
+          model: REALTIME_MODEL,
           instructions,
-          voice: process.env.RYANAI_REALTIME_VOICE?.trim() || 'alloy',
-          input_audio_format: 'pcm16',
-          output_audio_format: 'pcm16',
-          turn_detection: {
-            type: 'server_vad',
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 500,
+          audio: {
+            format: { type: 'audio/pcm', rate: 24_000 },
+            output: {
+              voice: process.env.RYANAI_REALTIME_VOICE?.trim() || 'marin',
+            },
           },
         },
       }));
-      fastify.log.info({ userId: identity.userId }, 'Authenticated RyanAI realtime voice session connected');
     });
 
     upstream.on('message', (data: WebSocket.RawData) => {
-      if (socket.readyState === WebSocket.OPEN) socket.send(data.toString());
+      const payload = data.toString();
+      try {
+        const event = JSON.parse(payload) as { type?: string; session?: { id?: string }; usage?: unknown };
+        if (event.type === 'session.started') {
+          sessionStarted = true;
+          fastify.log.info(
+            { userId: identity.userId, sessionId: event.session?.id },
+            'Authenticated RyanAI Live voice session started',
+          );
+        } else if (event.type === 'session.closed') {
+          fastify.log.info({ userId: identity.userId, usage: event.usage }, 'RyanAI Live voice session finalized');
+          closeBoth();
+          return;
+        }
+      } catch {
+        fastify.log.warn({ userId: identity.userId }, 'Received an invalid event from the Live voice provider');
+        closeBoth(1011, 'Invalid Live provider event');
+        return;
+      }
+      if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     });
 
     upstream.on('error', (error: Error) => {
@@ -190,63 +220,42 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
         closeBoth(1008, 'Voice event rate limit exceeded');
         return;
       }
-      if (upstream.readyState !== WebSocket.OPEN) return;
+      if (upstream.readyState !== WebSocket.OPEN || !sessionStarted) return;
       const payload = message.toString('utf8');
       try {
-        const event = JSON.parse(payload) as {
-          type?: unknown;
-          audio?: unknown;
-          response?: unknown;
-          item?: { type?: unknown; role?: unknown; content?: Array<{ type?: unknown }> };
-        };
-        if (!event || typeof event !== 'object' || typeof event.type !== 'string') {
-          closeBoth(1003, 'Invalid Realtime event');
+        const event = JSON.parse(payload) as { type?: unknown; audio?: unknown };
+        if (!event || typeof event !== 'object' || event.type !== 'session.input_audio.append') {
+          closeBoth(1008, 'Only PCM16 user audio events are permitted');
           return;
         }
-
-        // Session instructions and tools are server-owned. Only permit user-input
-        // and response-control events; never let a browser replace system policy.
-        const allowedTypes = new Set([
-          'input_audio_buffer.append',
-          'input_audio_buffer.commit',
-          'input_audio_buffer.clear',
-          'response.create',
-          'response.cancel',
-          'conversation.item.create',
-        ]);
-        if (!allowedTypes.has(event.type)) {
-          closeBoth(1008, 'Realtime event type is not permitted');
-          return;
-        }
-        if (event.type === 'input_audio_buffer.append' &&
-          (typeof event.audio !== 'string' || event.audio.length > 48_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(event.audio))) {
+        if (
+          typeof event.audio !== 'string' ||
+          event.audio.length === 0 ||
+          event.audio.length > 48_000 ||
+          !/^[A-Za-z0-9+/]*={0,2}$/.test(event.audio)
+        ) {
           closeBoth(1008, 'Invalid or oversized audio payload');
           return;
         }
-        if (event.type === 'response.create' && event.response !== undefined) {
-          closeBoth(1008, 'Response configuration is controlled by the server');
+        const audioBytes = Buffer.from(event.audio, 'base64');
+        if (audioBytes.length === 0 || audioBytes.length % 2 !== 0 || audioBytes.toString('base64') !== event.audio) {
+          closeBoth(1008, 'Audio must be valid mono PCM16 data');
           return;
-        }
-        if (event.type === 'conversation.item.create') {
-          const item = event.item;
-          if (
-            item?.type !== 'message' ||
-            item.role !== 'user' ||
-            !Array.isArray(item.content) ||
-            item.content.length === 0 ||
-            item.content.some((part) => !part || !['input_text', 'input_audio'].includes(String(part.type)))
-          ) {
-            closeBoth(1008, 'Only user conversation input is permitted');
-            return;
-          }
         }
         upstream.send(payload);
       } catch {
-        closeBoth(1003, 'Realtime events must be valid JSON');
+        closeBoth(1003, 'Live voice events must be valid JSON');
       }
     });
 
-    socket.on('close', () => closeBoth());
+    socket.on('close', () => {
+      if (sessionStarted && upstream.readyState === WebSocket.OPEN) {
+        upstream.send(JSON.stringify({ type: 'session.close' }));
+        finalizeTimeout = setTimeout(() => closeBoth(), 15_000);
+      } else {
+        closeBoth();
+      }
+    });
     socket.on('error', (error: Error) => {
       fastify.log.debug({ error, userId: identity.userId }, 'Realtime voice client socket closed with error');
       closeBoth(1011);
