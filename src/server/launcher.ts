@@ -31,6 +31,7 @@ import { metricsRoutes } from './routes/metrics.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
+import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
 import { startBrainHealthMonitor } from '../agent/operations.js';
@@ -450,6 +451,7 @@ async function registerPlugins() {
   await fastify.register(agentOperationsRoutes);
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
+  await fastify.register(registerPatchRoutes);
 }
 
 // ============================================================================

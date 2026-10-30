@@ -1,64 +1,55 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyPluginAsync } from 'fastify';
+import { SelfPatchSkill } from '../../engine/selfPatchSkill.js';
 import { requireAdmin } from './auth.js';
-import { patchService } from '../../services/patchService.js';
-import { PatchRequest, PatchStatus } from '../../types/patch.js';
 
-export async function registerPatchRoutes(fastify: FastifyInstance) {
-  fastify.addHook('preHandler', requireAdmin);
-  fastify.post(
+interface PatchApplyBody {
+  filePath: string;
+  patchContent: string;
+  testScript?: string;
+}
+
+/**
+ * Administrator-only, validate-before-promote self-patching endpoint.
+ * Candidate code is staged and verified by the digest-pinned, network-disabled
+ * verifier before the workspace patch engine atomically promotes it.
+ */
+export const registerPatchRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.post<{ Body: PatchApplyBody }>(
     '/api/patches/apply',
-    async (request: FastifyRequest<{ Body: PatchRequest }>, reply: FastifyReply) => {
+    {
+      preHandler: requireAdmin,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['filePath', 'patchContent'],
+          additionalProperties: false,
+          properties: {
+            filePath: { type: 'string', minLength: 1, maxLength: 500 },
+            patchContent: { type: 'string', minLength: 1, maxLength: 8 * 1024 * 1024 },
+            testScript: { type: 'string', maxLength: 200_000 },
+          },
+        },
+      },
+      config: { rateLimit: { max: 2, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
       try {
-        const patchRequest = request.body;
-
-        // 1. Validate request payload existence
-        if (!patchRequest || !patchRequest.targetType || !patchRequest.operations) {
-          return reply.status(400).send({
-            success: false,
-            error: 'Invalid patch request. "targetType" and "operations" are required fields.',
-          });
-        }
-
-        // 2. Validate operations array
-        if (!Array.isArray(patchRequest.operations) || patchRequest.operations.length === 0) {
-          return reply.status(400).send({
-            success: false,
-            error: 'Operations payload must be a non-empty array.',
-          });
-        }
-
-        // 3. Attach author if authenticated
-        const authUser = (request as FastifyRequest & { user?: { email?: string } }).user;
-        if (authUser?.email && !patchRequest.author) {
-          patchRequest.author = authUser.email;
-        }
-
-        // 4. Execute patch via service
-        const result = await patchService.applyPatch(patchRequest);
-
-        // 5. Check result status
-        if (result.status === PatchStatus.FAILED) {
-          return reply.status(422).send({
-            success: false,
-            error: result.error || 'Patch execution failed',
-            result,
-          });
-        }
-
-        return reply.status(200).send({
-          success: true,
-          message: 'Patch applied successfully',
+        const result = await SelfPatchSkill.applyAndVerifyPatch(request.body);
+        const statusCode =
+          result.status === 'success' ? 200 :
+          result.status === 'conflict' ? 409 :
+          result.status === 'rejected' ? 422 : 503;
+        return reply.code(statusCode).send({
+          success: result.status === 'success',
           result,
         });
       } catch (error: unknown) {
-        request.log.error({ err: error }, '[PatchRoutes] Unhandled error during patch execution');
-        return reply.status(500).send({
+        request.log.error({ err: error }, '[SelfPatch] Patch execution failed');
+        return reply.code(503).send({
           success: false,
-          error: error instanceof Error
-            ? error.message
-            : 'Internal server error while processing patch request',
+          error: error instanceof Error ? error.message : 'Self-patch verification is unavailable.',
         });
       }
-    }
+    },
   );
-}
+};
