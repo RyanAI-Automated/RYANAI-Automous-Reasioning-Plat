@@ -7,6 +7,7 @@ import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operati
 import { resolveBrainProviderConfig } from './providerConfig.js';
 import { buildBrainKnowledgeContext } from './knowledgeAgent.js';
 import { getAgentRunRetryDelayMs, shouldRetryAgentRun } from './agentRunRetry.js';
+import { publishAgentTaskNotification } from './queueNotifications.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -222,7 +223,14 @@ export async function dispatchAutonomousTask(userId: string, objective: string) 
     ] });
     return created;
   });
-  await prisma.$queryRaw`SELECT pg_notify('agent_task_queue', ${run.id})`;
+  const notified = await publishAgentTaskNotification(run.id, async (id) => {
+    await prisma.$queryRaw`SELECT pg_notify('agent_task_queue', ${id})`;
+  });
+  if (!notified) {
+    // The durable row is already committed. The worker's periodic sweep will
+    // discover it, so a transient NOTIFY failure must not invite duplicate POSTs.
+    console.warn('[agent-worker] Queue notification failed; committed run remains queued for recovery polling.');
+  }
   return run;
 }
 
