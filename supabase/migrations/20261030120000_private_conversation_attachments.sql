@@ -13,7 +13,7 @@ VALUES (
     'video/mp4','video/webm',
     'audio/mpeg','audio/wav','audio/ogg','audio/mp4',
     'application/pdf','text/plain','text/markdown','text/csv','application/json','application/xml',
-    'text/javascript','text/typescript','text/x-python','text/x-go','text/x-rust','text/x-java','text/html','text/css',
+    'text/javascript','text/typescript','text/x-python','text/x-go','text/x-rust','text/x-java' ,'text/css',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
