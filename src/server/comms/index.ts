@@ -286,7 +286,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       const existing = await fastify.prisma.communicationMessage.findUnique({
         where: { providerMessageId: email.id },
       });
-      if (existing) return { received: true, duplicate: true };
+      if (existing?.status === 'replied') return { received: true, duplicate: true };
       await recordCommunication(fastify.prisma, {
         channel: 'email', externalAddress: sender, direction: 'inbound',
         body: bodyText, providerMessageId: email.id, status: 'processing',
