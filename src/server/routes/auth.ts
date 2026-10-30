@@ -132,7 +132,7 @@ export function installAuthentication(fastify: FastifyInstance) {
     // Webhooks with their own signature verification
     if (
       request.method === 'POST' &&
-      ['/api/slack/interactions', '/api/webhooks/twilio/whatsapp'].includes(path)
+      ['/api/slack/interactions', '/api/webhooks/twilio/whatsapp', '/api/webhooks/twilio/voice', '/api/webhooks/twilio/voice/respond', '/api/webhooks/twilio/sms', '/api/webhooks/twilio/status'].includes(path)
     ) {
       return;
     }
