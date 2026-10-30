@@ -116,11 +116,11 @@ export async function uploadConversationAttachments(
     return { id, name, mimeType, size: file.size, path };
   }));
 
-  const failed = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected');
-  if (failed) {
-    const uploadedPaths = settled
-      .filter((result): result is PromiseFulfilledResult<MessageAttachment> => result.status === 'fulfilled')
-      .map((result) => result.value.path);
+  const failed = settled.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') {
+    const uploadedPaths = settled.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value.path] : [],
+    );
     if (uploadedPaths.length) {
       try {
         await client.storage.from(ATTACHMENT_BUCKET).remove(uploadedPaths);
@@ -131,7 +131,9 @@ export async function uploadConversationAttachments(
     throw failed.reason instanceof Error ? failed.reason : new Error('Attachment upload failed.');
   }
 
-  return settled.map((result) => (result as PromiseFulfilledResult<MessageAttachment>).value);
+  return settled.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  );
 }
 
 export async function signConversationAttachment(
