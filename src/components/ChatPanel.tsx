@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Download, Mic, Square } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { getAvailableModels, modelMeta } from '@/lib/models';
+import { DEFAULT_LANGUAGE, getLanguageName, isRyanLanguage } from '@/shared/languages';
 
 interface ChatPanelProps {
   messages: Message[];
@@ -28,6 +29,9 @@ export default function ChatPanel(props: ChatPanelProps) {
   const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousSending = useRef(false);
+  const lastSpokenMessageId = useRef<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,6 +40,40 @@ export default function ChatPanel(props: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom();
   }, [props.messages, props.liveText]);
+
+
+  const readAloud = useCallback((message: Message) => {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
+    const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
+    const language = isRyanLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    utterance.lang = language;
+    const selected = window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase() === language.toLowerCase());
+    if (selected) utterance.voice = selected;
+    utterance.onstart = () => setSpeakingMessageId(message.id);
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+    setSpeakingMessageId(message.id);
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  useEffect(() => {
+    if (props.sending) {
+      previousSending.current = true;
+      return;
+    }
+    if (!previousSending.current) return;
+    previousSending.current = false;
+    const latest = [...props.messages].reverse().find((message) => message.role === 'assistant');
+    if (!latest || latest.id === lastSpokenMessageId.current) return;
+    lastSpokenMessageId.current = latest.id;
+    try {
+      if (window.localStorage.getItem('ryanai:voice-enabled') !== 'false') readAloud(latest);
+    } catch { /* voice is an optional device feature */ }
+  }, [props.messages, props.sending, readAloud]);
+
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   const handleSend = () => {
     if (inputValue.trim()) {
@@ -131,6 +169,11 @@ export default function ChatPanel(props: ChatPanelProps) {
               }`}
             >
               {msg.content}
+              {msg.role === 'assistant' && (
+                <button type="button" onClick={() => readAloud(msg)} className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-100" aria-label={`Read RyanAI response aloud in ${getLanguageName(window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE)}`}>
+                  {speakingMessageId === msg.id ? 'Speaking…' : 'Read aloud'}
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
