@@ -29,6 +29,7 @@ const BLOCKED_TOOL_NAMES = new Set([
 const SAFE_READ_ONLY_TOOLS = new Set([
   'system_diagnostics', 'read_workspace_file', 'query_stackoverflow_agents',
   'security_status', 'trivy_scan', 'clamav_scan', 'dependency_audit',
+  'za_public_procurement_data',
 ]);
 
 const SENSITIVE_TARGET = /(secret|credential|token|private.?key|password|\.env|vault)/i;

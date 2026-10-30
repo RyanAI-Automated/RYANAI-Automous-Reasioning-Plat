@@ -2,7 +2,8 @@
 import { secondaryBrain, logicBrain } from '../config/brains';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { runGenXSecurityAgent } from './genxSecurityAgent.js';
-import type { GenXSecurityEvent } from '../security/genxPolicy.js';
+import { evaluateGenXSecurityEvent, type GenXSecurityEvent } from '../security/genxPolicy.js';
+import { runGovernmentProcurementAgent, type GovernmentProcurementRequest } from '../agents/governmentProcurementAgent.js';
 
 export interface AgentTaskResult {
   agentName: string;
@@ -10,6 +11,21 @@ export interface AgentTaskResult {
 }
 
 export class RyanAIAgentWorkers {
+  /** Read public South African procurement information only; never accesses private state databases. */
+  static async runGovernmentProcurementAgent(request: GovernmentProcurementRequest) {
+    const policy = evaluateGenXSecurityEvent({
+      agentId: 'government-procurement-agent',
+      principal: 'ryanai-agent-runtime',
+      toolName: 'za_public_procurement_data',
+      action: 'READ',
+      target: request.apiUrl ?? 'official-public-source-discovery',
+    });
+    if (policy.decision !== 'ALLOW') {
+      throw new Error(`Gen-X blocked procurement data access (${policy.ruleId}): ${policy.reason}`);
+    }
+    return runGovernmentProcurementAgent(request);
+  }
+
   /** Gen-X applies deterministic deny/approval policy before AI-assisted threat triage. */
   static async runGenXHardCoreSecurityAgent(event: GenXSecurityEvent) {
     return runGenXSecurityAgent(event);
