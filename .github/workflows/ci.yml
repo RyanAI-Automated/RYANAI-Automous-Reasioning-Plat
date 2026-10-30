@@ -153,6 +153,9 @@ jobs:
       OPENAI_API_KEY: ''
       API_BASE_URL: http://127.0.0.1:3000
       WEB_BASE_URL: http://127.0.0.1:9090
+      # Optional live-auth E2E checks run only when dedicated CI test tokens are configured.
+      TEST_USER_ACCESS_TOKEN: ${{ secrets.TEST_USER_ACCESS_TOKEN }}
+      TEST_ADMIN_ACCESS_TOKEN: ${{ secrets.TEST_ADMIN_ACCESS_TOKEN }}
 
     steps:
       - name: Checkout
