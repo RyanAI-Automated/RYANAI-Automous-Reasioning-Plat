@@ -15,7 +15,7 @@ interface GreetingProps {
 
 const languageKey = (userId: string) => `ryanai:language:${userId}`;
 
-export function getStoredRyanLanguage(userId: string, isOwner: boolean): string {
+function getStoredRyanLanguage(userId: string, isOwner: boolean): string {
   try {
     const stored = window.localStorage.getItem(languageKey(userId));
     if (stored && RYANAI_LANGUAGES.some((language) => language.code === stored)) return stored;
