@@ -707,18 +707,34 @@ export default function CommandCenter({
           throw new Error('An attachment is missing or its byte count does not match the manifest.');
         }
         totalBytes += entry.data.byteLength;
-        return new File([entry.data], safeAttachmentName(attachment.name), { type: attachment.mimeType });
+        return new File([entry.data.slice().buffer as ArrayBuffer], safeAttachmentName(attachment.name), { type: attachment.mimeType });
       });
       if (totalBytes > MAX_MESSAGE_ATTACHMENT_BYTES) {
         throw new Error('A message exceeds the combined 40 MB attachment limit.');
       }
-      const timestamp = typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
+      const timestamp = typeof message.timestamp === 'number' &&
+        Number.isFinite(message.timestamp) &&
+        Math.abs(message.timestamp) <= 8.64e15
         ? message.timestamp
         : Date.now();
       const messageModel = typeof message.model === 'string' && MODELS[message.model as ModelId]
         ? message.model as ModelId
         : undefined;
-      const steps = Array.isArray(message.steps) ? message.steps as ToolStep[] : [];
+      const steps = Array.isArray(message.steps)
+        ? message.steps.slice(0, 500).flatMap((rawStep): ToolStep[] => {
+            if (!rawStep || typeof rawStep !== 'object') return [];
+            const step = rawStep as Record<string, unknown>;
+            if (typeof step.type !== 'string' || typeof step.name !== 'string') return [];
+            return [{
+              type: step.type.slice(0, 100),
+              name: step.name.slice(0, 200),
+              result: typeof step.result === 'string' ? step.result.slice(0, 20_000) : undefined,
+              args: step.args && typeof step.args === 'object' && !Array.isArray(step.args)
+                ? step.args as Record<string, unknown>
+                : undefined,
+            }];
+          })
+        : [];
       return {
         role: message.role,
         content: message.content,
