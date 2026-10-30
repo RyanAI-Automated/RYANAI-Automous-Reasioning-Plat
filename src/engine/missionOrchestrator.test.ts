@@ -48,6 +48,14 @@ describe('RyanAI mission security gate', () => {
     expect(mission.results).toEqual(results);
   });
 
+  it('fails closed before security review when the task plan cannot be checkpointed', async () => {
+    mocks.saveCheckpoint.mockResolvedValue(false);
+    const mission = await new RyanAIMissionOrchestrator().startMission('mission-no-store', 'Analyze the platform');
+    expect(mission.status).toBe('FAILED');
+    expect(mocks.runSecurityAuditor).not.toHaveBeenCalled();
+    expect(mocks.executeTasks).not.toHaveBeenCalled();
+  });
+
   it('pauses when the security decision is high or ambiguous', async () => {
     mocks.runSecurityAuditor.mockResolvedValue({ agentName: 'SecuritySentinel', output: 'Potential risk found.' });
     const mission = await new RyanAIMissionOrchestrator().startMission('mission-review', 'Analyze the platform');
