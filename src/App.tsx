@@ -169,7 +169,16 @@ export default function App() {
         key={user?.id ?? 'signed-out'}
         className="min-h-0 flex-1 overflow-y-auto"
       >
-        {user && verifiedIdentity?.userId === user.id && <Greeting displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
+        {user && verifiedIdentity?.userId === user.id && (
+          <Greeting
+            userId={user.id}
+            displayName={verifiedIdentity.displayName || displayName}
+            isOwner={isOwner}
+            preferredTitle={typeof user.user_metadata?.preferred_title === 'string' ? user.user_metadata.preferred_title : isOwner ? 'Sir G' : ''}
+            preferredLanguage={typeof user.user_metadata?.preferred_language === 'string' ? user.user_metadata.preferred_language : 'en-ZA'}
+            preferredVoiceLanguage={typeof user.user_metadata?.preferred_voice_language === 'string' ? user.user_metadata.preferred_voice_language : isOwner ? 've-ZA' : 'en-ZA'}
+          />
+        )}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
             {error}
