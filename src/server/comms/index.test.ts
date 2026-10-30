@@ -4,7 +4,18 @@ import twilio from 'twilio';
 import { commsPlugin } from './index.js';
 import { installAuthentication } from '../routes/auth.js';
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, prismaMock } = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  prismaMock: {
+    communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }) },
+    communicationMessage: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({}),
+    },
+  },
+}));
 vi.mock('../../agent/approvalEngine.js', () => ({
   humanInTheLoopAgent: { invoke },
 }));
@@ -18,6 +29,7 @@ async function send(path: string, url: string, payload: Record<string, string>, 
   const app = Fastify();
   apps.push(app);
   installAuthentication(app);
+  app.decorate('prisma', prismaMock as never);
   await app.register(commsPlugin);
   const signature = valid
     ? twilio.getExpectedTwilioSignature(token, url, payload)
@@ -37,6 +49,7 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
+  vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
   invoke.mockResolvedValue({ messages: [{ content: 'RyanAI says hello & welcome' }] });
 });
 
@@ -48,7 +61,7 @@ afterEach(async () => {
 
 describe('Twilio conversational voice webhooks', () => {
   it('rejects forged incoming call webhooks', async () => {
-    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' }, false);
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' }, false);
     expect(response.statusCode).toBe(401);
     expect(invoke).not.toHaveBeenCalled();
   });
