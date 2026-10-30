@@ -37,6 +37,14 @@ describe('brain knowledge relay', () => {
     }));
   });
 
+  it('rejects credential-like values before storing shared knowledge', async () => {
+    await expect(publishBrainKnowledge({
+      title: 'Credential note',
+      content: 'The temporary API key is sk-1234567890abcdefghijklmnop and must not be shared.',
+    })).rejects.toThrow('must not contain API keys');
+    expect(state.upsert).not.toHaveBeenCalled();
+  });
+
   it('rejects undersized knowledge records before persistence', async () => {
     await expect(publishBrainKnowledge({ title: 'no', content: 'too short' })).rejects.toThrow('Knowledge title');
     expect(state.upsert).not.toHaveBeenCalled();
