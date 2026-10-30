@@ -738,7 +738,7 @@ export default function CommandCenter({
           })
         : [];
       return {
-        role: message.role,
+        role: message.role as 'user' | 'assistant',
         content: message.content,
         timestamp,
         model: messageModel,
