@@ -179,12 +179,15 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.post('/api/webhooks/twilio/voice/respond', { preHandler: webhookAuth('TWILIO_VOICE_ACTION_URL') }, async (request, reply) => {
-    const body = request.body as { SpeechResult?: string; CallSid?: string; From?: string };
-    const sender = body.From ? normalizePhone(body.From) : '';
-    const speech = body.SpeechResult?.trim().slice(0, MAX_MESSAGE_LENGTH);
+    const body = request.body as { SpeechResult?: string; CallSid?: string; From?: string; To?: string };
     const owner = process.env.RYANAI_OWNER_PHONE?.trim();
     if (!owner) return reply.code(503).send({ error: 'RyanAI owner contact is not configured.' });
-    if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This voice assistant is privately configured.' });
+    const ownerPhone = normalizePhone(owner);
+    const fromPhone = body.From ? normalizePhone(body.From) : '';
+    const toPhone = body.To ? normalizePhone(body.To) : '';
+    const sender = fromPhone === ownerPhone ? fromPhone : toPhone === ownerPhone ? toPhone : '';
+    const speech = body.SpeechResult?.trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!sender) return reply.code(403).send({ error: 'This voice assistant is privately configured.' });
     reply.type('text/xml');
     if (!speech) return twimlSay('I did not catch that. Please try again.', true);
     const thread = `voice_${(body.CallSid || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '')}`;
