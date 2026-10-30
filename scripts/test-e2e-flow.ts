@@ -108,7 +108,12 @@ async function main(): Promise<void> {
         const body = await response.json();
         const brains = Array.isArray(body?.brains) ? body.brains : [];
         const expected = ['primary', 'secondary', 'logic'];
-        const statuses = new Map(brains.map((brain: { brain: string; status: string }) => [brain.brain, brain.status]));
+        const statuses = new Map<string, string>();
+        for (const brain of brains) {
+          if (brain && typeof brain.brain === 'string' && typeof brain.status === 'string') {
+            statuses.set(brain.brain, brain.status);
+          }
+        }
         const unhealthy = expected.filter((brain) => statuses.get(brain) !== 'HEALTHY');
         if (unhealthy.length) {
           const summary = expected.map((brain) => `${brain}:${statuses.get(brain) || 'MISSING'}`).join(', ');
