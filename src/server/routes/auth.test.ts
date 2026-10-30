@@ -183,7 +183,7 @@ describe('Supabase API authentication', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       authenticated: true,
-      user: { id: user.id, email: user.email, role: 'user', displayName: undefined, isOwner: false },
+      user: { id: user.id, email: user.email, role: 'user', isOwner: false },
     });
     expect(getUser).toHaveBeenCalledExactlyOnceWith('synthetic-access-token');
     expect(createContextClient).toHaveBeenCalledWith(
@@ -195,6 +195,18 @@ describe('Supabase API authentication', () => {
         auth: { token: 'synthetic-access-token' },
       }),
     );
+  });
+
+  it('marks the owner only from the server-side configured email', async () => {
+    vi.stubEnv('RYANAI_OWNER_EMAIL', 'member@example.test');
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/auth/verify',
+      headers: bearer,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user.isOwner).toBe(true);
   });
 
   it.each(['/api/reason', '/api/reasoning/stream'])(
