@@ -29,6 +29,7 @@ interface ChatPanelProps {
 export default function ChatPanel(props: ChatPanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
@@ -87,11 +88,12 @@ export default function ChatPanel(props: ChatPanelProps) {
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   const handleSend = async () => {
-    if (props.sending) return;
+    if (props.sending || submitting) return;
     if (!inputValue.trim()) {
       if (selectedFiles.length) setAttachmentError('Add a message describing these attachments before sending.');
       return;
     }
+    setSubmitting(true);
     try {
       await props.onSend(inputValue.trim(), selectedFiles);
       setInputValue('');
@@ -99,6 +101,8 @@ export default function ChatPanel(props: ChatPanelProps) {
       setAttachmentError('');
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : 'The message could not be sent. Your attachments are still selected.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -284,9 +288,9 @@ export default function ChatPanel(props: ChatPanelProps) {
                 <Paperclip size={13} />
                 <span className="min-w-0 flex-1 truncate">{file.name}</span>
                 <span className="text-ink-500">{(file.size / 1024).toFixed(0)} KB</span>
-                <button type="button" onClick={() => moveSelectedFile(index, -1)} disabled={index === 0 || props.sending} aria-label={`Move ${file.name} up`}><ChevronUp size={14} /></button>
-                <button type="button" onClick={() => moveSelectedFile(index, 1)} disabled={index === selectedFiles.length - 1 || props.sending} aria-label={`Move ${file.name} down`}><ChevronDown size={14} /></button>
-                <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={props.sending} aria-label={`Remove ${file.name}`}><X size={14} /></button>
+                <button type="button" onClick={() => moveSelectedFile(index, -1)} disabled={index === 0 || props.sending || submitting} aria-label={`Move ${file.name} up`}><ChevronUp size={14} /></button>
+                <button type="button" onClick={() => moveSelectedFile(index, 1)} disabled={index === selectedFiles.length - 1 || props.sending || submitting} aria-label={`Move ${file.name} down`}><ChevronDown size={14} /></button>
+                <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={props.sending || submitting} aria-label={`Remove ${file.name}`}><X size={14} /></button>
               </li>
             ))}
           </ul>
@@ -300,7 +304,7 @@ export default function ChatPanel(props: ChatPanelProps) {
           accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,text/javascript,text/typescript,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           onChange={handleFilesSelected}
           className="hidden"
-          disabled={!props.attachmentsEnabled || props.sending}
+          disabled={!props.attachmentsEnabled || props.sending || submitting}
         />
         <div className="flex gap-2">
           <button
@@ -342,7 +346,7 @@ export default function ChatPanel(props: ChatPanelProps) {
           )}
           <button
             onClick={handleSend}
-            disabled={props.sending || !inputValue.trim()}
+            disabled={props.sending || submitting || !inputValue.trim()}
             className="p-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-cyan-300 transition-colors"
             title="Send"
           >
