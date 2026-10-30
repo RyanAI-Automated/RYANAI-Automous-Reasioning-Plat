@@ -131,7 +131,10 @@ describe('Twilio webhook provider authentication', () => {
     );
     expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      { messages: [{ role: 'user', content: 'Please help' }] },
+      { messages: [
+        { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear and concise.' },
+        { role: 'user', content: 'Please help' },
+      ] },
       { configurable: { thread_id: 'whatsapp_15555550123' } },
     );
   });
