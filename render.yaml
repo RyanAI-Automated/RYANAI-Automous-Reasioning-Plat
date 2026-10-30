@@ -91,6 +91,10 @@ services:
         sync: false
       - key: TWILIO_STATUS_CALLBACK_URL
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
