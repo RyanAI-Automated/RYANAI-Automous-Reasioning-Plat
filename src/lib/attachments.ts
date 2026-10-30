@@ -64,28 +64,35 @@ export async function uploadConversationAttachments(
   files: readonly File[],
 ): Promise<MessageAttachment[]> {
   validateAttachmentBatch(files);
-  const uploaded: string[] = [];
-  try {
-    const results = await Promise.all(files.map(async (file) => {
-      const { mimeType, name } = validateAttachment(file);
-      const id = crypto.randomUUID();
-      const path = `${userId}/${conversationId}/${messageId}/${id}-${name}`;
-      const { error } = await client.storage.from(ATTACHMENT_BUCKET).upload(path, file, {
-        contentType: mimeType,
-        cacheControl: '3600',
-        upsert: false,
-      });
-      if (error) throw new Error(error.message || `Upload failed for ${name}`);
-      uploaded.push(path);
-      return { id, name, mimeType, size: file.size, path };
-    }));
-    return results;
-  } catch (error) {
-    if (uploaded.length) {
-      await client.storage.from(ATTACHMENT_BUCKET).remove(uploaded).catch(() => undefined);
+  const settled = await Promise.allSettled(files.map(async (file) => {
+    const { mimeType, name } = validateAttachment(file);
+    const id = crypto.randomUUID();
+    const path = `${userId}/${conversationId}/${messageId}/${id}-${name}`;
+    const { error } = await client.storage.from(ATTACHMENT_BUCKET).upload(path, file, {
+      contentType: mimeType,
+      cacheControl: '3600',
+      upsert: false,
+    });
+    if (error) throw new Error(error.message || `Upload failed for ${name}`);
+    return { id, name, mimeType, size: file.size, path };
+  }));
+
+  const failed = settled.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failed) {
+    const uploadedPaths = settled
+      .filter((result): result is PromiseFulfilledResult<MessageAttachment> => result.status === 'fulfilled')
+      .map((result) => result.value.path);
+    if (uploadedPaths.length) {
+      try {
+        await client.storage.from(ATTACHMENT_BUCKET).remove(uploadedPaths);
+      } catch {
+        // Keep the original upload error; an orphan cleanup can retry separately.
+      }
     }
-    throw error;
+    throw failed.reason instanceof Error ? failed.reason : new Error('Attachment upload failed.');
   }
+
+  return settled.map((result) => (result as PromiseFulfilledResult<MessageAttachment>).value);
 }
 
 export async function signConversationAttachment(
