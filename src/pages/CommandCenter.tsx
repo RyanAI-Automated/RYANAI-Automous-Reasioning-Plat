@@ -6,6 +6,7 @@ import type {
   ModelId,
   ToolStep,
   SystemStatus,
+  Message,
   MessageAttachment,
 } from '@/lib/types';
 import { DEFAULT_MODEL, modelMeta, MODELS } from '@/lib/models';
@@ -640,7 +641,8 @@ export default function CommandCenter({
 
   /** Validate and import a RyanAI TAR bundle into a new, account-owned conversation. */
   const importThread = useCallback(async (file: File) => {
-    if (!supabase) throw new Error('Private cloud storage must be configured before importing conversations.');
+    const client = supabase;
+    if (!client) throw new Error('Private cloud storage must be configured before importing conversations.');
     if (file.size <= 0 || file.size > MAX_CONVERSATION_ARCHIVE_BYTES) {
       throw new Error('Choose a non-empty TAR archive no larger than 250 MB.');
     }
@@ -755,7 +757,7 @@ export default function CommandCenter({
       throw new Error('The archive contains unreferenced attachment files.');
     }
 
-    const { data: created, error: createError } = await supabase
+    const { data: created, error: createError } = await client
       .from('conversations')
       .insert({ title, model: importedModel, user_id: userId })
       .select()
@@ -768,10 +770,10 @@ export default function CommandCenter({
       for (const item of preparedMessages) {
         const messageId = crypto.randomUUID();
         const attachments = item.files.length
-          ? await uploadConversationAttachments(supabase, userId, created.id, messageId, item.files)
+          ? await uploadConversationAttachments(client, userId, created.id, messageId, item.files)
           : [];
         uploaded.push(...attachments);
-        const { error: messageError } = await supabase.from('messages').insert({
+        const { error: messageError } = await client.from('messages').insert({
           id: messageId,
           conversation_id: created.id,
           role: item.role,
@@ -783,7 +785,7 @@ export default function CommandCenter({
         });
         if (messageError) throw new Error(messageError.message || 'Unable to save an imported message.');
         const displayAttachments = await Promise.all(attachments.map((attachment) =>
-          signConversationAttachment(supabase, userId, created.id, attachment),
+          signConversationAttachment(client, userId, created.id, attachment),
         ));
         importedMessages.push({
           id: messageId,
@@ -797,7 +799,7 @@ export default function CommandCenter({
       }
 
       const updatedAt = Math.max(Date.now(), ...importedMessages.map((message) => message.timestamp));
-      const { error: updateError } = await supabase
+      const { error: updateError } = await client
         .from('conversations')
         .update({ updated_at: new Date(updatedAt).toISOString() })
         .eq('id', created.id)
@@ -820,12 +822,12 @@ export default function CommandCenter({
       setLeftOpen(false);
     } catch (error) {
       if (uploaded.length) {
-        try { await removeConversationAttachments(supabase, uploaded); } catch (cleanupError) {
+        try { await removeConversationAttachments(client, uploaded); } catch (cleanupError) {
           console.error('Imported attachment cleanup needs retry:', cleanupError);
         }
       }
       try {
-        await supabase.from('conversations').delete().eq('id', created.id).eq('user_id', userId);
+        await client.from('conversations').delete().eq('id', created.id).eq('user_id', userId);
       } catch (cleanupError) {
         console.error('Failed to roll back the incomplete imported conversation:', cleanupError);
       }
