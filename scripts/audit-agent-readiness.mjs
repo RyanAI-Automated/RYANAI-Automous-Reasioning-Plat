@@ -14,6 +14,8 @@ const brainDefinitions = [
     defaultEndpoint: 'https://integrate.api.nvidia.com/v1',
     usesLocalCredential: (env) => env.RYANAI_NVIDIA_ENDPOINT_CONFIGURED !== 'true'
       && !firstConfigured(env, ['NVIDIA_API_ENDPOINT'])
+    usesLocalCredential: (env) => !firstConfigured(env, ['NVIDIA_API_ENDPOINT'])
+      && env.RYANAI_NVIDIA_ENDPOINT_CONFIGURED !== 'true'
       && ((firstConfigured(env, ['LM_STUDIO_URL', 'OLLAMA_URL']))
         || env.RYANAI_LM_STUDIO_URL_CONFIGURED === 'true'
         || env.RYANAI_OLLAMA_URL_CONFIGURED === 'true'),
@@ -26,6 +28,8 @@ const brainDefinitions = [
     defaultEndpoint: 'https://api.together.xyz/v1',
     usesLocalCredential: (env) => env.RYANAI_QWEN_ENDPOINT_CONFIGURED !== 'true'
       && !firstConfigured(env, ['QWEN_API_ENDPOINT'])
+    usesLocalCredential: (env) => !firstConfigured(env, ['QWEN_API_ENDPOINT'])
+      && env.RYANAI_QWEN_ENDPOINT_CONFIGURED !== 'true'
       && (firstConfigured(env, ['LM_STUDIO_URL']) || env.RYANAI_LM_STUDIO_URL_CONFIGURED === 'true'),
   },
   {
@@ -38,6 +42,9 @@ const brainDefinitions = [
       || (!firstConfigured(env, ['LOGIC_API_ENDPOINT', 'OPENAI_BASE_URL'])
         && firstConfigured(env, ['LM_STUDIO_URL'])
         && env.RYANAI_LM_STUDIO_URL_CONFIGURED !== 'false'),
+    usesLocalCredential: (env) => !firstConfigured(env, ['LOGIC_API_ENDPOINT', 'OPENAI_BASE_URL'])
+      && (env.RYANAI_LOGIC_USES_LM_STUDIO === 'true'
+        || (firstConfigured(env, ['LM_STUDIO_URL']) && env.RYANAI_LM_STUDIO_URL_CONFIGURED !== 'false')),
   },
 ];
 const agentDefinitions = [
@@ -45,6 +52,7 @@ const agentDefinitions = [
   { id: 'compliance', label: 'Compliance sub-agent', file: 'src/agent/subAgents.ts', marker: 'complianceSubAgent', kind: 'tool-agent' },
   { id: 'enterprise-supervisor', label: 'Enterprise supervisor', file: 'src/agent/supervisorGraph.ts', marker: 'enterpriseMultiAgent', kind: 'supervisor' },
   { id: 'security-sentinel', label: 'Security Sentinel', file: 'src/engine/agentWorkers.ts', marker: 'runSecurityAuditor', kind: 'specialist' },
+  { id: 'genx-hardcore-security', label: 'Gen-X Hard Core Security Agent', file: 'src/engine/agentWorkers.ts', marker: 'runGenXHardCoreSecurityAgent', kind: 'deterministic-policy-ai-triage' },
   { id: 'performance-profiler', label: 'Performance Profiler', file: 'src/engine/agentWorkers.ts', marker: 'runPerformanceProfiler', kind: 'specialist' },
   { id: 'reasoning-agent-factory', label: 'Model-backed reasoning agent factory', file: 'src/agent/engine.ts', marker: 'getReasoningAgent', kind: 'dynamic-factory' },
   { id: 'tool-using-agent-graph', label: 'Tool-using self-patch agent graph', file: 'src/engine/agentGraph.ts', marker: 'ryanAgentApp', kind: 'tool-agent' },

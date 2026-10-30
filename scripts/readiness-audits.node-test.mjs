@@ -67,6 +67,29 @@ test('brain credentials are attributed only to providers actually used by each b
   assert.equal(report.summary.credentialConfiguredBrains, 1);
 });
 
+test('explicit Logic cloud endpoints never inherit the shared LM Studio credential', () => {
+  const logicEndpoint = auditAgentReadiness({
+    env: {
+      LOGIC_API_ENDPOINT: 'https://api.openai.com/v1',
+      LM_STUDIO_URL: 'http://localhost:1234/v1',
+      LM_STUDIO_API_KEY: 'local-test-key',
+      RYANAI_LOGIC_USES_LM_STUDIO: 'true',
+    },
+    sourceRoot: process.cwd(),
+  });
+  assert.deepEqual(logicEndpoint.brains.map((brain) => brain.credentialPresent), [true, true, false]);
+
+  const openAiBaseUrl = auditAgentReadiness({
+    env: {
+      OPENAI_BASE_URL: 'https://api.openai.com/v1',
+      LM_STUDIO_URL: 'http://localhost:1234/v1',
+      LM_STUDIO_API_KEY: 'local-test-key',
+    },
+    sourceRoot: process.cwd(),
+  });
+  assert.deepEqual(openAiBaseUrl.brains.map((brain) => brain.credentialPresent), [true, true, false]);
+});
+
 test('Qwen and OpenAI credentials do not falsely configure the other brain roles', () => {
   const qwen = auditAgentReadiness({ env: { QWEN_API_KEY: 'qwen-test-key' }, sourceRoot: process.cwd() });
   assert.deepEqual(qwen.brains.map((brain) => brain.credentialPresent), [false, true, false]);
@@ -96,4 +119,14 @@ test('local LM Studio credentials are shared only by brains routed to that local
     sourceRoot: process.cwd(),
   });
   assert.deepEqual(explicitCloud.brains.map((brain) => brain.credentialPresent), [false, true, true]);
+
+  const explicitCloudByRole = auditAgentReadiness({
+    env: {
+      NVIDIA_API_ENDPOINT: 'https://integrate.api.nvidia.com/v1',
+      LM_STUDIO_URL: 'http://localhost:1234/v1',
+      LM_STUDIO_API_KEY: 'local-test-key',
+    },
+    sourceRoot: process.cwd(),
+  });
+  assert.equal(explicitCloudByRole.brains[0].credentialPresent, false);
 });

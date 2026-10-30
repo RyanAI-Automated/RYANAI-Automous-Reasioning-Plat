@@ -6,6 +6,9 @@ import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
 import { resolveBrainProviderConfig } from './providerConfig.js';
 import { buildBrainKnowledgeContext } from './knowledgeAgent.js';
+import { getAgentRunRetryDelayMs, shouldRetryAgentRun } from './agentRunRetry.js';
+import { publishAgentTaskNotification } from './queueNotifications.js';
+import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -98,26 +101,40 @@ interface ClaimedAgentRun {
   id: string;
   user_id: string;
   objective: string;
+  attempts: number;
+  max_attempts: number;
+  worker_id: string;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
 async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | null> {
-  const staleBefore = new Date(Date.now() - 180_000);
-  await prisma.agentRun.updateMany({
-    where: { status: 'running', attempts: { gte: 3 }, lockedAt: { lt: staleBefore } },
-    data: { status: 'failed', error: 'Worker lease expired after the maximum number of attempts.', completedAt: new Date(), workerId: null, lockedAt: null },
-  });
+  await prisma.$executeRaw`
+    UPDATE "agent_runs"
+    SET "status" = 'failed',
+        "error" = 'Worker lease expired after the maximum number of attempts.',
+        "completed_at" = NOW(),
+        "worker_id" = NULL,
+        "locked_at" = NULL
+    WHERE "status" = 'running'
+      AND "locked_at" < NOW() - INTERVAL '3 minutes'
+      AND "attempts" >= "max_attempts"
+  `;
   const rows = await prisma.$queryRawUnsafe<ClaimedAgentRun[]>(
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
-    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "status" = \'queued\' OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts") ' +
+    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE ("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW()) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id"',
     workerId,
   );
   return rows[0] ?? null;
 }
 
 async function processAgentRun(run: ClaimedAgentRun) {
+  const stopHeartbeat = startAgentRunLeaseHeartbeat(
+    { id: run.id, workerId: run.worker_id, attempts: run.attempts },
+    (where) => prisma.agentRun.updateMany({ where, data: { lockedAt: new Date() } }),
+    (error) => console.error('[agent-worker] Lease heartbeat failed for run ' + run.id + ': ' + (error instanceof Error ? error.message : String(error))),
+  );
   try {
     const knowledge = await buildBrainKnowledgeContext();
     const sharedObjective = knowledge
@@ -160,8 +177,8 @@ async function processAgentRun(run: ClaimedAgentRun) {
           tags: ['agent-run', 'autonomous'],
         },
       });
-      await tx.agentRun.update({
-        where: { id: run.id },
+      const completion = await tx.agentRun.updateMany({
+        where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
         data: {
           status: 'completed',
           result: { synthesis: plan.synthesis, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
@@ -170,18 +187,37 @@ async function processAgentRun(run: ClaimedAgentRun) {
           workerId: null,
         },
       });
+      if (completion.count !== 1) {
+        throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
+      }
     });
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
-    await prisma.agentRun.update({
-      where: { id: run.id },
-      data: { status: 'failed', error: message, completedAt: new Date(), lockedAt: null, workerId: null },
+    const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
+    const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
+    await prisma.$transaction(async (tx) => {
+      const ownership = await tx.agentRun.updateMany({
+        where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
+        data: {
+          status: retry ? 'queued' : 'failed',
+          error: message,
+          completedAt: retry ? null : new Date(),
+          nextAttemptAt: retry ? nextAttemptAt : undefined,
+          lockedAt: null,
+          workerId: null,
+        },
+      });
+      if (ownership.count !== 1) return;
+      await tx.agentHandoff.updateMany({
+        where: { runId: run.id, status: { in: ['pending', 'running', 'failed'] } },
+        data: retry
+          ? { status: 'pending', error: null, completedAt: null }
+          : { status: 'failed', error: message, completedAt: new Date() },
+      });
     });
-    await prisma.agentHandoff.updateMany({
-      where: { runId: run.id, status: { in: ['pending', 'running'] } },
-      data: { status: 'failed', error: message, completedAt: new Date() },
-    });
-    console.error('[agent-worker] Run ' + run.id + ' failed:', message);
+    console.error('[agent-worker] Run ' + run.id + (retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
+  } finally {
+    stopHeartbeat();
   }
 }
 
@@ -200,7 +236,14 @@ export async function dispatchAutonomousTask(userId: string, objective: string) 
     ] });
     return created;
   });
-  await prisma.$queryRaw`SELECT pg_notify('agent_task_queue', ${run.id})`;
+  const notified = await publishAgentTaskNotification(run.id, async (id) => {
+    await prisma.$queryRaw`SELECT pg_notify('agent_task_queue', ${id})`;
+  });
+  if (!notified) {
+    // The durable row is already committed. The worker's periodic sweep will
+    // discover it, so a transient NOTIFY failure must not invite duplicate POSTs.
+    console.warn('[agent-worker] Queue notification failed; committed run remains queued for recovery polling.');
+  }
   return run;
 }
 

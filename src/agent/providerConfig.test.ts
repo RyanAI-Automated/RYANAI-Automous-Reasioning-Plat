@@ -21,9 +21,45 @@ describe('resolveBrainProviderConfig', () => {
     expect(resolveBrainProviderConfig('logic', env)).toMatchObject({ endpoint: 'https://api.openai.com/v1', credential: false });
   });
 
+  it('prioritizes an explicit OpenAI base URL over a configured LM Studio endpoint', () => {
+    const env = {
+      OPENAI_BASE_URL: 'https://api.openai.com/v1',
+      LM_STUDIO_URL: 'http://127.0.0.1:1234/v1',
+      LM_STUDIO_API_KEY: 'local-only-key',
+    };
+    expect(resolveBrainProviderConfig('logic', env)).toMatchObject({
+      endpoint: 'https://api.openai.com/v1',
+      credential: false,
+    });
+  });
+
   it('allows a shared local credential only when logic targets LM Studio', () => {
     const env = { LM_STUDIO_URL: 'http://127.0.0.1:1234/v1', LM_STUDIO_API_KEY: 'local-only-key' };
     expect(resolveBrainProviderConfig('logic', env)).toMatchObject({ endpoint: 'http://127.0.0.1:1234/v1', credential: true });
+  });
+
+  it('does not reuse the LM Studio key for an explicitly configured NVIDIA endpoint', () => {
+    const env = {
+      LM_STUDIO_URL: 'http://127.0.0.1:1234/v1',
+      LM_STUDIO_API_KEY: 'local-only-key',
+      NVIDIA_API_ENDPOINT: 'https://integrate.api.nvidia.com/v1',
+    };
+    expect(resolveBrainProviderConfig('primary', env)).toMatchObject({
+      endpoint: 'https://integrate.api.nvidia.com/v1',
+      credential: false,
+    });
+  });
+
+  it('does not reuse the LM Studio key for an explicitly configured Qwen endpoint', () => {
+    const env = {
+      LM_STUDIO_URL: 'http://127.0.0.1:1234/v1',
+      LM_STUDIO_API_KEY: 'local-only-key',
+      QWEN_API_ENDPOINT: 'https://api.together.xyz/v1',
+    };
+    expect(resolveBrainProviderConfig('secondary', env)).toMatchObject({
+      endpoint: 'https://api.together.xyz/v1',
+      credential: false,
+    });
   });
 
   it('does not use another cloud brain key as a fallback', () => {

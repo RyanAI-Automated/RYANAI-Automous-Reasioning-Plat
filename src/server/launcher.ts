@@ -36,7 +36,9 @@ import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
+import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { startAgentTaskWorker, startBrainHealthMonitor } from '../agent/operations.js';
+import { startAttachmentScanner } from './attachments/scanner.js';
 
 const { Pool } = pg;
 
@@ -479,6 +481,7 @@ async function registerPlugins() {
   await fastify.register(metricsRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
+  await fastify.register(realtimeVoiceRoutes);
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
   await fastify.register(registerPatchRoutes);
@@ -513,6 +516,10 @@ async function start() {
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
     else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
 
+    if (process.env.ATTACHMENT_SCANNER_ENABLED === 'true') {
+      stopAttachmentScanner = startAttachmentScanner();
+    }
+
     // Scheduled tasks start AI runs with no person present, and those runs cost
     // money. Turn them on with an explicit setting.
     if (process.env.SCHEDULER_ENABLED === 'true') {
@@ -535,12 +542,14 @@ async function start() {
 let stopScheduler: (() => void) | undefined;
 let stopBrainMonitor: (() => void) | undefined;
 let stopAgentWorker: (() => void) | undefined;
+let stopAttachmentScanner: (() => void) | undefined;
 let stopAlerts: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   stopScheduler?.();
   stopBrainMonitor?.();
   stopAgentWorker?.();
+  stopAttachmentScanner?.();
   stopAlerts?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();

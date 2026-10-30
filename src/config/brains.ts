@@ -59,6 +59,6 @@ export const secondaryBrain = createBrain(
 export const logicBrain = createBrain(
   getEnv('LOGIC_REASONING_MODEL') || getEnv('LM_STUDIO_MODEL') || getEnv('OPENAI_MODEL') || 'gpt-4o-mini',
   0.1,
-  getEnv('LOGIC_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || getEnv('OPENAI_BASE_URL') || 'https://api.openai.com/v1',
+  getEnv('LOGIC_API_ENDPOINT') || getEnv('OPENAI_BASE_URL') || getEnv('LM_STUDIO_URL') || 'https://api.openai.com/v1',
   getEnv('LOGIC_API_KEY') || getEnv('OPENAI_API_KEY') || ((getEnv('LM_STUDIO_URL') && (getEnv('LOGIC_API_ENDPOINT') || getEnv('LM_STUDIO_URL')) === getEnv('LM_STUDIO_URL')) ? getEnv('LM_STUDIO_API_KEY') : ''),
 );
