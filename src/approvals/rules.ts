@@ -62,6 +62,8 @@ export function parseActionArgs(tool: ActionTool, args: unknown): ActionArgs {
     }
     case 'send_whatsapp_message':
       return { to: phoneField(source), message: field(source, 'message', 1600) };
+    case 'send_sms_message':
+      return { to: phoneField(source), message: field(source, 'message', 1600) };
     case 'make_voice_call':
       return { to: phoneField(source), twimlMessage: field(source, 'twimlMessage', 500) };
   }
