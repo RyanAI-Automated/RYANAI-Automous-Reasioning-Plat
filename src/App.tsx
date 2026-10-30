@@ -65,7 +65,7 @@ export default function App() {
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
   const configuredOwnerEmail = String(import.meta.env.VITE_RYANAI_OWNER_EMAIL ?? '').trim().toLowerCase();
-  const isOwner = Boolean(user?.email && configuredOwnerEmail && user.email.toLowerCase() === configuredOwnerEmail);
+  const isOwner = user?.app_metadata?.owner === true || Boolean(user?.email && configuredOwnerEmail && user.email.toLowerCase() === configuredOwnerEmail);
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
