@@ -68,6 +68,7 @@ describe('attachment upload progress and cancellation', () => {
 
   class MockXMLHttpRequest {
     static instances: MockXMLHttpRequest[] = [];
+    static autoComplete = true;
     upload: { onprogress: ((event: ProgressEvent) => void) | null } = { onprogress: null };
     onload: (() => void) | null = null;
     onerror: (() => void) | null = null;
@@ -75,7 +76,12 @@ describe('attachment upload progress and cancellation', () => {
     status = 200;
     open = vi.fn();
     setRequestHeader = vi.fn();
-    send = vi.fn(() => undefined);
+    send = vi.fn(() => {
+      if (MockXMLHttpRequest.autoComplete) {
+        this.upload.onprogress?.({ lengthComputable: true, loaded: 900, total: 1000 } as ProgressEvent);
+        this.onload?.();
+      }
+    });
     abort = vi.fn(() => this.onabort?.());
     constructor() {
       MockXMLHttpRequest.instances.push(this);
@@ -98,12 +104,7 @@ describe('attachment upload progress and cancellation', () => {
 
   it('reports byte progress and returns metadata after a signed upload succeeds', async () => {
     MockXMLHttpRequest.instances = [];
-    const xhr = MockXMLHttpRequest.prototype;
-    const originalSend = xhr.send;
-    xhr.send = function (this: MockXMLHttpRequest) {
-      this.upload.onprogress?.({ lengthComputable: true, loaded: 900, total: 1000 } as ProgressEvent);
-      this.onload?.();
-    } as typeof xhr.send;
+    MockXMLHttpRequest.autoComplete = true;
     vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest);
 
     const { client, createSignedUploadUrl } = createStorageClient();
@@ -115,11 +116,11 @@ describe('attachment upload progress and cancellation', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ name: 'report.pdf', mimeType: 'application/pdf', size: file.size });
     expect(onProgress).toHaveBeenLastCalledWith(expect.objectContaining({ loaded: file.size, total: file.size }));
-    xhr.send = originalSend;
   });
 
   it('aborts an active request and removes the reserved private object path', async () => {
     MockXMLHttpRequest.instances = [];
+    MockXMLHttpRequest.autoComplete = false;
     vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest);
     const { client, remove } = createStorageClient();
     const controller = new AbortController();
