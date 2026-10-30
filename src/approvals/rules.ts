@@ -6,14 +6,15 @@ export const MAX_PENDING_PER_USER = 20;
 
 const RESULT_MAX_CHARS = 500;
 
-export const ACTION_TOOLS = ['send_email', 'send_whatsapp_message', 'make_voice_call'] as const;
+export const ACTION_TOOLS = ['send_email', 'send_whatsapp_message', 'send_sms_message', 'make_voice_call'] as const;
 export type ActionTool = (typeof ACTION_TOOLS)[number];
 
 // Type aliases, not interfaces, so that Prisma accepts them as JSON.
 export type EmailArgs = { to: string; subject: string; html: string };
 export type WhatsAppArgs = { to: string; message: string };
+export type SmsArgs = { to: string; message: string };
 export type CallArgs = { to: string; twimlMessage: string };
-export type ActionArgs = EmailArgs | WhatsAppArgs | CallArgs;
+export type ActionArgs = EmailArgs | WhatsAppArgs | SmsArgs | CallArgs;
 
 const EMAIL_PATTERN = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
 const PHONE_PATTERN = /^\+[1-9]\d{6,14}$/;
@@ -81,6 +82,10 @@ export function summarizeAction(tool: ActionTool, args: ActionArgs): string {
     case 'send_whatsapp_message': {
       const { to, message } = args as WhatsAppArgs;
       return `WhatsApp message to ${to}: "${preview(message)}"`;
+    }
+    case 'send_sms_message': {
+      const { to, message } = args as SmsArgs;
+      return `SMS to ${to}: "${preview(message)}"`;
     }
     case 'make_voice_call': {
       const { to, twimlMessage } = args as CallArgs;
