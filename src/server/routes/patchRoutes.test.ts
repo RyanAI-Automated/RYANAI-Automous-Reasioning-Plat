@@ -51,24 +51,24 @@ describe('POST /api/patches/apply', () => {
     });
     expect(anonymous.statusCode).toBe(401);
     expect(memberResponse.statusCode).toBe(403);
-    expect(patcher.applyAndVerifyPatch).not.toHaveBeenCalled();
+    expect(patcher.proposePullRequest).not.toHaveBeenCalled();
   });
 
   it('creates a GitHub PR proposal instead of modifying the running workspace', async () => {
-    patcher.applyAndVerifyPatch.mockResolvedValue({ status: 'success', message: 'verified' });
+    patcher.proposePullRequest.mockResolvedValue({ status: 'proposed', message: 'PR created', pullRequestUrl: 'https://github.com/example/repo/pull/1' });
     const response = await app.inject({
       method: 'POST', url: '/api/patches/apply', headers: admin,
       payload: { filePath: 'src/example.ts', patchContent: 'export const ready = true;' },
     });
     expect(response.statusCode).toBe(202);
     expect(response.json()).toEqual({ success: true, result: { status: 'proposed', message: 'PR created', pullRequestUrl: 'https://github.com/example/repo/pull/1' } });
-    expect(patcher.applyAndVerifyPatch).toHaveBeenCalledWith({
+    expect(patcher.proposePullRequest).toHaveBeenCalledWith({
       filePath: 'src/example.ts', patchContent: 'export const ready = true;',
     });
   });
 
   it('returns conflict when the GitHub base branch changes', async () => {
-    patcher.applyAndVerifyPatch.mockResolvedValue({ status: 'conflict', error: 'Workspace changed.' });
+    patcher.proposePullRequest.mockResolvedValue({ status: 'conflict', error: 'Base branch changed.' });
     const response = await app.inject({
       method: 'POST', url: '/api/patches/apply', headers: admin,
       payload: { filePath: 'src/example.ts', patchContent: 'export const ready = true;' },
@@ -83,11 +83,11 @@ describe('POST /api/patches/apply', () => {
       payload: { targetId: '../.env', operations: [{ op: 'replace' }] },
     });
     expect(response.statusCode).toBe(400);
-    expect(patcher.applyAndVerifyPatch).not.toHaveBeenCalled();
+    expect(patcher.proposePullRequest).not.toHaveBeenCalled();
   });
 
   it('fails closed when GitHub patch integration is unavailable', async () => {
-    patcher.applyAndVerifyPatch.mockResolvedValue({ status: 'rejected', error: 'Verifier image unavailable.' });
+    patcher.proposePullRequest.mockResolvedValue({ status: 'unavailable', error: 'GitHub integration is not configured.' });
     const response = await app.inject({
       method: 'POST', url: '/api/patches/apply', headers: admin,
       payload: { filePath: 'src/example.ts', patchContent: 'export const ready = true;' },
