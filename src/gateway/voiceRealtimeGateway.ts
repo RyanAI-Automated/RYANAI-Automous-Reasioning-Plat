@@ -3,6 +3,8 @@ import WebSocket from 'ws';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-10-01';
+const OWNER_TITLE = process.env.RYANAI_OWNER_TITLE?.trim() || 'Sir G';
+const OWNER_LANGUAGE = process.env.RYANAI_OWNER_LANGUAGE?.trim() || 'en-ZA';
 
 /** Registers the realtime voice WebSocket endpoint and relays audio/function-call traffic to and from the OpenAI Realtime API. */
 export async function voiceRealtimeGateway(fastify: FastifyInstance) {
@@ -40,7 +42,7 @@ export async function voiceRealtimeGateway(fastify: FastifyInstance) {
         session: {
           modalities: ['text', 'audio'],
           instructions:
-            'You are RyanAI, an intelligent voice agent. Address the configured owner as Sir. Speak naturally in English (South Africa, en-ZA), with clear South African phrasing. Respond clearly, concisely, and execute systems queries accurately.',
+            `You are RyanAI, an intelligent voice agent. Address the configured owner as ${OWNER_TITLE}. Speak naturally in the configured language (locale ${OWNER_LANGUAGE}); if it is ve-ZA, use Tshivenda (Venda). Respond clearly, concisely, and execute systems queries accurately. If the requested language is not supported by the configured voice provider, continue in text and disclose the voice limitation.`,
           voice: process.env.RYANAI_REALTIME_VOICE?.trim() || 'alloy',
           input_audio_format: 'pcm16',
           output_audio_format: 'pcm16',
