@@ -169,7 +169,7 @@ export default function App() {
         key={user?.id ?? 'signed-out'}
         className="min-h-0 flex-1 overflow-y-auto"
       >
-        {user && verifiedIdentity?.userId === user.id && <Greeting displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
+        {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
             {error}
