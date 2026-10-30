@@ -4,19 +4,31 @@ import twilio from 'twilio';
 import { twilioWebhookPlugin } from './twilioWebhook.js';
 import { installAuthentication } from './auth.js';
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, prismaMock } = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  prismaMock: {
+    communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }) },
+    communicationMessage: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({}),
+    },
+  },
+}));
 vi.mock('../../agent/approvalEngine.js', () => ({
   humanInTheLoopAgent: { invoke },
 }));
 const applications: FastifyInstance[] = [];
 const token = 'synthetic-twilio-auth-token';
 const webhookUrl = 'https://app.example.test/api/webhooks/twilio/whatsapp';
-const body = { From: 'whatsapp:+15555550123', Body: 'Please help' };
+const body = { From: 'whatsapp:+15555550123', Body: 'Please help', MessageSid: 'SM123' };
 
 async function sendWebhook(signature?: string, payload = body, host?: string) {
   const app = Fastify();
   applications.push(app);
   installAuthentication(app);
+  app.decorate('prisma', prismaMock as never);
   await app.register(twilioWebhookPlugin);
   return app.inject({
     method: 'POST',
@@ -33,6 +45,7 @@ async function sendWebhook(signature?: string, payload = body, host?: string) {
 beforeEach(() => {
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_WHATSAPP_WEBHOOK_URL', webhookUrl);
+  vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
   invoke.mockResolvedValue({
     messages: [{ content: 'Approved <reply> & ready' }],
   });
@@ -103,6 +116,7 @@ describe('Twilio webhook provider authentication', () => {
     expect(response.body).toBe(
       '<Response><Message>Approved &lt;reply&gt; &amp; ready</Message></Response>',
     );
+    expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [{ role: 'user', content: 'Please help' }] },
       { configurable: { thread_id: 'whatsapp_15555550123' } },
