@@ -36,6 +36,7 @@ import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
+import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { startAgentTaskWorker, startBrainHealthMonitor } from '../agent/operations.js';
 
 const { Pool } = pg;
@@ -479,6 +480,7 @@ async function registerPlugins() {
   await fastify.register(metricsRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
+  await fastify.register(realtimeVoiceRoutes);
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
   await fastify.register(registerPatchRoutes);
