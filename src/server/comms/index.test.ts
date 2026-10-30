@@ -77,7 +77,7 @@ describe('Twilio conversational voice webhooks', () => {
     const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
-    expect(response.body).toContain('Sir. I\'m RyanAI. How can I help you today?');
+    expect(response.body).toContain('Sir G. I\'m RyanAI. How can I help you today?');
     expect(response.body).toContain('language="en-ZA" voice="Polly.Ayanda-Neural"');
     expect(response.body).toContain('<Gather input="speech"');
     expect(response.body).toContain(actionUrl);
