@@ -16,6 +16,7 @@ import {
   saveConversations,
 } from '@/lib/storage';
 import { streamReasoning } from '@/lib/reasoning';
+import { getRyanLanguage } from '@/shared/ryanLocales';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/Sidebar';
