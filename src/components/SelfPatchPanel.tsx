@@ -16,7 +16,7 @@ interface PatchResponse {
   error?: string;
 }
 
-/** Administrator console for validate-before-promote self-patching. */
+/** Administrator console for creating CI-gated GitHub patch proposals. */
 export default function SelfPatchPanel() {
   const [filePath, setFilePath] = useState('');
   const [patchContent, setPatchContent] = useState('');
@@ -120,10 +120,10 @@ export default function SelfPatchPanel() {
           <p className="font-semibold">Patch status: {(status || 'unknown').toUpperCase()}</p>
           {result.message && <p className="mt-1">{result.message}</p>}
           {result.error && <p className="mt-1">{result.error}</p>}
-          {result.warnings?.map((warning) => <p key={warning} className="mt-1 text-xs">{warning}</p>)}
           {status === 'conflict' && <p className="mt-1 text-xs">The GitHub base branch changed. Refresh the source file and submit a new candidate.</p>}
           {result.pullRequestUrl && <a className="mt-2 inline-block underline" href={result.pullRequestUrl} target="_blank" rel="noreferrer">Open pull request</a>}
           {result.branch && <p className="mt-1 text-xs">Branch: {result.branch}</p>}
+          {result.commitSha && <p className="mt-1 text-xs">Commit: {result.commitSha}</p>}
         </div>
       )}
     </section>
