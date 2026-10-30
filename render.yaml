@@ -79,6 +79,8 @@ services:
         sync: false
       - key: TWILIO_WHATSAPP_NUMBER
         sync: false
+      - key: TWILIO_WHATSAPP_CONTENT_SID
+        sync: false
       - key: TWILIO_WHATSAPP_WEBHOOK_URL
         sync: false
       - key: TWILIO_SMS_WEBHOOK_URL
