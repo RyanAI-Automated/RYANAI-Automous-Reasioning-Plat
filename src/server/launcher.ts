@@ -197,9 +197,11 @@ function registerCoreRoutes() {
       objective: prompt,
       output,
       reasoningTrace,
-      engine: 'RyanAI LangGraph ReAct',
+      engine: result.engine ?? 'RyanAI Three-Brain Orchestrator',
       response: output,
       trace: reasoningTrace,
+      runId: result.runId,
+      handoffs: result.handoffs,
       timestamp: new Date().toISOString(),
     };
   }
