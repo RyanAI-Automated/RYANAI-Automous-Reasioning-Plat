@@ -4,8 +4,10 @@ export function getOwnerTitle(): string {
 }
 
 export function getOwnerGreeting(): string {
-  const hour = new Date().getUTCHours();
-  const greeting = hour < 10 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const hour = Number(new Intl.DateTimeFormat('en-ZA', {
+    hour: 'numeric', hourCycle: 'h23', timeZone: 'Africa/Johannesburg',
+  }).format(new Date()));
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   return `${greeting}, ${getOwnerTitle()}. This is RyanAI. How may I assist you?`;
 }
 
@@ -22,8 +24,7 @@ export function communicationSystemInstruction(): string {
 /** Ensure manually-authored outbound owner notifications also use the requested form of address. */
 export function addressOwnerMessage(message: string): string {
   const title = getOwnerTitle();
-  if (new RegExp(`\\b${title.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`, 'i').test(message)) {
-    return message;
-  }
-  return `${title}, ${message}`;
+  return message.toLocaleLowerCase().includes(title.toLocaleLowerCase())
+    ? message
+    : `${title}, ${message}`;
 }
