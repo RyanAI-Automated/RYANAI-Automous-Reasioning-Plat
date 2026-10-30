@@ -183,7 +183,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress',
     });
     reply.type('text/xml');
-    return twimlSay(`${getTimeGreeting()}, Sir. I'm RyanAI. How can I help you today?`);
+    return twimlSay(addressOwnerResponse(`${getTimeGreeting()}. I'm RyanAI. How can I help you today?`));
   });
 
   fastify.post('/api/webhooks/twilio/voice/respond', { preHandler: webhookAuth('TWILIO_VOICE_ACTION_URL') }, async (request, reply) => {
