@@ -39,8 +39,11 @@ export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
     return { brains: await listBrainHealth() };
   });
-  fastify.post('/api/agent/ops/brains/probe', async (request, reply) => {
+  fastify.post('/api/agent/ops/brains/probe', {
+    config: { rateLimit: { max: 1, timeWindow: '5 minutes' } },
+  }, async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Administrator access is required.' });
     return { brains: await probeAllBrains() };
   });
   fastify.post<{ Body: DispatchBody }>('/api/agent/ops/tasks', {
