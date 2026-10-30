@@ -1,17 +1,23 @@
-import { getReasoningAgent } from './engine.js';
-import { MEMORY_CONTEXT_PREFIX, buildMemoryContext } from './memoryContext.js';
+import { buildMemoryContext } from './memoryContext.js';
+import { dispatchAutonomousTask } from './operations.js';
 
 export interface AgentUser {
   id: string;
   role?: string;
 }
 
+export interface ReasoningHandoff {
+  fromAgent: string;
+  toAgent: string;
+  input: string;
+  output: string;
+}
+
 /**
- * Run the reasoning agent for one request. The user's saved notes go in as a
- * system message, so the agent knows the user without calling a tool. The
- * verified user id and role go in the run config for the tools. The notes
- * message is removed from the returned messages, so API responses keep the
- * same shape as before.
+ * Production reasoning is a coordinated three-provider run:
+ * NVIDIA/primary and Qwen/secondary execute concurrently, then the
+ * independent logic brain synthesizes both outputs. dispatchAutonomousTask
+ * persists the run and each handoff before this result reaches the API.
  */
 export async function invokeReasoningAgent({
   prompt,
@@ -22,22 +28,32 @@ export async function invokeReasoningAgent({
   model?: string;
   user?: AgentUser | null;
 }) {
-  const memory = await buildMemoryContext(user?.id);
-  const result = await getReasoningAgent(model).invoke(
-    {
-      messages: [
-        ...(memory ? [{ role: 'system', content: memory }] : []),
-        { role: 'user', content: prompt },
-      ],
-    },
-    { configurable: { userId: user?.id, role: user?.role } },
-  );
-  if (!memory) return result;
+  if (!user?.id) {
+    throw new Error('An authenticated user is required for traceable three-brain reasoning.');
+  }
+
+  // The UI model selector is retained for API compatibility. Provider selection
+  // is intentionally owned by the three independent server-side brain configs.
+  void model;
+
+  const memory = await buildMemoryContext(user.id);
+  const objective = memory ? `${memory}\n\nUser request:\n${prompt}` : prompt;
+
+  const run = await dispatchAutonomousTask(user.id, objective);
+  const handoffs = run.handoffs as ReasoningHandoff[];
+  const specialistMessages = handoffs
+    .filter((handoff) => handoff.toAgent === 'primary' || handoff.toAgent === 'secondary')
+    .map((handoff) => ({
+      content: `[${handoff.toAgent.toUpperCase()} BRAIN]\n${handoff.output}`,
+    }));
+  const synthesis = {
+    content: `[LOGIC BRAIN SYNTHESIS]\n${run.result}`,
+  };
+
   return {
-    ...result,
-    messages: result.messages.filter(
-   (message: (typeof result.messages)[number]) =>
-        !(typeof message.content === 'string' && message.content.startsWith(MEMORY_CONTEXT_PREFIX)),
-    ),
+    messages: [...specialistMessages, synthesis],
+    runId: run.id,
+    handoffs,
+    engine: 'RyanAI Three-Brain Orchestrator',
   };
 }
