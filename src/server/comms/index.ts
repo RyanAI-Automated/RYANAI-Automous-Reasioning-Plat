@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
+import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
@@ -65,11 +66,12 @@ async function askRyanAI(text: string, threadId: string): Promise<string> {
  * validates the provider signature against a fixed configured URL.
  */
 export const commsPlugin: FastifyPluginAsync = async (fastify) => {
-  await fastify.register((await import('@fastify/formbody')).default);
+  await fastify.register(formbody);
 
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     const { channel, recipient, message, subject } = request.body ?? {};
-    if (!channel || !recipient || !message || message.length > MAX_MESSAGE_LENGTH) {
+    const targetRecipient = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
+    if (!channel || !targetRecipient || !message || message.length > MAX_MESSAGE_LENGTH) {
       return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     }
     if (!['whatsapp', 'sms', 'voice', 'email'].includes(channel)) {
@@ -90,7 +92,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
           secure: process.env.SMTP_SECURE === 'true',
           auth: { user, pass },
         });
-        const sent = await transporter.sendMail({ from, to: recipient, subject: subject || 'RyanAI notification', text: message });
+        const sent = await transporter.sendMail({ from, to: targetRecipient, subject: subject || 'RyanAI notification', text: message });
         return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted' });
       } catch (error) {
         request.log.error({ err: error }, 'Email provider rejected message');
@@ -101,7 +103,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     const client = twilioClient();
     if (!client) return reply.code(503).send({ success: false, error: 'Twilio is not configured.' });
 
-    if (!E164.test(recipient)) {
+    if (!E164.test(targetRecipient)) {
       return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
     }
 
@@ -113,7 +115,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         if (!from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
         const sent = await client.messages.create({
           from: channel === 'whatsapp' && !from.startsWith('whatsapp:') ? `whatsapp:${from}` : from,
-          to: channel === 'whatsapp' ? `whatsapp:${recipient}` : recipient,
+          to: channel === 'whatsapp' ? `whatsapp:${targetRecipient}` : targetRecipient,
           body: message,
           ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
@@ -124,7 +126,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       const voiceUrl = process.env.TWILIO_VOICE_WEBHOOK_URL?.trim();
       if (!from || !voiceUrl) return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice webhook URL is not configured.' });
       const call = await client.calls.create({
-        to: recipient, from, url: voiceUrl, method: 'POST',
+        to: targetRecipient, from, url: voiceUrl, method: 'POST',
         ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
       });
       return reply.code(202).send({ success: true, channel, providerId: call.sid, status: call.status });
