@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
+import { realtimeVoiceRoutes } from './realtimeVoice.js';
 
 const apps: FastifyInstance[] = [];
 const tickets = new Map<string, string>();
