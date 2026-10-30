@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square, Volume2 } from 'lucide-react';
+import { Send, Download, Mic, Square, Volume2, VolumeX } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { getAvailableModels, modelMeta } from '@/lib/models';
 import { findSpeechVoice, getRyanLanguage } from '@/shared/ryanLocales';
 
 interface ChatPanelProps {
+  userId: string;
   messages: Message[];
   model: ModelId;
   onModelChange: (model: ModelId) => void;
@@ -33,6 +34,9 @@ export default function ChatPanel(props: ChatPanelProps) {
   const lastSpokenMessageId = useRef<string | null>(null);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [voiceStatus, setVoiceStatus] = useState('Voice replies are enabled');
+  const [voiceRepliesEnabled, setVoiceRepliesEnabled] = useState(() => {
+    try { return localStorage.getItem('ryanai:voice-replies-enabled') !== 'false'; } catch { return true; }
+  });
 
   const readAloud = useCallback((message: Message) => {
     if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
@@ -41,7 +45,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     }
     let locale = 'en-ZA';
     try {
-      locale = localStorage.getItem(`ryanai:preferred-language:${localStorage.getItem('ryanai:active-user-id') || ''}`) || locale;
+      locale = localStorage.getItem(`ryanai:preferred-language:${props.userId}`) || locale;
     } catch { /* use the South African English default */ }
     const language = getRyanLanguage(locale);
     const voice = findSpeechVoice(window.speechSynthesis.getVoices(), language.speechLocale);
@@ -58,7 +62,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     utterance.onerror = () => setSpeakingMessageId(null);
     setSpeakingMessageId(message.id);
     window.speechSynthesis.speak(utterance);
-  }, []);
+  }, [props.userId]);
 
   useEffect(() => {
     if (props.sending) {
@@ -71,9 +75,9 @@ export default function ChatPanel(props: ChatPanelProps) {
     if (!latestAssistant || latestAssistant.id === lastSpokenMessageId.current) return;
     lastSpokenMessageId.current = latestAssistant.id;
     try {
-      if (localStorage.getItem('ryanai:voice-replies-enabled') !== 'false') readAloud(latestAssistant);
-    } catch { readAloud(latestAssistant); }
-  }, [props.messages, props.sending, readAloud]);
+      if (voiceRepliesEnabled) readAloud(latestAssistant);
+    } catch { if (voiceRepliesEnabled) readAloud(latestAssistant); }
+  }, [props.messages, props.sending, readAloud, voiceRepliesEnabled]);
 
   useEffect(() => () => {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
@@ -113,6 +117,20 @@ export default function ChatPanel(props: ChatPanelProps) {
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !voiceRepliesEnabled;
+              setVoiceRepliesEnabled(next);
+              try { localStorage.setItem('ryanai:voice-replies-enabled', String(next)); } catch { /* storage may be disabled */ }
+              if (!next && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+            }}
+            className="p-1.5 rounded hover:bg-cyan-500/10 text-cyan-400 transition-colors"
+            title={voiceRepliesEnabled ? 'Turn spoken replies off' : 'Turn spoken replies on'}
+            aria-pressed={voiceRepliesEnabled}
+          >
+            {voiceRepliesEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
           <button
             onClick={() => setShowModelMenu(!showModelMenu)}
             className="px-2 py-1 text-xs font-mono bg-cyan-500/10 rounded border border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20 transition-colors"
