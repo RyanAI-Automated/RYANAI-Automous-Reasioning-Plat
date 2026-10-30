@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Download, Mic, Square, Volume2 } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
@@ -40,7 +40,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     scrollToBottom();
   }, [props.messages, props.liveText]);
 
-  const readAloud = (message: Message) => {
+  const readAloud = useCallback((message: Message) => {
     if (!window.speechSynthesis || typeof window.speechSynthesis.speak !== 'function' || typeof SpeechSynthesisUtterance === 'undefined') return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message.content);
@@ -56,7 +56,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     utterance.onerror = () => setSpeakingMessageId(null);
     setSpeakingMessageId(message.id);
     window.speechSynthesis.speak(utterance);
-  };
+  }, []);
 
   useEffect(() => {
     if (props.sending) {
@@ -71,7 +71,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     try {
       if (window.localStorage.getItem('ryanai:voice-greetings-enabled') !== 'false') readAloud(latestAssistant);
     } catch { readAloud(latestAssistant); }
-  }, [props.messages, props.sending]);
+  }, [props.messages, props.sending, readAloud]);
 
   useEffect(() => () => {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
