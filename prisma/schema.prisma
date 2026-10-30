@@ -41,6 +41,7 @@ model User {
   agentSessions AgentSession[]
   memories      MemoryVault[]
   agents        AgentInstance[]
+  agentRuns     AgentRun[]
 
   @@map("users")
 }
@@ -237,4 +238,47 @@ model PendingAction {
   @@index([status, expiresAt])
   @@index([userId])
   @@map("pending_actions")
+}
+
+
+model AgentRun {
+  id String @id @default(uuid())
+  userId String @map("user_id")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objective String @db.Text
+  status String @default("queued")
+  result Json?
+  error String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  handoffs AgentHandoff[]
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("agent_runs")
+}
+model AgentHandoff {
+  id String @id @default(uuid())
+  runId String @map("run_id")
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  fromAgent String @map("from_agent")
+  toAgent String @map("to_agent")
+  status String @default("pending")
+  input String @db.Text
+  output String? @db.Text
+  error String? @db.Text
+  startedAt DateTime @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  @@index([runId, startedAt])
+  @@map("agent_handoffs")
+}
+model AgentBrainHealth {
+  id String @id @default(uuid())
+  brain String @unique
+  model String
+  status String
+  latencyMs Int?
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastError String? @db.Text @map("last_error")
+  checkedAt DateTime @default(now()) @map("checked_at")
+  @@map("agent_brain_health")
 }
