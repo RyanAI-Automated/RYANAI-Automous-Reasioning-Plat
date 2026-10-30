@@ -197,12 +197,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
     const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
     await prisma.$transaction(async (tx) => {
       const ownership = await tx.agentRun.updateMany({
-        where: {
-          id: run.id,
-          status: 'running',
-          workerId: run.worker_id,
-          attempts: run.attempts,
-        },
+        where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
         data: {
           status: retry ? 'queued' : 'failed',
           error: message,
