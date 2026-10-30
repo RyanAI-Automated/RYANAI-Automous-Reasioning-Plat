@@ -169,7 +169,7 @@ describe('live smoke script contracts', () => {
     });
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Live provider connectivity: 3/3 brains HEALTHY');
-    expect(result.stdout).toContain('End-to-end checks: 7/7 passed; 1 skipped');
+    expect(result.stdout).toContain('End-to-end checks: 6/6 passed; 1 skipped');
   });
 
   it('fails when anonymous reasoning and WebSocket access are exposed', async () => {
