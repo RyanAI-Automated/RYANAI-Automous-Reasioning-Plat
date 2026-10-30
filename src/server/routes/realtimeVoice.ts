@@ -118,14 +118,21 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
     let messageWindowStarted = Date.now();
     let messageCount = 0;
     let closed = false;
+    let upstreamTimeout: ReturnType<typeof setTimeout> | undefined = setTimeout(
+      () => closeBoth(1011, 'Realtime upstream connection timed out'),
+      10_000,
+    );
     const closeBoth = (code = 1000, reason = 'Voice session ended') => {
       if (closed) return;
       closed = true;
+      clearTimeout(upstreamTimeout);
       if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close();
       if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
     };
 
     upstream.on('open', () => {
+      clearTimeout(upstreamTimeout);
+      upstreamTimeout = undefined;
       if (socket.readyState !== WebSocket.OPEN) {
         closeBoth();
         return;
@@ -185,16 +192,52 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       if (upstream.readyState !== WebSocket.OPEN) return;
       const payload = message.toString('utf8');
       try {
-        const event = JSON.parse(payload) as { type?: unknown };
+        const event = JSON.parse(payload) as {
+          type?: unknown;
+          audio?: unknown;
+          response?: unknown;
+          item?: { type?: unknown; role?: unknown; content?: Array<{ type?: unknown }> };
+        };
         if (!event || typeof event !== 'object' || typeof event.type !== 'string') {
           closeBoth(1003, 'Invalid Realtime event');
           return;
         }
-        // Tool execution is intentionally disabled until a separately authenticated
-        // and auditable action dispatcher is connected.
-        if (event.type === 'response.function_call_arguments.done') {
-          closeBoth(1008, 'Voice-triggered privileged actions are disabled');
+
+        // Session instructions and tools are server-owned. Only permit user-input
+        // and response-control events; never let a browser replace system policy.
+        const allowedTypes = new Set([
+          'input_audio_buffer.append',
+          'input_audio_buffer.commit',
+          'input_audio_buffer.clear',
+          'response.create',
+          'response.cancel',
+          'conversation.item.create',
+        ]);
+        if (!allowedTypes.has(event.type)) {
+          closeBoth(1008, 'Realtime event type is not permitted');
           return;
+        }
+        if (event.type === 'input_audio_buffer.append' &&
+          (typeof event.audio !== 'string' || event.audio.length > 48_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(event.audio))) {
+          closeBoth(1008, 'Invalid or oversized audio payload');
+          return;
+        }
+        if (event.type === 'response.create' && event.response !== undefined) {
+          closeBoth(1008, 'Response configuration is controlled by the server');
+          return;
+        }
+        if (event.type === 'conversation.item.create') {
+          const item = event.item;
+          if (
+            item?.type !== 'message' ||
+            item.role !== 'user' ||
+            !Array.isArray(item.content) ||
+            item.content.length === 0 ||
+            item.content.some((part) => !part || !['input_text', 'input_audio'].includes(String(part.type)))
+          ) {
+            closeBoth(1008, 'Only user conversation input is permitted');
+            return;
+          }
         }
         upstream.send(payload);
       } catch {
