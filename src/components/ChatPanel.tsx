@@ -59,20 +59,24 @@ export default function ChatPanel(props: ChatPanelProps) {
   }, []);
 
   useEffect(() => {
+    let timer: number | undefined;
     if (props.sending) {
       previousSending.current = true;
-      return;
+    } else if (previousSending.current) {
+      previousSending.current = false;
+      const latest = [...props.messages].reverse().find((message) => message.role === 'assistant');
+      if (latest && latest.id !== lastSpokenMessageId.current) {
+        lastSpokenMessageId.current = latest.id;
+        let voiceEnabled = true;
+        try {
+          voiceEnabled = window.localStorage.getItem('ryanai:voice-enabled') !== 'false';
+        } catch { /* voice is an optional device feature */ }
+        if (voiceEnabled) timer = window.setTimeout(() => readAloud(latest), 0);
+      }
     }
-    if (!previousSending.current) return;
-    previousSending.current = false;
-    const latest = [...props.messages].reverse().find((message) => message.role === 'assistant');
-    if (!latest || latest.id === lastSpokenMessageId.current) return;
-    lastSpokenMessageId.current = latest.id;
-    try {
-      if (window.localStorage.getItem('ryanai:voice-enabled') === 'false') return;
-      const timer = window.setTimeout(() => readAloud(latest), 0);
-      return () => window.clearTimeout(timer);
-    } catch { /* voice is an optional device feature */ }
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [props.messages, props.sending, readAloud]);
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
