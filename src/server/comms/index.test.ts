@@ -86,6 +86,7 @@ describe('Twilio conversational voice webhooks', () => {
     const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('RyanAI says hello &amp; welcome');
+    expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [{ role: 'user', content: 'Please check my system' }] },
       { configurable: { thread_id: 'voice_CA123' } },
@@ -94,7 +95,7 @@ describe('Twilio conversational voice webhooks', () => {
 
   it('fails closed when the signature token is not configured', async () => {
     vi.stubEnv('TWILIO_AUTH_TOKEN', '');
-    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' });
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(503);
   });
 });
