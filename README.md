@@ -472,3 +472,8 @@ Stop the existing service or change the relevant port configuration. Do not laun
 4. For code changes, open a pull request with a concise summary, test evidence and any configuration or migration notes.
 
 Repository: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+
+
+## Production provider and deployment setup
+
+See [Production three-brain provider and deployment setup](docs/production-three-brain-setup.md) for the correct location of provider secrets, the CI-only admin test token, Render API service wiring, and Vercel release gates.
