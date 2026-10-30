@@ -13,7 +13,7 @@ interface ChatPanelProps {
   sending: boolean;
   liveText: string;
   liveModel: ModelId;
-  onSend: (text: string, files?: File[]) => void;
+  onSend: (text: string, files?: File[]) => Promise<void> | void;
   attachmentsEnabled: boolean;
   onExport: () => void;
   activeTitle?: string;
@@ -86,12 +86,20 @@ export default function ChatPanel(props: ChatPanelProps) {
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
-  const handleSend = () => {
-    if (props.sending || (!inputValue.trim() && selectedFiles.length === 0)) return;
-    props.onSend(inputValue.trim(), selectedFiles);
-    setInputValue('');
-    setSelectedFiles([]);
-    setAttachmentError('');
+  const handleSend = async () => {
+    if (props.sending) return;
+    if (!inputValue.trim()) {
+      if (selectedFiles.length) setAttachmentError('Add a message describing these attachments before sending.');
+      return;
+    }
+    try {
+      await props.onSend(inputValue.trim(), selectedFiles);
+      setInputValue('');
+      setSelectedFiles([]);
+      setAttachmentError('');
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : 'The message could not be sent. Your attachments are still selected.');
+    }
   };
 
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,7 +129,7 @@ export default function ChatPanel(props: ChatPanelProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -334,7 +342,7 @@ export default function ChatPanel(props: ChatPanelProps) {
           )}
           <button
             onClick={handleSend}
-            disabled={props.sending || (!inputValue.trim() && selectedFiles.length === 0)}
+            disabled={props.sending || !inputValue.trim()}
             className="p-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-cyan-300 transition-colors"
             title="Send"
           >
