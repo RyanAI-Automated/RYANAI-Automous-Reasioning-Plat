@@ -87,12 +87,14 @@ export async function requireUser(
       });
     }
 
+    const isOwner = Boolean(data.user.email && process.env.RYANAI_OWNER_EMAIL?.trim() && data.user.email.toLowerCase() === process.env.RYANAI_OWNER_EMAIL.trim().toLowerCase());
+    const profileName = typeof data.user.user_metadata?.full_name === 'string' ? data.user.user_metadata.full_name : undefined;
     request.authUser = {
       id: data.user.id,
       email: data.user.email,
       role: data.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
-      displayName: typeof data.user.user_metadata?.full_name === 'string' ? data.user.user_metadata.full_name : undefined,
-      isOwner: Boolean(data.user.email && process.env.RYANAI_OWNER_EMAIL?.trim() && data.user.email.toLowerCase() === process.env.RYANAI_OWNER_EMAIL.trim().toLowerCase()),
+      displayName: isOwner ? (process.env.RYANAI_OWNER_NAME?.trim() || profileName) : profileName,
+      isOwner,
       preferredTitle: typeof data.user.user_metadata?.preferred_title === 'string' ? data.user.user_metadata.preferred_title : undefined,
       preferredLanguage: typeof data.user.user_metadata?.preferred_language === 'string' && isSupportedRyanLanguage(data.user.user_metadata.preferred_language) ? data.user.user_metadata.preferred_language : DEFAULT_RYANAI_LANGUAGE,
     };
