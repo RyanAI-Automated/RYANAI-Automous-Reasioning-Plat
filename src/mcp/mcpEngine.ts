@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { PipelineOrchestrator } from '../orchestrator/pipelineOrchestrator';
+import { evaluateGenXSecurityEvent } from '../security/genxPolicy.js';
 
 export class RyanMcpEngine {
   private server: Server;
@@ -38,7 +39,7 @@ export class RyanMcpEngine {
         },
         {
           name: 'get_system_health',
-          description: 'Retrieves current kernel memory, eBPF telemetry, and process load',
+          description: 'Retrieves process memory and uptime; kernel/eBPF telemetry is not configured',
           inputSchema: {
             type: 'object',
             properties: {},
@@ -52,6 +53,20 @@ export class RyanMcpEngine {
       const { name, arguments: args } = request.params;
 
       if (name === 'execute_pipeline') {
+        const policy = evaluateGenXSecurityEvent({
+          agentId: 'external-mcp-client',
+          principal: 'mcp-client',
+          toolName: 'execute_pipeline',
+          action: 'UPDATE',
+          target: 'deployment-pipeline',
+          environment: process.env.NODE_ENV === 'production' ? 'production' : 'staging',
+        });
+        if (policy.decision !== 'ALLOW') {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Gen-X blocked pipeline execution [${policy.ruleId}]: authenticated human approval is required; this MCP transport cannot grant it.` }],
+          };
+        }
         const { projectName, branch, autoShip = false, strictMode = true } = args as { projectName: string; branch: string; autoShip?: boolean; strictMode?: boolean };
         const result = await this.orchestrator.runPipeline({
           projectName,
