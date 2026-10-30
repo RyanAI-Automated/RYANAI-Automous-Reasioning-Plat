@@ -18,7 +18,7 @@ export class RyanAIAgentWorkers {
       principal: 'ryanai-agent-runtime',
       toolName: 'za_public_procurement_data',
       action: 'READ',
-      target: request.apiUrl ?? 'official-public-source-discovery',
+      target: request.apiUrl ?? process.env.ZA_GOV_PROCUREMENT_API_URL ?? 'official-public-source-discovery',
     });
     if (policy.decision !== 'ALLOW') {
       throw new Error(`Gen-X blocked procurement data access (${policy.ruleId}): ${policy.reason}`);
