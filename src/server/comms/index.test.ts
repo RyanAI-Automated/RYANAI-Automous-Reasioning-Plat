@@ -101,7 +101,7 @@ describe('Twilio conversational voice webhooks', () => {
     const payload = { CallSid: 'CAOUT123', From: '+15555550000', To: '+15555550123', SpeechResult: 'What is the system status?' };
     const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('RyanAI says hello &amp; welcome');
+    expect(response.body).toContain('Certainly, Sir. RyanAI says hello &amp; welcome');
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [
