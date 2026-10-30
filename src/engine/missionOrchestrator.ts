@@ -16,8 +16,9 @@ export interface MissionContext {
 export class RyanAIMissionOrchestrator {
   private static activeMissions = new Map<string, MissionContext>();
 
-  private async checkpoint(context: MissionContext, step: number) {
-    await RyanAICheckpointer.saveCheckpoint(context.missionId, step, context);
+  private async checkpoint(context: MissionContext, step: number): Promise<void> {
+    const saved = await RyanAICheckpointer.saveCheckpoint(context.missionId, step, context);
+    if (!saved) throw new Error('Mission checkpoint could not be persisted; execution is paused to protect recovery state.');
   }
 
   private async executeApproved(context: MissionContext): Promise<MissionContext> {
@@ -30,15 +31,16 @@ export class RyanAIMissionOrchestrator {
     context.currentPhase = 3;
     context.logs.push('[Phase 3] Executing approved analysis tasks in parallel...');
     try {
+      await this.checkpoint(context, 3);
       context.results = await RyanAIDispatcher.executeTasks(context.tasks);
       context.status = 'COMPLETED';
       context.logs.push(`[Mission] Completed ${context.results.length} of ${context.tasks.length} approved analysis tasks.`);
-      await this.checkpoint(context, 3);
+      await this.checkpoint(context, 4);
       return context;
     } catch (error: unknown) {
       context.status = 'FAILED';
       context.logs.push(`[Error] Task execution failed: ${error instanceof Error ? error.message : String(error)}`);
-      await this.checkpoint(context, 3);
+      try { await this.checkpoint(context, 4); } catch { context.logs.push('[Recovery] Final failure state could not be persisted.'); }
       return context;
     }
   }
@@ -85,20 +87,34 @@ export class RyanAIMissionOrchestrator {
     } catch (error: unknown) {
       context.status = 'FAILED';
       context.logs.push(`[Error] Mission failed before execution: ${error instanceof Error ? error.message : String(error)}`);
-      await this.checkpoint(context, context.currentPhase);
+      try { await this.checkpoint(context, context.currentPhase); } catch { context.logs.push('[Recovery] Failure state could not be persisted.'); }
       return context;
     }
   }
 
   /** Resume only the stored, validated task plan after an explicit human decision. */
   async resumeMission(missionId: string, approved: boolean): Promise<MissionContext | null> {
-    const context = RyanAIMissionOrchestrator.activeMissions.get(missionId);
-    if (!context || context.status !== 'PAUSED_FOR_APPROVAL') return null;
+    let context = RyanAIMissionOrchestrator.activeMissions.get(missionId);
+    if (!context) {
+      const checkpoint = await RyanAICheckpointer.getLatestCheckpoint(missionId);
+      const restored = checkpoint?.state as Partial<MissionContext> | undefined;
+      if (
+        !restored ||
+        restored.missionId !== missionId ||
+        restored.status !== 'PAUSED_FOR_APPROVAL' ||
+        !Array.isArray(restored.tasks) ||
+        restored.tasks.length < 1 ||
+        restored.tasks.length > 3
+      ) return null;
+      context = restored as MissionContext;
+      RyanAIMissionOrchestrator.activeMissions.set(missionId, context);
+    }
+    if (context.status !== 'PAUSED_FOR_APPROVAL') return null;
 
     if (!approved) {
       context.status = 'FAILED';
       context.logs.push('[Checkpoint] Mission rejected by the human operator; no tasks executed.');
-      await this.checkpoint(context, context.currentPhase);
+      try { await this.checkpoint(context, context.currentPhase); } catch { context.logs.push('[Recovery] Rejection state could not be persisted.'); }
       return context;
     }
 

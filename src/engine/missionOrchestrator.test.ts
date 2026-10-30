@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   executeTasks: vi.fn(),
   runSecurityAuditor: vi.fn(),
   saveCheckpoint: vi.fn(),
+  getLatestCheckpoint: vi.fn(),
 }));
 vi.mock('./dispatcher', () => ({
   RyanAIDispatcher: {
@@ -16,7 +17,7 @@ vi.mock('./agentWorkers', () => ({
   RyanAIAgentWorkers: { runSecurityAuditor: mocks.runSecurityAuditor },
 }));
 vi.mock('./checkpointer', () => ({
-  RyanAICheckpointer: { saveCheckpoint: mocks.saveCheckpoint },
+  RyanAICheckpointer: { saveCheckpoint: mocks.saveCheckpoint, getLatestCheckpoint: mocks.getLatestCheckpoint },
 }));
 
 import { RyanAIMissionOrchestrator } from './missionOrchestrator';
@@ -34,7 +35,8 @@ beforeEach(() => {
   mocks.planObjective.mockResolvedValue(plan);
   mocks.executeTasks.mockResolvedValue(results);
   mocks.runSecurityAuditor.mockResolvedValue({ agentName: 'SecuritySentinel', output: 'RISK_LEVEL: LOW\nNo side effects.' });
-  mocks.saveCheckpoint.mockResolvedValue(undefined);
+  mocks.saveCheckpoint.mockResolvedValue(true);
+  mocks.getLatestCheckpoint.mockResolvedValue(null);
 });
 
 describe('RyanAI mission security gate', () => {
@@ -44,6 +46,14 @@ describe('RyanAI mission security gate', () => {
     expect(mocks.runSecurityAuditor).toHaveBeenCalledOnce();
     expect(mocks.executeTasks).toHaveBeenCalledWith(plan.tasks);
     expect(mission.results).toEqual(results);
+  });
+
+  it('fails closed before security review when the task plan cannot be checkpointed', async () => {
+    mocks.saveCheckpoint.mockResolvedValue(false);
+    const mission = await new RyanAIMissionOrchestrator().startMission('mission-no-store', 'Analyze the platform');
+    expect(mission.status).toBe('FAILED');
+    expect(mocks.runSecurityAuditor).not.toHaveBeenCalled();
+    expect(mocks.executeTasks).not.toHaveBeenCalled();
   });
 
   it('pauses when the security decision is high or ambiguous', async () => {
@@ -62,6 +72,21 @@ describe('RyanAI mission security gate', () => {
     const completed = await orchestrator.resumeMission('mission-approve', true);
     expect(completed?.status).toBe('COMPLETED');
     expect(mocks.executeTasks).toHaveBeenCalledOnce();
+  });
+
+  it('restores a paused mission from its persisted checkpoint after process restart', async () => {
+    const stored = {
+      missionId: 'mission-restored',
+      objective: 'Analyze the platform',
+      currentPhase: 2,
+      status: 'PAUSED_FOR_APPROVAL' as const,
+      logs: ['Awaiting approval'],
+      tasks: plan.tasks,
+    };
+    mocks.getLatestCheckpoint.mockResolvedValue({ step: 2, state: stored });
+    const completed = await new RyanAIMissionOrchestrator().resumeMission('mission-restored', true);
+    expect(completed?.status).toBe('COMPLETED');
+    expect(mocks.executeTasks).toHaveBeenCalledWith(plan.tasks);
   });
 
   it('does not claim completion when execution fails', async () => {
