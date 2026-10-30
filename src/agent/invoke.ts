@@ -37,9 +37,7 @@ export async function invokeReasoningAgent({
   void model;
 
   const memory = await buildMemoryContext(user.id);
-  const objective = memory
-    ? `${MEMORY_CONTEXT_PREFIX}\n${memory}\n\nUser request:\n${prompt}`
-    : prompt;
+  const objective = memory ? `${memory}\n\nUser request:\n${prompt}` : prompt;
 
   const run = await dispatchAutonomousTask(user.id, objective);
   const handoffs = run.handoffs as ReasoningHandoff[];
