@@ -69,7 +69,9 @@ export default function ChatPanel(props: ChatPanelProps) {
     if (!latest || latest.id === lastSpokenMessageId.current) return;
     lastSpokenMessageId.current = latest.id;
     try {
-      if (window.localStorage.getItem('ryanai:voice-enabled') !== 'false') readAloud(latest);
+      if (window.localStorage.getItem('ryanai:voice-enabled') === 'false') return;
+      const timer = window.setTimeout(() => readAloud(latest), 0);
+      return () => window.clearTimeout(timer);
     } catch { /* voice is an optional device feature */ }
   }, [props.messages, props.sending, readAloud]);
 
