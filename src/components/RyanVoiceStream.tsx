@@ -199,6 +199,16 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     }
   }, [language, stop]);
 
+  const previousLanguage = useRef(language);
+  useEffect(() => {
+    if (previousLanguage.current === language) return;
+    previousLanguage.current = language;
+    if (status === 'listening' || status === 'connecting') {
+      stop();
+      void start();
+    }
+  }, [language, status, start, stop]);
+
   const toggleVoiceLink = () => {
     if (status === 'connecting' || status === 'listening') {
       stop();
