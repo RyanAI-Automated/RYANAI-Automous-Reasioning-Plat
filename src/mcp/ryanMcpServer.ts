@@ -59,7 +59,7 @@ export class RyanMCPServer {
           {
             name: "execute_sandbox_script",
             description:
-              "Executes a JavaScript/TypeScript script inside the isolated RyanAISandbox runtime.",
+              "Disabled by Gen-X policy; arbitrary script execution is not available to external MCP clients.",
             inputSchema: {
               type: "object",
               properties: {
