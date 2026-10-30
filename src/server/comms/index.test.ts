@@ -106,7 +106,7 @@ describe('Twilio conversational voice webhooks', () => {
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [
-        { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear, concise and suitable for being read aloud.' },
+        { role: 'system', content: ownerCommunicationInstruction() },
         { role: 'user', content: 'What is the system status?' },
       ] },
       { configurable: { thread_id: 'voice_CAOUT123' } },
