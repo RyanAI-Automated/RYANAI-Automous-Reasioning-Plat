@@ -425,6 +425,8 @@ Agent runs are persisted rather than being represented only by in-memory promise
 - The delay increases exponentially.
 - The delay is capped at 60 seconds.
 - A run stops retrying when its configured attempt budget is exhausted.
+- Active workers refresh their three-minute lease every 30 seconds.
+- Worker ID and claim-attempt fencing prevent an expired worker from committing a stale result after another worker has reclaimed the run.
 
 A durable queue still requires a running worker, a reachable database, correct deployment configuration, and sufficient infrastructure capacity. A persisted pending run will not execute while no worker is available.
 
