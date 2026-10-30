@@ -1,5 +1,3 @@
-import { evaluateGenXSecurityEvent } from '../security/genxPolicy.js';
-
 export interface GovernmentProcurementRequest {
   query: string;
   apiUrl?: string;
@@ -40,17 +38,6 @@ export async function runGovernmentProcurementAgent(
 ): Promise<GovernmentProcurementResult> {
   const query = request.query.trim().slice(0, 300);
   if (!query) throw new Error('A procurement search query is required.');
-
-  const policy = evaluateGenXSecurityEvent({
-    agentId: 'za-government-procurement-agent',
-    principal: 'authenticated-ryanai-user',
-    toolName: 'za_public_procurement_data',
-    action: 'READ',
-    target: 'public-national-treasury-procurement-data',
-  });
-  if (policy.decision !== 'ALLOW') {
-    return { agentName: 'RyanAI South African Government Procurement Agent', mode: 'public-data-only', query, status: 'BLOCKED', sources: SOURCES, records: [], message: `Gen-X denied public data access: ${policy.ruleId}` };
-  }
 
   if (!request.apiUrl) {
     return {
