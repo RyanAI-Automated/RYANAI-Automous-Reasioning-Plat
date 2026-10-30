@@ -148,7 +148,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       if (!from || !process.env.TWILIO_VOICE_ACTION_URL?.trim()) {
         return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice action URL is not configured.' });
       }
-      const outgoingText = target === process.env.RYANAI_OWNER_PHONE?.trim() ? addressOwnerResponse(messageBody) : messageBody;
+      const outgoingText = target === process.env.RYANAI_OWNER_PHONE?.trim() ? addressOwnerResponse(messageBody, getOwnerTitle()) : messageBody;
       const call = await client.calls.create({
         to: target, from, twiml: twimlSay(outgoingText),
         ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
