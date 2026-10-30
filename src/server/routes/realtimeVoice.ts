@@ -118,10 +118,7 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
     let messageWindowStarted = Date.now();
     let messageCount = 0;
     let closed = false;
-    let upstreamTimeout: ReturnType<typeof setTimeout> | undefined = setTimeout(
-      () => closeBoth(1011, 'Realtime upstream connection timed out'),
-      10_000,
-    );
+    let upstreamTimeout: ReturnType<typeof setTimeout> | undefined;
     const closeBoth = (code = 1000, reason = 'Voice session ended') => {
       if (closed) return;
       closed = true;
@@ -129,6 +126,10 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close();
       if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
     };
+    upstreamTimeout = setTimeout(
+      () => closeBoth(1011, 'Realtime upstream connection timed out'),
+      10_000,
+    );
 
     upstream.on('open', () => {
       clearTimeout(upstreamTimeout);
