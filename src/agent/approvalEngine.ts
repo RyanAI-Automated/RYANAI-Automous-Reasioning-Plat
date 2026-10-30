@@ -1,7 +1,6 @@
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { commsTools } from './tools/commsTools.js';
-import { sendWhatsAppTool } from './tools/whatsappTool.js';
 import { databaseFailureDiagnostic } from '../server/startupDiagnostics.js';
 import { createChatModel } from '../config/llm.js';
 
@@ -36,7 +35,7 @@ export async function initializeAgentDatabase() {
 }
 
 // Register communication tools alongside WhatsApp integration
-const agentTools = [...commsTools, sendWhatsAppTool];
+const agentTools = [...commsTools];
 
 export const humanInTheLoopAgent = createReactAgent({
   llm,
