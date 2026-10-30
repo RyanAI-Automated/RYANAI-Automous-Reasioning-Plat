@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square } from 'lucide-react';
+import { Send, Download, Mic, Square, Volume2 } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { getAvailableModels, modelMeta } from '@/lib/models';
+import { findSpeechVoice, getRyanLanguage } from '@/shared/ryanLocales';
 
 interface ChatPanelProps {
   messages: Message[];
@@ -28,6 +29,55 @@ export default function ChatPanel(props: ChatPanelProps) {
   const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousSending = useRef(false);
+  const lastSpokenMessageId = useRef<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState('Voice replies are enabled');
+
+  const readAloud = useCallback((message: Message) => {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      setVoiceStatus('Speech playback is not supported by this browser.');
+      return;
+    }
+    let locale = 'en-ZA';
+    try {
+      locale = localStorage.getItem(`ryanai:preferred-language:${localStorage.getItem('ryanai:active-user-id') || ''}`) || locale;
+    } catch { /* use the South African English default */ }
+    const language = getRyanLanguage(locale);
+    const voice = findSpeechVoice(window.speechSynthesis.getVoices(), language.speechLocale);
+    if (!voice) {
+      setVoiceStatus(`No installed voice for ${language.label}; select an available device voice or install a speech pack.`);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    utterance.lang = language.speechLocale;
+    utterance.voice = voice;
+    utterance.onstart = () => setSpeakingMessageId(message.id);
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+    setSpeakingMessageId(message.id);
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  useEffect(() => {
+    if (props.sending) {
+      previousSending.current = true;
+      return;
+    }
+    if (!previousSending.current) return;
+    previousSending.current = false;
+    const latestAssistant = [...props.messages].reverse().find((message) => message.role === 'assistant');
+    if (!latestAssistant || latestAssistant.id === lastSpokenMessageId.current) return;
+    lastSpokenMessageId.current = latestAssistant.id;
+    try {
+      if (localStorage.getItem('ryanai:voice-replies-enabled') !== 'false') readAloud(latestAssistant);
+    } catch { readAloud(latestAssistant); }
+  }, [props.messages, props.sending, readAloud]);
+
+  useEffect(() => () => {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -131,6 +181,16 @@ export default function ChatPanel(props: ChatPanelProps) {
               }`}
             >
               {msg.content}
+              {msg.role === 'assistant' && (
+                <button
+                  type="button"
+                  onClick={() => readAloud(msg)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-100"
+                  aria-label="Read RyanAI message aloud"
+                >
+                  <Volume2 size={14} /> {speakingMessageId === msg.id ? 'Speaking…' : 'Read aloud'}
+                </button>
+              )}
             </div>
           </motion.div>
         ))}
@@ -170,6 +230,7 @@ export default function ChatPanel(props: ChatPanelProps) {
 
       {/* Input */}
       <div className="p-3 border-t border-cyan-500/10 space-y-2">
+        <p className="text-xs text-ink-500" role="status">{voiceStatus}</p>
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
