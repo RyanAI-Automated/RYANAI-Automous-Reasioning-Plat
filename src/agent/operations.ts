@@ -1,10 +1,11 @@
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains.js';
 import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
 
 const brains = {
-  primary: { model: process.env.PRIMARY_REASONING_MODEL || process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra', endpoint: process.env.NVIDIA_API_ENDPOINT || process.env.LM_STUDIO_URL || process.env.OLLAMA_URL || 'https://integrate.api.nvidia.com/v1', credential: Boolean(process.env.NVIDIA_API_KEY || process.env.LM_STUDIO_API_KEY), client: primaryBrain },
-  secondary: { model: process.env.SECONDARY_REASONING_MODEL || process.env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507', endpoint: process.env.QWEN_API_ENDPOINT || process.env.LM_STUDIO_URL || 'https://api.together.xyz/v1', credential: Boolean(process.env.QWEN_API_KEY || process.env.LM_STUDIO_API_KEY), client: secondaryBrain },
+  primary: { model: process.env.PRIMARY_REASONING_MODEL || process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra', endpoint: process.env.NVIDIA_API_ENDPOINT || process.env.LM_STUDIO_URL || process.env.OLLAMA_URL || 'https://integrate.api.nvidia.com/v1', credential: Boolean(process.env.NVIDIA_API_KEY || ((process.env.LM_STUDIO_URL || process.env.OLLAMA_URL) && process.env.LM_STUDIO_API_KEY)), client: primaryBrain },
+  secondary: { model: process.env.SECONDARY_REASONING_MODEL || process.env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507', endpoint: process.env.QWEN_API_ENDPOINT || process.env.LM_STUDIO_URL || 'https://api.together.xyz/v1', credential: Boolean(process.env.QWEN_API_KEY || (process.env.LM_STUDIO_URL && process.env.LM_STUDIO_API_KEY)), client: secondaryBrain },
   logic: { model: process.env.LOGIC_REASONING_MODEL || process.env.LM_STUDIO_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini', endpoint: process.env.LOGIC_API_ENDPOINT || process.env.LM_STUDIO_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1', credential: Boolean(process.env.LOGIC_API_KEY || process.env.LM_STUDIO_API_KEY || process.env.OPENAI_API_KEY), client: logicBrain },
 } as const;
 const localRuntime = (endpoint: string) => Boolean(process.env.LM_STUDIO_URL || process.env.OLLAMA_URL) || /localhost|127\.0\.0\.1/.test(endpoint);
@@ -18,7 +19,7 @@ async function invokeWithRecovery(brain: BrainId, prompt: string): Promise<Brain
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const response = await Promise.race([
-        config.client.invoke([['system', `You are RyanAI's ${brain} reasoning brain. Analyze rigorously. Never perform external actions.`], ['human', prompt]]),
+        config.client.invoke([new SystemMessage(`You are RyanAI's ${brain} reasoning brain. Analyze rigorously. Never perform external actions.`), new HumanMessage(prompt)], { signal: AbortSignal.timeout(20_000) }),
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Brain invocation timed out after 20 seconds')), 20_000); }),
       ]);
       const output = asText(response.content);
