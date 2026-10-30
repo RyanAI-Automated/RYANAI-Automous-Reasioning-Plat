@@ -1,0 +1,45 @@
+name: AI Inspector & Audit
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-inspector-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    name: Inspect release quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Run read-only Inspector & Audit Agent
+        run: npm run audit:inspector -- --write
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ryanai-inspector-audit
+          path: reports/ai-inspector-audit.md
+          if-no-files-found: warn
+          retention-days: 14

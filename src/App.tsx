@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   Cpu,
@@ -12,12 +12,12 @@ import {
 
 import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
-import RyanAICockpit from '@/components/dashboard/RyanAICockpit';
-import { AgentControlPanel } from '@/components/AgentControlPanel';
-import CommandCenter from '@/pages/CommandCenter.tsx';
-import DashboardPage from '@/pages/Dashboard';
-import LandingPage from '@/pages/LandingPage';
-import AuthPage from '@/pages/AuthPage';
+const RyanAICockpit = lazy(() => import('@/components/dashboard/RyanAICockpit'));
+const AgentControlPanel = lazy(() => import('@/components/AgentControlPanel').then((module) => ({ default: module.AgentControlPanel })));
+const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
+const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const LandingPage = lazy(() => import('@/pages/LandingPage'));
+const AuthPage = lazy(() => import('@/pages/AuthPage'));
 import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
 
@@ -128,6 +128,7 @@ export default function App() {
         </nav>
       </header>
 
+      <Suspense fallback={<p role="status" className="p-8 text-slate-300">Loading RyanAI workspace…</p>}>
       <main
         key={user?.id ?? 'signed-out'}
         className="min-h-0 flex-1 overflow-y-auto"
@@ -170,6 +171,7 @@ export default function App() {
           </>
         )}
       </main>
+      </Suspense>
       <Analytics />
     </div>
   );
