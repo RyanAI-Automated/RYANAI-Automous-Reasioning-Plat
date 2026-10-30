@@ -183,7 +183,7 @@ describe('Supabase API authentication', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       authenticated: true,
-      user: { id: user.id, email: user.email, role: 'user', isOwner: false },
+      user: { id: user.id, email: user.email, role: 'user', isOwner: false, preferredLanguage: 'en-ZA' },
     });
     expect(getUser).toHaveBeenCalledExactlyOnceWith('synthetic-access-token');
     expect(createContextClient).toHaveBeenCalledWith(
