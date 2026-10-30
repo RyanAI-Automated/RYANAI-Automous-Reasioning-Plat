@@ -27,4 +27,12 @@ describe('Gen-X deterministic security enforcement', () => {
   it('denies unknown tools by default', () => {
     expect(evaluateGenXSecurityEvent({ ...base, toolName: 'unknown_future_tool' }).decision).toBe('REQUIRE_APPROVAL');
   });
+  it('allows the public procurement data tool for reads only', () => {
+    const procurement = { ...base, toolName: 'za_public_procurement_data' };
+    expect(evaluateGenXSecurityEvent({ ...procurement, target: 'official-public-source-discovery' }).decision).toBe('ALLOW');
+    expect(evaluateGenXSecurityEvent({ ...procurement, action: 'EXECUTE' }).decision).toBe('DENY');
+    expect(evaluateGenXSecurityEvent({ ...procurement, action: 'NETWORK' }).decision).toBe('REQUIRE_APPROVAL');
+    expect(evaluateGenXSecurityEvent({ ...procurement, action: 'CREDENTIAL_ACCESS' }).decision).toBe('DENY');
+    expect(evaluateGenXSecurityEvent({ ...procurement, target: 'https://ocds-api.etenders.gov.za/vault' }).decision).toBe('DENY');
+  });
 });
