@@ -9,6 +9,7 @@ import type {
   MessageAttachment,
 } from '@/lib/types';
 import { DEFAULT_MODEL, modelMeta, MODELS } from '@/lib/models';
+import { DEFAULT_LANGUAGE, isRyanLanguage } from '@/shared/languages';
 import {
   createConversation,
   createMessage,
@@ -52,6 +53,11 @@ export default function CommandCenter({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [model, setModel] = useState<ModelId>(DEFAULT_MODEL);
   const [sending, setSending] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
+    const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
+    return isRyanLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+  });
   const [liveText, setLiveText] = useState('');
   const [liveSteps, setLiveSteps] = useState<ToolStep[]>([]);
   const [liveModel, setLiveModel] = useState<ModelId>(DEFAULT_MODEL);
@@ -80,6 +86,17 @@ export default function CommandCenter({
       mountedRef.current = false;
     };
   }, []);
+  useEffect(() => {
+    const handleLanguageChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ language?: string }>).detail;
+      if (detail?.language && isRyanLanguage(detail.language)) {
+        setVoiceLanguage(detail.language);
+      }
+    };
+    window.addEventListener('ryanai:language-changed', handleLanguageChange);
+    return () => window.removeEventListener('ryanai:language-changed', handleLanguageChange);
+  }, []);
+
   const requestStartRef = useRef<number | null>(null);
   const voiceStopRef = useRef<() => void>(() => undefined);
 
@@ -628,6 +645,7 @@ export default function CommandCenter({
   const voice = useVoiceRecognition({
     onTranscript: handleVoiceTranscript,
     onCommand: handleVoiceCommand,
+    language: voiceLanguage,
   });
   useEffect(() => {
     voiceStopRef.current = voice.stop;
