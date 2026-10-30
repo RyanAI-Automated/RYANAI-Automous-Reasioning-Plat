@@ -15,7 +15,7 @@ export interface BrainKnowledgeInput {
 const MAX_CONTEXT_ITEMS = 8;
 const MAX_CONTEXT_CHARS = 6000;
 const MAX_CONTENT_CHARS = 12000;
-const CREDENTIAL_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+\/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
+const CREDENTIAL_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
 
 export function fingerprintKnowledge(input: Pick<BrainKnowledgeInput, 'title' | 'content' | 'source'>): string {
   return createHash('sha256')
