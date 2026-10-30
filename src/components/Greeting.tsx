@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createLoginGreeting, RYANAI_LOCALE } from '@/shared/ryanIdentity';
 import {
   DEFAULT_RYANAI_LANGUAGE,
   findSpeechVoice,
@@ -38,7 +37,7 @@ export default function Greeting({ userId, displayName, isOwner = false }: Greet
   const selectedVoice = useMemo(() => findSpeechVoice(voices, selectedLanguage.speechLocale), [voices, selectedLanguage]);
   const hour = new Date().getHours();
   const greetingText = getGreetingLanguageText(language, hour);
-  const greeting = `${greetingText}, ${address || displayName?.trim().split(/\\s+/)[0] || 'there'}. I'm RyanAI. Your assistant is ready.`;
+  const greeting = `${greetingText}, ${address || displayName?.trim().split(/\\s+/)[0] || 'there'}.`;
 
   const speak = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -73,10 +72,10 @@ export default function Greeting({ userId, displayName, isOwner = false }: Greet
   }, []);
 
   useEffect(() => {
-    if (spoken.current) return;
+    if (spoken.current || !selectedVoice) return;
     spoken.current = true;
     speak();
-  }, [speak]);
+  }, [speak, selectedVoice]);
 
   useEffect(() => {
     document.documentElement.lang = selectedLanguage.speechLocale;
