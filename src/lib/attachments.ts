@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export const ATTACHMENT_BUCKET = 'ryanai-attachments';
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 8;
+export const MAX_MESSAGE_ATTACHMENT_BYTES = 40 * 1024 * 1024;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
@@ -41,8 +42,10 @@ export function validateAttachment(file: Pick<File, 'name' | 'type' | 'size'>): 
   }
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
   const inferred = MIME_BY_EXTENSION[extension];
-  const mimeType = file.type || inferred || '';
-  if (!ALLOWED_MIME_TYPES.has(mimeType) || (inferred && mimeType !== inferred)) {
+  const suppliedMime = file.type.toLowerCase();
+  const mimeType = inferred || '';
+  const genericBrowserMime = suppliedMime === 'application/octet-stream' || (suppliedMime === 'text/plain' && mimeType.startsWith('text/'));
+  if (!ALLOWED_MIME_TYPES.has(mimeType) || (suppliedMime && suppliedMime !== mimeType && !genericBrowserMime)) {
     throw new Error(`File type is not supported: ${file.name}`);
   }
   if (!inferred) throw new Error(`File extension is not supported: ${file.name}`);
@@ -53,8 +56,43 @@ export function validateAttachmentBatch(files: readonly Pick<File, 'name' | 'typ
   if (files.length > MAX_ATTACHMENTS_PER_MESSAGE) {
     throw new Error(`Attach no more than ${MAX_ATTACHMENTS_PER_MESSAGE} files to one message.`);
   }
+  const totalBytes = files.reduce((total, file) => total + file.size, 0);
+  if (totalBytes > MAX_MESSAGE_ATTACHMENT_BYTES) {
+    throw new Error(`Combined attachments must not exceed ${MAX_MESSAGE_ATTACHMENT_BYTES / 1024 / 1024} MB per message.`);
+  }
   files.forEach(validateAttachment);
 }
+
+/** Validate common binary signatures before uploading; text formats must be valid UTF-8 without NUL bytes. */
+export async function validateAttachmentFile(file: File): Promise<void> {
+  const { mimeType } = validateAttachment(file);
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const starts = (...signature: number[]) => signature.every((byte, index) => bytes[index] === byte);
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const valid = (() => {
+    switch (extension) {
+      case 'png': return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+      case 'jpg': case 'jpeg': return starts(0xff, 0xd8, 0xff);
+      case 'gif': return starts(0x47, 0x49, 0x46, 0x38);
+      case 'webp': return starts(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+      case 'pdf': return starts(0x25, 0x50, 0x44, 0x46, 0x2d);
+      case 'zip': case 'docx': case 'xlsx': case 'pptx': return starts(0x50, 0x4b, 0x03, 0x04) || starts(0x50, 0x4b, 0x05, 0x06) || starts(0x50, 0x4b, 0x07, 0x08);
+      case 'mp4': case 'm4a': return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+      case 'webm': return starts(0x1a, 0x45, 0xdf, 0xa3);
+      case 'wav': return starts(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45;
+      case 'ogg': return starts(0x4f, 0x67, 0x67, 0x53);
+      case 'mp3': return starts(0x49, 0x44, 0x33) || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
+      default: {
+        if (!mimeType.startsWith('text/') && mimeType !== 'application/json' && mimeType !== 'application/xml') return false;
+        const sample = new Uint8Array(await file.slice(0, Math.min(file.size, 4096)).arrayBuffer());
+        if (sample.includes(0)) return false;
+        try { new TextDecoder('utf-8', { fatal: true }).decode(sample); return true; } catch { return false; }
+      }
+    }
+  })();
+  if (!valid) throw new Error(`File content does not match its declared type: ${file.name}`);
+}
+
 
 export async function uploadConversationAttachments(
   client: SupabaseClient,
@@ -65,6 +103,7 @@ export async function uploadConversationAttachments(
 ): Promise<MessageAttachment[]> {
   validateAttachmentBatch(files);
   const settled = await Promise.allSettled(files.map(async (file) => {
+    await validateAttachmentFile(file);
     const { mimeType, name } = validateAttachment(file);
     const id = crypto.randomUUID();
     const path = `${userId}/${conversationId}/${messageId}/${id}-${name}`;
