@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import type WebSocket from 'ws';
+import WebSocket from 'ws';
 import { randomBytes } from 'node:crypto';
 import { requireUser } from './auth.js';
 import { ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
@@ -161,7 +161,12 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       upstream.on('close', () => closeBoth());
 
       socket.on('message', (data: WebSocket.RawData, isBinary: boolean) => {
-        if (isBinary || data.byteLength > MAX_CLIENT_MESSAGE_BYTES) {
+        const message = Buffer.isBuffer(data)
+          ? data
+          : Array.isArray(data)
+            ? Buffer.concat(data)
+            : Buffer.from(data);
+        if (isBinary || message.length > MAX_CLIENT_MESSAGE_BYTES) {
           closeBoth(1009, 'Only bounded JSON Realtime events are accepted');
           return;
         }
@@ -176,7 +181,7 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
           return;
         }
         if (upstream.readyState !== WebSocket.OPEN) return;
-        const payload = data.toString();
+        const payload = message.toString('utf8');
         try {
           const event = JSON.parse(payload) as { type?: unknown };
           if (!event || typeof event !== 'object' || typeof event.type !== 'string') {
