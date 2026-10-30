@@ -35,7 +35,7 @@ export async function invokeReasoningAgent({
   const memory = await buildMemoryContext(user.id);
   const responseLanguage = language && isRyanLanguage(language) ? language : DEFAULT_LANGUAGE;
   const languagePolicy = '[RYANAI LANGUAGE POLICY] ' + languageInstruction(responseLanguage);
-  const objective = [languagePolicy, memory, 'User request:\\n' + prompt].filter(Boolean).join('\\n\\n');
+  const objective = [languagePolicy, memory, 'User request:\n' + prompt].filter(Boolean).join('\n\n');
   const queued = await dispatchAutonomousTask(user.id, objective);
   const run = await waitForAutonomousTask(queued.id, user.id);
   const handoffs = run.handoffs as ReasoningHandoff[];
