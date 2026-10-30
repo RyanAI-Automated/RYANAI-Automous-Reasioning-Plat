@@ -17,7 +17,10 @@ beforeEach(() => {
     expiresAt: new Date('2026-10-28T10:00:00Z'),
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('gated communication tools', () => {
   it('queue an email for the signed-in user and send nothing', async () => {
