@@ -62,7 +62,7 @@ export function validateSubTaskPlan(value: unknown): SubTask[] {
 }
 
 function parsePlan(raw: string): SubTask[] {
-  const cleaned = raw.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '').trim();
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
