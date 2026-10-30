@@ -75,7 +75,7 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   const attemptId = useRef(0);
   const playbackNodes = useRef<Set<AudioBufferSourceNode>>(new Set());
 
-  const stop = useCallback(() => {
+  const releaseResources = useCallback(() => {
     attemptId.current += 1;
     if (processor.current) {
       processor.current.onaudioprocess = null;
@@ -103,8 +103,12 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     audioContext.current = null;
     if (context && context.state !== 'closed') void context.close();
     playbackTime.current = 0;
-    setStatus('idle');
   }, []);
+
+  const stop = useCallback(() => {
+    releaseResources();
+    setStatus('idle');
+  }, [releaseResources]);
 
   useEffect(() => () => stop(), [stop]);
 
@@ -251,10 +255,10 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     if (previousLanguage.current === language) return;
     previousLanguage.current = language;
     if (status === 'listening' || status === 'connecting') {
-      stop();
+      releaseResources();
       void start();
     }
-  }, [language, status, start, stop]);
+  }, [language, status, start, releaseResources]);
 
   const toggleVoiceLink = () => {
     if (status === 'connecting' || status === 'listening') {
