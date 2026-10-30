@@ -9,7 +9,7 @@ export const VOICE_COMMANDS = {
   switch_claude: { keywords: ['claude'], action: 'Switch to Claude' },
   switch_gpt: { keywords: ['gpt'], action: 'Switch to GPT' },
   export: { keywords: ['export'], action: 'Export conversation' },
-  open_memory: { keywords: ['memory'], action: 'Open memory vault' },
+  open_memory: { keywords: ['open memory', 'memory'], action: 'Open memory vault' },
   open_about: { keywords: ['about'], action: 'Show about' },
   open_github: { keywords: ['github'], action: 'Open GitHub' },
   stop: { keywords: ['stop'], action: 'Stop listening' },
