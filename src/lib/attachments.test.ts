@@ -9,6 +9,7 @@ import {
   validateAttachment,
   validateAttachmentBatch,
   uploadConversationAttachments,
+  signConversationAttachment,
 } from './attachments';
 
 describe('conversation attachment validation', () => {
@@ -138,5 +139,52 @@ describe('attachment upload progress and cancellation', () => {
     controller.abort();
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     expect(remove).toHaveBeenCalledWith([expect.stringContaining('report.pdf')]);
+  });
+});
+
+describe('attachment download quarantine gate', () => {
+  function createClient(status: string | null) {
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: status ? { status } : null,
+        error: null,
+      }),
+    };
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: 'https://storage.example.test/download?token=temporary' },
+      error: null,
+    });
+    const client = {
+      from: vi.fn(() => query),
+      storage: { from: vi.fn(() => ({ createSignedUrl })) },
+    } as unknown as SupabaseClient;
+    return { client, createSignedUrl };
+  }
+
+  const attachment = {
+    id: 'attachment-1',
+    name: 'report.pdf',
+    mimeType: 'application/pdf',
+    size: 100,
+    path: 'user-1/conversation-1/message-1/report.pdf',
+  };
+
+  it.each(['pending', 'scanning', 'infected', 'failed', null])(
+    'refuses to sign an attachment with scan status %s',
+    async (status) => {
+      const { client, createSignedUrl } = createClient(status);
+      await expect(signConversationAttachment(client, 'user-1', 'conversation-1', attachment))
+        .rejects.toThrow(/security scan is complete/i);
+      expect(createSignedUrl).not.toHaveBeenCalled();
+    },
+  );
+
+  it('signs only an attachment marked clean', async () => {
+    const { client, createSignedUrl } = createClient('clean');
+    const result = await signConversationAttachment(client, 'user-1', 'conversation-1', attachment);
+    expect(createSignedUrl).toHaveBeenCalledWith(attachment.path, 60);
+    expect(result.url).toContain('temporary');
   });
 });
