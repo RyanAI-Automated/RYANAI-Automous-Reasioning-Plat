@@ -8,6 +8,7 @@ import {
 } from '@/shared/languages';
 
 interface GreetingProps {
+  userId?: string;
   displayName?: string | null;
   isOwner?: boolean;
 }
@@ -22,8 +23,8 @@ export function getStoredRyanLanguage(userId: string, isOwner: boolean): string 
   return isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
 }
 
-export default function Greeting({ displayName, isOwner = false }: GreetingProps) {
-  const userId = displayName || 'guest';
+export default function Greeting({ userId: accountId, displayName, isOwner = false }: GreetingProps) {
+  const userId = accountId || displayName || 'guest';
   const [language, setLanguage] = useState(() => getStoredRyanLanguage(userId, isOwner));
   const [title, setTitle] = useState(() => {
     try {
