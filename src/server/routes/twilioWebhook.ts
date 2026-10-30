@@ -3,6 +3,7 @@ import twilio from 'twilio';
 import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication } from '../comms/history.js';
+import { addressOwnerMessage, communicationSystemInstruction } from '../comms/personalization.js';
 
 const extractContent = (content: unknown): string =>
   typeof content === 'string' ? content : JSON.stringify(content) ?? '';
@@ -74,11 +75,11 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
       });
 
       const result = await humanInTheLoopAgent.invoke(
-        { messages: [{ role: 'user', content: incomingText }] },
+        { messages: [{ role: 'system', content: communicationSystemInstruction() }, { role: 'user', content: incomingText }] },
         { configurable: { thread_id: threadId } },
       );
       const messages = (result as { messages?: Array<{ content?: unknown }> }).messages ?? [];
-      const agentReply = extractContent(messages.at(-1)?.content) || 'I could not prepare a response.';
+      const agentReply = addressOwnerMessage(extractContent(messages.at(-1)?.content) || 'I could not prepare a response.');
       await fastify.prisma.communicationMessage.update({
         where: { providerMessageId: body.MessageSid },
         data: { status: 'replied', metadata: { reply: agentReply } },
