@@ -93,6 +93,18 @@ describe('Twilio conversational voice webhooks', () => {
     );
   });
 
+  it('accepts the owner as the To party on outbound AI voice calls', async () => {
+    const payload = { CallSid: 'CAOUT123', From: '+15555550000', To: '+15555550123', SpeechResult: 'What is the system status?' };
+    const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('RyanAI says hello &amp; welcome');
+    expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      { messages: [{ role: 'user', content: 'What is the system status?' }] },
+      { configurable: { thread_id: 'voice_CAOUT123' } },
+    );
+  });
+
   it('fails closed when the signature token is not configured', async () => {
     vi.stubEnv('TWILIO_AUTH_TOKEN', '');
     const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
