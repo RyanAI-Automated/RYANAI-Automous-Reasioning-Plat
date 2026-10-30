@@ -109,6 +109,14 @@ describe('Twilio webhook provider authentication', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it('rejects a validly signed message from a non-owner number', async () => {
+    const other = { ...body, From: 'whatsapp:+15555550999' };
+    const signature = twilio.getExpectedTwilioSignature(token, webhookUrl, other);
+    const response = await sendWebhook(signature, other);
+    expect(response.statusCode).toBe(403);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('accepts an authentic provider request without a user bearer and escapes the reply XML', async () => {
     const signature = twilio.getExpectedTwilioSignature(
       token,
