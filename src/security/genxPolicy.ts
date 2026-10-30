@@ -23,7 +23,7 @@ const BLOCKED_TOOL_NAMES = new Set([
   'metasploit', 'msfconsole', 'msfvenom', 'sqlmap', 'hydra', 'medusa',
   'john', 'hashcat', 'aircrack-ng', 'bettercap', 'ettercap', 'responder',
   'masscan', 'nmap', 'crackmapexec', 'netexec', 'impacket', 'bloodhound',
-  'mimikatz', ' LaZagne'.trim().toLowerCase(), 'evil-winrm', 'empire',
+  'mimikatz', 'lazagne', 'evil-winrm', 'empire',
 ]);
 
 const SAFE_READ_ONLY_TOOLS = new Set([
