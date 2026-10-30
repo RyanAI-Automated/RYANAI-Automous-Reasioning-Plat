@@ -10,6 +10,7 @@ export interface AgentPASerializedStatus {
   telemetrySocketPort: number;
   lastHeartbeat: string;
   eBPFPolicyEnforced: boolean;
+  genXPolicyEngineAvailable: boolean;
   retryAttempts: number;
 }
 
@@ -33,7 +34,7 @@ export const SELF_HEALING_SKILL = {
 
 export const SOVEREIGN_FIREWALL_SKILL = {
   name: "sovereign-firewall",
-  description: "Zero-trust network isolation and firewall enforcement",
+  description: "Gen-X policy-based defensive access control; does not claim kernel/eBPF firewall enforcement",
 };
 
 /**
@@ -173,7 +174,7 @@ export class AgentPAScript extends EventEmitter {
       fastifyApiPort: this.fastifyPort,
       telemetrySocketPort: this.telemetryPort,
       lastHeartbeat: this.lastHeartbeatISO,
-      eBPFPolicyEnforced: true,
+      eBPFPolicyEnforced: false,\n      genXPolicyEngineAvailable: true,
       retryAttempts: this.retryCount
     };
   }
