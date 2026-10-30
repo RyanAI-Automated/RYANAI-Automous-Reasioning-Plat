@@ -66,7 +66,7 @@ export default function App() {
   const isAuthRoute = route === 'signin' || route === 'signup';
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
-  const isOwner = user?.app_metadata?.owner === true || (verifiedIdentity?.userId === user?.id && verifiedIdentity.isOwner);
+  const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
