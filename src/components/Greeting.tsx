@@ -18,6 +18,9 @@ const LANGUAGE_KEY = 'ryanai:preferred-language:';
 export default function Greeting({ userId, displayName, isOwner = false }: GreetingProps) {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceStatus, setVoiceStatus] = useState('Voice availability is being checked');
+  const [voiceUri, setVoiceUri] = useState(() => {
+    try { return localStorage.getItem(`ryanai:preferred-voice:${userId}`) ?? ''; } catch { return ''; }
+  });
   const [language, setLanguage] = useState(() => {
     try {
       return localStorage.getItem(`${LANGUAGE_KEY}${userId}`) ?? (isOwner ? 've-ZA' : DEFAULT_RYANAI_LANGUAGE);
@@ -34,7 +37,8 @@ export default function Greeting({ userId, displayName, isOwner = false }: Greet
   });
   const spoken = useRef(false);
   const selectedLanguage = getRyanLanguage(language);
-  const selectedVoice = useMemo(() => findSpeechVoice(voices, selectedLanguage.speechLocale), [voices, selectedLanguage]);
+  const availableVoices = useMemo(() => voices.filter((voice) => voice.lang.toLowerCase() === selectedLanguage.speechLocale.toLowerCase()), [voices, selectedLanguage]);
+  const selectedVoice = useMemo(() => availableVoices.find((voice) => voice.voiceURI === voiceUri) ?? findSpeechVoice(voices, selectedLanguage.speechLocale), [availableVoices, voices, selectedLanguage, voiceUri]);
   const hour = new Date().getHours();
   const greetingText = getGreetingLanguageText(language, hour);
   const greeting = `${greetingText}, ${address || displayName?.trim().split(/\s+/)[0] || 'there'}.`;
@@ -86,6 +90,10 @@ export default function Greeting({ userId, displayName, isOwner = false }: Greet
     try { localStorage.setItem(`ryanai:preferred-address:${userId}`, address); } catch { /* storage may be disabled */ }
   }, [address, userId]);
 
+  useEffect(() => {
+    try { localStorage.setItem(`ryanai:preferred-voice:${userId}`, voiceUri); } catch { /* storage may be disabled */ }
+  }, [userId, voiceUri]);
+
   return (
     <section className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-slate-900/70 px-4 py-3" aria-live="polite">
       <div className="min-w-0">
@@ -110,6 +118,11 @@ export default function Greeting({ userId, displayName, isOwner = false }: Greet
           <optgroup label="International languages">
             {RYANAI_LANGUAGES.filter((item) => item.group === 'International').map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
           </optgroup>
+        </select>
+        <label className="sr-only" htmlFor="ryanai-device-voice">Choose a device voice</label>
+        <select id="ryanai-device-voice" value={voiceUri} onChange={(event) => setVoiceUri(event.target.value)} className="max-w-56 rounded-lg border border-white/15 bg-slate-950 px-2 py-2 text-xs text-slate-200">
+          <option value="">Automatic matching voice</option>
+          {availableVoices.map((voice) => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
         </select>
         <button type="button" onClick={speak} className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-400/10" aria-label="Hear RyanAI greeting in the selected language">
           Play voice greeting
