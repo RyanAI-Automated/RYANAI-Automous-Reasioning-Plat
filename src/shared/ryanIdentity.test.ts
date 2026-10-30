@@ -10,7 +10,7 @@ import {
 
 describe('RyanAI identity and South African English defaults', () => {
   it('uses Sir for the configured owner identity', () => {
-    expect(getAddress({ isOwner: true, displayName: 'Ntsiyeni' })).toBe('Sir');
+    expect(getAddress({ isOwner: true, displayName: 'Ntsiyeni' })).toBe('Sir G');
   });
 
   it('uses a verified display name for other users', () => {
@@ -30,11 +30,11 @@ describe('RyanAI identity and South African English defaults', () => {
     expect(createLoginGreeting(
       { isOwner: true },
       new Date('2026-10-30T06:00:00.000Z'),
-    )).toBe("Good morning, Sir. I'm RyanAI. Your assistant is ready.");
+    )).toBe("Good morning, Sir G. I'm RyanAI. Your assistant is ready.");
   });
 
   it('addresses owner communications once without duplicating Sir', () => {
-    expect(addressOwnerResponse('Your systems are ready.')).toBe('Certainly, Sir. Your systems are ready.');
-    expect(addressOwnerResponse('Certainly, Sir. Your systems are ready.')).toBe('Certainly, Sir. Your systems are ready.');
+    expect(addressOwnerResponse('Your systems are ready.')).toBe('Certainly, Sir G. Your systems are ready.');
+    expect(addressOwnerResponse('Certainly, Sir G. Your systems are ready.')).toBe('Certainly, Sir. Your systems are ready.');
   });
 });
