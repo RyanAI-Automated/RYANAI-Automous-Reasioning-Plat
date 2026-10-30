@@ -12,7 +12,8 @@ const brainDefinitions = [
     keyNames: ['NVIDIA_API_KEY'],
     credentialFlags: ['RYANAI_NVIDIA_KEY_CONFIGURED'],
     defaultEndpoint: 'https://integrate.api.nvidia.com/v1',
-    usesLocalCredential: (env) => env.RYANAI_NVIDIA_ENDPOINT_CONFIGURED !== 'true'
+    usesLocalCredential: (env) => !firstConfigured(env, ['NVIDIA_API_ENDPOINT'])
+      && env.RYANAI_NVIDIA_ENDPOINT_CONFIGURED !== 'true'
       && ((firstConfigured(env, ['LM_STUDIO_URL', 'OLLAMA_URL']))
         || env.RYANAI_LM_STUDIO_URL_CONFIGURED === 'true'
         || env.RYANAI_OLLAMA_URL_CONFIGURED === 'true'),
@@ -23,7 +24,8 @@ const brainDefinitions = [
     keyNames: ['QWEN_API_KEY'],
     credentialFlags: ['RYANAI_QWEN_KEY_CONFIGURED'],
     defaultEndpoint: 'https://api.together.xyz/v1',
-    usesLocalCredential: (env) => env.RYANAI_QWEN_ENDPOINT_CONFIGURED !== 'true'
+    usesLocalCredential: (env) => !firstConfigured(env, ['QWEN_API_ENDPOINT'])
+      && env.RYANAI_QWEN_ENDPOINT_CONFIGURED !== 'true'
       && (firstConfigured(env, ['LM_STUDIO_URL']) || env.RYANAI_LM_STUDIO_URL_CONFIGURED === 'true'),
   },
   {
@@ -33,7 +35,7 @@ const brainDefinitions = [
     credentialFlags: ['RYANAI_LOGIC_KEY_CONFIGURED', 'RYANAI_OPENAI_KEY_CONFIGURED'],
     defaultEndpoint: 'https://api.openai.com/v1',
     usesLocalCredential: (env) => env.RYANAI_LOGIC_USES_LM_STUDIO === 'true'
-      || (firstConfigured(env, ['LM_STUDIO_URL']) && !firstConfigured(env, ['LOGIC_API_ENDPOINT'])
+      || (!firstConfigured(env, ['LOGIC_API_ENDPOINT']) && firstConfigured(env, ['LM_STUDIO_URL']) && !firstConfigured(env, ['LOGIC_API_ENDPOINT'])
         && env.RYANAI_LM_STUDIO_URL_CONFIGURED !== 'false'),
   },
 ];
