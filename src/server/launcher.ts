@@ -310,7 +310,7 @@ function registerCoreRoutes() {
         status: 'processing',
         message: `Running reasoning for ${sessionId || 'default'}...`,
       });
-      const result = await runReasoning(prompt, request.body?.model, request.authUser);
+      const result = await runReasoning(prompt, request.body?.model, request.authUser, request.body?.language);
       sendEvent({
         status: 'complete',
         result: result.output,
