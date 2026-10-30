@@ -188,8 +188,9 @@ function registerCoreRoutes() {
     prompt: string,
     model?: string,
     user?: FastifyRequest['authUser'],
+    language?: string,
   ) {
-    const result = await invokeReasoningAgent({ prompt, model, user });
+    const result = await invokeReasoningAgent({ prompt, model, user, language });
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
@@ -217,12 +218,13 @@ function registerCoreRoutes() {
         prompt: { type: 'string', minLength: 1, maxLength: 20000 },
         model: { type: 'string', maxLength: 100 },
         sessionId: { type: 'string', maxLength: 200 },
+        language: { type: 'string', maxLength: 16 },
       },
     },
   };
 
   const handleReasoningRequest = async (
-    request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
+    request: FastifyRequest<{ Body: { prompt?: string; model?: string; language?: string } }>,
     reply: FastifyReply,
   ) => {
     if (!request.authUser?.id) {
@@ -239,7 +241,7 @@ function registerCoreRoutes() {
     }
 
     try {
-      return await runReasoning(prompt, request.body?.model, request.authUser);
+      return await runReasoning(prompt, request.body?.model, request.authUser, request.body?.language);
     } catch (err) {
       fastify.log.error({ err }, 'Reasoning request failed');
       return reply.code(502).send({
@@ -265,7 +267,7 @@ function registerCoreRoutes() {
 
   // Reasoning stream endpoint
   fastify.post<{
-    Body: { prompt?: string; sessionId?: string; model?: string };
+    Body: { prompt?: string; sessionId?: string; model?: string; language?: string };
   }>(API_ROUTES.streamPath, { schema: reasoningBodySchema }, async (request, reply) => {
     if (!request.authUser?.id) {
       return reply.code(401).send({
