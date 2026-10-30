@@ -47,3 +47,19 @@ test('brain credentials are reported as presence only, never values', () => {
   assert.equal(primary.status, 'CONFIGURED_NOT_PROBED');
   assert.equal(JSON.stringify(report).includes('do-not-print-this'), false);
 });
+
+test('agent audit accepts boolean credential-presence indicators without receiving secrets', () => {
+  const report = auditAgentReadiness({
+    env: {
+      RYANAI_NVIDIA_KEY_CONFIGURED: 'true',
+      RYANAI_QWEN_KEY_CONFIGURED: 'false',
+    },
+    sourceRoot: process.cwd(),
+  });
+  const primary = report.brains.find((brain) => brain.id === 'primary');
+  const secondary = report.brains.find((brain) => brain.id === 'secondary');
+  assert.equal(primary.credentialPresent, true);
+  assert.equal(secondary.credentialPresent, true);
+  assert.equal(JSON.stringify(report).includes('true'), true);
+  assert.equal(JSON.stringify(report).includes('API_KEY='), false);
+});

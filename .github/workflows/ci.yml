@@ -80,6 +80,13 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          # Pass only boolean presence indicators; never expose model API keys to audit processes.
+          RYANAI_NVIDIA_KEY_CONFIGURED: ${{ secrets.NVIDIA_API_KEY != '' }}
+          RYANAI_QWEN_KEY_CONFIGURED: ${{ secrets.QWEN_API_KEY != '' }}
+          RYANAI_LOGIC_KEY_CONFIGURED: ${{ secrets.LOGIC_API_KEY != '' }}
+          RYANAI_LM_STUDIO_KEY_CONFIGURED: ${{ secrets.LM_STUDIO_API_KEY != '' }}
+          RYANAI_OPENAI_KEY_CONFIGURED: ${{ secrets.OPENAI_API_KEY != '' }}
+          RYANAI_LOCAL_ENDPOINT_CONFIGURED: ${{ vars.LM_STUDIO_URL != '' || vars.OLLAMA_URL != '' }}
         run: npm run test:readiness-audits && npm run audit:deployments && npm run audit:agents
 
   subprojects:
