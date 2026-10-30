@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const brainDefinitions = [
-  { id: 'primary', label: 'Primary reasoning brain', keyNames: ['NVIDIA_API_KEY','OPENAI_API_KEY','QWEN_API_KEY','LM_STUDIO_API_KEY'], endpointNames: ['NVIDIA_API_ENDPOINT','LM_STUDIO_URL','OLLAMA_URL'], defaultEndpoint: 'https://integrate.api.nvidia.com/v1' },
-  { id: 'secondary', label: 'Secondary analysis brain', keyNames: ['QWEN_API_KEY','OPENAI_API_KEY','NVIDIA_API_KEY','LM_STUDIO_API_KEY'], endpointNames: ['QWEN_API_ENDPOINT','LM_STUDIO_URL'], defaultEndpoint: 'https://api.together.xyz/v1' },
-  { id: 'logic', label: 'Logic and tool-use brain', keyNames: ['LOGIC_API_KEY','LM_STUDIO_API_KEY','OPENAI_API_KEY','NVIDIA_API_KEY','QWEN_API_KEY'], endpointNames: ['LOGIC_API_ENDPOINT','LM_STUDIO_URL','OPENAI_BASE_URL'], defaultEndpoint: 'https://api.openai.com/v1' },
+  { id: 'primary', label: 'Primary reasoning brain', keyNames: ['NVIDIA_API_KEY','OPENAI_API_KEY','QWEN_API_KEY','LM_STUDIO_API_KEY'], credentialFlags: ['RYANAI_NVIDIA_KEY_CONFIGURED','RYANAI_OPENAI_KEY_CONFIGURED','RYANAI_QWEN_KEY_CONFIGURED','RYANAI_LM_STUDIO_KEY_CONFIGURED'], endpointNames: ['NVIDIA_API_ENDPOINT','LM_STUDIO_URL','OLLAMA_URL'], defaultEndpoint: 'https://integrate.api.nvidia.com/v1' },
+  { id: 'secondary', label: 'Secondary analysis brain', keyNames: ['QWEN_API_KEY','OPENAI_API_KEY','NVIDIA_API_KEY','LM_STUDIO_API_KEY'], credentialFlags: ['RYANAI_QWEN_KEY_CONFIGURED','RYANAI_OPENAI_KEY_CONFIGURED','RYANAI_NVIDIA_KEY_CONFIGURED','RYANAI_LM_STUDIO_KEY_CONFIGURED'], endpointNames: ['QWEN_API_ENDPOINT','LM_STUDIO_URL'], defaultEndpoint: 'https://api.together.xyz/v1' },
+  { id: 'logic', label: 'Logic and tool-use brain', keyNames: ['LOGIC_API_KEY','LM_STUDIO_API_KEY','OPENAI_API_KEY','NVIDIA_API_KEY','QWEN_API_KEY'], credentialFlags: ['RYANAI_LOGIC_KEY_CONFIGURED','RYANAI_LM_STUDIO_KEY_CONFIGURED','RYANAI_OPENAI_KEY_CONFIGURED','RYANAI_NVIDIA_KEY_CONFIGURED','RYANAI_QWEN_KEY_CONFIGURED'], endpointNames: ['LOGIC_API_ENDPOINT','LM_STUDIO_URL','OPENAI_BASE_URL'], defaultEndpoint: 'https://api.openai.com/v1' },
 ];
 const agentDefinitions = [
   { id: 'communications', label: 'Communications sub-agent', file: 'src/agent/subAgents.ts', marker: 'commsSubAgent', kind: 'tool-agent' },
@@ -27,8 +27,8 @@ function firstConfigured(env, names) {
 
 export function auditAgentReadiness({ env = process.env, sourceRoot = root } = {}) {
   const brains = brainDefinitions.map((brain) => {
-    const keyConfigured = firstConfigured(env, brain.keyNames);
-    const localEndpointConfigured = firstConfigured(env, ['LM_STUDIO_URL', 'OLLAMA_URL']);
+    const keyConfigured = firstConfigured(env, brain.keyNames) || brain.credentialFlags.some((name) => env[name] === 'true');
+    const localEndpointConfigured = firstConfigured(env, ['LM_STUDIO_URL', 'OLLAMA_URL']) || env.RYANAI_LOCAL_ENDPOINT_CONFIGURED === 'true';
     const endpointConfigured = firstConfigured(env, brain.endpointNames) || Boolean(brain.defaultEndpoint);
     return {
       id: brain.id,
