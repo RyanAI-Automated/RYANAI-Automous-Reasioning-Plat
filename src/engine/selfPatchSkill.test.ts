@@ -60,8 +60,13 @@ describe('production self-patch proposal', () => {
       filePath: 'src/config/.env.production',
       patchContent: 'export const candidate = true;',
     });
+    const secretFile = await SelfPatchSkill.proposePullRequest({
+      filePath: 'src/config/secret.ts',
+      patchContent: 'export const candidate = true;',
+    });
     expect(traversal.status).toBe('rejected');
     expect(protectedFile.status).toBe('rejected');
+    expect(secretFile.status).toBe('rejected');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
