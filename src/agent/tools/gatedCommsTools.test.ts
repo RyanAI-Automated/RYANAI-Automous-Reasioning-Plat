@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const store = vi.hoisted(() => ({ createPendingAction: vi.fn() }));
 vi.mock('../../approvals/pendingStore.js', () => store);
 
-import { queueEmailTool, queueVoiceCallTool, queueWhatsAppTool } from './gatedCommsTools.js';
+import { queueEmailTool, queueSmsTool, queueVoiceCallTool, queueWhatsAppTool } from './gatedCommsTools.js';
 
 const asUser = { configurable: { userId: 'user-1' } };
 const fetchSpy = vi.fn();
@@ -37,6 +37,14 @@ describe('gated communication tools', () => {
     );
     expect(result.message).toMatch(/Nothing has been sent/);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('queues SMS to the owner by default', async () => {
+    vi.stubEnv('RYANAI_OWNER_PHONE', '+27718095084');
+    await queueSmsTool.invoke({ message: 'System alert' }, asUser);
+    expect(store.createPendingAction).toHaveBeenLastCalledWith('user-1', 'send_sms_message', {
+      to: '+27718095084', message: 'System alert',
+    });
   });
 
   it('queue a message and a call with a cleaned phone number', async () => {
