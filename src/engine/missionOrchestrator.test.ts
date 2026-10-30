@@ -7,12 +7,16 @@ const mocks = vi.hoisted(() => ({
   saveCheckpoint: vi.fn(),
   getLatestCheckpoint: vi.fn(),
 }));
-vi.mock('./dispatcher', () => ({
-  RyanAIDispatcher: {
-    planObjective: mocks.planObjective,
-    executeTasks: mocks.executeTasks,
-  },
-}));
+vi.mock('./dispatcher', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./dispatcher')>();
+  return {
+    ...actual,
+    RyanAIDispatcher: {
+      planObjective: mocks.planObjective,
+      executeTasks: mocks.executeTasks,
+    },
+  };
+});
 vi.mock('./agentWorkers', () => ({
   RyanAIAgentWorkers: { runSecurityAuditor: mocks.runSecurityAuditor },
 }));
