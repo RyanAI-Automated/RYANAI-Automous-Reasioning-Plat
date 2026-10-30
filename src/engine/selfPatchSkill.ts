@@ -28,10 +28,14 @@ const SECRET_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pou
 const ALLOWED_PREFIXES = ['src/', 'mcp-server/', 'scripts/'];
 
 function validatePatch(request: PatchRequest): string | null {
+  if (!request || typeof request.filePath !== 'string' || typeof request.patchContent !== 'string') {
+    return 'Patch request must include a file path and complete file content.';
+  }
   const filePath = request.filePath.trim();
   if (
     !filePath ||
     filePath.length > 500 ||
+    !/^[A-Za-z0-9._/-]+$/.test(filePath) ||
     filePath.startsWith('/') ||
     filePath.includes('\\') ||
     filePath.includes('\0') ||
@@ -97,7 +101,7 @@ export class SelfPatchSkill {
       const baseSha = (baseRef.object as Record<string, unknown> | undefined)?.sha;
       if (typeof baseSha !== 'string') throw new Error('GitHub base branch reference is invalid.');
 
-      const currentFile = await githubRequest(token, `/repos/${owner}/${name}/contents/${encodedPath}?ref=${encodeURIComponent(baseBranch)}`);
+      const currentFile = await githubRequest(token, `/repos/${owner}/${name}/contents/${encodedPath}?ref=${encodeURIComponent(baseSha)}`);
       if (typeof currentFile.sha !== 'string' || currentFile.type !== 'file') {
         return { status: 'rejected', error: 'Self-patching is limited to existing tracked source files.' };
       }
