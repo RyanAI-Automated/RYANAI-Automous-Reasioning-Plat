@@ -65,13 +65,6 @@ async function fixture(protectedRoutes = true) {
   app.post('/api/reason', async (_request, reply) =>
     reply.code(400).send({ error: 'Empty prompt' }),
   );
-  app.post('/api/agent/ops/brains/probe', async () => ({
-    brains: [
-      { brain: 'primary', status: 'HEALTHY' },
-      { brain: 'secondary', status: 'HEALTHY' },
-      { brain: 'logic', status: 'HEALTHY' },
-    ],
-  }));
   app.post('/api/agent/ops/brains/probe', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Unauthorized' });
     if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Forbidden' });
