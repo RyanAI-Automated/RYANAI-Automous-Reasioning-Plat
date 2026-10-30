@@ -374,6 +374,32 @@ async function initializeDatabase() {
 
     const result = await dbPool.query('SELECT NOW()');
 
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS communication_conversations (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        external_address TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT communication_conversations_channel_address_key UNIQUE (channel, external_address)
+      )
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS communication_messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES communication_conversations(id) ON DELETE CASCADE,
+        direction TEXT NOT NULL,
+        body TEXT NOT NULL,
+        provider_message_id TEXT UNIQUE,
+        status TEXT NOT NULL DEFAULT 'received',
+        metadata JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await dbPool.query('CREATE INDEX IF NOT EXISTS communication_messages_conversation_created_idx ON communication_messages (conversation_id, created_at)');
+    await dbPool.query('CREATE INDEX IF NOT EXISTS communication_messages_status_created_idx ON communication_messages (status, created_at)');
+    await dbPool.query('CREATE INDEX IF NOT EXISTS communication_conversations_channel_updated_idx ON communication_conversations (channel, updated_at)');
+
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
 
