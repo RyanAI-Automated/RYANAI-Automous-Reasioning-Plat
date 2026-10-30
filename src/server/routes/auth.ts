@@ -19,6 +19,8 @@ export interface AuthenticatedUser {
   id: string;
   email?: string;
   role: 'user' | 'admin';
+  displayName?: string;
+  isOwner: boolean;
 }
 
 // Augment Fastify types to include custom request properties and Prisma instance
@@ -86,6 +88,8 @@ export async function requireUser(
       id: data.user.id,
       email: data.user.email,
       role: data.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
+      displayName: typeof data.user.user_metadata?.full_name === 'string' ? data.user.user_metadata.full_name : undefined,
+      isOwner: Boolean(data.user.email && process.env.RYANAI_OWNER_EMAIL?.trim() && data.user.email.toLowerCase() === process.env.RYANAI_OWNER_EMAIL.trim().toLowerCase()),
     };
   } catch {
     return reply
