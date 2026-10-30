@@ -38,7 +38,7 @@ export const primaryBrain = createBrain(
   getEnv('PRIMARY_REASONING_MODEL') || getEnv('NVIDIA_MODEL') || 'nvidia/nemotron-3-ultra',
   0.2,
   getEnv('NVIDIA_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || getEnv('OLLAMA_URL') || 'https://integrate.api.nvidia.com/v1',
-  getEnv('NVIDIA_API_KEY'),
+  getEnv('NVIDIA_API_KEY') || ((getEnv('LM_STUDIO_URL') || getEnv('OLLAMA_URL')) ? getEnv('LM_STUDIO_API_KEY') : ''),
 );
 
 /**
@@ -49,7 +49,7 @@ export const secondaryBrain = createBrain(
   getEnv('SECONDARY_REASONING_MODEL') || getEnv('QWEN_MODEL') || 'Qwen/Qwen3-235B-A22B-Instruct-2507',
   0.4,
   getEnv('QWEN_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || 'https://api.together.xyz/v1',
-  getEnv('QWEN_API_KEY'),
+  getEnv('QWEN_API_KEY') || (getEnv('LM_STUDIO_URL') ? getEnv('LM_STUDIO_API_KEY') : ''),
 );
 
 /**
