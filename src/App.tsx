@@ -69,7 +69,7 @@ export default function App() {
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
-      : user?.email;
+      : user?.email?.split('@')[0];
 
   const handleSignOut = async () => {
     if (await signOut()) window.location.hash = '/signin';
