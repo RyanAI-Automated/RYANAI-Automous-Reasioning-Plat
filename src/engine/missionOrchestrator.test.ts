@@ -89,6 +89,23 @@ describe('RyanAI mission security gate', () => {
     expect(mocks.executeTasks).toHaveBeenCalledWith(plan.tasks);
   });
 
+  it('refuses to resume a checkpoint containing a corrupted task plan', async () => {
+    mocks.getLatestCheckpoint.mockResolvedValue({
+      step: 2,
+      state: {
+        missionId: 'mission-corrupt',
+        objective: 'Analyze the platform',
+        currentPhase: 2,
+        status: 'PAUSED_FOR_APPROVAL',
+        logs: ['Awaiting approval'],
+        tasks: [{ id: '../bad', title: 'Invalid', targetBrain: 'nvidia', payload: 'Analyze.' }],
+      },
+    });
+    const resumed = await new RyanAIMissionOrchestrator().resumeMission('mission-corrupt', true);
+    expect(resumed).toBeNull();
+    expect(mocks.executeTasks).not.toHaveBeenCalled();
+  });
+
   it('does not claim completion when execution fails', async () => {
     mocks.executeTasks.mockRejectedValue(new Error('Qwen unavailable'));
     const mission = await new RyanAIMissionOrchestrator().startMission('mission-fail', 'Analyze the platform');

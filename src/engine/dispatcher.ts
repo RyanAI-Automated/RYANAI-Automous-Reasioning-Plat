@@ -27,19 +27,13 @@ function boundedString(value: unknown, maximum: number): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= maximum;
 }
 
-function parsePlan(raw: string): SubTask[] {
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    throw new Error('Logic brain returned invalid task-plan JSON; execution was not started.');
-  }
-  if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > MAX_TASKS) {
+/** Validate both newly generated and checkpoint-restored task plans at runtime. */
+export function validateSubTaskPlan(value: unknown): SubTask[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_TASKS) {
     throw new Error(`Task plan must contain between 1 and ${MAX_TASKS} tasks.`);
   }
   const ids = new Set<string>();
-  return parsed.map((candidate, index) => {
+  return value.map((candidate, index) => {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
       throw new Error(`Task ${index + 1} is not a valid object.`);
     }
@@ -53,6 +47,9 @@ function parsePlan(raw: string): SubTask[] {
       throw new Error(`Task ${index + 1} has an invalid id, title, payload, or brain assignment.`);
     }
     const id = task.id.trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(id)) {
+      throw new Error(`Task ${index + 1} has an invalid identifier.`);
+    }
     if (ids.has(id)) throw new Error('Task plan contains duplicate task identifiers.');
     ids.add(id);
     return {
@@ -62,6 +59,17 @@ function parsePlan(raw: string): SubTask[] {
       payload: task.payload.trim(),
     };
   });
+}
+
+function parsePlan(raw: string): SubTask[] {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error('Logic brain returned invalid task-plan JSON; execution was not started.');
+  }
+  return validateSubTaskPlan(parsed);
 }
 
 export class RyanAIDispatcher {
@@ -83,10 +91,8 @@ export class RyanAIDispatcher {
 
   /** Execute a previously validated plan; callers must perform their approval gate first. */
   static async executeTasks(tasks: SubTask[]): Promise<SubTaskResult[]> {
-    if (!Array.isArray(tasks) || tasks.length < 1 || tasks.length > MAX_TASKS) {
-      throw new Error('Execution requires a validated plan containing 1–3 tasks.');
-    }
-    return Promise.all(tasks.map(async (task) => {
+    const validatedTasks = validateSubTaskPlan(tasks);
+    return Promise.all(validatedTasks.map(async (task) => {
       const target = task.targetBrain === 'nvidia'
         ? primaryBrain
         : task.targetBrain === 'qwen'
