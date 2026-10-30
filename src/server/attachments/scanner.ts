@@ -32,12 +32,12 @@ async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
     socket.on('data', (chunk: Buffer) => {
       response.push(chunk);
       const text = Buffer.concat(response).toString('utf8');
-      if (text.endsWith('OK\\0') || text.endsWith('OK\\n')) finish(undefined, 'clean');
+      if (text.endsWith('OK\0') || text.endsWith('OK\n')) finish(undefined, 'clean');
       else if (text.includes('FOUND')) finish(undefined, 'infected');
       else if (text.includes('ERROR')) finish(new Error('ClamAV returned an error.'));
     });
     socket.on('connect', () => {
-      socket.write(Buffer.from('zINSTREAM\\0'));
+      socket.write(Buffer.from('zINSTREAM\0'));
       const chunkSize = 64 * 1024;
       for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
         const chunk = Buffer.from(bytes.slice(offset, Math.min(offset + chunkSize, bytes.byteLength)));
