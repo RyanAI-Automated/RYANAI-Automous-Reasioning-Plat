@@ -34,7 +34,7 @@ import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
-import { startBrainHealthMonitor } from '../agent/operations.js';
+import { startAgentTaskWorker, startBrainHealthMonitor } from '../agent/operations.js';
 
 const { Pool } = pg;
 
@@ -480,6 +480,8 @@ async function start() {
 
     serviceStatus.api = true;
     stopBrainMonitor = startBrainHealthMonitor();
+    if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
+    else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
 
     // Scheduled tasks start AI runs with no person present, and those runs cost
     // money. Turn them on with an explicit setting.
@@ -502,11 +504,13 @@ async function start() {
 // Graceful shutdown hooks
 let stopScheduler: (() => void) | undefined;
 let stopBrainMonitor: (() => void) | undefined;
+let stopAgentWorker: (() => void) | undefined;
 let stopAlerts: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   stopScheduler?.();
   stopBrainMonitor?.();
+  stopAgentWorker?.();
   stopAlerts?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();

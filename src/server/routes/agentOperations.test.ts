@@ -66,12 +66,12 @@ describe('agent operations routes', () => {
     expect(response.statusCode).toBe(401);
     expect(operations.dispatchAutonomousTask).not.toHaveBeenCalled();
   });
-  it('dispatches ordinary reasoning autonomously for the authenticated user', async () => {
-    operations.dispatchAutonomousTask.mockResolvedValue({ id: 'run-1', status: 'completed', result: 'done' });
+  it('queues work for the authenticated user without waiting for model execution', async () => {
+    operations.dispatchAutonomousTask.mockResolvedValue({ id: 'run-1', status: 'queued', createdAt: new Date('2026-10-30T08:00:00.000Z') });
     const response = await app.inject({ method: 'POST', url: '/api/agent/ops/tasks', headers: { 'x-test-user': 'user-1' }, payload: { objective: 'Analyze this architecture' } });
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(202);
     expect(operations.dispatchAutonomousTask).toHaveBeenCalledWith('user-1', 'Analyze this architecture');
-    expect(response.json().status).toBe('completed');
+    expect(response.json()).toMatchObject({ taskId: 'run-1', status: 'queued' });
   });
   it('rejects objectives shorter than the API contract', async () => {
     const response = await app.inject({ method: 'POST', url: '/api/agent/ops/tasks', headers: { 'x-test-user': 'user-1' }, payload: { objective: 'no' } });

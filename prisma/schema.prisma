@@ -249,11 +249,17 @@ model AgentRun {
   status String @default("queued")
   result Json?
   error String? @db.Text
+  attempts Int @default(0)
+  maxAttempts Int @default(3) @map("max_attempts")
+  workerId String? @map("worker_id")
+  lockedAt DateTime? @map("locked_at")
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
   handoffs AgentHandoff[]
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([status, lockedAt])
   @@map("agent_runs")
 }
 model AgentHandoff {

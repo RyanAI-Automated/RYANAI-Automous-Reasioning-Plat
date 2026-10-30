@@ -1,5 +1,5 @@
 import { buildMemoryContext } from './memoryContext.js';
-import { dispatchAutonomousTask } from './operations.js';
+import { dispatchAutonomousTask, waitForAutonomousTask } from './operations.js';
 
 export interface AgentUser {
   id: string;
@@ -13,12 +13,7 @@ export interface ReasoningHandoff {
   output: string;
 }
 
-/**
- * Production reasoning is a coordinated three-provider run:
- * NVIDIA/primary and Qwen/secondary execute concurrently, then the
- * independent logic brain synthesizes both outputs. dispatchAutonomousTask
- * persists the run and each handoff before this result reaches the API.
- */
+/** Authenticated reasoning is queued durably, then read back from persisted execution history. */
 export async function invokeReasoningAgent({
   prompt,
   model,
@@ -32,23 +27,19 @@ export async function invokeReasoningAgent({
     throw new Error('An authenticated user is required for traceable three-brain reasoning.');
   }
 
-  // The UI model selector is retained for API compatibility. Provider selection
-  // is intentionally owned by the three independent server-side brain configs.
+  // Provider selection is owned by the three independent server-side brain configs.
   void model;
-
   const memory = await buildMemoryContext(user.id);
-  const objective = memory ? `${memory}\n\nUser request:\n${prompt}` : prompt;
-
-  const run = await dispatchAutonomousTask(user.id, objective);
+  const objective = memory ? memory + '\n\nUser request:\n' + prompt : prompt;
+  const queued = await dispatchAutonomousTask(user.id, objective);
+  const run = await waitForAutonomousTask(queued.id, user.id);
   const handoffs = run.handoffs as ReasoningHandoff[];
   const specialistMessages = handoffs
     .filter((handoff) => handoff.toAgent === 'primary' || handoff.toAgent === 'secondary')
     .map((handoff) => ({
-      content: `[${handoff.toAgent.toUpperCase()} BRAIN]\n${handoff.output}`,
+      content: '[' + handoff.toAgent.toUpperCase() + ' BRAIN]\n' + handoff.output,
     }));
-  const synthesis = {
-    content: `[LOGIC BRAIN SYNTHESIS]\n${run.result}`,
-  };
+  const synthesis = { content: '[LOGIC BRAIN SYNTHESIS]\n' + run.result };
 
   return {
     messages: [...specialistMessages, synthesis],
