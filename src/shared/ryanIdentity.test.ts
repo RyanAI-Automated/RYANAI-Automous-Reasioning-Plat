@@ -1,40 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import {
-  addressOwnerResponse,
-  createLoginGreeting,
-  getAddress,
-  getTimeGreeting,
-  RYANAI_LOCALE,
-  RYANAI_TIME_ZONE,
-} from './ryanIdentity.js';
+import { addressOwnerResponse, createLoginGreeting, getAddress, resolveCommunicationLanguage } from './ryanIdentity.js';
+import { DEFAULT_RYANAI_LANGUAGE, OWNER_VENDA_LANGUAGE, RYANAI_LANGUAGES } from './languages.js';
 
-describe('RyanAI identity and South African English defaults', () => {
-  it('uses Sir for the configured owner identity', () => {
-    expect(getAddress({ isOwner: true, displayName: 'Ntsiyeni' })).toBe('Sir');
+describe('RyanAI identity and multilingual language defaults', () => {
+  it('uses the Sir G owner title and full configured display name', () => {
+    expect(getAddress({ isOwner: true })).toBe('Sir G');
+    expect(createLoginGreeting({ isOwner: true, preferredTitle: 'Sir G' }, new Date('2026-10-30T06:00:00Z')))
+      .toBe("Good morning, Sir G. I'm RyanAI. Your assistant is ready.");
   });
-
-  it('uses a verified display name for other users', () => {
+  it('uses a display name for other users', () => {
     expect(getAddress({ displayName: 'Alex Mokoena' })).toBe('Alex Mokoena');
   });
-
-  it('falls back to the email local part when no display name exists', () => {
-    expect(getAddress({ email: 'alex@example.test' })).toBe('alex');
+  it('supports Tshivenda as the owner-specific language option', () => {
+    expect(OWNER_VENDA_LANGUAGE).toBe('ve-ZA');
+    expect(resolveCommunicationLanguage(undefined, true)).toBe('ve-ZA');
+    expect(RYANAI_LANGUAGES.find((language) => language.code === 've-ZA')?.nativeLabel).toBe('Tshivenḓa');
   });
-
-  it('uses South African locale and timezone defaults', () => {
-    expect(RYANAI_LOCALE).toBe('en-ZA');
-    expect(RYANAI_TIME_ZONE).toBe('Africa/Johannesburg');
+  it('defaults other users to South African English and accepts international English', () => {
+    expect(DEFAULT_RYANAI_LANGUAGE).toBe('en-ZA');
+    expect(resolveCommunicationLanguage('en-GB')).toBe('en-GB');
+    expect(resolveCommunicationLanguage('invalid')).toBe('en-ZA');
   });
-
-  it('creates a login greeting addressed to the user', () => {
-    expect(createLoginGreeting(
-      { isOwner: true },
-      new Date('2026-10-30T06:00:00.000Z'),
-    )).toBe("Good morning, Sir. I'm RyanAI. Your assistant is ready.");
-  });
-
-  it('addresses owner communications once without duplicating Sir', () => {
-    expect(addressOwnerResponse('Your systems are ready.')).toBe('Certainly, Sir. Your systems are ready.');
-    expect(addressOwnerResponse('Certainly, Sir. Your systems are ready.')).toBe('Certainly, Sir. Your systems are ready.');
+  it('personalizes owner replies without duplicating the title', () => {
+    expect(addressOwnerResponse('Your report is ready.')).toBe('Certainly, Sir G. Your report is ready.');
+    expect(addressOwnerResponse('Certainly, Sir G. Your report is ready.')).toBe('Certainly, Sir G. Your report is ready.');
   });
 });
