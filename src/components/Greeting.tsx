@@ -37,7 +37,7 @@ export default function Greeting({ userId, displayName, isOwner = false }: Greet
   const selectedVoice = useMemo(() => findSpeechVoice(voices, selectedLanguage.speechLocale), [voices, selectedLanguage]);
   const hour = new Date().getHours();
   const greetingText = getGreetingLanguageText(language, hour);
-  const greeting = `${greetingText}, ${address || displayName?.trim().split(/\\s+/)[0] || 'there'}.`;
+  const greeting = `${greetingText}, ${address || displayName?.trim().split(/\s+/)[0] || 'there'}.`;
 
   const speak = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
