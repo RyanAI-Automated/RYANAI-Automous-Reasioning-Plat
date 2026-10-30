@@ -6,10 +6,12 @@ import { FileCode2, ShieldCheck, Upload } from 'lucide-react';
 interface PatchResponse {
   success?: boolean;
   result?: {
-    status?: 'success' | 'rejected' | 'conflict' | 'failed';
+    status?: 'proposed' | 'rejected' | 'conflict' | 'unavailable';
     message?: string;
     error?: string;
-    warnings?: string[];
+    pullRequestUrl?: string;
+    branch?: string;
+    commitSha?: string;
   };
   error?: string;
 }
@@ -18,7 +20,6 @@ interface PatchResponse {
 export default function SelfPatchPanel() {
   const [filePath, setFilePath] = useState('');
   const [patchContent, setPatchContent] = useState('');
-  const [testScript, setTestScript] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<PatchResponse['result'] | null>(null);
@@ -36,7 +37,6 @@ export default function SelfPatchPanel() {
         body: JSON.stringify({
           filePath: filePath.trim(),
           patchContent,
-          ...(testScript.trim() ? { testScript } : {}),
         }),
       });
       const data = await response.json().catch(() => ({})) as PatchResponse;
@@ -53,7 +53,7 @@ export default function SelfPatchPanel() {
   }
 
   const status = result?.status;
-  const statusTone = status === 'success'
+  const statusTone = status === 'proposed'
     ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
     : status === 'conflict' || status === 'rejected'
       ? 'border-amber-500/30 bg-amber-500/10 text-amber-100'
@@ -65,7 +65,7 @@ export default function SelfPatchPanel() {
         <FileCode2 className="h-6 w-6 text-cyan-300" />
         <div>
           <h2 id="self-patch-heading" className="font-semibold text-cyan-100">Self-Patch Control</h2>
-          <p className="text-xs text-slate-400">Administrator-only · isolated verification · atomic promotion</p>
+          <p className="text-xs text-slate-400">Administrator-only · GitHub branch · CI-gated pull request</p>
         </div>
       </header>
 
@@ -74,7 +74,7 @@ export default function SelfPatchPanel() {
           <ShieldCheck className="h-4 w-4" /> Production safety gate
         </div>
         <p className="mt-1 text-xs leading-relaxed text-slate-300">
-          Only existing Git-tracked workspace files can be changed. The patch is staged and checked in a digest-pinned, network-disabled verifier before atomic promotion. Missing verifier configuration, failed checks, path violations or concurrent changes stop the patch. Never submit secrets, environment files, credentials or personal data.
+          Only existing source files under approved directories can be proposed. RyanAI creates an isolated GitHub branch and pull request; repository CI and branch protection must pass before a human merges it. This does not modify the running service or deploy automatically. Never submit secrets, environment files, credentials or personal data.
         </p>
       </div>
 
@@ -102,25 +102,14 @@ export default function SelfPatchPanel() {
             className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-mono"
           />
         </label>
-        <label className="space-y-1 text-xs text-slate-300">
-          Optional additional verification script
-          <textarea
-            value={testScript}
-            onChange={(event) => setTestScript(event.target.value)}
-            maxLength={200_000}
-            rows={3}
-            placeholder="Optional JavaScript verification script executed only inside the isolated verifier…"
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-mono"
-          />
-        </label>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">A successful response means verification passed and the candidate was promoted.</p>
+          <p className="text-xs text-slate-500">A successful response means a pull request was created. It is not yet merged or deployed.</p>
           <button
             type="submit"
             disabled={submitting || !filePath.trim() || !patchContent.trim()}
             className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Upload className="h-4 w-4" /> {submitting ? 'Verifying patch…' : 'Validate & apply patch'}
+            <Upload className="h-4 w-4" /> {submitting ? 'Creating patch PR…' : 'Submit patch proposal'}
           </button>
         </div>
       </form>
@@ -132,7 +121,9 @@ export default function SelfPatchPanel() {
           {result.message && <p className="mt-1">{result.message}</p>}
           {result.error && <p className="mt-1">{result.error}</p>}
           {result.warnings?.map((warning) => <p key={warning} className="mt-1 text-xs">{warning}</p>)}
-          {status === 'conflict' && <p className="mt-1 text-xs">The workspace changed during verification. Refresh the source file and prepare a new candidate.</p>}
+          {status === 'conflict' && <p className="mt-1 text-xs">The GitHub base branch changed. Refresh the source file and submit a new candidate.</p>}
+          {result.pullRequestUrl && <a className="mt-2 inline-block underline" href={result.pullRequestUrl} target="_blank" rel="noreferrer">Open pull request</a>}
+          {result.branch && <p className="mt-1 text-xs">Branch: {result.branch}</p>}
         </div>
       )}
     </section>
