@@ -109,3 +109,13 @@ export async function signConversationAttachment(
   if (error || !data?.signedUrl) throw new Error(error?.message || 'Unable to create a secure download link.');
   return { ...attachment, url: data.signedUrl };
 }
+
+export async function removeConversationAttachments(
+  client: SupabaseClient,
+  attachments: readonly MessageAttachment[],
+): Promise<void> {
+  const paths = [...new Set(attachments.map((attachment) => attachment.path))];
+  if (!paths.length) return;
+  const { error } = await client.storage.from(ATTACHMENT_BUCKET).remove(paths);
+  if (error) throw new Error(error.message || 'Unable to remove conversation attachments.');
+}
