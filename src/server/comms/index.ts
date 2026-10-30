@@ -12,7 +12,7 @@ declare module 'fastify' {
 }
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
-type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string };
+type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string };
 const MAX_MESSAGE_LENGTH = 4000;
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -81,9 +81,9 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   await fastify.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
 
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
-    const { channel, recipient, message, subject } = request.body ?? {};
+    const { channel, recipient, message, subject, contentSid, contentVariables } = request.body ?? {};
     const target = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
-    if (!channel || !target || !message?.trim() || message.length > MAX_MESSAGE_LENGTH) {
+    if (!channel || !target || ((!message?.trim()) && !(channel === 'whatsapp' && contentSid)) || (message && message.length > MAX_MESSAGE_LENGTH)) {
       return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     }
     if (!['whatsapp', 'sms', 'voice', 'email'].includes(channel)) {
@@ -120,11 +120,16 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         const sent = await client.messages.create({
           from: channel === 'whatsapp' && !from.startsWith('whatsapp:') ? `whatsapp:${from}` : from,
           to: channel === 'whatsapp' ? `whatsapp:${target}` : target,
-          body: message,
+          ...(channel === 'whatsapp' && (contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID)
+            ? {
+                contentSid: contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID,
+                ...(contentVariables ? { contentVariables } : {}),
+              }
+            : { body: message }),
           ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
         await recordCommunication(fastify.prisma, {
-          channel, externalAddress: target, direction: 'outbound', body: message,
+          channel, externalAddress: target, direction: 'outbound', body: message || '[WhatsApp approved template]',
           providerMessageId: sent.sid, status: sent.status,
         });
         return reply.code(202).send({ success: true, channel, providerId: sent.sid, status: sent.status });
