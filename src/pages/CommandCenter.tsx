@@ -6,6 +6,7 @@ import type {
   ModelId,
   ToolStep,
   SystemStatus,
+  MessageAttachment,
 } from '@/lib/types';
 import { DEFAULT_MODEL, modelMeta, MODELS } from '@/lib/models';
 import {
@@ -18,6 +19,7 @@ import {
 import { streamReasoning } from '@/lib/reasoning';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
+import { removeConversationAttachments, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import TelemetryPanel from '@/components/TelemetryPanel';
@@ -136,20 +138,35 @@ export default function CommandCenter({
           .eq('conversation_id', conv.id)
           .order('created_at', { ascending: true });
 
+        const messages = await Promise.all((msgs ?? []).map(async (m) => {
+          const metadata = m.metadata as { attachments?: MessageAttachment[] } | null;
+          const storedAttachments = Array.isArray(metadata?.attachments) ? metadata.attachments : [];
+          const attachments = await Promise.all(storedAttachments.map(async (attachment) => {
+            try {
+              return await signConversationAttachment(client, userId, conv.id, attachment);
+            } catch (error) {
+              console.warn('Unable to create attachment preview link:', error);
+              return null;
+            }
+          }));
+          return {
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            model: m.model as ModelId | undefined,
+            steps: m.steps as ToolStep[] | undefined,
+            attachments: attachments.filter((attachment): attachment is MessageAttachment => attachment !== null),
+            timestamp: new Date(m.created_at).getTime(),
+          };
+        }));
+
         return {
           id: conv.id,
           title: conv.title,
           model: MODELS[conv.model as ModelId]
             ? (conv.model as ModelId)
             : DEFAULT_MODEL,
-          messages: (msgs ?? []).map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            model: m.model as ModelId | undefined,
-            steps: m.steps as ToolStep[] | undefined,
-            timestamp: new Date(m.created_at).getTime(),
-          })),
+          messages,
           createdAt: new Date(conv.created_at).getTime(),
           updatedAt: new Date(conv.updated_at).getTime(),
         };
@@ -263,7 +280,16 @@ export default function CommandCenter({
   const deleteConversation = useCallback(
     async (id: string) => {
       if (supabase) {
-        await supabase.from('conversations').delete().eq('id', id);
+        const conversation = conversations.find((item) => item.id === id);
+        const attachments = conversation?.messages.flatMap((message) => message.attachments ?? []) ?? [];
+        try {
+          if (attachments.length) await removeConversationAttachments(supabase, attachments);
+          const { error } = await supabase.from('conversations').delete().eq('id', id);
+          if (error) throw error;
+        } catch (error) {
+          console.error('Conversation deletion failed; keeping the thread available:', error);
+          return;
+        }
       }
       setConversations((prev) => {
         const remaining = prev.filter((c) => c.id !== id);
@@ -279,7 +305,7 @@ export default function CommandCenter({
         return remaining;
       });
     },
-    [activeId, userId],
+    [activeId, userId, conversations],
   );
 
   /**
@@ -288,7 +314,9 @@ export default function CommandCenter({
    * Errors thrown by awaited persistence before streaming propagate.
    */
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, files: File[] = []) => {
+      const prompt = text.trim();
+      if (!prompt) throw new Error('Add a message before sending attachments.');
       let convId = activeId;
       if (!convId) {
         convId = await newConversation();
@@ -296,29 +324,46 @@ export default function CommandCenter({
       }
 
       if (!mountedRef.current) return;
-      const userMsg = createMessage('user', text);
+      setSending(true);
+      const userMsg = createMessage('user', prompt);
+      let attachments: MessageAttachment[] = [];
+      try {
+        if (files.length) {
+          if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
+          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files);
+        }
+        if (supabase) {
+          const { error } = await supabase.from('messages').insert({
+            conversation_id: convId,
+            role: 'user',
+            content: prompt,
+            metadata: attachments.length ? { attachments } : null,
+          });
+          if (error) throw new Error(error.message || 'Unable to save your message.');
+        }
+      } catch (error) {
+        if (supabase && attachments.length) {
+          try { await removeConversationAttachments(supabase, attachments); } catch { /* cleanup can be retried by storage retention tooling */ }
+        }
+        setSending(false);
+        throw error;
+      }
+
+      const storedUserMessage = { ...userMsg, attachments };
       setConversations((prev) => {
         const next = prev.map((c) =>
           c.id === convId
             ? {
                 ...c,
-                messages: [...c.messages, userMsg],
+                messages: [...c.messages, storedUserMessage],
                 updatedAt: Date.now(),
-                title: c.messages.length === 0 ? generateTitle(text) : c.title,
+                title: c.messages.length === 0 ? generateTitle(prompt) : c.title,
               }
             : c,
         );
         if (!supabase) saveConversations(next, userId);
         return next;
       });
-
-      if (supabase) {
-        await supabase.from('messages').insert({
-          conversation_id: convId,
-          role: 'user',
-          content: text,
-        });
-      }
 
       if (!mountedRef.current) return;
       // Update conversation title if first message
@@ -334,7 +379,6 @@ export default function CommandCenter({
       }
 
       if (!mountedRef.current) return;
-      setSending(true);
       requestStartRef.current = performance.now();
       setLiveText('');
       setLiveSteps([]);
@@ -613,6 +657,7 @@ export default function CommandCenter({
     liveText,
     liveModel,
     onSend: sendMessage,
+    attachmentsEnabled: Boolean(supabase),
     onExport: exportThread,
     activeTitle: activeConversation?.title,
     onOpenLeft: () => setLeftOpen(true),
