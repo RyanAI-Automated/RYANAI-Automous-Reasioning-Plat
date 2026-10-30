@@ -24,7 +24,7 @@ The Transparency Portal publishes procurement information in OCDS-compatible CSV
 
 ## Configuration
 
-After checking the current National Treasury OpenAPI specification, set `ZA_GOV_PROCUREMENT_API_URL` to a documented read-only OCDS release endpoint on the approved host. The service accepts an explicit `apiUrl` in its request for testability; the caller must pass the documented endpoint. No endpoint path is guessed by the agent.
+After checking the current National Treasury OpenAPI specification, set `ZA_GOV_PROCUREMENT_API_URL` to a documented read-only OCDS release endpoint on the approved host. The service reads `ZA_GOV_PROCUREMENT_API_URL` by default, or accepts an explicit `apiUrl` in its request for testability. Set the variable to the exact documented endpoint and filters from the OpenAPI specification; no endpoint path or query parameter is guessed by the agent.
 
 The worker is exposed as `RyanAIAgentWorkers.runGovernmentProcurementAgent({ query, apiUrl?, limit? })`. A missing endpoint returns official source discovery links rather than pretending to have retrieved live records.
 
