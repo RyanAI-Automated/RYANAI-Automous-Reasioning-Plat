@@ -42,7 +42,7 @@ export async function invokeReasoningAgent({
     `Write the answer in locale ${language}, unless the user explicitly asks for another language.`,
     'When translating, preserve meaning, names, technical terms, dates and amounts. If a translation is uncertain, say so rather than inventing wording.',
   ].join(' ');
-  const objective = [personalization, memory, 'User request:\\n' + prompt].filter(Boolean).join('\\n\\n');
+  const objective = [personalization, memory, 'User request:\n' + prompt].filter(Boolean).join('\n\n');
   const queued = await dispatchAutonomousTask(user.id, objective);
   const run = await waitForAutonomousTask(queued.id, user.id);
   const handoffs = run.handoffs as ReasoningHandoff[];
