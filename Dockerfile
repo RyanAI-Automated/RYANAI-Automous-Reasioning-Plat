@@ -3,7 +3,7 @@
 # =====================================================================
 # 1. VERIFIER STAGE (Patch and Security Verification)
 # =====================================================================
-FROM node:22-slim AS verifier
+FROM node:24-slim AS verifier
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
