@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square } from 'lucide-react';
+import { Send, Download, Mic, Square, Paperclip, X, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
+import { validateAttachmentBatch } from '@/lib/attachments';
 import { getAvailableModels, modelMeta } from '@/lib/models';
 import { DEFAULT_LANGUAGE, getLanguageName, isRyanLanguage } from '@/shared/languages';
 
@@ -12,7 +13,8 @@ interface ChatPanelProps {
   sending: boolean;
   liveText: string;
   liveModel: ModelId;
-  onSend: (text: string) => void;
+  onSend: (text: string, files?: File[]) => void;
+  attachmentsEnabled: boolean;
   onExport: () => void;
   activeTitle?: string;
   onOpenLeft: () => void;
@@ -26,6 +28,9 @@ interface ChatPanelProps {
 
 export default function ChatPanel(props: ChatPanelProps) {
   const [inputValue, setInputValue] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState('');
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -82,10 +87,35 @@ export default function ChatPanel(props: ChatPanelProps) {
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   const handleSend = () => {
-    if (inputValue.trim()) {
-      props.onSend(inputValue);
-      setInputValue('');
+    if (props.sending || (!inputValue.trim() && selectedFiles.length === 0)) return;
+    props.onSend(inputValue.trim(), selectedFiles);
+    setInputValue('');
+    setSelectedFiles([]);
+    setAttachmentError('');
+  };
+
+  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const incoming = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    if (!incoming.length) return;
+    try {
+      const next = [...selectedFiles, ...incoming];
+      validateAttachmentBatch(next);
+      setSelectedFiles(next);
+      setAttachmentError('');
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : 'These files cannot be attached.');
     }
+  };
+
+  const moveSelectedFile = (index: number, offset: -1 | 1) => {
+    setSelectedFiles((current) => {
+      const target = index + offset;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -175,6 +205,26 @@ export default function ChatPanel(props: ChatPanelProps) {
               }`}
             >
               {msg.content}
+              {msg.attachments?.length ? (
+                <div className="mt-2 flex flex-col gap-2">
+                  {msg.attachments.map((attachment) => (
+                    <a
+                      key={attachment.id}
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open attachment ${attachment.name}`}
+                      className="flex items-center gap-2 rounded border border-cyan-500/20 bg-ink-950/40 p-2 text-xs text-cyan-200 hover:bg-cyan-500/10"
+                    >
+                      {attachment.url && attachment.mimeType.startsWith('image/') ? (
+                        <img src={attachment.url} alt={attachment.name} className="h-12 w-12 rounded object-cover" />
+                      ) : <Paperclip size={14} />}
+                      <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+                      <span className="shrink-0 text-ink-500">{(attachment.size / 1024).toFixed(0)} KB</span>
+                    </a>
+                  ))}
+                </div>
+              ) : null}
               {msg.role === 'assistant' && (
                 <button type="button" onClick={() => readAloud(msg)} className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-100" aria-label={`Read RyanAI response aloud in ${getLanguageName(window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE)}`}>
                   {speakingMessageId === msg.id ? 'Speaking…' : 'Read aloud'}
@@ -219,7 +269,42 @@ export default function ChatPanel(props: ChatPanelProps) {
 
       {/* Input */}
       <div className="p-3 border-t border-cyan-500/10 space-y-2">
+        {selectedFiles.length > 0 && (
+          <ul className="flex flex-col gap-1" aria-label="Selected attachments">
+            {selectedFiles.map((file, index) => (
+              <li key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded border border-cyan-500/15 bg-ink-900/50 px-2 py-1 text-xs text-ink-300">
+                <Paperclip size={13} />
+                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                <span className="text-ink-500">{(file.size / 1024).toFixed(0)} KB</span>
+                <button type="button" onClick={() => moveSelectedFile(index, -1)} disabled={index === 0 || props.sending} aria-label={`Move ${file.name} up`}><ChevronUp size={14} /></button>
+                <button type="button" onClick={() => moveSelectedFile(index, 1)} disabled={index === selectedFiles.length - 1 || props.sending} aria-label={`Move ${file.name} down`}><ChevronDown size={14} /></button>
+                <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={props.sending} aria-label={`Remove ${file.name}`}><X size={14} /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {attachmentError && <p role="alert" className="text-xs text-rose-300">{attachmentError}</p>}
+        {!props.attachmentsEnabled && <p className="text-[10px] text-ink-500">Cloud attachments are unavailable until private storage is configured.</p>}
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          multiple
+          accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,text/javascript,text/typescript,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          onChange={handleFilesSelected}
+          className="hidden"
+          disabled={!props.attachmentsEnabled || props.sending}
+        />
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => attachmentInputRef.current?.click()}
+            disabled={!props.attachmentsEnabled || props.sending}
+            className="p-2 rounded hover:bg-cyan-500/10 disabled:opacity-40 text-cyan-400"
+            title={props.attachmentsEnabled ? 'Attach files' : 'Private cloud storage is not configured'}
+            aria-label="Attach files"
+          >
+            <Paperclip size={18} />
+          </button>
           <textarea
             ref={inputRef}
             value={inputValue}
@@ -249,7 +334,7 @@ export default function ChatPanel(props: ChatPanelProps) {
           )}
           <button
             onClick={handleSend}
-            disabled={props.sending || !inputValue.trim()}
+            disabled={props.sending || (!inputValue.trim() && selectedFiles.length === 0)}
             className="p-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-cyan-300 transition-colors"
             title="Send"
           >
