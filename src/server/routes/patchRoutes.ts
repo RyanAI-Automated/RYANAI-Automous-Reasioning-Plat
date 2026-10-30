@@ -24,7 +24,7 @@ export const registerPatchRoutes: FastifyPluginAsync = async (fastify) => {
           additionalProperties: false,
           properties: {
             filePath: { type: 'string', minLength: 1, maxLength: 500 },
-            patchContent: { type: 'string', minLength: 1, maxLength: 8 * 1024 * 1024 },
+            patchContent: { type: 'string', minLength: 1, maxLength: 200_000 },
             },
         },
       },
