@@ -35,7 +35,7 @@ export class RyanPatchValidatorPipeline {
 
     console.log("[Objective 3] Passing generated patch to isolated RyanAISandbox for validation...");
 
-    let sandboxResult = await RyanAISandbox.executeInSandbox(extractedCode, "autonomous_patch.js");
+    const sandboxResult = await RyanAISandbox.executeInSandbox(extractedCode, "autonomous_patch.js");
     if (sandboxResult.success) {
       return {
         success: true,
