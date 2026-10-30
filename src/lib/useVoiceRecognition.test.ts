@@ -71,7 +71,7 @@ describe('useVoiceRecognition', () => {
     expect(getResult().interimText).toBe('Ndi khou ṱoḓa thuso');
     expect(onTranscript).not.toHaveBeenCalled();
 
-    act(() => lastRecognizer?.emit('Ndi khou ṱoḓa thuso', true));
+    act(() => MockSpeechRecognition.latest?.emit('Ndi khou ṱoḓa thuso', true));
     expect(onTranscript).toHaveBeenCalledWith('Ndi khou ṱoḓa thuso', true);
     expect(getResult().interimText).toBe('');
   });
@@ -82,10 +82,10 @@ describe('useVoiceRecognition', () => {
     const getResult = mountHook({ onCommand });
 
     act(() => getResult().toggle());
-    act(() => lastRecognizer?.emit('open memory', true));
+    act(() => MockSpeechRecognition.latest?.emit('open memory', true));
     expect(onCommand).toHaveBeenCalledWith('open_memory', '');
 
-    act(() => lastRecognizer?.emit('stop listening', true));
+    act(() => MockSpeechRecognition.latest?.emit('stop listening', true));
     expect(onCommand).toHaveBeenCalledWith('stop', 'listening');
     expect(getResult().state).toBe('idle');
   });
