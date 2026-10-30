@@ -372,6 +372,47 @@ To verify a provider end to end:
 
 Do not mark a brain connected based only on a readiness flag or mocked test. Never commit credentials or paste them into an issue, PR, log, or chat.
 
+## Identity, language, and voice preferences
+
+RyanAI includes a configurable greeting and language preference experience.
+
+### Language options
+
+The language registry in `src/shared/languages.ts` includes all 11 South African official languages:
+
+- Afrikaans (`af-ZA`)
+- English (South Africa) (`en-ZA`)
+- Sepedi / Northern Sotho (`nso-ZA`)
+- isiNdebele (`nr-ZA`)
+- isiXhosa (`xh-ZA`)
+- isiZulu (`zu-ZA`)
+- Sesotho (`st-ZA`)
+- Setswana (`tn-ZA`)
+- siSwati (`ss-ZA`)
+- Tshivenda / Venda (`ve-ZA`)
+- Xitsonga (`ts-ZA`)
+
+International options include English (UK and US), French, Portuguese (Brazil), Spanish, German, Mandarin Chinese, Japanese, Hindi, Arabic, and Swahili.
+
+- The default language for other accounts is South African English (`en-ZA`).
+- The owner default is Tshivenda/Venda (`ve-ZA`).
+- Other users can select and persist their own language preference in the greeting controls.
+- Language instructions ask the reasoning system to preserve names, code, URLs, dates, numbers, and technical/security terminology accurately.
+
+### Greeting and preferred form of address
+
+The greeting component supports a configurable preferred title. The owner defaults to **Sir G**; other accounts default to their display name. The owner communication instruction uses `RYANAI_OWNER_TITLE` (default `Sir G`) and `RYANAI_OWNER_LANGUAGE` (default `ve-ZA`) for server-side owner responses.
+
+### Voice behavior and limitations
+
+- The greeting UI uses the browser/device Speech Synthesis API and lets users select an installed voice matching their selected locale.
+- Voice playback can be enabled or disabled, and a greeting can be played manually.
+- The realtime voice API requires an authenticated, single-use short-lived voice ticket and Redis.
+- Realtime provider access requires the server-side `OPENAI_API_KEY`; the default realtime model is configured by `RYANAI_REALTIME_MODEL`.
+- Actual voice availability, pronunciation, accent quality, and language coverage depend on the device's installed speech voices and the upstream realtime provider. A language appearing in the selector does not guarantee that every device has a native voice for it. The UI reports when no matching device voice is installed and may fall back to a device default.
+
+Do not place voice-provider credentials in frontend variables. For hosted deployments, configure them only in the trusted server secret store.
+
 ## Autonomous tasks, persistence, and recovery
 
 The agent runtime includes durable run and handoff operations, bounded retry policy, mission orchestration, and PostgreSQL-backed checkpointing.
