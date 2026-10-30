@@ -137,6 +137,7 @@ describe('application authentication boundary', () => {
   it('remounts all protected view state when the account changes', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/workspace');
+    await expectContent('Private workspace alice@example.com');
     const previousView = container.querySelector('main');
     const nextSession = {
       ...session,
@@ -150,13 +151,16 @@ describe('application authentication boundary', () => {
   it('performs a real sign-out and removes protected content', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/workspace');
+    await expectContent('Private workspace alice@example.com');
     await act(async () =>
       container
         .querySelector('header button')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
     expect(auth.signOut).toHaveBeenCalledOnce();
-    expect(container.textContent).not.toContain('Private workspace');
+    await vi.waitFor(() => {
+      expect(container.textContent).not.toContain('Private workspace');
+    });
   });
   it('reports sign-out failures without pretending the session was revoked', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
@@ -173,7 +177,7 @@ describe('application authentication boundary', () => {
   it('fails closed on restoration errors', async () => {
     auth.getSession.mockRejectedValue(new Error('offline'));
     await mount('/workspace');
-    expect(container.textContent).toContain('Unable to restore');
+    await expectContent('Unable to restore');
     expect(container.textContent).not.toContain('Private workspace');
   });
 });
