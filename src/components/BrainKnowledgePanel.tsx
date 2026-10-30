@@ -112,7 +112,7 @@ export default function BrainKnowledgePanel() {
           <textarea value={content} onChange={(event) => setContent(event.target.value)} minLength={20} maxLength={12000} required rows={4} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm" placeholder="Add verified facts, technical decisions, security advisories or reference material…" />
         </label>
         <div className="flex items-center justify-between gap-3 md:col-span-2">
-          <p className="text-xs text-slate-500">Items are treated as reference data, never executable instructions.</p>
+          <p className="text-xs text-slate-500">Reference data only. Never publish credentials, private keys or personal data.</p>
           <button type="submit" disabled={loading || title.trim().length < 3 || content.trim().length < 20} className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             <Send className="h-4 w-4" /> Publish to brains
           </button>
