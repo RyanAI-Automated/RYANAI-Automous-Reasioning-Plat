@@ -1,6 +1,8 @@
 // src/engine/agentWorkers.ts
 import { secondaryBrain, logicBrain } from '../config/brains';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { runGenXSecurityAgent } from './genxSecurityAgent.js';
+import type { GenXSecurityEvent } from '../security/genxPolicy.js';
 
 export interface AgentTaskResult {
   agentName: string;
@@ -8,6 +10,11 @@ export interface AgentTaskResult {
 }
 
 export class RyanAIAgentWorkers {
+  /** Gen-X applies deterministic deny/approval policy before AI-assisted threat triage. */
+  static async runGenXHardCoreSecurityAgent(event: GenXSecurityEvent) {
+    return runGenXSecurityAgent(event);
+  }
+
   /** Security review is advisory; missing or ambiguous LOW must fail closed. */
   static async runSecurityAuditor(targetCode: string): Promise<AgentTaskResult> {
     const response = await secondaryBrain.invoke([

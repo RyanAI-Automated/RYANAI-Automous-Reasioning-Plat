@@ -44,6 +44,7 @@ const agentDefinitions = [
   { id: 'compliance', label: 'Compliance sub-agent', file: 'src/agent/subAgents.ts', marker: 'complianceSubAgent', kind: 'tool-agent' },
   { id: 'enterprise-supervisor', label: 'Enterprise supervisor', file: 'src/agent/supervisorGraph.ts', marker: 'enterpriseMultiAgent', kind: 'supervisor' },
   { id: 'security-sentinel', label: 'Security Sentinel', file: 'src/engine/agentWorkers.ts', marker: 'runSecurityAuditor', kind: 'specialist' },
+  { id: 'genx-hardcore-security', label: 'Gen-X Hard Core Security Agent', file: 'src/engine/agentWorkers.ts', marker: 'runGenXHardCoreSecurityAgent', kind: 'deterministic-policy-ai-triage' },
   { id: 'performance-profiler', label: 'Performance Profiler', file: 'src/engine/agentWorkers.ts', marker: 'runPerformanceProfiler', kind: 'specialist' },
   { id: 'reasoning-agent-factory', label: 'Model-backed reasoning agent factory', file: 'src/agent/engine.ts', marker: 'getReasoningAgent', kind: 'dynamic-factory' },
   { id: 'tool-using-agent-graph', label: 'Tool-using self-patch agent graph', file: 'src/engine/agentGraph.ts', marker: 'ryanAgentApp', kind: 'tool-agent' },
