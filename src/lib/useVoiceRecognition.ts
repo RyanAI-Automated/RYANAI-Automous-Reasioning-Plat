@@ -133,6 +133,10 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     }
   }, [language, onCommand, onTranscript, stop]);
 
+  useEffect(() => {
+    if (recognitionRef.current) recognitionRef.current.lang = language;
+  }, [language]);
+
   useEffect(() => stop, [stop]);
 
   return {
