@@ -340,11 +340,26 @@ export default function CommandCenter({
       setLiveSteps([]);
       setLiveModel(model);
 
+      let preferredLanguage = 'en-ZA';
+      let preferredAddress = '';
+      try {
+        preferredLanguage = localStorage.getItem(`ryanai:preferred-language:${userId}`) || preferredLanguage;
+        preferredAddress = localStorage.getItem(`ryanai:preferred-address:${userId}`) || '';
+      } catch { /* language preferences are optional when browser storage is unavailable */ }
+      const language = getRyanLanguage(preferredLanguage);
+      const languageInstruction = [
+        `Respond in ${language.label} (${language.code}) for this conversation.`,
+        'Keep the meaning accurate, preserve code and technical identifiers, and do not invent translations for product names or commands.',
+        'If you cannot produce a reliable response in the selected language, say so clearly and ask whether the user wants English instead.',
+        preferredAddress ? `Address this user as ${preferredAddress}.` : '',
+      ].filter(Boolean).join(' ');
+      const modelPrompt = `[RyanAI response preferences: ${languageInstruction}]\n\nUser message:\n${text}`;
+
       let accText = '';
       const accSteps: ToolStep[] = [];
 
       try {
-        await streamReasoning(text, model, {
+        await streamReasoning(modelPrompt, model, {
           onToken: (t) => {
             if (!mountedRef.current) return;
             accText += t;
