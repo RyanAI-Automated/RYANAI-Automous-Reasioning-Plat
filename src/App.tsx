@@ -14,6 +14,7 @@ import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 const RyanAICockpit = lazy(() => import('@/components/dashboard/RyanAICockpit'));
 const AgentControlPanel = lazy(() => import('@/components/AgentControlPanel').then((module) => ({ default: module.AgentControlPanel })));
+const BrainKnowledgePanel = lazy(() => import('@/components/BrainKnowledgePanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
@@ -60,6 +61,7 @@ export default function App() {
   const { session, loading, error, signingOut, signOut } = useAuth();
   const isAuthRoute = route === 'signin' || route === 'signup';
   const user = session?.user;
+  const isAdmin = user?.app_metadata?.role === 'admin';
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
@@ -155,6 +157,7 @@ export default function App() {
             {route === 'cockpit' && (
               <>
                 <RyanAICockpit />
+                {isAdmin && <BrainKnowledgePanel />}
                 {isTauri() && <AgentControlPanel />}
               </>
             )}
