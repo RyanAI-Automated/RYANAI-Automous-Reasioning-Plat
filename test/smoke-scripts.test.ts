@@ -65,6 +65,13 @@ async function fixture(protectedRoutes = true) {
   app.post('/api/reason', async (_request, reply) =>
     reply.code(400).send({ error: 'Empty prompt' }),
   );
+  app.post('/api/agent/ops/brains/probe', async () => ({
+    brains: [
+      { brain: 'primary', status: 'HEALTHY' },
+      { brain: 'secondary', status: 'HEALTHY' },
+      { brain: 'logic', status: 'HEALTHY' },
+    ],
+  }));
   app.get('/ws', { websocket: true }, (socket) => socket.on('error', () => {}));
   return app.listen({ port: 0, host: '127.0.0.1' });
 }
@@ -154,6 +161,15 @@ describe('live smoke script contracts', () => {
     );
     expect(result.stderr).not.toContain('fixture-invalid');
     expect(result.stderr).not.toContain('fixture-user');
+  });
+
+  it('runs live three-brain provider probes only when explicitly enabled with admin credentials', async () => {
+    const result = await runScript(await fixture(), {
+      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin\\nRYANAI_LIVE_PROVIDER_TESTS=true',
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Live provider connectivity: 3/3 brains HEALTHY');
+    expect(result.stdout).toContain('End-to-end checks: 7/7 passed; 1 skipped');
   });
 
   it('fails when anonymous reasoning and WebSocket access are exposed', async () => {
