@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import twilio from 'twilio';
 import { commsPlugin } from './index.js';
+import { ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
 import { installAuthentication } from '../routes/auth.js';
 
 const { invoke, prismaMock } = vi.hoisted(() => ({
@@ -86,11 +87,11 @@ describe('Twilio conversational voice webhooks', () => {
     const payload = { CallSid: 'CA123', From: '+15555550123', SpeechResult: 'Please check my system' };
     const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('Certainly, Sir. RyanAI says hello &amp; welcome');
+    expect(response.body).toContain('Certainly, Sir G. RyanAI says hello &amp; welcome');
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [
-        { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear, concise and suitable for being read aloud.' },
+        { role: 'system', content: ownerCommunicationInstruction() },
         { role: 'user', content: 'Please check my system' },
       ] },
       { configurable: { thread_id: 'voice_CA123' } },
