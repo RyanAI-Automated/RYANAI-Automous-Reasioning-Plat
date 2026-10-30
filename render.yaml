@@ -7,6 +7,10 @@ services:
     buildCommand: npm ci --legacy-peer-deps && npm run build
     staticPublishPath: ./dist
     envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
       - key: VITE_API_BASE_URL
         value: https://ryanai-api.onrender.com
       - key: VITE_APP_ENV
@@ -21,6 +25,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile.api
     plan: free
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
@@ -34,5 +39,35 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_API_ENDPOINT
+        value: https://integrate.api.nvidia.com/v1
+      - key: NVIDIA_MODEL
+        value: nvidia/nemotron-3-ultra
+      - key: QWEN_API_KEY
+        sync: false
+      - key: QWEN_API_ENDPOINT
+        value: https://api.together.xyz/v1
+      - key: QWEN_MODEL
+        value: Qwen/Qwen3-235B-A22B-Instruct-2507
+      - key: LOGIC_API_KEY
+        sync: false
+      - key: LOGIC_API_ENDPOINT
+        value: https://api.openai.com/v1
+      - key: LOGIC_REASONING_MODEL
+        value: gpt-4o-mini
+      - key: RYANAI_GITHUB_TOKEN
+        sync: false
+      - key: RYANAI_GITHUB_REPOSITORY
+        value: RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+      - key: RYANAI_GITHUB_BASE_BRANCH
+        value: main
