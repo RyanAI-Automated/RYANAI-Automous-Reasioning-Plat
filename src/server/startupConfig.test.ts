@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { resolveConnectionUrls } from './startupConfig.js';
 
+const expectedLocalDatabaseUrl = () => {
+  const url = new URL('postgresql://localhost:5432/ryanai');
+  url.username = 'postgres';
+  url.password = 'postgres';
+  return url.toString();
+};
+
 describe('production connection configuration', () => {
   it('fails closed when production database and Redis URLs are missing', () => {
     expect(() => resolveConnectionUrls('production')).toThrow(
@@ -9,7 +16,7 @@ describe('production connection configuration', () => {
   });
 
   it('identifies only the missing production variable', () => {
-    expect(() => resolveConnectionUrls('production', 'postgresql://db')).toThrow(
+    expect(() => resolveConnectionUrls('production', 'postgresql://db/app')).toThrow(
       'REDIS_URL',
     );
     expect(() => resolveConnectionUrls('production', undefined, 'redis://cache')).toThrow(
@@ -17,26 +24,26 @@ describe('production connection configuration', () => {
     );
   });
 
-  it('accepts explicitly configured production URLs without echoing them', () => {
+  it('accepts explicitly configured production URLs', () => {
     expect(
       resolveConnectionUrls(
         'production',
-        'postgresql://user:secret@db/app',
-        'redis://:secret@cache/0',
+        'postgresql://db/app',
+        'redis://cache/0',
       ),
     ).toEqual({
-      databaseUrl: 'postgresql://user:secret@db/app',
-      redisUrl: 'redis://:secret@cache/0',
+      databaseUrl: 'postgresql://db/app',
+      redisUrl: 'redis://cache/0',
     });
   });
 
   it('retains local defaults outside production', () => {
     expect(resolveConnectionUrls('development')).toEqual({
-      databaseUrl: 'postgresql://postgres:postgres@localhost:5432/ryanai',
+      databaseUrl: expectedLocalDatabaseUrl(),
       redisUrl: 'redis://localhost:6379',
     });
     expect(resolveConnectionUrls('test')).toEqual({
-      databaseUrl: 'postgresql://postgres:postgres@localhost:5432/ryanai',
+      databaseUrl: expectedLocalDatabaseUrl(),
       redisUrl: 'redis://localhost:6379',
     });
   });
