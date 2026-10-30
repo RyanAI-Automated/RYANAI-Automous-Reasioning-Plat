@@ -7,10 +7,6 @@ import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication, updateCommunicationStatus } from './history.js';
 
-declare module 'fastify' {
-  interface FastifyRequest { rawBody?: string }
-}
-
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
 type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string };
 const MAX_MESSAGE_LENGTH = 4000;
@@ -83,22 +79,25 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     const { channel, recipient, message, subject, contentSid, contentVariables } = request.body ?? {};
     const target = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
-    if (!channel || !target || ((!message?.trim()) && !(channel === 'whatsapp' && contentSid)) || (message && message.length > MAX_MESSAGE_LENGTH)) {
+    const messageBody = message?.trim() ?? '';
+    const approvedTemplateSid = contentSid?.trim() || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
+    if (!channel || !target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) {
       return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     }
     if (!['whatsapp', 'sms', 'voice', 'email'].includes(channel)) {
       return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
     }
     if (channel === 'email') {
+      if (!messageBody) return reply.code(400).send({ success: false, error: 'An email message body is required.' });
       const smtp = smtpTransport();
       if (!smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
       try {
         const sent = await smtp.transporter.sendMail({
-          from: smtp.from, to: target, subject: subject || 'RyanAI notification', text: message,
+          from: smtp.from, to: target, subject: subject || 'RyanAI notification', text: messageBody,
         });
         await recordCommunication(fastify.prisma, {
           channel, externalAddress: target.toLowerCase(), direction: 'outbound',
-          body: message, providerMessageId: sent.messageId, status: 'accepted',
+          body: messageBody, providerMessageId: sent.messageId, status: 'accepted',
         });
         return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted' });
       } catch (error) {
@@ -120,16 +119,16 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         const sent = await client.messages.create({
           from: channel === 'whatsapp' && !from.startsWith('whatsapp:') ? `whatsapp:${from}` : from,
           to: channel === 'whatsapp' ? `whatsapp:${target}` : target,
-          ...(channel === 'whatsapp' && (contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID)
+          ...(channel === 'whatsapp' && approvedTemplateSid
             ? {
-                contentSid: contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID,
+                contentSid: approvedTemplateSid,
                 ...(contentVariables ? { contentVariables } : {}),
               }
-            : { body: message }),
+            : { body: messageBody }),
           ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
         await recordCommunication(fastify.prisma, {
-          channel, externalAddress: target, direction: 'outbound', body: message || '[WhatsApp approved template]',
+          channel, externalAddress: target, direction: 'outbound', body: messageBody || '[WhatsApp approved template]',
           providerMessageId: sent.sid, status: sent.status,
         });
         return reply.code(202).send({ success: true, channel, providerId: sent.sid, status: sent.status });
@@ -139,11 +138,11 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice action URL is not configured.' });
       }
       const call = await client.calls.create({
-        to: target, from, twiml: twimlSay(message),
+        to: target, from, twiml: twimlSay(messageBody),
         ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
       });
       await recordCommunication(fastify.prisma, {
-        channel, externalAddress: target, direction: 'outbound', body: message,
+        channel, externalAddress: target, direction: 'outbound', body: messageBody,
         providerMessageId: call.sid, status: call.status,
       });
       return reply.code(202).send({ success: true, channel, providerId: call.sid, status: call.status });
@@ -259,7 +258,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     const resend = new Resend(apiKey);
     try {
       const event = resend.webhooks.verify({
-        payload: request.rawBody ?? '',
+        payload: typeof request.rawBody === 'string' ? request.rawBody : request.rawBody?.toString('utf8') ?? '',
         headers: {
           id: String(request.headers['svix-id'] ?? ''),
           timestamp: String(request.headers['svix-timestamp'] ?? ''),
