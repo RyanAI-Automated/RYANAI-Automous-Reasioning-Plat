@@ -101,14 +101,24 @@ export class SelfPatchSkill {
       const baseSha = (baseRef.object as Record<string, unknown> | undefined)?.sha;
       if (typeof baseSha !== 'string') throw new Error('GitHub base branch reference is invalid.');
 
-      const currentFile = await githubRequest(token, `/repos/${owner}/${name}/contents/${encodedPath}?ref=${encodeURIComponent(baseSha)}`);
-      if (typeof currentFile.sha !== 'string' || currentFile.type !== 'file') {
-        return { status: 'rejected', error: 'Self-patching is limited to existing tracked source files.' };
-      }
-
       const baseCommit = await githubRequest(token, `/repos/${owner}/${name}/git/commits/${baseSha}`);
       const baseTreeSha = (baseCommit.tree as Record<string, unknown> | undefined)?.sha;
       if (typeof baseTreeSha !== 'string') throw new Error('GitHub base commit tree is unavailable.');
+
+      const treeSnapshot = await githubRequest(token, `/repos/${owner}/${name}/git/trees/${baseTreeSha}?recursive=1`);
+      if (treeSnapshot.truncated === true || !Array.isArray(treeSnapshot.tree)) {
+        throw new Error('GitHub base tree could not be inspected completely; patching is unavailable.');
+      }
+      const targetEntry = (treeSnapshot.tree as Array<Record<string, unknown>>)
+        .find((entry) => entry.path === request.filePath.trim());
+      if (
+        !targetEntry ||
+        targetEntry.type !== 'blob' ||
+        !['100644', '100755'].includes(String(targetEntry.mode))
+      ) {
+        return { status: 'rejected', error: 'Self-patching requires an existing regular tracked file; symlinks and special files are not permitted.' };
+      }
+      const fileMode = targetEntry.mode === '100755' ? '100755' : '100644';
 
       const blob = await githubRequest(token, `/repos/${owner}/${name}/git/blobs`, {
         method: 'POST',
@@ -120,7 +130,7 @@ export class SelfPatchSkill {
         method: 'POST',
         body: JSON.stringify({
           base_tree: baseTreeSha,
-          tree: [{ path: request.filePath.trim(), mode: '100644', type: 'blob', sha: blob.sha }],
+          tree: [{ path: request.filePath.trim(), mode: fileMode, type: 'blob', sha: blob.sha }],
         }),
       });
       if (typeof tree.sha !== 'string') throw new Error('GitHub did not create the patch tree.');
