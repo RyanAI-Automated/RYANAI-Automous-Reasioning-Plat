@@ -262,6 +262,7 @@ model AgentRun {
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([status, lockedAt])
+  @@index([status, nextAttemptAt])
   @@map("agent_runs")
 }
 model AgentHandoff {
