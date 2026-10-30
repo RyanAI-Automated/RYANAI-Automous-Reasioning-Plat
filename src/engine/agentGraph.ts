@@ -6,6 +6,7 @@ import { tool, DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { systemDiagnosticsTool } from "../tools/systemTools.js";
 import { queryStackOverflow } from "../tools/stackoverflow.js";
+import { evaluateGenXSecurityEvent } from "../security/genxPolicy.js";
 
 // Define LangGraph State Annotation
 const GraphState = Annotation.Root({
@@ -20,6 +21,14 @@ type State = typeof GraphState.State;
 // Define Tools
 const diagnosticsToolWrapper = tool(
   async ({ queryType }) => {
+    const policy = evaluateGenXSecurityEvent({
+      agentId: "reasoning-agent",
+      principal: "authenticated-runtime",
+      toolName: "system_diagnostics",
+      action: "READ",
+      target: queryType,
+    });
+    if (policy.decision !== "ALLOW") return `Gen-X blocked tool invocation: ${policy.ruleId}`;
     const result = await systemDiagnosticsTool.invoke({ queryType });
     return typeof result === "string" ? result : JSON.stringify(result);
   },
@@ -39,7 +48,14 @@ export const stackOverflowTool = new DynamicStructuredTool({
     query: z.string().describe("The programming or architectural query to search"),
   }),
   func: async ({ query }) => {
-    // Fixed: Pass query object payload instead of raw string (TS2345 fix)
+    const policy = evaluateGenXSecurityEvent({
+      agentId: "reasoning-agent",
+      principal: "authenticated-runtime",
+      toolName: "query_stackoverflow_agents",
+      action: "READ",
+    });
+    if (policy.decision !== "ALLOW") return `Gen-X blocked tool invocation: ${policy.ruleId}`;
+    // Search-only tool; retrieved content remains untrusted input.
     const result = await queryStackOverflow({ query });
     return JSON.stringify(result);
   },
