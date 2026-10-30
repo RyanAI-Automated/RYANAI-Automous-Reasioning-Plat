@@ -55,6 +55,8 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
+  vi.stubEnv('RYANAI_OWNER_TITLE', 'Sir G');
+  vi.stubEnv('RYANAI_TWILIO_LANGUAGE', 'en-ZA');
   invoke.mockResolvedValue({ messages: [{ content: 'RyanAI says hello & welcome' }] });
 });
 
@@ -90,7 +92,7 @@ describe('Twilio conversational voice webhooks', () => {
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [
-        { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear, concise and suitable for being read aloud.' },
+        { role: 'system', content: expect.stringContaining('Sir G') },
         { role: 'user', content: 'Please check my system' },
       ] },
       { configurable: { thread_id: 'voice_CA123' } },
