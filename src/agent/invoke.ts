@@ -1,4 +1,4 @@
-import { MEMORY_CONTEXT_PREFIX, buildMemoryContext } from './memoryContext.js';
+import { buildMemoryContext } from './memoryContext.js';
 import { dispatchAutonomousTask } from './operations.js';
 
 export interface AgentUser {
