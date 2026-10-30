@@ -109,6 +109,10 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: RYANAI_OWNER_TITLE
+        value: Sir
+      - key: TWILIO_VOICE_NAME
+        sync: false
       - key: RYANAI_OWNER_PHONE
         sync: false
       - key: RYANAI_OWNER_EMAIL
