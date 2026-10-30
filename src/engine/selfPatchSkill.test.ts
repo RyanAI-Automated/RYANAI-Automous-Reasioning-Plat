@@ -27,8 +27,8 @@ describe('production self-patch proposal', () => {
   it('creates a GitHub branch and PR without changing the running workspace', async () => {
     fetchMock
       .mockResolvedValueOnce(githubResponse({ object: { sha: 'base-sha' } }))
-      .mockResolvedValueOnce(githubResponse({ sha: 'existing-file-sha', type: 'file' }))
       .mockResolvedValueOnce(githubResponse({ tree: { sha: 'base-tree-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ truncated: false, tree: [{ path: 'src/agent/example.ts', mode: '100644', type: 'blob', sha: 'existing-file-sha' }] }))
       .mockResolvedValueOnce(githubResponse({ sha: 'blob-sha' }))
       .mockResolvedValueOnce(githubResponse({ sha: 'new-tree-sha' }))
       .mockResolvedValueOnce(githubResponse({ sha: 'candidate-commit-sha' }))
@@ -70,6 +70,19 @@ describe('production self-patch proposal', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('rejects symlink targets even when their path is in an allowed source directory', async () => {
+    fetchMock
+      .mockResolvedValueOnce(githubResponse({ object: { sha: 'base-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ tree: { sha: 'base-tree-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ truncated: false, tree: [{ path: 'src/agent/example.ts', mode: '120000', type: 'blob', sha: 'symlink-sha' }] }));
+    const result = await SelfPatchSkill.proposePullRequest({
+      filePath: 'src/agent/example.ts',
+      patchContent: 'export const candidate = true;',
+    });
+    expect(result.status).toBe('rejected');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('rejects credential-like patch content before contacting GitHub', async () => {
     const result = await SelfPatchSkill.proposePullRequest({
       filePath: 'src/agent/example.ts',
@@ -92,8 +105,8 @@ describe('production self-patch proposal', () => {
   it('returns conflict when GitHub rejects a concurrent or duplicate branch', async () => {
     fetchMock
       .mockResolvedValueOnce(githubResponse({ object: { sha: 'base-sha' } }))
-      .mockResolvedValueOnce(githubResponse({ sha: 'existing-file-sha', type: 'file' }))
       .mockResolvedValueOnce(githubResponse({ tree: { sha: 'base-tree-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ truncated: false, tree: [{ path: 'src/agent/example.ts', mode: '100644', type: 'blob', sha: 'existing-file-sha' }] }))
       .mockResolvedValueOnce(githubResponse({ sha: 'blob-sha' }))
       .mockResolvedValueOnce(githubResponse({ sha: 'new-tree-sha' }))
       .mockResolvedValueOnce(githubResponse({ sha: 'candidate-commit-sha' }))
