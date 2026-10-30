@@ -22,6 +22,7 @@ import { streamReasoning } from '@/lib/reasoning';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_MESSAGE, MAX_MESSAGE_ATTACHMENT_BYTES, removeConversationAttachments, safeAttachmentName, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import type { AttachmentUploadOptions } from '@/lib/attachments';
 import { createTarArchive, MAX_CONVERSATION_ARCHIVE_BYTES, readTarArchive } from '@/lib/conversationArchive';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
@@ -338,7 +339,7 @@ export default function CommandCenter({
    * Errors thrown by awaited persistence before streaming propagate.
    */
   const sendMessage = useCallback(
-    async (text: string, files: File[] = []) => {
+    async (text: string, files: File[] = [], uploadOptions: AttachmentUploadOptions = {}) => {
       const prompt = text.trim();
       if (!prompt) throw new Error('Add a message before sending attachments.');
       let convId = activeId;
@@ -353,7 +354,7 @@ export default function CommandCenter({
       try {
         if (files.length) {
           if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
-          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files);
+          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files, uploadOptions);
         }
         if (supabase) {
           const { error } = await supabase.from('messages').insert({

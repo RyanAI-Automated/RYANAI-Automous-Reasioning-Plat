@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Send, Download, Upload, Mic, Square, Paperclip, X, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { validateAttachmentBatch } from '@/lib/attachments';
+import type { AttachmentUploadOptions, AttachmentUploadProgress } from '@/lib/attachments';
 import { getAvailableModels, modelMeta } from '@/lib/models';
 import { DEFAULT_LANGUAGE, getLanguageName, isRyanLanguage } from '@/shared/languages';
 
@@ -13,7 +14,7 @@ interface ChatPanelProps {
   sending: boolean;
   liveText: string;
   liveModel: ModelId;
-  onSend: (text: string, files?: File[]) => Promise<void> | void;
+  onSend: (text: string, files?: File[], options?: AttachmentUploadOptions) => Promise<void> | void;
   attachmentsEnabled: boolean;
   onExport: () => void;
   onImport: (file: File) => Promise<void>;
@@ -31,6 +32,8 @@ export default function ChatPanel(props: ChatPanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<Record<number, AttachmentUploadProgress>>({});
   const [attachmentError, setAttachmentError] = useState('');
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const archiveInputRef = useRef<HTMLInputElement>(null);
@@ -96,15 +99,25 @@ export default function ChatPanel(props: ChatPanelProps) {
       if (selectedFiles.length) setAttachmentError('Add a message describing these attachments before sending.');
       return;
     }
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
     setSubmitting(true);
+    setUploadProgress({});
     try {
-      await props.onSend(inputValue.trim(), selectedFiles);
+      await props.onSend(inputValue.trim(), selectedFiles, {
+        signal: controller.signal,
+        onProgress: (progress) => setUploadProgress((current) => ({
+          ...current,
+          [progress.fileIndex]: progress,
+        })),
+      });
       setInputValue('');
       setSelectedFiles([]);
       setAttachmentError('');
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : 'The message could not be sent. Your attachments are still selected.');
     } finally {
+      if (uploadAbortRef.current === controller) uploadAbortRef.current = null;
       setSubmitting(false);
     }
   };
@@ -335,7 +348,28 @@ export default function ChatPanel(props: ChatPanelProps) {
             ))}
           </ul>
         )}
-        {importing && <p role="status" className="text-xs text-cyan-300">Validating archive and importing conversation…</p>}
+        {selectedFiles.length > 0 && submitting && (() => {
+          const total = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+          const loaded = Object.values(uploadProgress).reduce((sum, item) => sum + item.loaded, 0);
+          const percent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+          const uploadFinished = loaded >= total;
+          return (
+            <div className="space-y-1" role="status" aria-live="polite">
+              <div className="flex items-center justify-between gap-2 text-xs text-cyan-300">
+                <span>{uploadFinished ? 'Attachments uploaded; sending message…' : 'Uploading attachments… ' + percent + '%'}</span>
+                {!uploadFinished && (
+                  <button type="button" onClick={() => uploadAbortRef.current?.abort()} className="text-rose-300 hover:text-rose-200" aria-label="Cancel attachment upload">
+                    Cancel
+                  </button>
+                )}
+              </div>
+              <div className="h-1.5 overflow-hidden rounded bg-ink-800" aria-label={'Attachment upload progress ' + percent + ' percent'}>
+                <div className="h-full bg-cyan-400 transition-all" style={{ width: percent + '%' }} />
+              </div>
+            </div>
+          );
+        })()}
+                {importing && <p role="status" className="text-xs text-cyan-300">Validating archive and importing conversation…</p>}
         {attachmentError && <p role="alert" className="text-xs text-rose-300">{attachmentError}</p>}
         {!props.attachmentsEnabled && <p className="text-[10px] text-ink-500">Cloud attachments are unavailable until private storage is configured.</p>}
         <input

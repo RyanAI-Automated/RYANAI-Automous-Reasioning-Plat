@@ -94,36 +94,111 @@ export async function validateAttachmentFile(file: File): Promise<void> {
 }
 
 
+export interface AttachmentUploadProgress {
+  fileIndex: number;
+  fileName: string;
+  loaded: number;
+  total: number;
+}
+
+export interface AttachmentUploadOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: AttachmentUploadProgress) => void;
+}
+
+function throwIfUploadAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException('Attachment upload cancelled.', 'AbortError');
+}
+
+function uploadSignedFileWithProgress(
+  signedUrl: string,
+  file: File,
+  signal?: AbortSignal,
+  onProgress?: (loaded: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    let settled = false;
+    const cleanup = () => {
+      signal?.removeEventListener('abort', abortRequest);
+      request.onload = null;
+      request.onerror = null;
+      request.onabort = null;
+      request.upload.onprogress = null;
+    };
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const abortRequest = () => request.abort();
+
+    if (signal?.aborted) {
+      finish(new DOMException('Attachment upload cancelled.', 'AbortError'));
+      return;
+    }
+    signal?.addEventListener('abort', abortRequest, { once: true });
+    request.open('PUT', signedUrl, true);
+    request.setRequestHeader('x-upsert', 'false');
+    const body = new FormData();
+    body.append('cacheControl', '3600');
+    body.append('', file);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.min(Math.max(0, file.size - 1), event.loaded));
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        onProgress?.(file.size);
+        finish();
+      } else {
+        finish(new Error('Upload failed for ' + file.name + ' (HTTP ' + request.status + ').'));
+      }
+    };
+    request.onerror = () => finish(new Error('Network error while uploading ' + file.name + '.'));
+    request.onabort = () => finish(new DOMException('Attachment upload cancelled.', 'AbortError'));
+    try {
+      request.send(body);
+    } catch (error) {
+      finish(error instanceof Error ? error : new Error('Unable to start attachment upload.'));
+    }
+  });
+}
+
 export async function uploadConversationAttachments(
   client: SupabaseClient,
   userId: string,
   conversationId: string,
   messageId: string,
   files: readonly File[],
+  options: AttachmentUploadOptions = {},
 ): Promise<MessageAttachment[]> {
   validateAttachmentBatch(files);
-  const settled = await Promise.allSettled(files.map(async (file) => {
+  const { signal, onProgress } = options;
+  const reservedPaths: string[] = [];
+  const settled = await Promise.allSettled(files.map(async (file, fileIndex) => {
+    throwIfUploadAborted(signal);
     await validateAttachmentFile(file);
+    throwIfUploadAborted(signal);
     const { mimeType, name } = validateAttachment(file);
     const id = crypto.randomUUID();
     const path = `${userId}/${conversationId}/${messageId}/${id}-${name}`;
-    const { error } = await client.storage.from(ATTACHMENT_BUCKET).upload(path, file, {
-      contentType: mimeType,
-      cacheControl: '3600',
-      upsert: false,
+    const { data, error } = await client.storage.from(ATTACHMENT_BUCKET).createSignedUploadUrl(path, { upsert: false });
+    if (error || !data?.signedUrl) throw new Error(error?.message || `Unable to authorize upload for ${name}.`);
+    reservedPaths.push(path);
+    throwIfUploadAborted(signal);
+    await uploadSignedFileWithProgress(data.signedUrl, file, signal, (loaded) => {
+      onProgress?.({ fileIndex, fileName: name, loaded, total: file.size });
     });
-    if (error) throw new Error(error.message || `Upload failed for ${name}`);
     return { id, name, mimeType, size: file.size, path };
   }));
 
   const failed = settled.find((result) => result.status === 'rejected');
   if (failed?.status === 'rejected') {
-    const uploadedPaths = settled.flatMap((result) =>
-      result.status === 'fulfilled' ? [result.value.path] : [],
-    );
-    if (uploadedPaths.length) {
+    if (reservedPaths.length) {
       try {
-        await client.storage.from(ATTACHMENT_BUCKET).remove(uploadedPaths);
+        await client.storage.from(ATTACHMENT_BUCKET).remove(reservedPaths);
       } catch {
         // Keep the original upload error; an orphan cleanup can retry separately.
       }
