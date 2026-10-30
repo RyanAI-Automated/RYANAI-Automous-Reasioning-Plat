@@ -78,9 +78,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     const latestAssistant = [...props.messages].reverse().find((message) => message.role === 'assistant');
     if (!latestAssistant || latestAssistant.id === lastSpokenMessageId.current) return;
     lastSpokenMessageId.current = latestAssistant.id;
-    try {
-      if (voiceRepliesEnabled) readAloud(latestAssistant);
-    } catch { if (voiceRepliesEnabled) readAloud(latestAssistant); }
+    if (voiceRepliesEnabled) readAloud(latestAssistant);
   }, [props.messages, props.sending, readAloud, voiceRepliesEnabled]);
 
   useEffect(() => () => {
