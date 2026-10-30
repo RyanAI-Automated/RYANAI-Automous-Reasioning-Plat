@@ -120,6 +120,8 @@ export async function quickReason(
   prompt: string,
   model: ModelId,
 ): Promise<string> {
+  const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
+  const language = isRyanLanguage(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
   const response = await authenticatedFetch(
     `${API_BASE_URL}${API_ROUTES.reasonPath}`,
     {
