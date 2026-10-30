@@ -96,4 +96,14 @@ test('local LM Studio credentials are shared only by brains routed to that local
     sourceRoot: process.cwd(),
   });
   assert.deepEqual(explicitCloud.brains.map((brain) => brain.credentialPresent), [false, true, true]);
+
+  const explicitCloudByRole = auditAgentReadiness({
+    env: {
+      NVIDIA_API_ENDPOINT: 'https://integrate.api.nvidia.com/v1',
+      LM_STUDIO_URL: 'http://localhost:1234/v1',
+      LM_STUDIO_API_KEY: 'local-test-key',
+    },
+    sourceRoot: process.cwd(),
+  });
+  assert.equal(explicitCloudByRole.brains[0].credentialPresent, false);
 });
