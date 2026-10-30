@@ -221,6 +221,18 @@ export async function signConversationAttachment(
   if (!attachment.path.startsWith(prefix) || attachment.path.includes('..')) {
     throw new Error('Attachment path does not belong to this conversation.');
   }
+  // Fail closed: Storage RLS is the authoritative gate, and this status check
+  // provides a clear application-level error before requesting a signed URL.
+  const { data: scan, error: scanError } = await client
+    .from('ryanai_attachment_scans')
+    .select('status')
+    .eq('bucket_id', ATTACHMENT_BUCKET)
+    .eq('object_name', attachment.path)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (scanError || scan?.status !== 'clean') {
+    throw new Error('This attachment is not available until its security scan is complete.');
+  }
   const { data, error } = await client.storage.from(ATTACHMENT_BUCKET).createSignedUrl(attachment.path, 60);
   if (error || !data?.signedUrl) throw new Error(error?.message || 'Unable to create a secure download link.');
   return { ...attachment, url: data.signedUrl };

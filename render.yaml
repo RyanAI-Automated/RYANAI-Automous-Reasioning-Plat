@@ -45,6 +45,14 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: ATTACHMENT_SCANNER_ENABLED
+        value: 'false'
+      - key: CLAMAV_HOST
+        sync: false
+      - key: CLAMAV_PORT
+        value: '3310'
+      - key: CLAMAV_TIMEOUT_MS
+        value: '60000'
       - key: OPENAI_API_KEY
         sync: false
       - key: NVIDIA_API_KEY
