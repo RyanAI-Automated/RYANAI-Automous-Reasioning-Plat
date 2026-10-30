@@ -1,5 +1,6 @@
 const BLOCK_SIZE = 512;
 const END_BLOCKS = 2;
+export const MAX_CONVERSATION_ARCHIVE_BYTES = 250 * 1024 * 1024;
 
 export interface ArchiveEntry {
   path: string;
@@ -72,11 +73,16 @@ function writeHeader(path: string, size: number): Uint8Array {
 export function createTarArchive(entries: readonly ArchiveEntry[]): Blob {
   const seen = new Set<string>();
   const chunks: Uint8Array[] = [];
+  let archiveBytes = BLOCK_SIZE * END_BLOCKS;
   for (const entry of entries) {
     validateArchivePath(entry.path);
     if (seen.has(entry.path)) throw new Error(`Duplicate archive path: ${entry.path}`);
     seen.add(entry.path);
     const data = entry.data;
+    archiveBytes += BLOCK_SIZE + Math.ceil(data.byteLength / BLOCK_SIZE) * BLOCK_SIZE;
+    if (archiveBytes > MAX_CONVERSATION_ARCHIVE_BYTES) {
+      throw new Error('Conversation archive exceeds the 250 MB export safety limit.');
+    }
     chunks.push(writeHeader(entry.path, data.byteLength));
     chunks.push(data);
     const padding = (BLOCK_SIZE - (data.byteLength % BLOCK_SIZE)) % BLOCK_SIZE;
@@ -95,6 +101,9 @@ export function createTarArchive(entries: readonly ArchiveEntry[]): Blob {
 
 /** Parse only regular files from a TAR archive; reject links, traversal, duplicates and bad checksums. */
 export async function readTarArchive(blob: Blob): Promise<ArchiveEntry[]> {
+  if (blob.size > MAX_CONVERSATION_ARCHIVE_BYTES) {
+    throw new Error('Conversation archive exceeds the 250 MB import safety limit.');
+  }
   const source = new Uint8Array(await blob.arrayBuffer());
   const entries: ArchiveEntry[] = [];
   const seen = new Set<string>();
