@@ -2,7 +2,8 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import WebSocket from 'ws';
 import { randomBytes } from 'node:crypto';
 import { requireUser } from './auth.js';
-import { ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
+import { getOwnerResponseLanguage, ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
+import { DEFAULT_LANGUAGE, isRyanLanguage, languageInstruction } from '../../shared/languages.js';
 
 const TICKET_TTL_SECONDS = 30;
 const MAX_CLIENT_MESSAGE_BYTES = 64 * 1024;
@@ -12,6 +13,7 @@ const REALTIME_MODEL = process.env.RYANAI_REALTIME_MODEL?.trim() || 'gpt-4o-real
 interface VoiceTicket {
   userId: string;
   isOwner: boolean;
+  language: string;
 }
 
 interface RedisTicketClient {
@@ -39,15 +41,21 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
   const redis = fastify.redis as unknown as RedisTicketClient;
 
-  fastify.post('/api/v1/realtime/voice-ticket', {
+  fastify.post<{ Body: { language?: string } }>('/api/v1/realtime/voice-ticket', {
     preHandler: requireUser,
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (request, reply) => {
     const user = request.authUser;
     if (!user?.id) return reply.code(401).send({ error: 'Sign in to start a voice session.' });
 
+    const requestedLanguage = request.body?.language;
+    const language = user.isOwner
+      ? getOwnerResponseLanguage()
+      : requestedLanguage && isRyanLanguage(requestedLanguage)
+        ? requestedLanguage
+        : DEFAULT_LANGUAGE;
     const ticket = randomBytes(32).toString('base64url');
-    const value: VoiceTicket = { userId: user.id, isOwner: user.isOwner };
+    const value: VoiceTicket = { userId: user.id, isOwner: user.isOwner, language };
     const stored = await redis.set(
       `ryanai:realtime-voice:${ticket}`,
       JSON.stringify(value),
@@ -82,7 +90,7 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const identity = JSON.parse(serialized) as VoiceTicket;
-        if (!identity.userId || typeof identity.isOwner !== 'boolean') {
+        if (!identity.userId || typeof identity.isOwner !== 'boolean' || !isRyanLanguage(identity.language)) {
           return reply.code(401).send({ error: 'Invalid voice session.' });
         }
         (request as VoiceRequest).voiceIdentity = identity;
@@ -140,7 +148,11 @@ export const realtimeVoiceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       const instructions = identity.isOwner
         ? ownerCommunicationInstruction()
-        : 'You are RyanAI, a helpful voice assistant. Respect the signed-in user and their configured language preference. Do not claim to perform actions unless a connected tool confirms completion.';
+        : [
+            'You are RyanAI, a helpful voice assistant for the signed-in user.',
+            languageInstruction(identity.language),
+            'Do not claim to perform actions unless a connected tool confirms completion.',
+          ].join(' ');
       upstream.send(JSON.stringify({
         type: 'session.update',
         session: {
