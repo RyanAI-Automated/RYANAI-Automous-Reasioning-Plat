@@ -47,7 +47,13 @@ vi.mock('./routes/auth.js', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
   return {
     ...actual,
-    installAuthentication: vi.fn(),
+    installAuthentication: (app: FastifyInstance) => {
+      app.addHook('preHandler', async (request) => {
+        if (request.headers.authorization === 'Bearer test-token') {
+          Object.assign(request, { authUser: { id: 'test-user', role: 'user' } });
+        }
+      });
+    },
   };
 });
 vi.mock('./comms/index.js', () => ({ commsPlugin: async () => {} }));
@@ -64,8 +70,8 @@ vi.mock('./routes/metrics.js', () => ({ metricsRoutes: async () => {} }));
 vi.mock('../agent/approvalEngine.js', () => ({
   initializeAgentDatabase: async () => {},
 }));
-vi.mock('../agent/engine.js', () => ({
-  getReasoningAgent: () => ({ invoke: state.invoke }),
+vi.mock('../agent/invoke.js', () => ({
+  invokeReasoningAgent: state.invoke,
 }));
 
 const signals = ['SIGTERM', 'SIGINT'] as const;
@@ -92,17 +98,29 @@ afterAll(async () => {
 
 describe('launcher reasoning routes', () => {
   it('serves cross-origin SSE with the CORS headers intact', async () => {
-    state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }] });
+    state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }], engine: 'RyanAI Three-Brain Orchestrator', runId: 'run-test', handoffs: [] });
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reasoning/stream',
-      headers: { origin: 'https://frontend.vercel.app' },
+      headers: { origin: 'https://frontend.vercel.app', authorization: 'Bearer test-token' },
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(200);
     expect(response.headers['access-control-allow-origin']).toBe('https://frontend.vercel.app');
     expect(response.headers['content-type']).toBe('text/event-stream');
     expect(response.body).toContain('"status":"complete","result":"answer"');
+  });
+
+  it('rejects unauthenticated reasoning requests before invoking the orchestrator', async () => {
+    state.invoke.mockClear();
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/reason',
+      payload: { prompt: 'hello' },
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ success: false });
+    expect(state.invoke).not.toHaveBeenCalled();
   });
 
   it('handles the browser CORS preflight', async () => {
@@ -136,10 +154,11 @@ describe('launcher reasoning routes', () => {
   });
 
   it('keeps the JSON reasoning endpoint available', async () => {
-    state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }] });
+    state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }], engine: 'RyanAI Three-Brain Orchestrator', runId: 'run-test', handoffs: [] });
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reason',
+      headers: { authorization: 'Bearer test-token' },
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(200);
@@ -150,6 +169,7 @@ describe('launcher reasoning routes', () => {
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reasoning/stream',
+      headers: { authorization: 'Bearer test-token' },
       payload: { prompt: ' ' },
     });
     expect(response.statusCode).toBe(400);
@@ -160,6 +180,7 @@ describe('launcher reasoning routes', () => {
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reasoning/stream',
+      headers: { authorization: 'Bearer test-token' },
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(200);
@@ -187,6 +208,7 @@ describe('launcher reasoning routes', () => {
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reason',
+      headers: { authorization: 'Bearer test-token' },
       payload: { prompt: 'hello' },
     });
     expect(response.statusCode).toBe(502);
@@ -202,6 +224,7 @@ describe('launcher reasoning routes', () => {
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reason',
+      headers: { authorization: 'Bearer test-token' },
       payload: { prompt: 'x'.repeat(20001) },
     });
     expect(response.statusCode).toBe(400);
@@ -213,6 +236,7 @@ describe('launcher reasoning routes', () => {
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reasoning/stream',
+      headers: { authorization: 'Bearer test-token' },
       payload: { prompt: 'x'.repeat(20001) },
     });
     expect(response.statusCode).toBe(400);
