@@ -13,6 +13,7 @@ describe('isActionTool', () => {
   it('accepts the three outbound tools and nothing else', () => {
     expect(isActionTool('send_email')).toBe(true);
     expect(isActionTool('send_whatsapp_message')).toBe(true);
+    expect(isActionTool('send_sms_message')).toBe(true);
     expect(isActionTool('make_voice_call')).toBe(true);
     expect(isActionTool('write_workspace_file')).toBe(false);
     expect(isActionTool(undefined)).toBe(false);
@@ -66,6 +67,15 @@ describe('parseActionArgs for phone numbers', () => {
     expect(
       parseActionArgs('send_whatsapp_message', { to: '+1 (234) 567-890', message: 'Hi' }),
     ).toEqual({ to: '+1234567890', message: 'Hi' });
+  });
+
+  it('parses and summarizes SMS actions', () => {
+    expect(parseActionArgs('send_sms_message', { to: '+27 71 809 5084', message: 'Alert' })).toEqual({
+      to: '+27718095084', message: 'Alert',
+    });
+    expect(summarizeAction('send_sms_message', { to: '+27718095084', message: 'Alert' })).toBe(
+      'SMS to +27718095084: "Alert"',
+    );
   });
 
   it('refuses a number without the international prefix or with a bad length', () => {
