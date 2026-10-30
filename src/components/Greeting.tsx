@@ -80,7 +80,9 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
 
   useEffect(() => {
     spoken.current = false;
-  }, [userId]);
+    try { window.localStorage.setItem('ryanai:language', language); } catch { /* browser storage may be disabled */ }
+    window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language } }));
+  }, [userId, language]);
 
   useEffect(() => {
     if (voiceEnabled && voices.length && !spoken.current) {
