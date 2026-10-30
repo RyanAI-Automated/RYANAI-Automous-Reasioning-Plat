@@ -2,6 +2,13 @@
 
 The API communications plugin uses real provider APIs. It never fabricates a delivery receipt.
 
+## RyanAI identity and voice
+
+- The configured owner is addressed as **Sir** in login greetings and owner-directed WhatsApp, SMS, voice and email replies. Other signed-in UI users are addressed by their verified display name.
+- The UI greeting uses the browser's available South African English speech voice (`en-ZA`) and provides a replay control if browser autoplay is blocked.
+- Twilio voice uses `en-ZA` speech recognition and the South African English Amazon Polly `Ayanda-Neural` voice by default. Override with `RYANAI_TWILIO_VOICE` only with a Twilio-supported `en-ZA` voice.
+- Realtime voice instructions request natural South African English; `RYANAI_REALTIME_VOICE` can select a supported Realtime voice. This voice provider has its own voice catalogue and is not guaranteed to sound identical to Twilio's Ayanda voice.
+
 ## Channels
 
 - WhatsApp and SMS: Twilio Messaging API.
@@ -20,7 +27,7 @@ Configure these as deployment secrets/environment variables, never commit creden
 - `TWILIO_STATUS_WEBHOOK_URL`, optionally `TWILIO_STATUS_CALLBACK_URL`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 
-Owner contact defaults may be configured with `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL`; the API does not hard-code personal destinations.
+Owner contact defaults may be configured with `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL`; the API does not hard-code personal destinations. The server resolves the owner identity from `RYANAI_OWNER_EMAIL` after verifying the Supabase session and returns only an `isOwner` flag to the authenticated UI. The owner email is never exposed in the frontend bundle.
 
 ## Twilio Console configuration
 
