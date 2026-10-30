@@ -126,7 +126,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
           ? process.env.TWILIO_WHATSAPP_NUMBER?.trim()
           : process.env.TWILIO_PHONE_NUMBER?.trim();
         if (!from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
-        const outgoingText = target === process.env.RYANAI_OWNER_PHONE?.trim() ? addressOwnerResponse(messageBody) : messageBody;
+        const outgoingText = target === process.env.RYANAI_OWNER_PHONE?.trim() ? addressOwnerResponse(messageBody, getOwnerTitle()) : messageBody;
         const sent = await client.messages.create({
           from: channel === 'whatsapp' && !from.startsWith('whatsapp:') ? `whatsapp:${from}` : from,
           to: channel === 'whatsapp' ? `whatsapp:${target}` : target,
@@ -187,7 +187,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress',
     });
     reply.type('text/xml');
-    return twimlSay(`${getTimeGreeting()}, Sir. I'm RyanAI. How can I help you today?`);
+    return twimlSay(`${getTimeGreeting()}, ${getOwnerTitle()}. I'm RyanAI. How can I help you today?`);
   });
 
   fastify.post('/api/webhooks/twilio/voice/respond', { preHandler: webhookAuth('TWILIO_VOICE_ACTION_URL') }, async (request, reply) => {
