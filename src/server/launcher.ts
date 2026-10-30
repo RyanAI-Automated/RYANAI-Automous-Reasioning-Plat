@@ -32,6 +32,8 @@ import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { initializeAgentDatabase } from '../agent/approvalEngine.js';
+import { agentOperationsRoutes } from './routes/agentOperations.js';
+import { startBrainHealthMonitor } from '../agent/operations.js';
 
 const { Pool } = pg;
 
@@ -431,6 +433,7 @@ async function registerPlugins() {
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
   await fastify.register(tasksRoutes);
+  await fastify.register(agentOperationsRoutes);
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
 }
@@ -460,6 +463,7 @@ async function start() {
     console.log(`\n🟢 All services ready!\n`);
 
     serviceStatus.api = true;
+    stopBrainMonitor = startBrainHealthMonitor();
 
     // Scheduled tasks start AI runs with no person present, and those runs cost
     // money. Turn them on with an explicit setting.
@@ -481,10 +485,12 @@ async function start() {
 
 // Graceful shutdown hooks
 let stopScheduler: (() => void) | undefined;
+let stopBrainMonitor: (() => void) | undefined;
 let stopAlerts: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   stopScheduler?.();
+  stopBrainMonitor?.();
   stopAlerts?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
