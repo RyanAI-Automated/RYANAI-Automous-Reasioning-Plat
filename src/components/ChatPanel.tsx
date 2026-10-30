@@ -35,7 +35,7 @@ export default function ChatPanel(props: ChatPanelProps) {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [voiceStatus, setVoiceStatus] = useState('Voice replies are enabled');
   const [voiceRepliesEnabled, setVoiceRepliesEnabled] = useState(() => {
-    try { return localStorage.getItem('ryanai:voice-replies-enabled') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem(`ryanai:voice-replies-enabled:${props.userId}`) !== 'false'; } catch { return true; }
   });
 
   const readAloud = useCallback((message: Message) => {
@@ -122,7 +122,7 @@ export default function ChatPanel(props: ChatPanelProps) {
             onClick={() => {
               const next = !voiceRepliesEnabled;
               setVoiceRepliesEnabled(next);
-              try { localStorage.setItem('ryanai:voice-replies-enabled', String(next)); } catch { /* storage may be disabled */ }
+              try { localStorage.setItem(`ryanai:voice-replies-enabled:${props.userId}`, String(next)); } catch { /* storage may be disabled */ }
               if (!next && 'speechSynthesis' in window) window.speechSynthesis.cancel();
             }}
             className="p-1.5 rounded hover:bg-cyan-500/10 text-cyan-400 transition-colors"
