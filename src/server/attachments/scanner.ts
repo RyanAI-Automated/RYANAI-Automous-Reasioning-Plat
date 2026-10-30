@@ -10,7 +10,7 @@ function required(name: string): string {
   return value;
 }
 
-async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
+export async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
   const host = required('CLAMAV_HOST');
   const port = Number(process.env.CLAMAV_PORT || 3310);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('CLAMAV_PORT is invalid.');
