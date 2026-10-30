@@ -20,7 +20,8 @@ import {
 import { streamReasoning } from '@/lib/reasoning';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
-import { removeConversationAttachments, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import { removeConversationAttachments, safeAttachmentName, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import { createTarArchive } from '@/lib/conversationArchive';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import TelemetryPanel from '@/components/TelemetryPanel';
@@ -562,34 +563,80 @@ export default function CommandCenter({
     [activeId, userId],
   );
 
-  /** Download the active thread and tool traces as Markdown; ignore empty or missing threads. */
-  const exportThread = useCallback(() => {
+  /** Export a portable TAR bundle containing the transcript, manifest, and original attachment bytes. */
+  const exportThread = useCallback(async () => {
     const conv = conversations.find((c) => c.id === activeId);
     if (!conv || conv.messages.length === 0) return;
     const title = conv.title || 'RyanAI thread';
-    let md = `# ${title}\n\n> Exported from RyanAI · Autonomous Reasoning Engine\n> Model: ${modelMeta(conv.model).label}\n\n`;
-    conv.messages.forEach((m) => {
-      md += `## ${m.role === 'user' ? 'Operator' : `RyanAI (${modelMeta(m.model).label})`}\n\n${m.content}\n\n`;
-      if (m.steps?.length) {
-        md += `<details><summary>Tool trace (${m.steps.length})</summary>\n\n`;
-        m.steps.forEach((s) => {
-          md += `- \`${s.type}\` **${s.name}** → ${s.result || JSON.stringify(s.args)}\n`;
+    let md = '# ' + title + '\n\n> Exported from RyanAI · Autonomous Reasoning Engine\n> Model: ' + modelMeta(conv.model).label + '\n\n';
+    const manifestMessages: Array<Record<string, unknown>> = [];
+    const archiveEntries: Array<{ path: string; data: Uint8Array }> = [];
+
+    for (const message of conv.messages) {
+      md += '## ' + (message.role === 'user' ? 'Operator' : 'RyanAI (' + modelMeta(message.model).label + ')') + '\n\n' + message.content + '\n\n';
+      if (message.steps?.length) {
+        md += '<details><summary>Tool trace (' + message.steps.length + ')</summary>\n\n';
+        message.steps.forEach((step) => {
+          md += '- **' + step.type + '** **' + step.name + '** → ' + (step.result || JSON.stringify(step.args)) + '\n';
         });
-        md += `\n</details>\n\n`;
+        md += '\n</details>\n\n';
       }
-      md += `---\n\n`;
-    });
-    const blob = new Blob([md], { type: 'text/markdown' });
+      md += '---\n\n';
+
+      const exportedAttachments: Array<Record<string, unknown>> = [];
+      for (const attachment of message.attachments ?? []) {
+        if (!supabase) throw new Error('Cloud storage must be configured to export original attachment files.');
+        const signed = await signConversationAttachment(supabase, userId, conv.id, attachment);
+        if (!signed.url) throw new Error('Unable to create a download link for ' + attachment.name + '.');
+        const response = await fetch(signed.url);
+        if (!response.ok) throw new Error('Unable to download ' + attachment.name + ' (HTTP ' + response.status + ').');
+        const data = new Uint8Array(await response.arrayBuffer());
+        if (data.byteLength !== attachment.size) {
+          throw new Error('Attachment size verification failed for ' + attachment.name + '.');
+        }
+        const archivePath = 'attachments/' + attachment.id + '-' + safeAttachmentName(attachment.name).slice(0, 32);
+        archiveEntries.push({ path: archivePath, data });
+        exportedAttachments.push({
+          id: attachment.id,
+          name: attachment.name,
+          mimeType: attachment.mimeType,
+          size: attachment.size,
+          archivePath,
+        });
+      }
+      manifestMessages.push({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        model: message.model ?? null,
+        timestamp: message.timestamp,
+        steps: message.steps ?? [],
+        attachments: exportedAttachments,
+      });
+    }
+
+    archiveEntries.unshift(
+      { path: 'conversation.md', data: new TextEncoder().encode(md) },
+      {
+        path: 'manifest.json',
+        data: new TextEncoder().encode(JSON.stringify({
+          format: 'ryanai-conversation-archive',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          conversation: { id: conv.id, title, model: conv.model },
+          messages: manifestMessages,
+        }, null, 2)),
+      },
+    );
+
+    const blob = createTarArchive(archiveEntries);
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title
-      .replace(/[^a-z0-9]+/gi, '-')
-      .toLowerCase()
-      .slice(0, 40)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [activeId, conversations]);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = (title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40) || 'ryanai-thread') + '.tar';
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [activeId, conversations, userId]);
 
   // Voice command handler
   /** Dispatch recognized voice command names to workspace actions; args and unknown names are ignored. */
