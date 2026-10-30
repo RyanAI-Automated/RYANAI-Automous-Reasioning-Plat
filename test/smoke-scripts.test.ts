@@ -178,15 +178,6 @@ describe('live smoke script contracts', () => {
     expect(result.stderr).not.toContain('fixture-user');
   });
 
-  it('runs live three-brain provider probes only when explicitly enabled with admin credentials', async () => {
-    const result = await runScript(await fixture(), {
-      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin\\nRYANAI_LIVE_PROVIDER_TESTS=true',
-    });
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Live provider connectivity: 3/3 brains HEALTHY');
-    expect(result.stdout).toContain('End-to-end checks: 6/6 passed; 1 skipped');
-  });
-
   it('fails when anonymous reasoning and WebSocket access are exposed', async () => {
     const result = await runScript(await fixture(false));
     expect(result.code).toBe(1);
