@@ -40,7 +40,7 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
     try { return window.localStorage.getItem('ryanai:voice-enabled') !== 'false'; } catch { return true; }
   });
   const spoken = useRef(false);
-  const firstName = displayName?.trim().split(/\\s+/)[0] || 'there';
+  const firstName = displayName?.trim().split(/\s+/)[0] || 'there';
   const address = title || firstName;
   const greeting = `${getTimeGreeting()}, ${address}. I'm RyanAI. Your assistant is ready.`;
   const matchingVoices = useMemo(
