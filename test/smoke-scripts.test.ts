@@ -149,7 +149,7 @@ describe('live smoke script contracts', () => {
 
   it('runs the opt-in three-brain provider probe with admin credentials', async () => {
     const result = await runScript(await fixture(), {
-      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin\\nRYANAI_LIVE_PROVIDER_TESTS=true',
+      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin\nRYANAI_LIVE_PROVIDER_TESTS=true',
     });
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Live provider connectivity: 3/3 brains HEALTHY');
