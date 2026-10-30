@@ -15,6 +15,13 @@ interface KnowledgeRecord {
   updatedAt: string;
 }
 
+async function fetchKnowledge(): Promise<KnowledgeRecord[]> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/agent/ops/knowledge`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Knowledge request failed (${response.status})`);
+  return Array.isArray(data.knowledge) ? data.knowledge : [];
+}
+
 /** Admin console for publishing trusted reference material to all three brains. */
 export default function BrainKnowledgePanel() {
   const [items, setItems] = useState<KnowledgeRecord[]>([]);
@@ -30,10 +37,7 @@ export default function BrainKnowledgePanel() {
     setLoading(true);
     setError('');
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/agent/ops/knowledge`);
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `Knowledge request failed (${response.status})`);
-      setItems(Array.isArray(data.knowledge) ? data.knowledge : []);
+      setItems(await fetchKnowledge());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load shared knowledge.');
     } finally {
@@ -41,7 +45,16 @@ export default function BrainKnowledgePanel() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    fetchKnowledge()
+      .then((knowledge) => { if (active) setItems(knowledge); })
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : 'Could not load shared knowledge.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   async function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
