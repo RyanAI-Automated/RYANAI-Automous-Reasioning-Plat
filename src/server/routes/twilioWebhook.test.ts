@@ -127,11 +127,11 @@ describe('Twilio webhook provider authentication', () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
     expect(response.body).toBe(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Approved &lt;reply&gt; &amp; ready</Message></Response>',
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Sir, Approved &lt;reply&gt; &amp; ready</Message></Response>',
     );
     expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      { messages: [{ role: 'user', content: 'Please help' }] },
+      { messages: [{ role: 'system', content: expect.stringContaining('English - South Africa') }, { role: 'user', content: 'Please help' }] },
       { configurable: { thread_id: 'whatsapp_15555550123' } },
     );
   });
