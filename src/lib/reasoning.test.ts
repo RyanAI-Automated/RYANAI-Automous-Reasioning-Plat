@@ -38,6 +38,7 @@ describe('authenticated reasoning requests', () => {
           body: JSON.stringify({
             prompt: 'Explain this',
             model: DEFAULT_MODEL,
+            language: 'en-ZA',
           }),
         },
       );
@@ -84,7 +85,7 @@ describe('authenticated reasoning requests', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Explain this', model: DEFAULT_MODEL }),
+        body: JSON.stringify({ prompt: 'Explain this', model: DEFAULT_MODEL, language: 'en-ZA' }),
       },
     );
     expect(callbacks.onStep).toHaveBeenCalledExactlyOnceWith({
