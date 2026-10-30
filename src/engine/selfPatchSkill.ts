@@ -41,7 +41,7 @@ function validatePatch(request: PatchRequest): string | null {
     filePath.includes('\0') ||
     filePath.split('/').some((part) => !part || part === '.' || part === '..') ||
     !ALLOWED_PREFIXES.some((prefix) => filePath.startsWith(prefix)) ||
-    /(?:^|\/)(?:\.env(?:\.|$)|secrets?|credentials?)(?:\/|$)/i.test(filePath) ||
+    /(?:^|\/)(?:\.env[^/]*|secrets?[^/]*|credentials?[^/]*|id_rsa[^/]*|id_ed25519[^/]*)(?:\/|$)/i.test(filePath) ||
     /(?:\.pem|\.key|\.p12|\.pfx|id_rsa|id_ed25519)$/i.test(filePath)
   ) return 'Patch path is outside the permitted source directories or targets a protected file.';
   if (typeof request.patchContent !== 'string' || request.patchContent.length === 0 || Buffer.byteLength(request.patchContent) > MAX_PATCH_BYTES) {
