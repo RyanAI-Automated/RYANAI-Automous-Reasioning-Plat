@@ -51,6 +51,35 @@ jobs:
         run: npm run workflow:validate
 
       - name: Audit optional deployment readiness and agent inventory
+        env:
+          AWS_ECS_DEPLOY_ENABLED: ${{ vars.AWS_ECS_DEPLOY_ENABLED }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+          ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+          ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}
+          ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AZURE_AKS_DEPLOY_ENABLED: ${{ vars.AZURE_AKS_DEPLOY_ENABLED }}
+          AZURE_CONTAINER_REGISTRY: ${{ vars.AZURE_CONTAINER_REGISTRY }}
+          AZURE_CONTAINER_NAME: ${{ vars.AZURE_CONTAINER_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME }}
+          AZURE_KUSTOMIZE_PATH: ${{ vars.AZURE_KUSTOMIZE_PATH }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          DATADOG_SYNTHETICS_ENABLED: ${{ vars.DATADOG_SYNTHETICS_ENABLED }}
+          DD_API_KEY: ${{ secrets.DD_API_KEY }}
+          DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+          RENDER_DEPLOY_ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          VERCEL_DEPLOY_ENABLED: ${{ vars.VERCEL_DEPLOY_ENABLED }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: npm run test:readiness-audits && npm run audit:deployments && npm run audit:agents
 
   subprojects:
