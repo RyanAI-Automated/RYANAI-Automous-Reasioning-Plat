@@ -30,6 +30,7 @@ import GithubModal from '@/components/GithubModal';
 import CodeRain from '@/components/CodeRain';
 import ChatInterface from '@/components/ChatInterface';
 import Modal from '@/components/Modal';
+import { RyanVoiceStream } from '@/components/RyanVoiceStream';
 
 interface CommandCenterProps {
   onSignOut: () => void;
@@ -702,6 +703,7 @@ export default function CommandCenter({
   return (
     <div className="h-screen hud-radial hud-grid hud-scanlines overflow-hidden relative">
       <CodeRain />
+      <RyanVoiceStream language={voiceLanguage} />
 
       {/* Desktop layout */}
       <div className="h-full hidden lg:grid lg:grid-cols-12 gap-4 p-4 relative z-10">
