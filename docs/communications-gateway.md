@@ -27,7 +27,7 @@ Configure these as deployment secrets/environment variables, never commit creden
 - `TWILIO_STATUS_WEBHOOK_URL`, optionally `TWILIO_STATUS_CALLBACK_URL`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 
-Owner contact defaults may be configured with `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL`; the API does not hard-code personal destinations. Set the public frontend build variable `VITE_RYANAI_OWNER_EMAIL` to the same owner email (or set the verified Supabase `app_metadata.owner=true` claim) so the login UI uses the `Sir` salutation without embedding the address in source.
+Owner contact defaults may be configured with `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL`; the API does not hard-code personal destinations. The server resolves the owner identity from `RYANAI_OWNER_EMAIL` after verifying the Supabase session and returns only an `isOwner` flag to the authenticated UI. The owner email is never exposed in the frontend bundle.
 
 ## Twilio Console configuration
 
