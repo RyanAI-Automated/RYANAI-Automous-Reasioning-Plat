@@ -94,14 +94,29 @@ const app = readText('src/App.tsx');
 if (!app.includes("import appManifest from '../app/routes.json'")) {
   fail('src/App.tsx must use app/routes.json as the route manifest');
 }
-if (!app.includes("import DashboardPage from '@/pages/Dashboard'")) {
-  fail('src/App.tsx must import the focused system dashboard');
+const importsOrLazyLoads = (source, staticImport, lazyImport) =>
+  source.includes(staticImport) || source.includes(lazyImport);
+
+if (!importsOrLazyLoads(
+  app,
+  "import DashboardPage from '@/pages/Dashboard'",
+  "lazy(() => import('@/pages/Dashboard'))",
+)) {
+  fail('src/App.tsx must import or lazy-load the focused system dashboard');
 }
-if (!app.includes("import CommandCenter from '@/pages/CommandCenter.tsx'")) {
-  fail('src/App.tsx must import the workspace command center');
+if (!importsOrLazyLoads(
+  app,
+  "import CommandCenter from '@/pages/CommandCenter.tsx'",
+  "lazy(() => import('@/pages/CommandCenter.tsx'))",
+)) {
+  fail('src/App.tsx must import or lazy-load the workspace command center');
 }
-if (!app.includes("import { AgentControlPanel } from '@/components/AgentControlPanel'")) {
-  fail('Desktop cockpit must import AgentControlPanel');
+if (!importsOrLazyLoads(
+  app,
+  "import { AgentControlPanel } from '@/components/AgentControlPanel'",
+  "lazy(() => import('@/components/AgentControlPanel')",
+)) {
+  fail('Desktop cockpit must import or lazy-load AgentControlPanel');
 }
 for (const id of ['dashboard', 'cockpit', 'workspace']) {
   if (!routes.routes?.some((route) => route.id === id)) {
