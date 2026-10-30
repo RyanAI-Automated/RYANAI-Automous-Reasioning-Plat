@@ -35,38 +35,31 @@ export class RyanPatchValidatorPipeline {
 
     console.log("[Objective 3] Passing generated patch to isolated RyanAISandbox for validation...");
 
-    let attempts = 1;
-    const maxAttempts = 3;
-    let sandboxResult = await RyanAISandbox.executeInSandbox(extractedCode, "autonomous_patch.ts");
-
-    // Objective 3: Sandbox Validation & Auto-Debugging Loop
-    while (!sandboxResult.success && attempts < maxAttempts) {
-      console.warn(`[Auto-Debugger] Sandbox execution failed on attempt ${attempts}. Analyzing traceback...`);
-      
-      const fixedCode = await RyanAIAutoDebugger.diagnoseAndFix(
-        extractedCode, 
-        sandboxResult.error || "Unknown runtime exception"
-      );
-
-      attempts++;
-      console.log(`[Auto-Debugger] Re-testing patched code (Attempt ${attempts})...`);
-      sandboxResult = await RyanAISandbox.executeInSandbox(fixedCode, "autonomous_patch.ts");
-      
-      if (sandboxResult.success) {
-        return {
-          success: true,
-          generatedPatch: fixedCode,
-          sandboxOutput: sandboxResult.output || "",
-          attempts
-        };
-      }
+    let sandboxResult = await RyanAISandbox.executeInSandbox(extractedCode, "autonomous_patch.js");
+    if (sandboxResult.success) {
+      return {
+        success: true,
+        generatedPatch: extractedCode,
+        sandboxOutput: sandboxResult.output || "",
+        attempts: 1,
+      };
     }
 
+    console.warn("[Auto-Debugger] Initial isolated verification failed. Requesting a bounded repair...");
+    const repaired = await RyanAIAutoDebugger.debugAndRepair(extractedCode, sandboxResult, 2);
+    if (!repaired.success) {
+      return {
+        success: false,
+        generatedPatch: repaired.finalCode,
+        sandboxOutput: "Patch was not promoted. Isolated verification did not pass.",
+        attempts: repaired.attempts + 1,
+      };
+    }
     return {
-      success: sandboxResult.success,
-      generatedPatch: extractedCode,
-      sandboxOutput: sandboxResult.output || sandboxResult.error || "Execution failed",
-      attempts
+      success: true,
+      generatedPatch: repaired.finalCode,
+      sandboxOutput: "Repaired candidate passed isolated verification.",
+      attempts: repaired.attempts + 1,
     };
   }
 
