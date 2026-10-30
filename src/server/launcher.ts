@@ -222,6 +222,12 @@ function registerCoreRoutes() {
     request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
     reply: FastifyReply,
   ) => {
+    if (!request.authUser?.id) {
+      return reply.code(401).send({
+        success: false,
+        error: 'Sign in to use traceable three-brain reasoning.',
+      });
+    }
     const prompt = request.body?.prompt?.trim();
     if (!prompt) {
       return reply
@@ -258,6 +264,12 @@ function registerCoreRoutes() {
   fastify.post<{
     Body: { prompt?: string; sessionId?: string; model?: string };
   }>(API_ROUTES.streamPath, { schema: reasoningBodySchema }, async (request, reply) => {
+    if (!request.authUser?.id) {
+      return reply.code(401).send({
+        success: false,
+        error: 'Sign in to use traceable three-brain reasoning.',
+      });
+    }
     const prompt = request.body?.prompt?.trim();
     const { sessionId } = request.body || {};
     if (!prompt) {
