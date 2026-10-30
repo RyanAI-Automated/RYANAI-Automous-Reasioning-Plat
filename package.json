@@ -103,7 +103,8 @@
     "audit:inspector": "node scripts/ai-inspector-audit.mjs",
     "audit:deployments": "node scripts/audit-deployment-readiness.mjs",
     "audit:agents": "node scripts/audit-agent-readiness.mjs",
-    "test:readiness-audits": "node --test scripts/readiness-audits.node-test.mjs"
+    "test:readiness-audits": "node --test scripts/readiness-audits.node-test.mjs",
+    "test:agent-operations": "vitest run src/agent/operationsCore.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
