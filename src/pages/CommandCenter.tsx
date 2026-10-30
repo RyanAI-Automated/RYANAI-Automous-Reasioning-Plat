@@ -668,7 +668,7 @@ export default function CommandCenter({
       ? rawConversation.title.trim().slice(0, 80)
       : 'Imported RyanAI conversation';
     const requestedModel = typeof rawConversation.model === 'string' ? rawConversation.model as ModelId : DEFAULT_MODEL;
-    const importedModel = MODELS[requestedModel] ? requestedModel : DEFAULT_MODEL;
+    const importedModel = Object.prototype.hasOwnProperty.call(MODELS, requestedModel) ? requestedModel : DEFAULT_MODEL;
     if (!Array.isArray(data.messages) || data.messages.length === 0 || data.messages.length > 5000) {
       throw new Error('The archive must contain between 1 and 5,000 messages.');
     }
@@ -717,7 +717,7 @@ export default function CommandCenter({
         Math.abs(message.timestamp) <= 8.64e15
         ? message.timestamp
         : Date.now();
-      const messageModel = typeof message.model === 'string' && MODELS[message.model as ModelId]
+      const messageModel = typeof message.model === 'string' && Object.prototype.hasOwnProperty.call(MODELS, message.model)
         ? message.model as ModelId
         : undefined;
       const steps = Array.isArray(message.steps)
@@ -743,6 +743,12 @@ export default function CommandCenter({
         steps,
         files,
       };
+    });
+    const allowedArchivePaths = new Set(['manifest.json', 'conversation.md']);
+    archiveEntries.forEach((entry) => {
+      if (!allowedArchivePaths.has(entry.path) && !entry.path.startsWith('attachments/')) {
+        throw new Error('The archive contains an unsupported extra file: ' + entry.path);
+      }
     });
     const archiveAttachmentPaths = archiveEntries.filter((entry) => entry.path.startsWith('attachments/'));
     if (archiveAttachmentPaths.some((entry) => !referencedPaths.has(entry.path))) {
