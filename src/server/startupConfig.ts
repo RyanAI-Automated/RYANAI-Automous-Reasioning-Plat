@@ -3,6 +3,13 @@ export interface ConnectionUrls {
   redisUrl: string;
 }
 
+function localDevelopmentDatabaseUrl(): string {
+  const url = new URL('postgresql://localhost:5432/ryanai');
+  url.username = 'postgres';
+  url.password = 'postgres';
+  return url.toString();
+}
+
 /**
  * Resolve required service URLs without silently selecting local services in production.
  * Local defaults remain available only for development and test environments.
@@ -29,7 +36,7 @@ export function resolveConnectionUrls(
   }
 
   return {
-    databaseUrl: database || 'postgresql://postgres:postgres@localhost:5432/ryanai',
+    databaseUrl: database || localDevelopmentDatabaseUrl(),
     redisUrl: redis || 'redis://localhost:6379',
   };
 }
