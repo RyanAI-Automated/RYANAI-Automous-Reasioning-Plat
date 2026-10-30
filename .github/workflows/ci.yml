@@ -86,7 +86,11 @@ jobs:
           RYANAI_LOGIC_KEY_CONFIGURED: ${{ secrets.LOGIC_API_KEY != '' }}
           RYANAI_LM_STUDIO_KEY_CONFIGURED: ${{ secrets.LM_STUDIO_API_KEY != '' }}
           RYANAI_OPENAI_KEY_CONFIGURED: ${{ secrets.OPENAI_API_KEY != '' }}
-          RYANAI_LOCAL_ENDPOINT_CONFIGURED: ${{ vars.LM_STUDIO_URL != '' || vars.OLLAMA_URL != '' }}
+          RYANAI_LM_STUDIO_URL_CONFIGURED: ${{ vars.LM_STUDIO_URL != '' }}
+          RYANAI_OLLAMA_URL_CONFIGURED: ${{ vars.OLLAMA_URL != '' }}
+          RYANAI_NVIDIA_ENDPOINT_CONFIGURED: ${{ vars.NVIDIA_API_ENDPOINT != '' }}
+          RYANAI_QWEN_ENDPOINT_CONFIGURED: ${{ vars.QWEN_API_ENDPOINT != '' }}
+          RYANAI_LOGIC_USES_LM_STUDIO: ${{ vars.LM_STUDIO_URL != '' && (vars.LOGIC_API_ENDPOINT == '' || vars.LOGIC_API_ENDPOINT == vars.LM_STUDIO_URL) }}
         run: npm run test:readiness-audits && npm run audit:deployments && npm run audit:agents
 
   subprojects:
