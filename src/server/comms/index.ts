@@ -2,16 +2,17 @@ import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
 import formbody from '@fastify/formbody';
+import rawBody from 'fastify-raw-body';
+import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
+import { recordCommunication, updateCommunicationStatus } from './history.js';
+
+declare module 'fastify' {
+  interface FastifyRequest { rawBody?: string }
+}
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
-type CommsBody = {
-  channel?: Channel;
-  recipient?: string;
-  message?: string;
-  subject?: string;
-};
-
+type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string };
 const MAX_MESSAGE_LENGTH = 4000;
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -20,36 +21,35 @@ function escapeXml(value: string): string {
     '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;',
   })[char] ?? char);
 }
-
+function normalizePhone(value: string): string {
+  return value.replace(/^whatsapp:/i, '').replace(/[^+\d]/g, '');
+}
+function emailAddress(value: string): string {
+  const match = value.match(/<([^<>]+)>/);
+  return (match?.[1] ?? value).trim().toLowerCase();
+}
 function twilioClient() {
   const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const token = process.env.TWILIO_AUTH_TOKEN?.trim();
   return sid && token ? twilio(sid, token) : null;
 }
-
 function webhookAuth(urlEnv: string) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const token = process.env.TWILIO_AUTH_TOKEN?.trim();
     const url = process.env[urlEnv]?.trim();
     const signature = request.headers['x-twilio-signature'];
-    if (!token || !url) {
-      return reply.code(503).send({ error: 'Twilio webhook authentication is not configured.' });
-    }
+    if (!token || !url) return reply.code(503).send({ error: 'Twilio webhook authentication is not configured.' });
     if (typeof signature !== 'string' || !twilio.validateRequest(
       token, signature, url, (request.body || {}) as Record<string, string>,
-    )) {
-      return reply.code(401).send({ error: 'Invalid Twilio request signature.' });
-    }
+    )) return reply.code(401).send({ error: 'Invalid Twilio request signature.' });
   };
 }
-
 function twimlSay(text: string, gather = true): string {
   const safe = escapeXml(text);
   const action = process.env.TWILIO_VOICE_ACTION_URL?.trim();
   if (!action || !gather) return `<?xml version="1.0" encoding="UTF-8"?><Response><Say>${safe}</Say><Hangup/></Response>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Say>${safe}</Say><Gather input="speech" action="${escapeXml(action)}" method="POST" speechTimeout="auto" timeout="5"><Say>Please speak after the tone.</Say></Gather><Say>I did not hear a response. Goodbye.</Say><Hangup/></Response>`;
 }
-
 async function askRyanAI(text: string, threadId: string): Promise<string> {
   const result = await humanInTheLoopAgent.invoke(
     { messages: [{ role: 'user', content: text }] },
@@ -59,40 +59,47 @@ async function askRyanAI(text: string, threadId: string): Promise<string> {
   const content = messages.at(-1)?.content;
   return typeof content === 'string' ? content : JSON.stringify(content) ?? 'I could not prepare a response.';
 }
+function smtpTransport() {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM?.trim();
+  if (!host || !user || !pass || !from) return null;
+  return {
+    from,
+    transporter: nodemailer.createTransport({
+      host, port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user, pass },
+    }),
+  };
+}
 
-/**
- * Real provider-backed communications gateway. Outbound routes are administrator
- * protected by the global auth hook; Twilio callbacks are public only because each
- * validates the provider signature against a fixed configured URL.
- */
+/** Real provider-backed channels. Twilio and Resend webhooks are signature verified. */
 export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   await fastify.register(formbody);
+  await fastify.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
 
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     const { channel, recipient, message, subject } = request.body ?? {};
-    const targetRecipient = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
-    if (!channel || !targetRecipient || !message || message.length > MAX_MESSAGE_LENGTH) {
+    const target = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
+    if (!channel || !target || !message?.trim() || message.length > MAX_MESSAGE_LENGTH) {
       return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     }
     if (!['whatsapp', 'sms', 'voice', 'email'].includes(channel)) {
       return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
     }
-
     if (channel === 'email') {
-      const host = process.env.SMTP_HOST?.trim();
-      const user = process.env.SMTP_USER?.trim();
-      const pass = process.env.SMTP_PASS;
-      const from = process.env.SMTP_FROM?.trim();
-      if (!host || !user || !pass || !from) {
-        return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
-      }
+      const smtp = smtpTransport();
+      if (!smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
       try {
-        const transporter = nodemailer.createTransport({
-          host, port: Number(process.env.SMTP_PORT || 587),
-          secure: process.env.SMTP_SECURE === 'true',
-          auth: { user, pass },
+        const sent = await smtp.transporter.sendMail({
+          from: smtp.from, to: target, subject: subject || 'RyanAI notification', text: message,
         });
-        const sent = await transporter.sendMail({ from, to: targetRecipient, subject: subject || 'RyanAI notification', text: message });
+        await recordCommunication(fastify.prisma, {
+          channel, externalAddress: target.toLowerCase(), direction: 'outbound',
+          body: message, providerMessageId: sent.messageId, status: 'accepted',
+        });
         return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted' });
       } catch (error) {
         request.log.error({ err: error }, 'Email provider rejected message');
@@ -102,10 +109,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
 
     const client = twilioClient();
     if (!client) return reply.code(503).send({ success: false, error: 'Twilio is not configured.' });
-
-    if (!E164.test(targetRecipient)) {
-      return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
-    }
+    if (!E164.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
 
     try {
       if (channel === 'whatsapp' || channel === 'sms') {
@@ -115,19 +119,27 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         if (!from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
         const sent = await client.messages.create({
           from: channel === 'whatsapp' && !from.startsWith('whatsapp:') ? `whatsapp:${from}` : from,
-          to: channel === 'whatsapp' ? `whatsapp:${targetRecipient}` : targetRecipient,
+          to: channel === 'whatsapp' ? `whatsapp:${target}` : target,
           body: message,
           ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
+        await recordCommunication(fastify.prisma, {
+          channel, externalAddress: target, direction: 'outbound', body: message,
+          providerMessageId: sent.sid, status: sent.status,
+        });
         return reply.code(202).send({ success: true, channel, providerId: sent.sid, status: sent.status });
       }
-
       const from = process.env.TWILIO_PHONE_NUMBER?.trim();
-      const actionUrl = process.env.TWILIO_VOICE_ACTION_URL?.trim();
-      if (!from || !actionUrl) return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice conversation action URL is not configured.' });
+      if (!from || !process.env.TWILIO_VOICE_ACTION_URL?.trim()) {
+        return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice action URL is not configured.' });
+      }
       const call = await client.calls.create({
-        to: targetRecipient, from, twiml: twimlSay(message),
+        to: target, from, twiml: twimlSay(message),
         ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
+      });
+      await recordCommunication(fastify.prisma, {
+        channel, externalAddress: target, direction: 'outbound', body: message,
+        providerMessageId: call.sid, status: call.status,
       });
       return reply.code(202).send({ success: true, channel, providerId: call.sid, status: call.status });
     } catch (error) {
@@ -139,26 +151,49 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/comms/status', async () => ({
     status: 'configuration_snapshot',
     channels: {
-      whatsapp: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_NUMBER && process.env.TWILIO_WHATSAPP_WEBHOOK_URL),
-      sms: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER),
+      whatsapp: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_NUMBER && process.env.TWILIO_WHATSAPP_WEBHOOK_URL && process.env.RYANAI_OWNER_PHONE),
+      sms: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER && process.env.TWILIO_SMS_WEBHOOK_URL && process.env.RYANAI_OWNER_PHONE),
       voice: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER && process.env.TWILIO_VOICE_WEBHOOK_URL && process.env.TWILIO_VOICE_ACTION_URL),
-      email: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM),
+      email: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM && process.env.RYANAI_OWNER_EMAIL),
+      inboundEmail: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_WEBHOOK_SECRET),
     },
     note: 'Configuration presence only; this endpoint does not claim live provider connectivity.',
   }));
 
-  fastify.post('/api/webhooks/twilio/voice', { preHandler: webhookAuth('TWILIO_VOICE_WEBHOOK_URL') }, async (_request, reply) => {
+  fastify.post('/api/webhooks/twilio/voice', { preHandler: webhookAuth('TWILIO_VOICE_WEBHOOK_URL') }, async (request, reply) => {
+    const body = request.body as { From?: string; CallSid?: string };
+    const sender = body.From ? normalizePhone(body.From) : '';
+    const owner = process.env.RYANAI_OWNER_PHONE?.trim();
+    if (!owner) return reply.code(503).send({ error: 'RyanAI owner contact is not configured.' });
+    if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This voice assistant is privately configured.' });
+    if (body.CallSid) await recordCommunication(fastify.prisma, {
+      channel: 'voice', externalAddress: sender, direction: 'inbound',
+      body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress',
+    });
     reply.type('text/xml');
     return twimlSay('Hello. You are speaking with RyanAI. How can I help you today?');
   });
 
   fastify.post('/api/webhooks/twilio/voice/respond', { preHandler: webhookAuth('TWILIO_VOICE_ACTION_URL') }, async (request, reply) => {
-    const body = request.body as { SpeechResult?: string; CallSid?: string };
+    const body = request.body as { SpeechResult?: string; CallSid?: string; From?: string };
+    const sender = body.From ? normalizePhone(body.From) : '';
     const speech = body.SpeechResult?.trim().slice(0, MAX_MESSAGE_LENGTH);
+    const owner = process.env.RYANAI_OWNER_PHONE?.trim();
+    if (!owner) return reply.code(503).send({ error: 'RyanAI owner contact is not configured.' });
+    if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This voice assistant is privately configured.' });
     reply.type('text/xml');
     if (!speech) return twimlSay('I did not catch that. Please try again.', true);
+    const thread = `voice_${(body.CallSid || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '')}`;
     try {
-      const answer = await askRyanAI(speech, `voice_${(body.CallSid || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '')}`);
+      await recordCommunication(fastify.prisma, {
+        channel: 'voice', externalAddress: sender, direction: 'inbound', body: speech,
+        status: 'received', metadata: { callSid: body.CallSid || '' },
+      });
+      const answer = await askRyanAI(speech, thread);
+      await recordCommunication(fastify.prisma, {
+        channel: 'voice', externalAddress: sender, direction: 'outbound',
+        body: answer, status: 'response_generated', metadata: { callSid: body.CallSid || '' },
+      });
       return twimlSay(answer.slice(0, MAX_MESSAGE_LENGTH), true);
     } catch (error) {
       request.log.error({ err: error }, 'RyanAI voice conversation failed');
@@ -167,11 +202,27 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.post('/api/webhooks/twilio/sms', { preHandler: webhookAuth('TWILIO_SMS_WEBHOOK_URL') }, async (request, reply) => {
-    const body = request.body as { From?: string; Body?: string };
-    if (!body.From || !body.Body?.trim()) return reply.code(400).send({ error: 'Invalid SMS webhook payload.' });
+    const body = request.body as { From?: string; Body?: string; MessageSid?: string };
+    const sender = body.From ? normalizePhone(body.From) : '';
+    const text = body.Body?.trim().slice(0, MAX_MESSAGE_LENGTH);
+    const owner = process.env.RYANAI_OWNER_PHONE?.trim();
+    if (!sender || !text || !body.MessageSid) return reply.code(400).send({ error: 'Invalid SMS webhook payload.' });
+    if (!owner) return reply.code(503).send({ error: 'RyanAI owner contact is not configured.' });
+    if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This assistant is privately configured.' });
     reply.type('text/xml');
     try {
-      const answer = await askRyanAI(body.Body.trim(), `sms_${body.From.replace(/[^a-zA-Z0-9_-]/g, '')}`);
+      await recordCommunication(fastify.prisma, {
+        channel: 'sms', externalAddress: sender, direction: 'inbound',
+        body: text, providerMessageId: body.MessageSid, status: 'processing',
+      });
+      const answer = await askRyanAI(text, `sms_${sender.replace(/\D/g, '')}`);
+      await fastify.prisma.communicationMessage.update({
+        where: { providerMessageId: body.MessageSid }, data: { status: 'replied', metadata: { reply: answer } },
+      });
+      await recordCommunication(fastify.prisma, {
+        channel: 'sms', externalAddress: sender, direction: 'outbound', body: answer,
+        status: 'response_generated', metadata: { inReplyTo: body.MessageSid },
+      });
       return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(answer.slice(0, 1600))}</Message></Response>`;
     } catch (error) {
       request.log.error({ err: error }, 'RyanAI SMS conversation failed');
@@ -181,11 +232,84 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/api/webhooks/twilio/status', { preHandler: webhookAuth('TWILIO_STATUS_WEBHOOK_URL') }, async (request) => {
     const body = request.body as Record<string, string>;
-    request.log.info({
-      providerId: body.MessageSid || body.CallSid,
-      status: body.MessageStatus || body.CallStatus,
-      errorCode: body.ErrorCode,
-    }, 'Twilio delivery status callback');
+    const providerId = body.MessageSid || body.CallSid;
+    const status = body.MessageStatus || body.CallStatus;
+    if (providerId && status) {
+      await updateCommunicationStatus(fastify.prisma, providerId, status, {
+        errorCode: body.ErrorCode || '',
+      });
+    }
     return { received: true };
+  });
+
+  fastify.post('/api/webhooks/resend/inbound', {
+    config: { rawBody: true },
+  }, async (request, reply) => {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
+    const ownerEmail = process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase();
+    if (!apiKey || !secret || !ownerEmail) {
+      return reply.code(503).send({ error: 'Inbound email is not configured.' });
+    }
+    const resend = new Resend(apiKey);
+    try {
+      const event = resend.webhooks.verify({
+        payload: request.rawBody ?? '',
+        headers: {
+          id: String(request.headers['svix-id'] ?? ''),
+          timestamp: String(request.headers['svix-timestamp'] ?? ''),
+          signature: String(request.headers['svix-signature'] ?? ''),
+        },
+        secret,
+      }) as { type?: string; data?: { email_id?: string; from?: string } };
+      if (event.type !== 'email.received' || !event.data?.email_id) {
+        return { received: true, ignored: true };
+      }
+      const received = await resend.emails.receiving.get(event.data.email_id);
+      if (received.error || !received.data) {
+        request.log.error({ error: received.error }, 'Could not retrieve inbound email content');
+        return reply.code(502).send({ error: 'Could not retrieve inbound email content.' });
+      }
+      const email = received.data as { id: string; from: string; subject?: string; text?: string | null; html?: string | null };
+      const sender = emailAddress(email.from);
+      if (sender !== ownerEmail) {
+        request.log.warn({ sender }, 'Rejected inbound email from non-owner sender');
+        return reply.code(403).send({ error: 'This email assistant is privately configured.' });
+      }
+      const bodyText = (email.text || email.html?.replace(/<[^>]*>/g, ' ') || '').trim().slice(0, MAX_MESSAGE_LENGTH);
+      if (!bodyText) return reply.code(400).send({ error: 'Inbound email has no readable text body.' });
+      const existing = await fastify.prisma.communicationMessage.findUnique({
+        where: { providerMessageId: email.id },
+      });
+      if (existing) return { received: true, duplicate: true };
+      await recordCommunication(fastify.prisma, {
+        channel: 'email', externalAddress: sender, direction: 'inbound',
+        body: bodyText, providerMessageId: email.id, status: 'processing',
+        metadata: { subject: email.subject || '' },
+      });
+      const answer = await askRyanAI(bodyText, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`);
+      const smtp = smtpTransport();
+      if (!smtp) {
+        await fastify.prisma.communicationMessage.update({
+          where: { providerMessageId: email.id }, data: { status: 'reply_not_sent', metadata: { subject: email.subject || '', reply: answer } },
+        });
+        return reply.code(503).send({ error: 'SMTP reply channel is not configured; inbound message was saved.' });
+      }
+      const sent = await smtp.transporter.sendMail({
+        from: smtp.from, to: sender,
+        subject: `Re: ${email.subject || 'Message to RyanAI'}`, text: answer,
+      });
+      await fastify.prisma.communicationMessage.update({
+        where: { providerMessageId: email.id }, data: { status: 'replied', metadata: { subject: email.subject || '', reply: answer } },
+      });
+      await recordCommunication(fastify.prisma, {
+        channel: 'email', externalAddress: sender, direction: 'outbound',
+        body: answer, providerMessageId: sent.messageId, status: 'accepted',
+      });
+      return { received: true, replied: true };
+    } catch (error) {
+      request.log.error({ err: error }, 'Resend inbound email webhook failed');
+      return reply.code(400).send({ error: 'Invalid inbound email webhook or processing failure.' });
+    }
   });
 };
