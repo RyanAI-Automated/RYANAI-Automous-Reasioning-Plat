@@ -8,6 +8,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { RyanAISandbox } from "../engine/sandbox.js";
 import { systemDiagnosticsTool } from "../tools/systemTools.js";
+import { evaluateGenXSecurityEvent } from "../security/genxPolicy.js";
 
 const WORKSPACE_DIR = process.cwd();
 
@@ -99,6 +100,22 @@ export class RyanMCPServer {
       const { name, arguments: args } = request.params;
 
       try {
+        const knownTool = ["read_workspace_file", "execute_sandbox_script", "system_diagnostics"].includes(name);
+        if (!knownTool) throw new Error(`Unknown MCP tool requested: ${name}`);
+        const policy = evaluateGenXSecurityEvent({
+          agentId: "external-mcp-client",
+          principal: "mcp-client",
+          toolName: name,
+          action: name === "execute_sandbox_script" ? "EXECUTE" : "READ",
+          target: name === "read_workspace_file" ? String(args?.filePath ?? "") : undefined,
+        });
+        if (policy.decision !== "ALLOW") {
+          return {
+            content: [{ type: "text", text: `Gen-X blocked MCP request [${policy.ruleId}]: ${policy.reason}` }],
+            isError: true,
+          };
+        }
+
         if (name === "read_workspace_file") {
           const filePath = args?.filePath;
           if (typeof filePath !== "string" || !filePath) {
