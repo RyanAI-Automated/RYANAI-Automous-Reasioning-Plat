@@ -24,8 +24,8 @@ export class RyanPatchValidatorPipeline {
       new SystemMessage(
         "You are the Lead Code Generation Agent for RyanAI. " +
         "Analyze the target problem and existing code snippet. Write a clean, highly optimized, " +
-        "self-contained TypeScript patch or solution. Return ONLY valid, executable TypeScript code " +
-        "wrapped in standard code blocks."
+        "self-contained JavaScript validation script. Return ONLY valid, executable JavaScript (ES modules) code " +
+        "wrapped in standard code blocks; it will run inside a network-disabled verifier container."
       ),
       new HumanMessage(`Target Problem: ${targetProblem}\n\nExisting Code Context:\n${existingCodeSnippet}`)
     ]);
@@ -64,7 +64,7 @@ export class RyanPatchValidatorPipeline {
   }
 
   private static extractCodeBlock(response: string): string {
-    const match = response.match(/```(?:typescript|ts)?([\s\S]*?)```/);
+    const match = response.match(/`{3}(?:javascript|js|typescript|ts)?([\\s\\S]*?)`{3}/i);
     return match ? match[1].trim() : response.trim();
   }
 }
