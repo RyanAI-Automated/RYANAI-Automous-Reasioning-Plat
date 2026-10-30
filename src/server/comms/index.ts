@@ -123,10 +123,10 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       }
 
       const from = process.env.TWILIO_PHONE_NUMBER?.trim();
-      const voiceUrl = process.env.TWILIO_VOICE_WEBHOOK_URL?.trim();
-      if (!from || !voiceUrl) return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice webhook URL is not configured.' });
+      const actionUrl = process.env.TWILIO_VOICE_ACTION_URL?.trim();
+      if (!from || !actionUrl) return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice conversation action URL is not configured.' });
       const call = await client.calls.create({
-        to: targetRecipient, from, url: voiceUrl, method: 'POST',
+        to: targetRecipient, from, twiml: twimlSay(message),
         ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
       });
       return reply.code(202).send({ success: true, channel, providerId: call.sid, status: call.status });
@@ -137,7 +137,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get('/api/comms/status', async () => ({
-    status: 'configured',
+    status: 'configuration_snapshot',
     channels: {
       whatsapp: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_NUMBER && process.env.TWILIO_WHATSAPP_WEBHOOK_URL),
       sms: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER),
@@ -154,7 +154,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/api/webhooks/twilio/voice/respond', { preHandler: webhookAuth('TWILIO_VOICE_ACTION_URL') }, async (request, reply) => {
     const body = request.body as { SpeechResult?: string; CallSid?: string };
-    const speech = body.SpeechResult?.trim();
+    const speech = body.SpeechResult?.trim().slice(0, MAX_MESSAGE_LENGTH);
     reply.type('text/xml');
     if (!speech) return twimlSay('I did not catch that. Please try again.', true);
     try {
