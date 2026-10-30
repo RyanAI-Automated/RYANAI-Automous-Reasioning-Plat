@@ -102,6 +102,7 @@ interface ClaimedAgentRun {
   objective: string;
   attempts: number;
   max_attempts: number;
+  worker_id: string;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
@@ -121,13 +122,45 @@ async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | nu
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
     'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE ("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW()) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id"',
     workerId,
   );
   return rows[0] ?? null;
 }
 
+function startAgentRunLeaseHeartbeat(run: ClaimedAgentRun) {
+  let stopped = false;
+  let heartbeatInFlight = false;
+  const timer = setInterval(async () => {
+    if (stopped || heartbeatInFlight) return;
+    heartbeatInFlight = true;
+    try {
+      // The attempt number and worker ID form a fencing token. An old worker
+      // cannot extend a lease after another worker has reclaimed the run.
+      await prisma.agentRun.updateMany({
+        where: {
+          id: run.id,
+          status: 'running',
+          workerId: run.worker_id,
+          attempts: run.attempts,
+        },
+        data: { lockedAt: new Date() },
+      });
+    } catch (error) {
+      console.error('[agent-worker] Lease heartbeat failed for run ' + run.id + ': ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      heartbeatInFlight = false;
+    }
+  }, 30_000);
+  timer.unref();
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
 async function processAgentRun(run: ClaimedAgentRun) {
+  const stopHeartbeat = startAgentRunLeaseHeartbeat(run);
   try {
     const knowledge = await buildBrainKnowledgeContext();
     const sharedObjective = knowledge
@@ -170,8 +203,13 @@ async function processAgentRun(run: ClaimedAgentRun) {
           tags: ['agent-run', 'autonomous'],
         },
       });
-      await tx.agentRun.update({
-        where: { id: run.id },
+      const completion = await tx.agentRun.updateMany({
+        where: {
+          id: run.id,
+          status: 'running',
+          workerId: run.worker_id,
+          attempts: run.attempts,
+        },
         data: {
           status: 'completed',
           result: { synthesis: plan.synthesis, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
@@ -180,14 +218,22 @@ async function processAgentRun(run: ClaimedAgentRun) {
           workerId: null,
         },
       });
+      if (completion.count !== 1) {
+        throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
+      }
     });
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
     const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
     await prisma.$transaction(async (tx) => {
-      await tx.agentRun.update({
-        where: { id: run.id },
+      const ownership = await tx.agentRun.updateMany({
+        where: {
+          id: run.id,
+          status: 'running',
+          workerId: run.worker_id,
+          attempts: run.attempts,
+        },
         data: {
           status: retry ? 'queued' : 'failed',
           error: message,
@@ -197,6 +243,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
           workerId: null,
         },
       });
+      if (ownership.count !== 1) return;
       await tx.agentHandoff.updateMany({
         where: { runId: run.id, status: { in: ['pending', 'running', 'failed'] } },
         data: retry
@@ -205,6 +252,8 @@ async function processAgentRun(run: ClaimedAgentRun) {
       });
     });
     console.error('[agent-worker] Run ' + run.id + (retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
+  } finally {
+    stopHeartbeat();
   }
 }
 
