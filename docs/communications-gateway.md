@@ -19,6 +19,7 @@ Configure these as deployment secrets/environment variables, never commit creden
 - `TWILIO_VOICE_WEBHOOK_URL`, `TWILIO_VOICE_ACTION_URL`
 - `TWILIO_STATUS_WEBHOOK_URL`, optionally `TWILIO_STATUS_CALLBACK_URL`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+- `RYANAI_OWNER_TITLE` (defaults to `Sir`) and optional `TWILIO_VOICE_NAME` (must be a voice supported by your Twilio account)
 
 Owner contact defaults may be configured with `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL`; the API does not hard-code personal destinations.
 
@@ -33,6 +34,12 @@ Every callback URL must exactly match its configured environment value because T
 Administrator-authenticated `POST /api/comms/send` accepts `{ "channel": "whatsapp|sms|voice|email", "recipient": "...", "message": "...", "subject": "..." }`. A 202 response means the provider accepted the request, not that the recipient received it. Use the provider ID and status callbacks to reconcile delivery.
 
 `GET /api/comms/status` reports configuration presence only, not live connectivity.
+
+## Personalized greetings and South African English
+
+The authenticated UI greets each signed-in user by their chosen title or first name. The owner title defaults to `Sir`; users can select `Sir` or their own name in the welcome panel. Browser speech uses the `en-ZA` locale and offers installed South African English voices where the device provides them. Browsers may block automatic playback until the user presses **Play greeting** once; the preference is retained on that device. Twilio voice `<Say>` and speech recognition use `en-ZA`; `TWILIO_VOICE_NAME` optionally selects a Twilio-supported voice. Inbound WhatsApp, SMS, voice and email replies receive the same owner-address and English (South Africa) instruction.
+
+The browser's selected voice and Twilio's telephony voice are separate provider/device voice inventories; identical sound across devices and calls requires a supported shared TTS provider and its credentials. No custom cloned RyanAI voice or WhatsApp audio-note delivery is claimed by this change.
 
 ## Operational safeguards
 
