@@ -622,6 +622,7 @@ export default function CommandCenter({
 
   // Updated chatPanelProps utilizing explicit union type casting
   const chatPanelProps = {
+    userId,
     messages: activeMessages,
     model,
     onModelChange: changeModel,
