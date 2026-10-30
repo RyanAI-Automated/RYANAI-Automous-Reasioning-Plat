@@ -42,7 +42,6 @@ function webhookAuth(urlEnv: string) {
   };
 }
 function twimlSay(text: string, gather = true): string {
-  const safe = escapeXml(text);
   const action = process.env.TWILIO_VOICE_ACTION_URL?.trim();
   const voice = escapeXml(process.env.RYANAI_TWILIO_VOICE?.trim() || 'Polly.Ayanda-Neural');
   const say = (value: string) => `<Say language="${RYANAI_LOCALE}" voice="${voice}">${escapeXml(value)}</Say>`;
