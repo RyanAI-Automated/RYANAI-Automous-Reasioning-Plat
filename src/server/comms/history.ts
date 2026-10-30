@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 export type CommunicationChannel = 'whatsapp' | 'sms' | 'voice' | 'email';
 export type CommunicationDirection = 'inbound' | 'outbound';
@@ -10,7 +10,7 @@ export interface RecordCommunicationInput {
   body: string;
   providerMessageId?: string;
   status?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonObject;
 }
 
 /** Persist every channel event in one durable, provider-neutral conversation history. */
@@ -67,7 +67,7 @@ export async function updateCommunicationStatus(
   prisma: PrismaClient,
   providerMessageId: string,
   status: string,
-  metadata?: Record<string, unknown>,
+  metadata?: Prisma.InputJsonObject,
 ): Promise<void> {
   await prisma.communicationMessage.updateMany({
     where: { providerMessageId },
