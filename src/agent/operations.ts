@@ -36,7 +36,7 @@ async function invokeWithRecovery(brain: BrainId, prompt: string): Promise<Brain
 export async function probeAllBrains() {
   return Promise.all((Object.keys(brains) as BrainId[]).map(async (brain) => {
     const config = brains[brain]; const started = Date.now();
-    let status = 'UNCONFIGURED'; let latencyMs: number | null = null;
+    let status: string; let latencyMs: number | null = null;
     let lastError: string | null = null; let lastSuccessAt: Date | null = null;
     try {
       if (!config.credential && !localRuntime(config.endpoint)) throw new Error('Credential missing; no network request made');
