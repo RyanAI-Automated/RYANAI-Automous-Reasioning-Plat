@@ -10,7 +10,7 @@ RyanAI Gen-X combines deterministic authorization with AI-assisted defensive inc
 - Denies autonomous production deletion.
 - Requires authenticated human approval for network changes and write/mutation actions.
 - Allows only a small set of explicitly named read-only tools; unknown tools require approval by default.
-- Applies the policy to the current LangGraph diagnostics and documentation-search tools.
+- Applies the policy to current LangGraph diagnostics and documentation-search tools.\n- Applies Gen-X at MCP handler boundaries: blocks arbitrary sandbox scripts and deployment-pipeline mutation, blocks credential-file reads (including resolved symlink targets), and requires an authenticated approval path for container logs.
 - Keeps retrieved content and incident payloads untrusted; the security agent does not follow instructions contained in them.
 
 ## Malware and human-targeted threat handling
