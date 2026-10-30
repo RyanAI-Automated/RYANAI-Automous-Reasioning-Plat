@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { quickReason, streamReasoning } from './reasoning';
 import { DEFAULT_MODEL } from './models';
+import { DEFAULT_LANGUAGE } from '@/shared/languages';
 
 const { authenticatedFetch } = vi.hoisted(() => ({
   authenticatedFetch: vi.fn(),
@@ -38,6 +39,7 @@ describe('authenticated reasoning requests', () => {
           body: JSON.stringify({
             prompt: 'Explain this',
             model: DEFAULT_MODEL,
+            language: DEFAULT_LANGUAGE,
           }),
         },
       );
@@ -84,7 +86,7 @@ describe('authenticated reasoning requests', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: 'Explain this', model: DEFAULT_MODEL }),
+        body: JSON.stringify({ prompt: 'Explain this', model: DEFAULT_MODEL, language: DEFAULT_LANGUAGE }),
       },
     );
     expect(callbacks.onStep).toHaveBeenCalledExactlyOnceWith({
