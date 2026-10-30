@@ -45,7 +45,7 @@ export default function RyanWelcome({
   );
 
   const speak = useCallback(() => {
-    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    if (!window.speechSynthesis || typeof window.speechSynthesis.speak !== 'function' || typeof SpeechSynthesisUtterance === 'undefined') {
       setVoiceStatus('Voice playback is not supported by this browser.');
       return;
     }
@@ -63,7 +63,7 @@ export default function RyanWelcome({
   }, [availableVoices, greeting, voiceUri, voices]);
 
   useEffect(() => {
-    if (!('speechSynthesis' in window)) return;
+    if (!window.speechSynthesis || typeof window.speechSynthesis.getVoices !== 'function') return;
     const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
     loadVoices();
     window.speechSynthesis.addEventListener?.('voiceschanged', loadVoices);
@@ -87,7 +87,7 @@ export default function RyanWelcome({
     setVoiceEnabled(next);
     try { window.localStorage.setItem(VOICE_ENABLED_KEY, String(next)); } catch { /* storage may be disabled */ }
     if (next) speak();
-    else if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    else if (window.speechSynthesis) window.speechSynthesis.cancel();
   };
 
   const chooseTitle = (value: string) => {
