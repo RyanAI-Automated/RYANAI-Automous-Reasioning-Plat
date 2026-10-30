@@ -1,7 +1,40 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { dispatchAutonomousTask, listAgentRuns, listBrainHealth, probeAllBrains } from '../../agent/operations.js';
+import { listBrainKnowledge, publishBrainKnowledge } from '../../agent/knowledgeAgent.js';
 interface DispatchBody { objective: string; }
 export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.get('/api/agent/ops/knowledge', async (request, reply) => {
+    if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Administrator access is required.' });
+    return { knowledge: await listBrainKnowledge() };
+  });
+  fastify.post<{ Body: { title: string; content: string; source?: string; category?: string; tags?: string[]; confidence?: number; priority?: number; expiresAt?: string } }>('/api/agent/ops/knowledge', {
+    schema: {
+      body: {
+        type: 'object', required: ['title', 'content'], additionalProperties: false,
+        properties: {
+          title: { type: 'string', minLength: 3, maxLength: 200 },
+          content: { type: 'string', minLength: 20, maxLength: 12000 },
+          source: { type: 'string', maxLength: 500 },
+          category: { type: 'string', maxLength: 80 },
+          tags: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 40 } },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+          priority: { type: 'integer', minimum: 0, maximum: 100 },
+          expiresAt: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Administrator access is required.' });
+    const { expiresAt, ...input } = request.body;
+    try {
+      const item = await publishBrainKnowledge({ ...input, expiresAt: expiresAt ? new Date(expiresAt) : null });
+      return reply.code(201).send({ success: true, knowledge: item });
+    } catch (error) {
+      return reply.code(400).send({ success: false, error: error instanceof Error ? error.message : 'Invalid knowledge item.' });
+    }
+  });
   fastify.get('/api/agent/ops/brains', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
     return { brains: await listBrainHealth() };
