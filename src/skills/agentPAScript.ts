@@ -37,6 +37,14 @@ export const SOVEREIGN_FIREWALL_SKILL = {
   description: "Gen-X policy-based defensive access control; does not claim kernel/eBPF firewall enforcement",
 };
 
+export const GENX_HARDCORE_SECURITY_SKILL = {
+  id: "genx-hardcore-security",
+  name: "RyanAI Gen-X Hard Core Security Agent",
+  version: "1.0.0",
+  mode: "deterministic-policy-plus-ai-triage",
+  defaultDecision: "DENY_UNTRUSTED",
+};
+
 /**
  * AgentPAScript
  * 
@@ -174,7 +182,8 @@ export class AgentPAScript extends EventEmitter {
       fastifyApiPort: this.fastifyPort,
       telemetrySocketPort: this.telemetryPort,
       lastHeartbeat: this.lastHeartbeatISO,
-      eBPFPolicyEnforced: false,\n      genXPolicyEngineAvailable: true,
+      eBPFPolicyEnforced: false,
+      genXPolicyEngineAvailable: true,
       retryAttempts: this.retryCount
     };
   }
