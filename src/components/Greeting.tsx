@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createLoginGreeting, getTimeGreeting, RYANAI_TIME_ZONE } from '@/shared/ryanIdentity';
+import { getTimeGreeting } from '@/shared/ryanIdentity';
 import {
   DEFAULT_LANGUAGE,
   OWNER_DEFAULT_LANGUAGE,
@@ -33,6 +33,9 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
   });
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceStatus, setVoiceStatus] = useState('Voice settings ready');
+  const [voiceUri, setVoiceUri] = useState(() => {
+    try { return window.localStorage.getItem('ryanai:voice-uri') ?? ''; } catch { return ''; }
+  });
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     try { return window.localStorage.getItem('ryanai:voice-enabled') !== 'false'; } catch { return true; }
   });
@@ -55,14 +58,14 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
     utterance.lang = language;
     utterance.rate = 0.96;
     utterance.pitch = 0.92;
-    const selected = matchingVoices[0];
+    const selected = matchingVoices.find((voice) => voice.voiceURI === voiceUri) ?? matchingVoices[0];
     if (selected) utterance.voice = selected;
     utterance.onstart = () => setVoiceStatus(`Speaking · ${selected?.name ?? 'device default'} · ${getLanguageName(language)}`);
     utterance.onend = () => setVoiceStatus(`Ready · ${getLanguageName(language)}`);
     utterance.onerror = () => setVoiceStatus('Tap Play greeting to allow playback, or choose an installed voice.');
     window.speechSynthesis.speak(utterance);
     if (!selected) setVoiceStatus(`No installed ${getLanguageName(language)} voice detected; device fallback may be used.`);
-  }, [greeting, language, matchingVoices]);
+  }, [greeting, language, matchingVoices, voiceUri]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -93,6 +96,11 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
       window.localStorage.setItem('ryanai:language', code);
     } catch { /* browser storage may be disabled */ }
     window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language: code } }));
+  };
+
+  const chooseVoice = (value: string) => {
+    setVoiceUri(value);
+    try { window.localStorage.setItem('ryanai:voice-uri', value); } catch { /* browser storage may be disabled */ }
   };
 
   const chooseTitle = (value: string) => {
@@ -131,6 +139,11 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
           <optgroup label="International languages">
             {RYANAI_LANGUAGES.filter((item) => item.region === 'International').map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
           </optgroup>
+        </select>
+        <label className="sr-only" htmlFor="ryanai-voice">Available device voice</label>
+        <select id="ryanai-voice" value={voiceUri} onChange={(event) => chooseVoice(event.target.value)} className="max-w-48 rounded-lg border border-cyan-400/30 bg-slate-950 px-2 py-2 text-xs text-cyan-100">
+          <option value="">Automatic matching voice</option>
+          {matchingVoices.map((voice) => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
         </select>
         <button type="button" onClick={speak} className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-400/10">Play greeting</button>
         <button type="button" onClick={toggleVoice} aria-pressed={voiceEnabled} className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-400/10">{voiceEnabled ? 'Voice on' : 'Voice off'}</button>
