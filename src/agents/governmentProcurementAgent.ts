@@ -47,13 +47,13 @@ export async function runGovernmentProcurementAgent(
       status: 'SOURCE_DISCOVERY',
       sources: SOURCES,
       records: [],
-      message: 'Public sources identified. Configure ZA_GOV_PROCUREMENT_API_URL with a documented OCDS API endpoint from the National Treasury OpenAPI specification to retrieve structured records. CSD and other authenticated supplier systems are not scraped.',
+      message: 'Public sources identified. Configure a documented read-only OCDS API URL from the National Treasury OpenAPI specification, including only documented filters, to retrieve structured records. CSD and other authenticated supplier systems are not scraped.',
     };
   }
 
   const url = safeApiUrl(request.apiUrl);
-  url.searchParams.set('q', query);
-  url.searchParams.set('limit', String(Math.max(1, Math.min(100, request.limit ?? 25))));
+  // The caller supplies the exact documented, read-only API URL and filters.
+  // Do not invent query parameter names: National Treasury's OpenAPI spec is authoritative.
   const response = await fetchImpl(url, {
     method: 'GET',
     headers: { accept: 'application/json' },
@@ -67,9 +67,10 @@ export async function runGovernmentProcurementAgent(
   if (Buffer.byteLength(text, 'utf8') > MAX_RESPONSE_BYTES) throw new Error('Government API response exceeds the 2 MB safety limit.');
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { throw new Error('Government API returned non-JSON content.'); }
-  const records = Array.isArray(parsed) ? parsed.slice(0, 100) :
+  const maxRecords = Math.max(1, Math.min(100, request.limit ?? 25));
+  const records = Array.isArray(parsed) ? parsed.slice(0, maxRecords) :
     typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as { releases?: unknown }).releases)
-      ? (parsed as { releases: unknown[] }).releases.slice(0, 100)
+      ? (parsed as { releases: unknown[] }).releases.slice(0, maxRecords)
       : [parsed];
   return {
     agentName: 'RyanAI South African Government Procurement Agent',
