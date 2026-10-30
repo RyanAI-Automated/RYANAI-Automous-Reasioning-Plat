@@ -22,7 +22,7 @@ WORKDIR /work
 # =====================================================================
 # 2. API / SERVER BUILDER STAGE
 # =====================================================================
-FROM node:22-alpine AS api-builder
+FROM node:24-alpine AS api-builder
 
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
@@ -47,7 +47,7 @@ RUN npm run db:generate \
 # =====================================================================
 # 3. WEB / FRONTEND BUILDER STAGE (Vite Static Build)
 # =====================================================================
-FROM node:22-alpine AS web-builder
+FROM node:24-alpine AS web-builder
 
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
@@ -79,7 +79,7 @@ RUN npm run build
 # =====================================================================
 # 4. API RUNNER STAGE (Fastify Production Target)
 # =====================================================================
-FROM node:22-alpine AS api
+FROM node:24-alpine AS api
 
 WORKDIR /app
 ENV NODE_ENV=production \
