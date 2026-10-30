@@ -64,7 +64,7 @@ export class RyanPatchValidatorPipeline {
   }
 
   private static extractCodeBlock(response: string): string {
-    const match = response.match(/`{3}(?:javascript|js|typescript|ts)?([\\s\\S]*?)`{3}/i);
+    const match = response.match(/```(?:javascript|js|typescript|ts)?([\s\S]*?)```/i);
     return match ? match[1].trim() : response.trim();
   }
 }
