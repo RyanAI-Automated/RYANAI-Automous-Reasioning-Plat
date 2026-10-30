@@ -15,7 +15,7 @@ export interface BrainKnowledgeInput {
 const MAX_CONTEXT_ITEMS = 8;
 const MAX_CONTEXT_CHARS = 6000;
 const MAX_CONTENT_CHARS = 12000;
-const CREDENTIAL_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\\s+[A-Za-z0-9._~+\\/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
+const CREDENTIAL_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+\/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
 
 export function fingerprintKnowledge(input: Pick<BrainKnowledgeInput, 'title' | 'content' | 'source'>): string {
   return createHash('sha256')
@@ -29,7 +29,7 @@ export async function publishBrainKnowledge(input: BrainKnowledgeInput) {
   const content = input.content.trim();
   if (title.length < 3 || title.length > 200) throw new Error('Knowledge title must contain 3–200 characters.');
   if (content.length < 20 || content.length > MAX_CONTENT_CHARS) throw new Error('Knowledge content must contain 20–12,000 characters.');
-  if (CREDENTIAL_PATTERN.test(`${title}\\n${content}\\n${input.source ?? ''}`)) {
+  if (CREDENTIAL_PATTERN.test(`${title}\n${content}\n${input.source ?? ''}`)) {
     throw new Error('Knowledge records must not contain API keys, bearer tokens, or private keys.');
   }
   const fingerprint = fingerprintKnowledge({ title, content, source: input.source });
