@@ -69,7 +69,7 @@ export async function validateAttachmentFile(file: File): Promise<void> {
   const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   const starts = (...signature: number[]) => signature.every((byte, index) => bytes[index] === byte);
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-  const valid = (() => {
+  const valid = await (async () => {
     switch (extension) {
       case 'png': return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
       case 'jpg': case 'jpeg': return starts(0xff, 0xd8, 0xff);
