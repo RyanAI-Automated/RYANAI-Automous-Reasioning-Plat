@@ -324,7 +324,6 @@ export default function CommandCenter({
       }
 
       if (!mountedRef.current) return;
-      setSending(true);
       const userMsg = createMessage('user', prompt);
       let attachments: MessageAttachment[] = [];
       try {
@@ -345,7 +344,6 @@ export default function CommandCenter({
         if (supabase && attachments.length) {
           try { await removeConversationAttachments(supabase, attachments); } catch { /* cleanup can be retried by storage retention tooling */ }
         }
-        setSending(false);
         throw error;
       }
 
@@ -388,6 +386,7 @@ export default function CommandCenter({
       }
 
       if (!mountedRef.current) return;
+      setSending(true);
       requestStartRef.current = performance.now();
       setLiveText('');
       setLiveSteps([]);
