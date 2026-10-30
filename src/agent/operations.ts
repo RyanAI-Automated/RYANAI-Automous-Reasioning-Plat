@@ -1,4 +1,5 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains.js';
 import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
