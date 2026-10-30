@@ -71,3 +71,39 @@ services:
         value: RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
       - key: RYANAI_GITHUB_BASE_BRANCH
         value: main
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+      - key: TWILIO_WHATSAPP_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_SMS_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_VOICE_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_VOICE_ACTION_URL
+        sync: false
+      - key: TWILIO_STATUS_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_STATUS_CALLBACK_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: RYANAI_OWNER_PHONE
+        sync: false
+      - key: RYANAI_OWNER_EMAIL
+        sync: false
