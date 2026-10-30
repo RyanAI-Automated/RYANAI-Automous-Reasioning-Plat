@@ -125,6 +125,16 @@ export class RyanMCPServer {
           const workspaceRoot = await fs.realpath(WORKSPACE_DIR);
           const targetPath = await fs.realpath(path.resolve(WORKSPACE_DIR, filePath));
           const relativePath = path.relative(workspaceRoot, targetPath);
+          const resolvedPathPolicy = evaluateGenXSecurityEvent({
+            agentId: "external-mcp-client",
+            principal: "mcp-client",
+            toolName: "read_workspace_file",
+            action: "READ",
+            target: relativePath,
+          });
+          if (resolvedPathPolicy.decision !== "ALLOW") {
+            throw new Error(`Gen-X denied resolved workspace path [${resolvedPathPolicy.ruleId}].`);
+          }
           if (
             relativePath === ".." ||
             relativePath.startsWith(".." + path.sep) ||
