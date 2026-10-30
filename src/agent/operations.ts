@@ -4,11 +4,11 @@ import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
 
 const brains = {
-  primary: { model: process.env.PRIMARY_REASONING_MODEL || process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra', endpoint: process.env.NVIDIA_API_ENDPOINT || process.env.LM_STUDIO_URL || process.env.OLLAMA_URL || 'https://integrate.api.nvidia.com/v1', credential: Boolean(process.env.NVIDIA_API_KEY || ((process.env.LM_STUDIO_URL || process.env.OLLAMA_URL) && process.env.LM_STUDIO_API_KEY)), client: primaryBrain },
-  secondary: { model: process.env.SECONDARY_REASONING_MODEL || process.env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507', endpoint: process.env.QWEN_API_ENDPOINT || process.env.LM_STUDIO_URL || 'https://api.together.xyz/v1', credential: Boolean(process.env.QWEN_API_KEY || (process.env.LM_STUDIO_URL && process.env.LM_STUDIO_API_KEY)), client: secondaryBrain },
+  primary: { model: process.env.PRIMARY_REASONING_MODEL || process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra', endpoint: process.env.NVIDIA_API_ENDPOINT || process.env.LM_STUDIO_URL || process.env.OLLAMA_URL || 'https://integrate.api.nvidia.com/v1', credential: Boolean(process.env.NVIDIA_API_KEY || (!process.env.NVIDIA_API_ENDPOINT && (process.env.LM_STUDIO_URL || process.env.OLLAMA_URL) && process.env.LM_STUDIO_API_KEY)), client: primaryBrain },
+  secondary: { model: process.env.SECONDARY_REASONING_MODEL || process.env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507', endpoint: process.env.QWEN_API_ENDPOINT || process.env.LM_STUDIO_URL || 'https://api.together.xyz/v1', credential: Boolean(process.env.QWEN_API_KEY || (!process.env.QWEN_API_ENDPOINT && process.env.LM_STUDIO_URL && process.env.LM_STUDIO_API_KEY)), client: secondaryBrain },
   logic: { model: process.env.LOGIC_REASONING_MODEL || process.env.LM_STUDIO_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini', endpoint: process.env.LOGIC_API_ENDPOINT || process.env.LM_STUDIO_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1', credential: Boolean(process.env.LOGIC_API_KEY || process.env.LM_STUDIO_API_KEY || process.env.OPENAI_API_KEY), client: logicBrain },
 } as const;
-const localRuntime = (endpoint: string) => Boolean(process.env.LM_STUDIO_URL || process.env.OLLAMA_URL) || /localhost|127\.0\.0\.1/.test(endpoint);
+const localRuntime = (endpoint: string) => /localhost|127\.0\.0\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL;
 const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? '') ?? '';
 async function invokeWithRecovery(brain: BrainId, prompt: string): Promise<BrainOutput> {
   const config = brains[brain];
@@ -36,7 +36,7 @@ async function invokeWithRecovery(brain: BrainId, prompt: string): Promise<Brain
 export async function probeAllBrains() {
   return Promise.all((Object.keys(brains) as BrainId[]).map(async (brain) => {
     const config = brains[brain]; const started = Date.now();
-    let status = 'UNCONFIGURED'; let latencyMs: number | null = null;
+    let status: string; let latencyMs: number | null = null;
     let lastError: string | null = null; let lastSuccessAt: Date | null = null;
     try {
       if (!config.credential && !localRuntime(config.endpoint)) throw new Error('Credential missing; no network request made');
