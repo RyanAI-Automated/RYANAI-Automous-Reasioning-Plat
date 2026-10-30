@@ -5,6 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useVoiceRecognition } from './useVoiceRecognition.js';
 
+let lastRecognizer: MockSpeechRecognition | undefined;
+
 class MockSpeechRecognition {
   lang = '';
   continuous = false;
@@ -14,6 +16,7 @@ class MockSpeechRecognition {
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null = null;
   onend: (() => void) | null = null;
   onstart: (() => void) | null = null;
+  constructor() { lastRecognizer = this; }
   start = vi.fn(() => this.onstart?.());
   stop = vi.fn();
   abort = vi.fn();
@@ -46,24 +49,46 @@ afterEach(() => {
   root = undefined;
   host?.remove();
   host = undefined;
+  lastRecognizer = undefined;
   delete window.SpeechRecognition;
   delete window.webkitSpeechRecognition;
 });
 
 describe('useVoiceRecognition', () => {
-  it('starts recognition with the configured language and forwards interim and final transcripts', () => {
+  it('starts recognition in the selected language and forwards interim and final transcripts', () => {
     window.SpeechRecognition = MockSpeechRecognition as unknown as SpeechRecognitionStatic;
     const onTranscript = vi.fn();
     const getResult = mountHook({ language: 've-ZA', onTranscript });
-    const hook = getResult();
 
-    act(() => hook.toggle());
+    act(() => getResult().toggle());
 
-    const recognizer = (window as Window & { __recognizer?: MockSpeechRecognition }).__recognizer;
-    // The mock constructor instance is captured by replacing the constructor below.
-    expect(hook.isSupported).toBe(true);
-    expect(hook.state).toBe('listening');
-    expect(recognizer).toBeUndefined();
+    expect(getResult().isSupported).toBe(true);
+    expect(getResult().state).toBe('listening');
+    expect(lastRecognizer?.lang).toBe('ve-ZA');
+    expect(lastRecognizer?.continuous).toBe(true);
+    expect(lastRecognizer?.interimResults).toBe(true);
+
+    act(() => lastRecognizer?.emit('Ndi khou ṱoḓa thuso', false));
+    expect(getResult().interimText).toBe('Ndi khou ṱoḓa thuso');
+    expect(onTranscript).not.toHaveBeenCalled();
+
+    act(() => lastRecognizer?.emit('Ndi khou ṱoḓa thuso', true));
+    expect(onTranscript).toHaveBeenCalledWith('Ndi khou ṱoḓa thuso', true);
+    expect(getResult().interimText).toBe('');
+  });
+
+  it('dispatches recognized voice commands and stops on the stop command', () => {
+    window.SpeechRecognition = MockSpeechRecognition as unknown as SpeechRecognitionStatic;
+    const onCommand = vi.fn();
+    const getResult = mountHook({ onCommand });
+
+    act(() => getResult().toggle());
+    act(() => lastRecognizer?.emit('open memory', true));
+    expect(onCommand).toHaveBeenCalledWith('open_memory', '');
+
+    act(() => lastRecognizer?.emit('stop listening', true));
+    expect(onCommand).toHaveBeenCalledWith('stop', 'listening');
+    expect(getResult().state).toBe('idle');
   });
 
   it('cleans up safely when speech recognition is unavailable', () => {
