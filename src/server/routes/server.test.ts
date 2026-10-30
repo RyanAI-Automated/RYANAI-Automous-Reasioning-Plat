@@ -24,8 +24,8 @@ describe('legacy patch server', () => {
       method: 'POST',
       url: '/api/patches/apply',
       payload: {
-        targetType: 'file',
-        operations: [{ op: 'replace', path: 'src/example.ts', value: 'x' }],
+        filePath: 'src/example.ts',
+        patchContent: 'export const value = 1;',
       },
     });
     expect(response.statusCode).toBe(401);
