@@ -54,6 +54,12 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
 });
+async function expectContent(text: string) {
+  await vi.waitFor(() => {
+    expect(container.textContent).toContain(text);
+  });
+}
+
 async function mount(hash: string) {
   window.location.hash = hash;
   await act(async () => {
@@ -66,7 +72,7 @@ describe('application authentication boundary', () => {
     'blocks anonymous direct access to %s',
     async (route) => {
       await mount(`/${route}`);
-      expect(container.textContent).toContain('Sign in to RYANAI');
+      await expectContent('Sign in to RYANAI');
       expect(container.textContent).not.toContain('Private');
     },
   );
@@ -80,17 +86,17 @@ describe('application authentication boundary', () => {
       error: null,
     });
     await mount('/dashboard');
-    expect(container.textContent).toContain('Sign in to RYANAI');
+    await expectContent('Sign in to RYANAI');
     expect(container.textContent).not.toContain('Private dashboard');
     await act(async () => auth.listener?.('SIGNED_IN', session));
-    expect(container.textContent).toContain('Private dashboard');
+    await expectContent('Private dashboard');
     await act(async () => auth.listener?.('SIGNED_IN', anonymousSession));
-    expect(container.textContent).toContain('Sign in to RYANAI');
+    await expectContent('Sign in to RYANAI');
     expect(container.textContent).not.toContain('Private dashboard');
   });
   it('keeps the landing page public', async () => {
     await mount('/');
-    expect(container.textContent).toContain('Public landing');
+    await expectContent('Public landing');
     expect(container.querySelector('a[href="#/signup"]')).not.toBeNull();
   });
   it('does not mount protected content before restoration completes', async () => {
@@ -104,17 +110,15 @@ describe('application authentication boundary', () => {
     expect(container.textContent).toContain('Restoring your session');
     expect(container.textContent).not.toContain('Private workspace');
     await act(async () => restore({ data: { session }, error: null }));
-    expect(container.textContent).toContain(
-      'Private workspace alice@example.com',
-    );
+    await expectContent('Private workspace alice@example.com');
   });
   it('clears protected views when the session expires and unsubscribes on unmount', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/dashboard');
-    expect(container.textContent).toContain('Private dashboard');
+    await expectContent('Private dashboard');
     await act(async () => auth.listener?.('SIGNED_OUT', null));
     expect(container.textContent).not.toContain('Private dashboard');
-    expect(container.textContent).toContain('Sign in to RYANAI');
+    await expectContent('Sign in to RYANAI');
     await act(async () => root.unmount());
     expect(auth.unsubscribe).toHaveBeenCalledOnce();
   });
@@ -141,9 +145,7 @@ describe('application authentication boundary', () => {
     await act(async () => auth.listener?.('SIGNED_IN', nextSession));
     expect(container.querySelector('main')).not.toBe(previousView);
     expect(container.textContent).not.toContain('alice@example.com');
-    expect(container.textContent).toContain(
-      'Private workspace bob@example.com',
-    );
+    await expectContent('Private workspace bob@example.com');
   });
   it('performs a real sign-out and removes protected content', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
@@ -165,8 +167,8 @@ describe('application authentication boundary', () => {
         .querySelector('header button')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
-    expect(container.textContent).toContain('Sign out failed');
-    expect(container.textContent).toContain('Private workspace');
+    await expectContent('Sign out failed');
+    await expectContent('Private workspace');
   });
   it('fails closed on restoration errors', async () => {
     auth.getSession.mockRejectedValue(new Error('offline'));
