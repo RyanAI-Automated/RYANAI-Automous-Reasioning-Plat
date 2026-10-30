@@ -72,6 +72,11 @@ async function fixture(protectedRoutes = true) {
       { brain: 'logic', status: 'HEALTHY' },
     ],
   }));
+  app.post('/api/agent/ops/brains/probe', async (request, reply) => {
+    if (!request.authUser) return reply.code(401).send({ error: 'Unauthorized' });
+    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Forbidden' });
+    return { brains: ['primary', 'secondary', 'logic'].map((brain) => ({ brain, status: 'HEALTHY' })) };
+  });
   app.get('/ws', { websocket: true }, (socket) => socket.on('error', () => {}));
   return app.listen({ port: 0, host: '127.0.0.1' });
 }
@@ -136,7 +141,7 @@ describe('live smoke script contracts', () => {
   it('loads .env, verifies anonymous rejection, and reports missing credentials as skipped', async () => {
     const result = await runScript(await fixture());
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('End-to-end checks: 4/4 passed; 2 skipped');
+    expect(result.stdout).toContain('End-to-end checks: 4/4 passed; 3 skipped');
   });
 
   it('uses local ports and bearer headers for authenticated positive checks', async () => {
@@ -146,7 +151,24 @@ describe('live smoke script contracts', () => {
         'TEST_USER_ACCESS_TOKEN=fixture-user\nTEST_ADMIN_ACCESS_TOKEN=fixture-admin',
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('End-to-end checks: 6/6 passed; 0 skipped');
+    expect(result.stdout).toContain('End-to-end checks: 6/6 passed; 1 skipped');
+  });
+
+  it('runs the opt-in three-brain provider probe with admin credentials', async () => {
+    const result = await runScript(await fixture(), {
+      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin\\nRYANAI_LIVE_PROVIDER_TESTS=true',
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Live provider connectivity: 3/3 brains HEALTHY');
+    expect(result.stdout).toContain('End-to-end checks: 6/6 passed; 1 skipped');
+  });
+
+  it('fails the live provider probe when enabled without an admin token', async () => {
+    const result = await runScript(await fixture(), {
+      tokens: 'RYANAI_LIVE_PROVIDER_TESTS=true',
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('TEST_ADMIN_ACCESS_TOKEN is required');
   });
 
   it('fails rather than skipping invalid tokens or non-admin WebSocket users', async () => {
