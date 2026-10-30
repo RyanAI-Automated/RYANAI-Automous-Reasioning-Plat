@@ -3,7 +3,6 @@ import {
   addressOwnerResponse,
   createLoginGreeting,
   getAddress,
-  getTimeGreeting,
   RYANAI_LOCALE,
   RYANAI_TIME_ZONE,
 } from './ryanIdentity.js';
