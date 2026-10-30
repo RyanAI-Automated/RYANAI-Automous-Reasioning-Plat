@@ -1,4 +1,5 @@
 import { AUTONOMOUS_REASONING_SKILL } from './autonomousReasoning.js';
+import { ZA_GOVERNMENT_PROCUREMENT_SKILL } from '../agents/governmentProcurementAgent.js';
 import { 
   AGENT_PA_SKILL, 
   SOVEREIGN_FIREWALL_SKILL, 
@@ -27,6 +28,7 @@ export const ACTIVE_SKILLS = Object.freeze({
   sovereignFirewall: SOVEREIGN_FIREWALL_SKILL,
   selfHealing: SELF_HEALING_SKILL,
   genXHardCoreSecurity: GENX_HARDCORE_SECURITY_SKILL,
+  zaGovernmentProcurement: ZA_GOVERNMENT_PROCUREMENT_SKILL,
 });
 
 // Combined Skill Registry Export for AgentPA Dynamic Integration
@@ -36,4 +38,5 @@ export const RYANAI_SKILL_REGISTRY = Object.freeze({
   sovereignFirewall: 'SOVEREIGN_FIREWALL_SKILL',
   selfHealing: 'SELF_HEALING_SKILL',
   genXHardCoreSecurity: 'GENX_HARDCORE_SECURITY_SKILL',
+  zaGovernmentProcurement: 'ZA_GOVERNMENT_PROCUREMENT_SKILL',
 });
