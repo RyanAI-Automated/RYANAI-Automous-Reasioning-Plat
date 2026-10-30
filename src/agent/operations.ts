@@ -237,7 +237,6 @@ export function startAgentTaskWorker(options: { concurrency?: number; recoveryIn
   let connected = false;
   let polling = false;
   let inFlight = 0;
-  let recoveryTimer: ReturnType<typeof setInterval> | undefined;
 
   const drain = async () => {
     if (stopped || polling) return;
@@ -274,7 +273,7 @@ export function startAgentTaskWorker(options: { concurrency?: number; recoveryIn
     console.error('[agent-worker] Could not establish LISTEN connection:', error instanceof Error ? error.message : String(error));
   });
 
-  recoveryTimer = setInterval(() => { void drain(); }, recoveryIntervalMs);
+  const recoveryTimer = setInterval(() => { void drain(); }, recoveryIntervalMs);
   recoveryTimer.unref();
   return () => {
     stopped = true;
