@@ -8,9 +8,9 @@ interface PatchApplyBody {
 }
 
 /**
- * Administrator-only, validate-before-promote self-patching endpoint.
- * Candidate code is staged and verified by the digest-pinned, network-disabled
- * verifier before the workspace patch engine atomically promotes it.
+ * Administrator-only production patch proposal endpoint.
+ * Candidate code is committed to an isolated GitHub branch and opened as a PR.
+ * Repository CI and branch protection gate merge and deployment.
  */
 export const registerPatchRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: PatchApplyBody }>(
