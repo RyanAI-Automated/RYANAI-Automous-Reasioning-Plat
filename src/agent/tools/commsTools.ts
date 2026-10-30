@@ -1,67 +1,63 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
+import { dispatchAction } from '../../approvals/dispatch.js';
+import { parseActionArgs } from '../../approvals/rules.js';
 
 export const sendWhatsAppTool = tool(
-  async ({ to, message }) => {
-    const res = await fetch(`${API_BASE_URL}/api/comms/whatsapp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, message }),
-    });
-    const data = await res.json();
-    return JSON.stringify(data);
-  },
+  async ({ to, message }) => dispatchAction('send_whatsapp_message', parseActionArgs('send_whatsapp_message', {
+    to: to || process.env.RYANAI_OWNER_PHONE, message,
+  })),
   {
     name: 'send_whatsapp_message',
-    description: 'Sends a WhatsApp text message to a specified recipient phone number.',
+    description: 'Sends an approved WhatsApp message to the owner or a specified recipient.',
     schema: z.object({
-      to: z.string().describe('Target phone number with country code, e.g. +1234567890'),
-      message: z.string().describe('The body text of the WhatsApp message to dispatch'),
+      to: z.string().optional().describe('Optional recipient; defaults to the configured owner phone'),
+      message: z.string().describe('The WhatsApp message body'),
     }),
-  }
+  },
+);
+
+export const sendSmsTool = tool(
+  async ({ to, message }) => dispatchAction('send_sms_message', parseActionArgs('send_sms_message', {
+    to: to || process.env.RYANAI_OWNER_PHONE, message,
+  })),
+  {
+    name: 'send_sms_message',
+    description: 'Sends an approved SMS to the owner or a specified recipient.',
+    schema: z.object({
+      to: z.string().optional().describe('Optional recipient; defaults to the configured owner phone'),
+      message: z.string().describe('The SMS message body'),
+    }),
+  },
 );
 
 export const makeVoiceCallTool = tool(
-  async ({ to, twimlMessage }) => {
-    const res = await fetch(`${API_BASE_URL}/api/comms/call`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, twimlMessage }),
-    });
-    const data = await res.json();
-    return JSON.stringify(data);
-  },
+  async ({ to, twimlMessage }) => dispatchAction('make_voice_call', parseActionArgs('make_voice_call', {
+    to: to || process.env.RYANAI_OWNER_PHONE, twimlMessage,
+  })),
   {
     name: 'make_voice_call',
-    description: 'Places a voice call to a phone number and reads out the given speech script.',
+    description: 'Starts an approved two-way AI voice call to the owner or a specified recipient.',
     schema: z.object({
-      to: z.string().describe('Target phone number with country code'),
-      twimlMessage: z.string().describe('Text script for the automated voice to speak on the call'),
+      to: z.string().optional().describe('Optional recipient; defaults to the configured owner phone'),
+      twimlMessage: z.string().describe('Opening message to speak before the AI conversation'),
     }),
-  }
+  },
 );
 
 export const sendEmailTool = tool(
-  async ({ to, subject, html }) => {
-    const res = await fetch(`${API_BASE_URL}/api/comms/email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, html }),
-    });
-    const data = await res.json();
-    return JSON.stringify(data);
-  },
+  async ({ to, subject, html }) => dispatchAction('send_email', parseActionArgs('send_email', {
+    to: to || process.env.RYANAI_OWNER_EMAIL, subject, html,
+  })),
   {
     name: 'send_email',
-    description: 'Sends an email with an optional HTML message body.',
+    description: 'Sends an approved email to the owner or a specified recipient.',
     schema: z.object({
-      to: z.string().email().describe('Recipient email address'),
+      to: z.string().email().optional().describe('Optional recipient; defaults to the configured owner email'),
       subject: z.string().describe('Subject line of the email'),
       html: z.string().describe('HTML or plain text content of the email'),
     }),
-  }
+  },
 );
 
-export const commsTools = [sendWhatsAppTool, makeVoiceCallTool, sendEmailTool];
+export const commsTools = [sendWhatsAppTool, sendSmsTool, makeVoiceCallTool, sendEmailTool];
