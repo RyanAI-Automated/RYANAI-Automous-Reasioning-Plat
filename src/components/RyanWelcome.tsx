@@ -4,6 +4,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 const LANGUAGE = 'en-ZA';
 const VOICE_ENABLED_KEY = 'ryanai:voice-greetings-enabled';
 const VOICE_URI_KEY = 'ryanai:voice-greeting-uri';
+const TITLE_KEY_PREFIX = 'ryanai:preferred-title:';
 
 interface RyanWelcomeProps {
   userId: string;
@@ -21,7 +22,10 @@ export default function RyanWelcome({
   preferredTitle,
 }: RyanWelcomeProps) {
   const firstName = displayName.trim().split(/\s+/)[0] || 'there';
-  const address = preferredTitle?.trim() || firstName;
+  const [titleOverride, setTitleOverride] = useState(() => {
+    try { return window.localStorage.getItem(`${TITLE_KEY_PREFIX}${userId}`) ?? preferredTitle?.trim() ?? ''; } catch { return preferredTitle?.trim() ?? ''; }
+  });
+  const address = titleOverride || firstName;
   const hour = new Date().getHours();
   const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const greeting = `${timeGreeting}, ${address}. I am RyanAI. Welcome back. I am ready to assist you.`;
@@ -82,6 +86,11 @@ export default function RyanWelcome({
     else if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   };
 
+  const chooseTitle = (value: string) => {
+    setTitleOverride(value);
+    try { window.localStorage.setItem(`${TITLE_KEY_PREFIX}${userId}`, value); } catch { /* storage may be disabled */ }
+  };
+
   const chooseVoice = (value: string) => {
     setVoiceUri(value);
     try { window.localStorage.setItem(VOICE_URI_KEY, value); } catch { /* storage may be disabled */ }
@@ -95,6 +104,17 @@ export default function RyanWelcome({
         <p className="mt-1 text-xs text-slate-400" aria-live="polite">{voiceStatus}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <label className="sr-only" htmlFor="ryanai-title-choice">How RyanAI addresses you</label>
+        <select
+          id="ryanai-title-choice"
+          value={titleOverride}
+          onChange={(event) => chooseTitle(event.target.value)}
+          className="max-w-40 rounded-lg border border-white/15 bg-slate-950 px-2 py-2 text-xs text-slate-200"
+          title="Choose how RyanAI addresses you"
+        >
+          <option value="">Use my name</option>
+          <option value="Sir">Sir</option>
+        </select>
         <label className="sr-only" htmlFor="ryanai-voice-choice">RyanAI English South African voice</label>
         <select
           id="ryanai-voice-choice"
