@@ -6,7 +6,8 @@ import rawBody from 'fastify-raw-body';
 import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication, updateCommunicationStatus } from './history.js';
-import { addressOwnerResponse, getTimeGreeting, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
+import { addressOwnerResponse, getTimeGreeting } from '../../shared/ryanIdentity.js';
+import { communicationSystemInstruction, getOwnerTitle, getTwilioVoiceLanguage } from './language.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
 type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string };
@@ -43,15 +44,18 @@ function webhookAuth(urlEnv: string) {
 }
 function twimlSay(text: string, gather = true): string {
   const action = process.env.TWILIO_VOICE_ACTION_URL?.trim();
-  const voice = escapeXml(process.env.RYANAI_TWILIO_VOICE?.trim() || 'Polly.Ayanda-Neural');
-  const say = (value: string) => `<Say language="${RYANAI_LOCALE}" voice="${voice}">${escapeXml(value)}</Say>`;
+  const locale = getTwilioVoiceLanguage();
+  const configuredVoice = process.env.RYANAI_TWILIO_VOICE?.trim();
+  const voice = configuredVoice || (locale === 'en-ZA' ? 'Polly.Ayanda-Neural' : '');
+  const voiceAttribute = voice ? ` voice="${escapeXml(voice)}"` : '';
+  const say = (value: string) => `<Say language="${escapeXml(locale)}"${voiceAttribute}>${escapeXml(value)}</Say>`;
   if (!action || !gather) return `<?xml version="1.0" encoding="UTF-8"?><Response>${say(text)}<Hangup/></Response>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${say(text)}<Gather input="speech" language="${RYANAI_LOCALE}" action="${escapeXml(action)}" method="POST" speechTimeout="auto" timeout="5">${say('Please speak after the tone.')}</Gather>${say('I did not hear a response. Goodbye.')}<Hangup/></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${say(text)}<Gather input="speech" language="${escapeXml(locale)}" action="${escapeXml(action)}" method="POST" speechTimeout="auto" timeout="5">${say('Please speak after the tone.')}</Gather>${say('I did not hear a response. Goodbye.')}<Hangup/></Response>`;
 }
 async function askRyanAI(text: string, threadId: string): Promise<string> {
   const result = await humanInTheLoopAgent.invoke(
     { messages: [
-      { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear, concise and suitable for being read aloud.' },
+      { role: 'system', content: communicationSystemInstruction() },
       { role: 'user', content: text },
     ] },
     { configurable: { thread_id: threadId } },
@@ -97,7 +101,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       const smtp = smtpTransport();
       if (!smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
       try {
-        const outgoingText = target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase() ? addressOwnerResponse(messageBody) : messageBody;
+        const outgoingText = target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase() ? addressOwnerResponse(messageBody, getOwnerTitle()) : messageBody;
         const sent = await smtp.transporter.sendMail({
           from: smtp.from, to: target, subject: subject || 'RyanAI notification', text: outgoingText,
         });
@@ -204,7 +208,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         channel: 'voice', externalAddress: sender, direction: 'inbound', body: speech,
         status: 'received', metadata: { callSid: body.CallSid || '' },
       });
-      const answer = addressOwnerResponse(await askRyanAI(speech, thread));
+      const answer = addressOwnerResponse(await askRyanAI(speech, thread), getOwnerTitle());
       await recordCommunication(fastify.prisma, {
         channel: 'voice', externalAddress: sender, direction: 'outbound',
         body: answer, status: 'response_generated', metadata: { callSid: body.CallSid || '' },
@@ -230,7 +234,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         channel: 'sms', externalAddress: sender, direction: 'inbound',
         body: text, providerMessageId: body.MessageSid, status: 'processing',
       });
-      const answer = addressOwnerResponse(await askRyanAI(text, `sms_${sender.replace(/\D/g, '')}`));
+      const answer = addressOwnerResponse(await askRyanAI(text, `sms_${sender.replace(/\D/g, '')}`), getOwnerTitle());
       await fastify.prisma.communicationMessage.update({
         where: { providerMessageId: body.MessageSid }, data: { status: 'replied', metadata: { reply: answer } },
       });
@@ -302,7 +306,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         body: bodyText, providerMessageId: email.id, status: 'processing',
         metadata: { subject: email.subject || '' },
       });
-      const answer = addressOwnerResponse(await askRyanAI(bodyText, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`));
+      const answer = addressOwnerResponse(await askRyanAI(bodyText, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`), getOwnerTitle());
       const smtp = smtpTransport();
       if (!smtp) {
         await fastify.prisma.communicationMessage.update({
