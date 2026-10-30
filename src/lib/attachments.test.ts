@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_MESSAGE_ATTACHMENT_BYTES,
+  validateAttachmentFile,
   safeAttachmentName,
   validateAttachment,
   validateAttachmentBatch,
@@ -39,4 +41,19 @@ describe('conversation attachment validation', () => {
   it('removes path separators and leading dots from display names', () => {
     expect(safeAttachmentName('../../secret.txt')).toBe('secret.txt');
   });
+});
+
+it('rejects a batch above the aggregate message size limit', () => {
+  const files = Array.from({ length: 3 }, (_, index) => ({
+    name: `file-${index}.pdf`, type: 'application/pdf', size: 15 * 1024 * 1024,
+  }));
+  expect(files.reduce((total, file) => total + file.size, 0)).toBeGreaterThan(MAX_MESSAGE_ATTACHMENT_BYTES);
+  expect(() => validateAttachmentBatch(files)).toThrow(/combined attachments/i);
+});
+
+it('checks binary signatures before upload', async () => {
+  const validPdf = new File(['%PDF-1.7 test'], 'report.pdf', { type: 'application/pdf' });
+  await expect(validateAttachmentFile(validPdf)).resolves.toBeUndefined();
+  const spoofedPdf = new File(['not a PDF'], 'report.pdf', { type: 'application/pdf' });
+  await expect(validateAttachmentFile(spoofedPdf)).rejects.toThrow(/does not match/i);
 });
