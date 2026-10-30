@@ -12,7 +12,7 @@ const brains = {
   secondary: { ...resolveBrainProviderConfig('secondary'), client: secondaryBrain },
   logic: { ...resolveBrainProviderConfig('logic'), client: logicBrain },
 } satisfies Record<BrainId, ReturnType<typeof resolveBrainProviderConfig> & { client: typeof primaryBrain }>;
-const localRuntime = (endpoint: string) => /localhost|127\\.0\\.0\\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL;
+const localRuntime = (endpoint: string) => /localhost|127\.0\\.0\\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL;
 const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? '') ?? '';
 
 async function invokeWithRecovery(brain: BrainId, prompt: string): Promise<BrainOutput> {
@@ -109,7 +109,7 @@ async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | nu
   });
   const rows = await prisma.$queryRawUnsafe<ClaimedAgentRun[]>(
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
-    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "status" = \'queued\' OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts\') ' +
+    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "status" = \'queued\' OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts") ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
     'RETURNING "id", "user_id", "objective"',
     workerId,
@@ -247,7 +247,7 @@ export function startAgentTaskWorker(options: { concurrency?: number; recoveryIn
         const run = await claimNextAgentRun(workerId);
         if (!run) break;
         inFlight += 1;
-        void processAgentRun(run).finally(() => {
+        void processAgentRun(run).catch((error) => { console.error('[agent-worker] Unexpected run failure:', error instanceof Error ? error.message : String(error)); }).finally(() => {
           inFlight -= 1;
           void drain();
         });
