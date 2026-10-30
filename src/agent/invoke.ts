@@ -4,6 +4,10 @@ import { dispatchAutonomousTask, waitForAutonomousTask } from './operations.js';
 export interface AgentUser {
   id: string;
   role?: string;
+  displayName?: string;
+  isOwner?: boolean;
+  preferredTitle?: string;
+  preferredLanguage?: string;
 }
 
 export interface ReasoningHandoff {
@@ -30,7 +34,15 @@ export async function invokeReasoningAgent({
   // Provider selection is owned by the three independent server-side brain configs.
   void model;
   const memory = await buildMemoryContext(user.id);
-  const objective = memory ? memory + '\n\nUser request:\n' + prompt : prompt;
+  const language = user.preferredLanguage || 'en-ZA';
+  const address = user.isOwner ? (user.preferredTitle || 'Sir G') : (user.displayName || 'the user');
+  const personalization = [
+    'RyanAI response preferences:',
+    `Address this user as ${address}.`,
+    `Write the answer in locale ${language}, unless the user explicitly asks for another language.`,
+    'When translating, preserve meaning, names, technical terms, dates and amounts. If a translation is uncertain, say so rather than inventing wording.',
+  ].join(' ');
+  const objective = [personalization, memory, 'User request:\\n' + prompt].filter(Boolean).join('\\n\\n');
   const queued = await dispatchAutonomousTask(user.id, objective);
   const run = await waitForAutonomousTask(queued.id, user.id);
   const handoffs = run.handoffs as ReasoningHandoff[];
