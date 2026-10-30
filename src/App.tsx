@@ -22,6 +22,7 @@ const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
+import RyanWelcome from '@/components/RyanWelcome';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -63,6 +64,9 @@ export default function App() {
   const isAuthRoute = route === 'signin' || route === 'signup';
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
+  const preferredTitle = typeof user?.user_metadata?.preferred_title === 'string'
+    ? user.user_metadata.preferred_title
+    : isAdmin ? 'Sir' : undefined;
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
@@ -136,6 +140,13 @@ export default function App() {
         key={user?.id ?? 'signed-out'}
         className="min-h-0 flex-1 overflow-y-auto"
       >
+        {user && (
+          <RyanWelcome
+            userId={user.id}
+            displayName={displayName || 'there'}
+            preferredTitle={preferredTitle}
+          />
+        )}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
             {error}
