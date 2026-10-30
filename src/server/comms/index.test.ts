@@ -1,0 +1,82 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import Fastify, { type FastifyInstance } from 'fastify';
+import twilio from 'twilio';
+import { commsPlugin } from './index.js';
+import { installAuthentication } from '../routes/auth.js';
+
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock('../../agent/approvalEngine.js', () => ({
+  humanInTheLoopAgent: { invoke },
+}));
+
+const apps: FastifyInstance[] = [];
+const token = 'synthetic-voice-auth-token';
+const voiceUrl = 'https://ryanai.example.test/api/webhooks/twilio/voice';
+const actionUrl = 'https://ryanai.example.test/api/webhooks/twilio/voice/respond';
+
+async function send(path: string, url: string, payload: Record<string, string>, valid = true) {
+  const app = Fastify();
+  apps.push(app);
+  installAuthentication(app);
+  await app.register(commsPlugin);
+  const signature = valid
+    ? twilio.getExpectedTwilioSignature(token, url, payload)
+    : 'invalid-signature';
+  return app.inject({
+    method: 'POST',
+    url: path,
+    payload: new URLSearchParams(payload).toString(),
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      'x-twilio-signature': signature,
+    },
+  });
+}
+
+beforeEach(() => {
+  vi.stubEnv('TWILIO_AUTH_TOKEN', token);
+  vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
+  vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
+  invoke.mockResolvedValue({ messages: [{ content: 'RyanAI says hello & welcome' }] });
+});
+
+afterEach(async () => {
+  await Promise.all(apps.splice(0).map((app) => app.close()));
+  vi.unstubAllEnvs();
+  vi.resetAllMocks();
+});
+
+describe('Twilio conversational voice webhooks', () => {
+  it('rejects forged incoming call webhooks', async () => {
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' }, false);
+    expect(response.statusCode).toBe(401);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('answers authenticated incoming calls with a speech gather loop', async () => {
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/xml');
+    expect(response.body).toContain('Hello. You are speaking with RyanAI.');
+    expect(response.body).toContain('<Gather input="speech"');
+    expect(response.body).toContain(actionUrl);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('routes recognized speech to RyanAI and returns escaped TwiML', async () => {
+    const payload = { CallSid: 'CA123', SpeechResult: 'Please check my system' };
+    const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('RyanAI says hello &amp; welcome');
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      { messages: [{ role: 'user', content: 'Please check my system' }] },
+      { configurable: { thread_id: 'voice_CA123' } },
+    );
+  });
+
+  it('fails closed when the signature token is not configured', async () => {
+    vi.stubEnv('TWILIO_AUTH_TOKEN', '');
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' });
+    expect(response.statusCode).toBe(503);
+  });
+});
