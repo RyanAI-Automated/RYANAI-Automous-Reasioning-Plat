@@ -14,13 +14,7 @@ const getEnv = (key: string, fallback: string = ''): string => {
   return fallback;
 };
 
-const apiKey = (providerKey?: string) =>
-  providerKey || 
-  getEnv('OPENAI_API_KEY') || 
-  getEnv('NVIDIA_API_KEY') || 
-  getEnv('QWEN_API_KEY') || 
-  getEnv('LM_STUDIO_API_KEY') || 
-  'local-runtime';
+const apiKey = (providerKey?: string) => providerKey || 'not-configured';
 
 function createBrain(
   modelName: string,
