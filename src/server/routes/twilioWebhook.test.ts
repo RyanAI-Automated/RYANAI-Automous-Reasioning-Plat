@@ -51,6 +51,7 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_WHATSAPP_WEBHOOK_URL', webhookUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
+  vi.stubEnv('RYANAI_OWNER_TITLE', 'Sir G');
   invoke.mockResolvedValue({
     messages: [{ content: 'Approved <reply> & ready' }],
   });
@@ -127,12 +128,12 @@ describe('Twilio webhook provider authentication', () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
     expect(response.body).toBe(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Certainly, Sir. Approved &lt;reply&gt; &amp; ready</Message></Response>',
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Certainly, Sir G. Approved &lt;reply&gt; &amp; ready</Message></Response>',
     );
     expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [
-        { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear and concise.' },
+        { role: 'system', content: expect.stringContaining('Sir G') },
         { role: 'user', content: 'Please help' },
       ] },
       { configurable: { thread_id: 'whatsapp_15555550123' } },
