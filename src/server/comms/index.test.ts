@@ -46,6 +46,11 @@ async function send(path: string, url: string, payload: Record<string, string>, 
 }
 
 beforeEach(() => {
+  prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
+  prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
+  prismaMock.communicationMessage.upsert.mockResolvedValue({});
+  prismaMock.communicationMessage.update.mockResolvedValue({});
+  prismaMock.communicationMessage.create.mockResolvedValue({});
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
@@ -67,7 +72,7 @@ describe('Twilio conversational voice webhooks', () => {
   });
 
   it('answers authenticated incoming calls with a speech gather loop', async () => {
-    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' });
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
     expect(response.body).toContain('Hello. You are speaking with RyanAI.');
@@ -77,7 +82,7 @@ describe('Twilio conversational voice webhooks', () => {
   });
 
   it('routes recognized speech to RyanAI and returns escaped TwiML', async () => {
-    const payload = { CallSid: 'CA123', SpeechResult: 'Please check my system' };
+    const payload = { CallSid: 'CA123', From: '+15555550123', SpeechResult: 'Please check my system' };
     const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('RyanAI says hello &amp; welcome');
