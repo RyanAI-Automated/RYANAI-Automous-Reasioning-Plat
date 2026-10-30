@@ -267,7 +267,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
           timestamp: String(request.headers['svix-timestamp'] ?? ''),
           signature: String(request.headers['svix-signature'] ?? ''),
         },
-        secret,
+        webhookSecret: secret,
       }) as { type?: string; data?: { email_id?: string; from?: string } };
       if (event.type !== 'email.received' || !event.data?.email_id) {
         return { received: true, ignored: true };
