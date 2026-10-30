@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
+import { realtimeVoiceRoutes } from './realtimeVoice.js';
 import { EventEmitter } from 'node:events';
 
 const upstreamState = vi.hoisted(() => ({ latest: undefined as unknown }));
