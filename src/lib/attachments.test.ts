@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -7,6 +8,7 @@ import {
   safeAttachmentName,
   validateAttachment,
   validateAttachmentBatch,
+  uploadConversationAttachments,
 } from './attachments';
 
 describe('conversation attachment validation', () => {
@@ -56,4 +58,84 @@ it('checks binary signatures before upload', async () => {
   await expect(validateAttachmentFile(validPdf)).resolves.toBeUndefined();
   const spoofedPdf = new File(['not a PDF'], 'report.pdf', { type: 'application/pdf' });
   await expect(validateAttachmentFile(spoofedPdf)).rejects.toThrow(/does not match/i);
+});
+
+
+describe('attachment upload progress and cancellation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  class MockXMLHttpRequest {
+    static instances: MockXMLHttpRequest[] = [];
+    upload: { onprogress: ((event: ProgressEvent) => void) | null } = { onprogress: null };
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    onabort: (() => void) | null = null;
+    status = 200;
+    open = vi.fn();
+    setRequestHeader = vi.fn();
+    send = vi.fn(() => undefined);
+    abort = vi.fn(() => this.onabort?.());
+    constructor() {
+      MockXMLHttpRequest.instances.push(this);
+    }
+  }
+
+  function createStorageClient() {
+    const createSignedUploadUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: 'https://storage.example.test/upload?token=temporary' },
+      error: null,
+    });
+    const remove = vi.fn().mockResolvedValue({ data: [], error: null });
+    const client = {
+      storage: {
+        from: vi.fn(() => ({ createSignedUploadUrl, remove })),
+      },
+    } as unknown as SupabaseClient;
+    return { client, createSignedUploadUrl, remove };
+  }
+
+  it('reports byte progress and returns metadata after a signed upload succeeds', async () => {
+    MockXMLHttpRequest.instances = [];
+    const xhr = MockXMLHttpRequest.prototype;
+    const originalSend = xhr.send;
+    xhr.send = function (this: MockXMLHttpRequest) {
+      this.upload.onprogress?.({ lengthComputable: true, loaded: 900, total: 1000 } as ProgressEvent);
+      this.onload?.();
+    } as typeof xhr.send;
+    vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest);
+
+    const { client, createSignedUploadUrl } = createStorageClient();
+    const file = new File(['%PDF-1.7'], 'report.pdf', { type: 'application/pdf' });
+    const onProgress = vi.fn();
+    const result = await uploadConversationAttachments(client, 'user-1', 'conversation-1', 'message-1', [file], { onProgress });
+
+    expect(createSignedUploadUrl).toHaveBeenCalledOnce();
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ name: 'report.pdf', mimeType: 'application/pdf', size: file.size });
+    expect(onProgress).toHaveBeenLastCalledWith(expect.objectContaining({ loaded: file.size, total: file.size }));
+    xhr.send = originalSend;
+  });
+
+  it('aborts an active request and removes the reserved private object path', async () => {
+    MockXMLHttpRequest.instances = [];
+    vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest);
+    const { client, remove } = createStorageClient();
+    const controller = new AbortController();
+    const file = new File(['%PDF-1.7'], 'report.pdf', { type: 'application/pdf' });
+    const pending = uploadConversationAttachments(
+      client,
+      'user-1',
+      'conversation-1',
+      'message-1',
+      [file],
+      { signal: controller.signal },
+    );
+
+    await vi.waitFor(() => expect(MockXMLHttpRequest.instances).toHaveLength(1));
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(remove).toHaveBeenCalledWith([expect.stringContaining('/report.pdf')]);
+  });
 });
