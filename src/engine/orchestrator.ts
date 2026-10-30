@@ -4,7 +4,6 @@ import { ryanAiGraph } from "./graph.js";
 import { primaryBrain, secondaryBrain, logicBrain } from "../config/brains.js";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { MemoryRepository } from "../database/memory.js";
-import { SelfPatchSkill } from "./selfPatchSkill.js";
 import { CsScriptTool } from "../agent/tools/csScriptTool.js";
 
 // Define the state interface for the LangGraph workflow
@@ -124,26 +123,13 @@ export class RyanAIOrchestrator {
   public static async executeCycle(goal: string): Promise<{ success: boolean; output: string; error?: string }> {
     console.log(`[RyanAI Orchestrator] Starting reasoning cycle for goal: "${goal}"`);
 
-    // Handle self-patching goals
+    // Patch promotion is intentionally unavailable through this legacy orchestration entry point.
+    // Only the administrator-authenticated /api/patches/apply route may promote verified patches.
     if (goal.startsWith('patch:')) {
-      const parts = goal.replace('patch:', '').trim().split('|');
-      const filePath = parts[0]?.trim();
-      const patchContent = parts[1]?.trim();
-
-      if (!filePath || !patchContent) {
-        return { success: false, output: "", error: 'Invalid patch format. Use "patch: filePath | content"' };
-      }
-
-      const result = await SelfPatchSkill.applyAndVerifyPatch({
-        filePath,
-        patchContent,
-      });
-
-      const isSuccess = result.status === "success";
       return {
-        success: isSuccess,
-        output: isSuccess ? `Successfully patched and verified ${filePath}` : "",
-        error: isSuccess ? undefined : (result.error || result.message || 'Patch failed'),
+        success: false,
+        output: "",
+        error: "Patch promotion requires administrator authorization through /api/patches/apply.",
       };
     }
 

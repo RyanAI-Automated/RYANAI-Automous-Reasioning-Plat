@@ -7,7 +7,6 @@ import {
 import * as fs from "fs/promises";
 import * as path from "path";
 import { RyanAISandbox } from "../engine/sandbox.js";
-import { SelfPatchSkill } from "../engine/selfPatchSkill.js";
 import { systemDiagnosticsTool } from "../tools/systemTools.js";
 
 const WORKSPACE_DIR = process.cwd();
@@ -33,7 +32,7 @@ export class RyanMCPServer {
   }
 
   /**
-   * Register workspace reading, script execution, diagnostics, and patching tools.
+   * Register workspace reading, script execution, and diagnostics tools.
    * Tool invocation exceptions are converted to MCP text results with isError set.
    */
   private setupToolHandlers() {
@@ -91,30 +90,6 @@ export class RyanMCPServer {
               required: ["queryType"],
             },
           },
-          {
-            name: "self_patch_workspace",
-            description:
-              "Securely applies and sandbox-verifies code patches for RyanAI platform self-evolution.",
-            inputSchema: {
-              type: "object",
-              properties: {
-                filePath: {
-                  type: "string",
-                  description: "Target file path to update.",
-                },
-                patchContent: {
-                  type: "string",
-                  description: "New file content or patch string.",
-                },
-                testScript: {
-                  type: "string",
-                  description:
-                    "Optional verification script to run in sandbox.",
-                },
-              },
-              required: ["filePath", "patchContent"],
-            },
-          },
         ],
       };
     });
@@ -130,8 +105,14 @@ export class RyanMCPServer {
             throw new Error("Missing required argument: 'filePath'");
           }
 
-          const targetPath = path.resolve(WORKSPACE_DIR, filePath);
-          if (!targetPath.startsWith(WORKSPACE_DIR)) {
+          const workspaceRoot = await fs.realpath(WORKSPACE_DIR);
+          const targetPath = await fs.realpath(path.resolve(WORKSPACE_DIR, filePath));
+          const relativePath = path.relative(workspaceRoot, targetPath);
+          if (
+            relativePath === ".." ||
+            relativePath.startsWith(".." + path.sep) ||
+            path.isAbsolute(relativePath)
+          ) {
             throw new Error(
               "Access denied: Path traversal outside workspace is prohibited.",
             );
@@ -175,10 +156,6 @@ export class RyanMCPServer {
           };
         }
 
-        if (name === "self_patch_workspace") {
-          return await this.applyPatchTool(args);
-        }
-
         throw new Error(`Unknown MCP tool requested: ${name}`);
       } catch (error: unknown) {
         return {
@@ -192,34 +169,6 @@ export class RyanMCPServer {
         };
       }
     });
-  }
-
-  /**
-   * Validate patch arguments and return the serialized patch status as MCP text.
-   * Mark every non-success status as an error; invalid argument types reject.
-   */
-  private async applyPatchTool(args: Record<string, unknown> | undefined) {
-    const { filePath, patchContent, testScript } = args ?? {};
-    if (
-      typeof filePath !== "string" ||
-      typeof patchContent !== "string" ||
-      (testScript !== undefined && typeof testScript !== "string")
-    ) {
-      throw new Error(
-        "filePath and patchContent must be strings; testScript must be a string when supplied",
-      );
-    }
-    const result = await SelfPatchSkill.applyAndVerifyPatch({
-      filePath,
-      patchContent,
-      testScript,
-    });
-    return {
-      content: [
-        { type: "text" as const, text: JSON.stringify(result, null, 2) },
-      ],
-      isError: result.status !== "success",
-    };
   }
 
   /** Connect the MCP server to standard input/output; connection errors propagate. */
