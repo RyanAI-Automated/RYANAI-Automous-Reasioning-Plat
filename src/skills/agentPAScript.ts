@@ -140,7 +140,7 @@ export class AgentPAScript extends EventEmitter {
    * Performs headers and port validation.
    */
   private async performHealthCheck(): Promise<boolean> {
-    // Zero-Trust Header Verification Mock/Validation
+    // This is only a local observer sanity check, not proof of identity or firewall enforcement.
     const authHeaders = {
       "x-operator-identity": this.masterOperator,
       "x-zero-trust-mode": "strict"
