@@ -310,3 +310,33 @@ model BrainKnowledge {
   @@index([expiresAt])
   @@map("brain_knowledge")
 }
+
+
+model CommunicationConversation {
+  id              String                   @id @default(uuid())
+  channel         String
+  externalAddress String                   @map("external_address")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  messages        CommunicationMessage[]
+
+  @@unique([channel, externalAddress])
+  @@index([channel, updatedAt])
+  @@map("communication_conversations")
+}
+
+model CommunicationMessage {
+  id                String                    @id @default(uuid())
+  conversationId    String                    @map("conversation_id")
+  conversation      CommunicationConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction         String
+  body              String                    @db.Text
+  providerMessageId String?                   @unique @map("provider_message_id")
+  status            String                    @default("received")
+  metadata          Json?
+  createdAt         DateTime                  @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
+  @@map("communication_messages")
+}

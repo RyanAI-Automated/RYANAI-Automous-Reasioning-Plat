@@ -4,7 +4,18 @@ import twilio from 'twilio';
 import { commsPlugin } from './index.js';
 import { installAuthentication } from '../routes/auth.js';
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+const { invoke, prismaMock } = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  prismaMock: {
+    communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }) },
+    communicationMessage: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({}),
+    },
+  },
+}));
 vi.mock('../../agent/approvalEngine.js', () => ({
   humanInTheLoopAgent: { invoke },
 }));
@@ -18,6 +29,7 @@ async function send(path: string, url: string, payload: Record<string, string>, 
   const app = Fastify();
   apps.push(app);
   installAuthentication(app);
+  app.decorate('prisma', prismaMock as never);
   await app.register(commsPlugin);
   const signature = valid
     ? twilio.getExpectedTwilioSignature(token, url, payload)
@@ -34,9 +46,15 @@ async function send(path: string, url: string, payload: Record<string, string>, 
 }
 
 beforeEach(() => {
+  prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
+  prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
+  prismaMock.communicationMessage.upsert.mockResolvedValue({});
+  prismaMock.communicationMessage.update.mockResolvedValue({});
+  prismaMock.communicationMessage.create.mockResolvedValue({});
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
+  vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
   invoke.mockResolvedValue({ messages: [{ content: 'RyanAI says hello & welcome' }] });
 });
 
@@ -48,13 +66,13 @@ afterEach(async () => {
 
 describe('Twilio conversational voice webhooks', () => {
   it('rejects forged incoming call webhooks', async () => {
-    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' }, false);
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' }, false);
     expect(response.statusCode).toBe(401);
     expect(invoke).not.toHaveBeenCalled();
   });
 
   it('answers authenticated incoming calls with a speech gather loop', async () => {
-    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' });
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
     expect(response.body).toContain('Hello. You are speaking with RyanAI.');
@@ -64,10 +82,11 @@ describe('Twilio conversational voice webhooks', () => {
   });
 
   it('routes recognized speech to RyanAI and returns escaped TwiML', async () => {
-    const payload = { CallSid: 'CA123', SpeechResult: 'Please check my system' };
+    const payload = { CallSid: 'CA123', From: '+15555550123', SpeechResult: 'Please check my system' };
     const response = await send('/api/webhooks/twilio/voice/respond', actionUrl, payload);
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('RyanAI says hello &amp; welcome');
+    expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [{ role: 'user', content: 'Please check my system' }] },
       { configurable: { thread_id: 'voice_CA123' } },
@@ -76,7 +95,7 @@ describe('Twilio conversational voice webhooks', () => {
 
   it('fails closed when the signature token is not configured', async () => {
     vi.stubEnv('TWILIO_AUTH_TOKEN', '');
-    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123' });
+    const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(503);
   });
 });
