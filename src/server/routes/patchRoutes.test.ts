@@ -8,7 +8,10 @@ vi.mock('./auth.js', () => ({
     request: { authUser: { role: string } | null },
     reply: { code: (status: number) => { send: (body: unknown) => unknown } },
   ) => {
-    if (request.authUser?.role !== 'admin') {
+    if (!request.authUser) {
+      return reply.code(401).send({ error: 'Sign in to continue.' });
+    }
+    if (request.authUser.role !== 'admin') {
       return reply.code(403).send({ error: 'Administrator access is required.' });
     }
   },
@@ -46,7 +49,7 @@ describe('POST /api/patches/apply', () => {
       method: 'POST', url: '/api/patches/apply', headers: member,
       payload: { filePath: 'src/example.ts', patchContent: 'export {};' },
     });
-    expect(anonymous.statusCode).toBe(403);
+    expect(anonymous.statusCode).toBe(401);
     expect(memberResponse.statusCode).toBe(403);
     expect(patcher.applyAndVerifyPatch).not.toHaveBeenCalled();
   });
