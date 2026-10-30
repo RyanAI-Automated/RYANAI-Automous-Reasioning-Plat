@@ -6,6 +6,7 @@ import type {
   ModelId,
   ToolStep,
   SystemStatus,
+  Message,
   MessageAttachment,
 } from '@/lib/types';
 import { DEFAULT_MODEL, modelMeta, MODELS } from '@/lib/models';
@@ -20,8 +21,8 @@ import {
 import { streamReasoning } from '@/lib/reasoning';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
-import { removeConversationAttachments, safeAttachmentName, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
-import { createTarArchive } from '@/lib/conversationArchive';
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_MESSAGE, MAX_MESSAGE_ATTACHMENT_BYTES, removeConversationAttachments, safeAttachmentName, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import { createTarArchive, MAX_CONVERSATION_ARCHIVE_BYTES, readTarArchive } from '@/lib/conversationArchive';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import TelemetryPanel from '@/components/TelemetryPanel';
@@ -638,6 +639,202 @@ export default function CommandCenter({
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [activeId, conversations, userId]);
 
+  /** Validate and import a RyanAI TAR bundle into a new, account-owned conversation. */
+  const importThread = useCallback(async (file: File) => {
+    const client = supabase;
+    if (!client) throw new Error('Private cloud storage must be configured before importing conversations.');
+    if (file.size <= 0 || file.size > MAX_CONVERSATION_ARCHIVE_BYTES) {
+      throw new Error('Choose a non-empty TAR archive no larger than 250 MB.');
+    }
+    if (!file.name.toLowerCase().endsWith('.tar')) throw new Error('Choose a RyanAI .tar conversation archive.');
+
+    const archiveEntries = await readTarArchive(file);
+    const entriesByPath = new Map(archiveEntries.map((entry) => [entry.path, entry]));
+    const manifestEntry = entriesByPath.get('manifest.json');
+    if (!manifestEntry) throw new Error('This archive is missing manifest.json.');
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestEntry.data));
+    } catch {
+      throw new Error('The conversation manifest is not valid UTF-8 JSON.');
+    }
+    if (!manifest || typeof manifest !== 'object') throw new Error('The conversation manifest is invalid.');
+    const data = manifest as Record<string, unknown>;
+    if (data.format !== 'ryanai-conversation-archive' || data.version !== 1) {
+      throw new Error('This RyanAI archive format or version is not supported.');
+    }
+    const conversationData = data.conversation;
+    if (!conversationData || typeof conversationData !== 'object') throw new Error('The archive has no conversation metadata.');
+    const rawConversation = conversationData as Record<string, unknown>;
+    const title = typeof rawConversation.title === 'string' && rawConversation.title.trim()
+      ? rawConversation.title.trim().slice(0, 80)
+      : 'Imported RyanAI conversation';
+    const requestedModel = typeof rawConversation.model === 'string' ? rawConversation.model as ModelId : DEFAULT_MODEL;
+    const importedModel = Object.prototype.hasOwnProperty.call(MODELS, requestedModel) ? requestedModel : DEFAULT_MODEL;
+    if (!Array.isArray(data.messages) || data.messages.length === 0 || data.messages.length > 5000) {
+      throw new Error('The archive must contain between 1 and 5,000 messages.');
+    }
+
+    const referencedPaths = new Set<string>();
+    const preparedMessages = data.messages.map((rawMessage, index) => {
+      if (!rawMessage || typeof rawMessage !== 'object') throw new Error('Message ' + (index + 1) + ' is invalid.');
+      const message = rawMessage as Record<string, unknown>;
+      if (message.role !== 'user' && message.role !== 'assistant') throw new Error('Message ' + (index + 1) + ' has an unsupported role.');
+      if (typeof message.content !== 'string' || message.content.length > 2_000_000) {
+        throw new Error('Message ' + (index + 1) + ' has invalid or oversized content.');
+      }
+      const attachments = message.attachments === undefined ? [] : message.attachments;
+      if (!Array.isArray(attachments) || attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+        throw new Error('Message ' + (index + 1) + ' exceeds the attachment count limit.');
+      }
+      let totalBytes = 0;
+      const files = attachments.map((rawAttachment) => {
+        if (!rawAttachment || typeof rawAttachment !== 'object') throw new Error('An attachment manifest entry is invalid.');
+        const attachment = rawAttachment as Record<string, unknown>;
+        if (
+          typeof attachment.archivePath !== 'string' ||
+          !attachment.archivePath.startsWith('attachments/') ||
+          typeof attachment.name !== 'string' ||
+          typeof attachment.mimeType !== 'string' ||
+          !Number.isSafeInteger(attachment.size) ||
+          (attachment.size as number) <= 0 ||
+          (attachment.size as number) > MAX_ATTACHMENT_BYTES
+        ) {
+          throw new Error('An attachment has invalid metadata or an unsupported size.');
+        }
+        if (referencedPaths.has(attachment.archivePath)) throw new Error('An archive attachment is referenced more than once.');
+        referencedPaths.add(attachment.archivePath);
+        const entry = entriesByPath.get(attachment.archivePath);
+        if (!entry || entry.data.byteLength !== attachment.size) {
+          throw new Error('An attachment is missing or its byte count does not match the manifest.');
+        }
+        totalBytes += entry.data.byteLength;
+        return new File([entry.data.slice().buffer as ArrayBuffer], safeAttachmentName(attachment.name), { type: attachment.mimeType });
+      });
+      if (totalBytes > MAX_MESSAGE_ATTACHMENT_BYTES) {
+        throw new Error('A message exceeds the combined 40 MB attachment limit.');
+      }
+      const timestamp = typeof message.timestamp === 'number' &&
+        Number.isFinite(message.timestamp) &&
+        Math.abs(message.timestamp) <= 8.64e15
+        ? message.timestamp
+        : Date.now();
+      const messageModel = typeof message.model === 'string' && Object.prototype.hasOwnProperty.call(MODELS, message.model)
+        ? message.model as ModelId
+        : undefined;
+      const steps = Array.isArray(message.steps)
+        ? message.steps.slice(0, 500).flatMap((rawStep): ToolStep[] => {
+            if (!rawStep || typeof rawStep !== 'object') return [];
+            const step = rawStep as Record<string, unknown>;
+            if (typeof step.type !== 'string' || typeof step.name !== 'string') return [];
+            return [{
+              type: step.type.slice(0, 100),
+              name: step.name.slice(0, 200),
+              result: typeof step.result === 'string' ? step.result.slice(0, 20_000) : undefined,
+              args: step.args && typeof step.args === 'object' && !Array.isArray(step.args)
+                ? step.args as Record<string, unknown>
+                : undefined,
+            }];
+          })
+        : [];
+      return {
+        role: message.role as 'user' | 'assistant',
+        content: message.content,
+        timestamp,
+        model: messageModel,
+        steps,
+        files,
+      };
+    });
+    const allowedArchivePaths = new Set(['manifest.json', 'conversation.md']);
+    archiveEntries.forEach((entry) => {
+      if (!allowedArchivePaths.has(entry.path) && !entry.path.startsWith('attachments/')) {
+        throw new Error('The archive contains an unsupported extra file: ' + entry.path);
+      }
+    });
+    const archiveAttachmentPaths = archiveEntries.filter((entry) => entry.path.startsWith('attachments/'));
+    if (archiveAttachmentPaths.some((entry) => !referencedPaths.has(entry.path))) {
+      throw new Error('The archive contains unreferenced attachment files.');
+    }
+
+    const { data: created, error: createError } = await client
+      .from('conversations')
+      .insert({ title, model: importedModel, user_id: userId })
+      .select()
+      .single();
+    if (createError || !created) throw new Error(createError?.message || 'Unable to create the imported conversation.');
+
+    const uploaded: MessageAttachment[] = [];
+    const importedMessages: Message[] = [];
+    try {
+      for (const item of preparedMessages) {
+        const messageId = crypto.randomUUID();
+        const attachments = item.files.length
+          ? await uploadConversationAttachments(client, userId, created.id, messageId, item.files)
+          : [];
+        uploaded.push(...attachments);
+        const { error: messageError } = await client.from('messages').insert({
+          id: messageId,
+          conversation_id: created.id,
+          role: item.role,
+          content: item.content,
+          model: item.model ?? null,
+          steps: item.steps.length ? item.steps : null,
+          metadata: attachments.length ? { attachments } : null,
+          created_at: new Date(item.timestamp).toISOString(),
+        });
+        if (messageError) throw new Error(messageError.message || 'Unable to save an imported message.');
+        const displayAttachments = await Promise.all(attachments.map((attachment) =>
+          signConversationAttachment(client, userId, created.id, attachment),
+        ));
+        importedMessages.push({
+          id: messageId,
+          role: item.role,
+          content: item.content,
+          model: item.model,
+          steps: item.steps,
+          attachments: displayAttachments,
+          timestamp: item.timestamp,
+        });
+      }
+
+      const updatedAt = Math.max(Date.now(), ...importedMessages.map((message) => message.timestamp));
+      const { error: updateError } = await client
+        .from('conversations')
+        .update({ updated_at: new Date(updatedAt).toISOString() })
+        .eq('id', created.id)
+        .eq('user_id', userId);
+      if (updateError) throw new Error(updateError.message || 'Unable to finalize the imported conversation.');
+
+      const importedConversation: Conversation = {
+        id: created.id,
+        title,
+        model: importedModel,
+        messages: importedMessages,
+        createdAt: new Date(created.created_at).getTime(),
+        updatedAt,
+      };
+      setConversations((previous) => [importedConversation, ...previous]);
+      setActiveId(created.id);
+      setModel(importedModel);
+      setLiveText('');
+      setLiveSteps([]);
+      setLeftOpen(false);
+    } catch (error) {
+      if (uploaded.length) {
+        try { await removeConversationAttachments(client, uploaded); } catch (cleanupError) {
+          console.error('Imported attachment cleanup needs retry:', cleanupError);
+        }
+      }
+      try {
+        await client.from('conversations').delete().eq('id', created.id).eq('user_id', userId);
+      } catch (cleanupError) {
+        console.error('Failed to roll back the incomplete imported conversation:', cleanupError);
+      }
+      throw error;
+    }
+  }, [userId]);
+
   // Voice command handler
   /** Dispatch recognized voice command names to workspace actions; args and unknown names are ignored. */
   const handleVoiceCommand = useCallback(
@@ -737,6 +934,7 @@ export default function CommandCenter({
     onSend: sendMessage,
     attachmentsEnabled: Boolean(supabase),
     onExport: exportThread,
+    onImport: importThread,
     activeTitle: activeConversation?.title,
     onOpenLeft: () => setLeftOpen(true),
     onOpenRight: () => setRightOpen(true),

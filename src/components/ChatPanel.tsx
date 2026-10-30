@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Mic, Square, Paperclip, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Send, Download, Upload, Mic, Square, Paperclip, X, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Message, ModelId } from '@/lib/types';
 import { validateAttachmentBatch } from '@/lib/attachments';
 import { getAvailableModels, modelMeta } from '@/lib/models';
@@ -16,6 +16,7 @@ interface ChatPanelProps {
   onSend: (text: string, files?: File[]) => Promise<void> | void;
   attachmentsEnabled: boolean;
   onExport: () => void;
+  onImport: (file: File) => Promise<void>;
   activeTitle?: string;
   onOpenLeft: () => void;
   onOpenRight: () => void;
@@ -32,6 +33,8 @@ export default function ChatPanel(props: ChatPanelProps) {
   const [submitting, setSubmitting] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const archiveInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -120,6 +123,21 @@ export default function ChatPanel(props: ChatPanelProps) {
     }
   };
 
+  const handleArchiveSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file || importing) return;
+    setImporting(true);
+    setAttachmentError('');
+    try {
+      await props.onImport(file);
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : 'The conversation archive could not be imported.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const moveSelectedFile = (index: number, offset: -1 | 1) => {
     setSelectedFiles((current) => {
       const target = index + offset;
@@ -156,9 +174,20 @@ export default function ChatPanel(props: ChatPanelProps) {
             {props.model}
           </button>
           <button
+            type="button"
+            onClick={() => archiveInputRef.current?.click()}
+            disabled={!props.attachmentsEnabled || importing || props.sending}
+            className="p-1.5 rounded hover:bg-cyan-500/10 disabled:opacity-40 text-cyan-400 transition-colors"
+            title={props.attachmentsEnabled ? 'Import RyanAI conversation archive' : 'Private storage is required to import'}
+            aria-label="Import conversation archive"
+          >
+            <Upload size={16} />
+          </button>
+          <button
             onClick={props.onExport}
             className="p-1.5 rounded hover:bg-cyan-500/10 text-cyan-400 transition-colors"
             title="Export"
+            aria-label="Export conversation"
           >
             <Download size={16} />
           </button>
@@ -279,6 +308,17 @@ export default function ChatPanel(props: ChatPanelProps) {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Archive import picker */}
+      <input
+        ref={archiveInputRef}
+        type="file"
+        accept=".tar,application/x-tar"
+        onChange={handleArchiveSelected}
+        className="hidden"
+        disabled={!props.attachmentsEnabled || importing || props.sending}
+        aria-label="Choose a RyanAI conversation archive"
+      />
+
       {/* Input */}
       <div className="p-3 border-t border-cyan-500/10 space-y-2">
         {selectedFiles.length > 0 && (
@@ -295,6 +335,7 @@ export default function ChatPanel(props: ChatPanelProps) {
             ))}
           </ul>
         )}
+        {importing && <p role="status" className="text-xs text-cyan-300">Validating archive and importing conversation…</p>}
         {attachmentError && <p role="alert" className="text-xs text-rose-300">{attachmentError}</p>}
         {!props.attachmentsEnabled && <p className="text-[10px] text-ink-500">Cloud attachments are unavailable until private storage is configured.</p>}
         <input
