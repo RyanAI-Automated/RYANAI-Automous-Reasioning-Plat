@@ -32,8 +32,14 @@ export function createLoginGreeting(identity: RyanAIIdentity, date = new Date())
 export function addressOwnerResponse(response: string, title = 'Sir G'): string {
   const clean = response.trim();
   if (!clean) return `Certainly, ${title}. How may I assist you?`;
-  const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^(certainly, |of course, )?${escapedTitle}\\b`, 'i').test(clean)) return clean;
+  const lower = clean.toLocaleLowerCase();
+  const prefix = title.toLocaleLowerCase();
+  if (
+    lower.startsWith(`${prefix},`) ||
+    lower.startsWith(`${prefix}.`) ||
+    lower.startsWith(`certainly, ${prefix}.`) ||
+    lower.startsWith(`of course, ${prefix}.`)
+  ) return clean;
   return `Certainly, ${title}. ${clean}`;
 }
 
