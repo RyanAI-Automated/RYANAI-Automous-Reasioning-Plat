@@ -14,6 +14,8 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
+import { resolveConnectionUrls } from './startupConfig.js';
+import { startupSummary } from './startupDiagnostics.js';
 
 import { API_ROUTES } from '../config/core.js';
 
@@ -42,32 +44,32 @@ console.log('🚀 RyanAI Platform Initialization');
 console.log('==================================\n');
 
 // Configuration
+const nodeEnv = process.env.NODE_ENV || 'production';
+const connectionUrls = resolveConnectionUrls(
+  nodeEnv,
+  process.env.DATABASE_URL,
+  process.env.REDIS_URL,
+);
 const config = {
   port: parseInt(
     process.env.PORT ||
-      (process.env.NODE_ENV === 'development' ? '3001' : '3000'),
+      (nodeEnv === 'development' ? '3001' : '3000'),
     10,
   ),
   host: process.env.HOST || '0.0.0.0',
-  nodeEnv: process.env.NODE_ENV || 'production',
-  database: {
-    url:
-      process.env.DATABASE_URL ||
-      'postgresql://postgres:postgres@localhost:5432/ryanai',
-  },
-  redis: {
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-  },
+  nodeEnv,
+  database: { url: connectionUrls.databaseUrl },
+  redis: { url: connectionUrls.redisUrl },
 };
 
 console.log(`📋 Configuration:`);
 console.log(`    - Node Env: ${config.nodeEnv}`);
 console.log(`    - Host: ${config.host}:${config.port}`);
 console.log(
-  `    - Database: ${process.env.DATABASE_URL ? 'URL supplied' : 'Local default'} (connection not yet checked)`,
+  `    - Database: ${process.env.DATABASE_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)`,
 );
 console.log(
-  `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Unauthenticated local default'} (connection not yet checked)\n`,
+  `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)\n`,
 );
 
 // Initialize Fastify instance with trustProxy and telemetry-aware logger
@@ -470,15 +472,15 @@ async function start() {
     console.log(`\n🚀 Starting Fastify Server...\n`);
     await fastify.listen({ port: config.port, host: config.host });
 
+    serviceStatus.api = true;
+
     console.log(`\n✓ RyanAI API Gateway is running!`);
     console.log(`\n📍 Endpoints:`);
     console.log(`    - Root: http://${config.host}:${config.port}/`);
     console.log(`    - Health: http://${config.host}:${config.port}/health`);
     console.log(`    - System: http://${config.host}:${config.port}/api/system`);
     console.log(`    - Signin: http://${config.host}:${config.port}/signin`);
-    console.log(`\n🟢 All services ready!\n`);
-
-    serviceStatus.api = true;
+    console.log(`\n${startupSummary(serviceStatus)}\n`);
     stopBrainMonitor = startBrainHealthMonitor();
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
     else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
