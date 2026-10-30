@@ -19,7 +19,8 @@ export interface SystemStatus {
 
 export interface AIModelConfig { provider: 'openai' | 'anthropic' | 'local'; modelName: string; temperature: number; maxTokens?: number; }
 export interface ModelMeta { id: string; name: string; provider: string; contextWindow?: number; }
-export interface Message { id: string; role: 'user' | 'assistant'; content: string; model?: ModelId; steps?: ToolStep[]; timestamp: number; }
+export interface MessageAttachment { id: string; name: string; mimeType: string; size: number; path: string; url?: string; }
+export interface Message { id: string; role: 'user' | 'assistant'; content: string; model?: ModelId; steps?: ToolStep[]; attachments?: MessageAttachment[]; timestamp: number; }
 export interface Conversation { id: string; title: string; model: ModelId; messages: Message[]; createdAt: number; updatedAt: number; }
 export interface ToolStep { type: string; name: string; result?: string; args?: Record<string, unknown>; }
 export interface MemoryEntry { id: string; content: string; timestamp: number; type: 'note' | 'thought' | 'insight'; }

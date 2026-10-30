@@ -183,6 +183,7 @@ model ChatSqlMessage {
   content        String       @db.Text
   model          String?
   steps          Json?
+  metadata       Json?
   createdAt      DateTime?    @default(now()) @map("created_at")
 
   @@index([conversationId])
