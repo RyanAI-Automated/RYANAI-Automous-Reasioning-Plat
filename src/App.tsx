@@ -23,6 +23,7 @@ const AuthPage = lazy(() => import('@/pages/AuthPage'));
 import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
 import Greeting from '@/components/Greeting';
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -60,12 +61,12 @@ const destinations = appManifest.routes.map((route) => ({
 
 export default function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
+  const [verifiedIdentity, setVerifiedIdentity] = useState<{ userId: string; isOwner: boolean; displayName?: string } | null>(null);
   const { session, loading, error, signingOut, signOut } = useAuth();
   const isAuthRoute = route === 'signin' || route === 'signup';
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
-  const configuredOwnerEmail = String(import.meta.env.VITE_RYANAI_OWNER_EMAIL ?? '').trim().toLowerCase();
-  const isOwner = user?.app_metadata?.owner === true || Boolean(user?.email && configuredOwnerEmail && user.email.toLowerCase() === configuredOwnerEmail);
+  const isOwner = user?.app_metadata?.owner === true || (verifiedIdentity?.userId === user?.id && verifiedIdentity.isOwner);
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
@@ -74,6 +75,35 @@ export default function App() {
   const handleSignOut = async () => {
     if (await signOut()) window.location.hash = '/signin';
   };
+
+  useEffect(() => {
+    if (!user) {
+      setVerifiedIdentity(null);
+      return;
+    }
+    let active = true;
+    setVerifiedIdentity(null);
+    void authenticatedFetch('/api/auth/verify')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Identity verification unavailable');
+        return response.json() as Promise<{ user?: { isOwner?: boolean; displayName?: string } }>;
+      })
+      .then((result) => {
+        if (active) setVerifiedIdentity({
+          userId: user.id,
+          isOwner: result.user?.isOwner === true,
+          displayName: result.user?.displayName,
+        });
+      })
+      .catch(() => {
+        if (active) setVerifiedIdentity({
+          userId: user.id,
+          isOwner: user.app_metadata?.owner === true,
+          displayName,
+        });
+      });
+    return () => { active = false; };
+  }, [user?.id, user?.email, displayName]);
 
   useEffect(() => {
     if (session && isAuthRoute) window.location.hash = '/workspace';
@@ -139,7 +169,7 @@ export default function App() {
         key={user?.id ?? 'signed-out'}
         className="min-h-0 flex-1 overflow-y-auto"
       >
-        {user && <Greeting displayName={displayName} isOwner={isOwner} />}
+        {user && verifiedIdentity?.userId === user.id && <Greeting displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
             {error}
