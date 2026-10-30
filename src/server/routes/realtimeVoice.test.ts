@@ -66,14 +66,20 @@ describe('authenticated realtime voice gateway', () => {
     expect(response.json().ticket).toMatch(/^[A-Za-z0-9_-]{40,}$/);
     expect(redis.set).toHaveBeenCalledWith(
       `ryanai:realtime-voice:${response.json().ticket}`,
-      JSON.stringify({ userId: 'user-123', isOwner: true }),
+      expect.any(String),
       'EX',
       30,
       'NX',
     );
+    const storedTicket = redis.set.mock.calls[0][1];
+    expect(JSON.parse(storedTicket)).toEqual({
+      userId: 'user-123',
+      isOwner: true,
+      language: expect.any(String),
+    });
   });
 
-  it('rejects missing and replayed WebSocket tickets', async () => {
+  it('rejects missing, malformed, and consumed WebSocket tickets', async () => {
     const app = await createApp();
     await expect(app.injectWS('/api/v1/realtime/voice')).rejects.toThrow(
       'Unexpected server response: 401',
