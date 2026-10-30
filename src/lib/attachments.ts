@@ -11,7 +11,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv',
   json: 'application/json', xml: 'application/xml', js: 'text/javascript', ts: 'text/typescript',
   tsx: 'text/typescript', jsx: 'text/javascript', py: 'text/x-python', go: 'text/x-go',
-  rs: 'text/x-rust', java: 'text/x-java', html: 'text/html', css: 'text/css',
+  rs: 'text/x-rust', java: 'text/x-java', css: 'text/css',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
