@@ -8,7 +8,7 @@ export interface RyanAIIdentity {
 }
 
 export function getAddress(identity: RyanAIIdentity): string {
-  if (identity.isOwner) return 'Sir';
+  if (identity.isOwner) return process.env.RYANAI_OWNER_TITLE?.trim() || 'Sir G';
   const name = identity.displayName?.trim();
   if (name) return name;
   const emailName = identity.email?.split('@')[0]?.trim();
@@ -30,7 +30,8 @@ export function createLoginGreeting(identity: RyanAIIdentity, date = new Date())
 
 export function addressOwnerResponse(response: string): string {
   const clean = response.trim();
-  if (!clean) return 'Certainly, Sir. How may I assist you?';
-  if (/^(sir\b|certainly, sir\b|of course, sir\b)/i.test(clean)) return clean;
-  return `Certainly, Sir. ${clean}`;
+  const title = process.env.RYANAI_OWNER_TITLE?.trim() || 'Sir G';
+  if (!clean) return `Certainly, ${title}. How may I assist you?`;
+  if (new RegExp(`^(certainly, |of course, )?${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,.!]?`, 'i').test(clean)) return clean;
+  return `Certainly, ${title}. ${clean}`;
 }
