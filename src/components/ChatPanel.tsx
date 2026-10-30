@@ -48,7 +48,11 @@ export default function ChatPanel(props: ChatPanelProps) {
       locale = localStorage.getItem(`ryanai:preferred-language:${props.userId}`) || locale;
     } catch { /* use the South African English default */ }
     const language = getRyanLanguage(locale);
-    const voice = findSpeechVoice(window.speechSynthesis.getVoices(), language.speechLocale);
+    const installedVoices = window.speechSynthesis.getVoices();
+    let preferredVoiceUri = '';
+    try { preferredVoiceUri = localStorage.getItem(`ryanai:preferred-voice:${props.userId}`) || ''; } catch { /* automatic voice selection */ }
+    const voice = installedVoices.find((item) => item.voiceURI === preferredVoiceUri && item.lang.toLowerCase() === language.speechLocale.toLowerCase())
+      ?? findSpeechVoice(installedVoices, language.speechLocale);
     if (!voice) {
       setVoiceStatus(`No installed voice for ${language.label}; select an available device voice or install a speech pack.`);
       return;
