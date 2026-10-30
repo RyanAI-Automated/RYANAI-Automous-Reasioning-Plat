@@ -93,7 +93,6 @@ export class SelfPatchSkill {
     }
 
     const [owner, name] = repository.split('/');
-    const encodedPath = request.filePath.trim().split('/').map(encodeURIComponent).join('/');
     let branch = '';
     let branchCreated = false;
     try {
