@@ -9,7 +9,7 @@ export interface RyanAIIdentity {
 }
 
 export function getAddress(identity: RyanAIIdentity): string {
-  if (identity.isOwner) return process.env.RYANAI_OWNER_TITLE?.trim() || 'Sir G';
+  if (identity.isOwner) return 'Sir G';
   const name = identity.displayName?.trim();
   if (name) return name;
   const emailName = identity.email?.split('@')[0]?.trim();
