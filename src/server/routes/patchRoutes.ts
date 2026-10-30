@@ -5,7 +5,6 @@ import { requireAdmin } from './auth.js';
 interface PatchApplyBody {
   filePath: string;
   patchContent: string;
-  testScript?: string;
 }
 
 /**
@@ -26,21 +25,20 @@ export const registerPatchRoutes: FastifyPluginAsync = async (fastify) => {
           properties: {
             filePath: { type: 'string', minLength: 1, maxLength: 500 },
             patchContent: { type: 'string', minLength: 1, maxLength: 8 * 1024 * 1024 },
-            testScript: { type: 'string', maxLength: 200_000 },
-          },
+            },
         },
       },
       config: { rateLimit: { max: 2, timeWindow: '1 minute' } },
     },
     async (request, reply) => {
       try {
-        const result = await SelfPatchSkill.applyAndVerifyPatch(request.body);
+        const result = await SelfPatchSkill.proposePullRequest(request.body);
         const statusCode =
-          result.status === 'success' ? 200 :
+          result.status === 'proposed' ? 202 :
           result.status === 'conflict' ? 409 :
           result.status === 'rejected' ? 422 : 503;
         return reply.code(statusCode).send({
-          success: result.status === 'success',
+          success: result.status === 'proposed',
           result,
         });
       } catch (error: unknown) {
