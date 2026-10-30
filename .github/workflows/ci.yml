@@ -50,6 +50,9 @@ jobs:
       - name: Validate GitHub workflows
         run: npm run workflow:validate
 
+      - name: Audit optional deployment readiness and agent inventory
+        run: npm run test:readiness-audits && npm run audit:deployments && npm run audit:agents
+
   subprojects:
     name: MCP server and workflow worker
     runs-on: ubuntu-latest

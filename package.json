@@ -100,7 +100,10 @@
     "platform:wiring:check": "node scripts/check-platform-wiring.mjs",
     "index:check": "node scripts/check-index-html.mjs",
     "test:stack-validator": "node --test scripts/validate-stack-manifest.test.mjs",
-    "audit:inspector": "node scripts/ai-inspector-audit.mjs"
+    "audit:inspector": "node scripts/ai-inspector-audit.mjs",
+    "audit:deployments": "node scripts/audit-deployment-readiness.mjs",
+    "audit:agents": "node scripts/audit-agent-readiness.mjs",
+    "test:readiness-audits": "node --test scripts/readiness-audits.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

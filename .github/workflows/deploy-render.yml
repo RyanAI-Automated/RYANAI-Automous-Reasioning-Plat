@@ -1,10 +1,10 @@
 name: Deploy API to Render
 
-# Triggers the Render deploy hook once fresh images have been published.
-# Optional: does nothing until the RENDER_DEPLOY_HOOK_URL secret is configured.
+# Trigger only after the actual container publishing workflow succeeds.
+# Render remains opt-in and requires an explicit gate plus a configured deploy hook.
 on:
   workflow_run:
-    workflows: ['Docker - Build and Publish Images']
+    workflows: ['Build and Publish RyanAI Containers']
     branches: [main, master]
     types: [completed]
   workflow_dispatch:
@@ -21,21 +21,32 @@ jobs:
     name: Trigger Render deploy
     if: >-
       ${{
-        github.event_name == 'workflow_dispatch' ||
-        (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+        vars.RENDER_DEPLOY_ENABLED == 'true' &&
+        (
+          github.event_name == 'workflow_dispatch' ||
+          (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+        )
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: production
 
     steps:
-      - name: Call Render deploy hook
+      - name: Validate Render deployment configuration
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RENDER_DEPLOY_HOOK_URL" ]]; then
+            echo "::error::RENDER_DEPLOY_ENABLED is true but RENDER_DEPLOY_HOOK_URL is missing."
+            exit 1
+          fi
+
+      - name: Trigger Render deploy
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL is not configured; skipping the Render deploy."
-            exit 0
-          fi
+          set -euo pipefail
           curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
-          echo "Render deploy triggered."
+          echo "Render deploy hook accepted the request."
