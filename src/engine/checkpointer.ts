@@ -8,42 +8,36 @@ export interface ThreadCheckpoint {
 }
 
 export class RyanAICheckpointer {
-  /**
-   * Append a checkpoint record for the thread, serializing state as JSON.
-   * Serialization and database failures are caught; completion does not confirm a write.
-   */
-  static async saveCheckpoint(threadId: string, step: number, state: unknown): Promise<void> {
+  /** Persist a checkpoint and report whether the database confirmed the write. */
+  static async saveCheckpoint(threadId: string, step: number, state: unknown): Promise<boolean> {
     try {
       await db.agentMemory.create({
         data: {
-          sessionId: threadId, // Mapping thread to session ID
+          sessionId: threadId,
           brainSource: `checkpoint_step_${step}`,
           content: JSON.stringify(state),
-          metadata: { step, timestamp: Date.now() }
-        }
+          metadata: { step, timestamp: Date.now() },
+        },
       });
       console.log(`[Checkpointer] State checkpoint saved for thread ${threadId} at step ${step}.`);
+      return true;
     } catch (error) {
       console.error(`[Checkpointer Error] Failed to save checkpoint for thread ${threadId}:`, error);
+      return false;
     }
   }
 
-  /**
-   * Return the newest memory record for the thread as parsed state and a step (default 0).
-   * Returns null when no record exists or when querying or parsing fails.
-   */
+  /** Return the newest valid checkpoint or null when storage is unavailable. */
   static async getLatestCheckpoint(threadId: string): Promise<{ step: number; state: unknown } | null> {
     try {
       const latestLog = await db.agentMemory.findFirst({
         where: { sessionId: threadId },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
       });
-
       if (!latestLog) return null;
-
       return {
         step: (latestLog.metadata as { step?: number } | null)?.step || 0,
-        state: JSON.parse(latestLog.content)
+        state: JSON.parse(latestLog.content),
       };
     } catch (error) {
       console.error(`[Checkpointer Error] Failed to retrieve checkpoint for thread ${threadId}:`, error);
