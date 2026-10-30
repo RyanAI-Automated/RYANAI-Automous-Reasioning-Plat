@@ -121,30 +121,6 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
       const ws = new WebSocket(endpoint.toString());
       socket.current = ws;
 
-      ws.onopen = () => {
-        const activeContext = audioContext.current;
-        const activeStream = mediaStream.current;
-        if (!activeContext || !activeStream) {
-          stop();
-          return;
-        }
-        const source = activeContext.createMediaStreamSource(activeStream);
-        const node = activeContext.createScriptProcessor(1024, 1, 1);
-        const silentOutput = activeContext.createGain();
-        silentOutput.gain.value = 0;
-        source.connect(node);
-        node.connect(silentOutput);
-        silentOutput.connect(activeContext.destination);
-        node.onaudioprocess = (event) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const audio = encodePcm16(event.inputBuffer.getChannelData(0));
-          ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio }));
-        };
-        mediaSource.current = source;
-        processor.current = node;
-        setStatus('listening');
-      };
-
       ws.onmessage = (message) => {
         if (typeof message.data !== 'string') return;
         let event: RealtimeEvent;
@@ -154,13 +130,41 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
           setError('RyanAI returned an unreadable voice event.');
           return;
         }
+        if (event.type === 'session.started') {
+          const activeContext = audioContext.current;
+          const activeStream = mediaStream.current;
+          if (!activeContext || !activeStream) {
+            stop();
+            return;
+          }
+          const source = activeContext.createMediaStreamSource(activeStream);
+          const node = activeContext.createScriptProcessor(1024, 1, 1);
+          const silentOutput = activeContext.createGain();
+          silentOutput.gain.value = 0;
+          source.connect(node);
+          node.connect(silentOutput);
+          silentOutput.connect(activeContext.destination);
+          node.onaudioprocess = (audioEvent) => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            const audio = encodePcm16(audioEvent.inputBuffer.getChannelData(0));
+            ws.send(JSON.stringify({ type: 'session.input_audio.append', audio }));
+          };
+          mediaSource.current = source;
+          processor.current = node;
+          setStatus('listening');
+          return;
+        }
+        if (event.type === 'session.closed') {
+          stop();
+          return;
+        }
         if (event.type === 'error') {
           setError(event.error?.message || 'The realtime voice service returned an error.');
           stop();
           setStatus('error');
           return;
         }
-        if (event.type !== 'response.audio.delta' || !event.delta) return;
+        if (event.type !== 'session.output_audio.delta' || !event.delta) return;
         const activeContext = audioContext.current;
         if (!activeContext) return;
         try {
