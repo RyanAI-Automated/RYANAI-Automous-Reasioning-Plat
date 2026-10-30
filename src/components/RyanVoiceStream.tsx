@@ -256,7 +256,9 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     previousLanguage.current = language;
     if (status === 'listening' || status === 'connecting') {
       releaseResources();
-      void start();
+      queueMicrotask(() => {
+        void start();
+      });
     }
   }, [language, status, start, releaseResources]);
 
