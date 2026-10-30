@@ -25,7 +25,7 @@ export class RyanMcpEngine {
       tools: [
         {
           name: 'execute_pipeline',
-          description: 'Runs the RyanAI 5-Phase Deployment Pipeline for a project',
+          description: 'Disabled by Gen-X policy; deployment pipeline execution requires authenticated human approval.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -94,8 +94,9 @@ export class RyanMcpEngine {
             {
               type: 'text',
               text: JSON.stringify({
-                status: 'HEALTHY',
-                ebpfProbeState: 'ACTIVE',
+                status: 'APPLICATION_POLICY_ACTIVE',
+                genXPolicyState: 'ACTIVE',
+                ebpfProbeState: 'NOT_CONFIGURED',
                 memoryAllocatedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
                 uptimeSec: process.uptime(),
               }),
