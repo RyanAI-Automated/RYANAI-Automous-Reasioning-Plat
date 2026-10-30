@@ -204,7 +204,11 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
           const samples = decodePcm16(event.delta);
           if (samples.length === 0) return;
           const buffer = activeContext.createBuffer(1, samples.length, REALTIME_SAMPLE_RATE);
-          buffer.copyToChannel(samples, 0);
+          // Web Audio's copyToChannel requires an ArrayBuffer-backed Float32Array.
+          // decodePcm16 may return an ArrayBufferLike view under newer TS libs.
+          const playbackSamples = new Float32Array(samples.length);
+          playbackSamples.set(samples);
+          buffer.copyToChannel(playbackSamples, 0);
           const source = activeContext.createBufferSource();
           source.buffer = buffer;
           source.connect(activeContext.destination);
