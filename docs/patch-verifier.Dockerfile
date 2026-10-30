@@ -1,5 +1,5 @@
 # Build only from an independently reviewed source revision in trusted CI.
-# Supply a digest-pinned Node >=22.12 image, e.g. node:22-bookworm@sha256:...
+# Supply a digest-pinned Node 24 image, e.g. node:24-bookworm@sha256:...
 ARG NODE_IMAGE
 FROM ${NODE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
