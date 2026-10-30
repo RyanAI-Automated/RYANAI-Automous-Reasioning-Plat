@@ -3,6 +3,7 @@ import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains.js';
 import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
 import { resolveBrainProviderConfig } from './providerConfig.js';
+import { buildBrainKnowledgeContext } from './knowledgeAgent.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -96,7 +97,11 @@ export async function dispatchAutonomousTask(userId: string, objective: string) 
     return created;
   });
   try {
-    const plan = await executeThreeBrainPlan(objective, invokeWithRecovery);
+    const knowledge = await buildBrainKnowledgeContext();
+    const sharedObjective = knowledge
+      ? `${knowledge}\\n\\nUser task objective:\\n${objective}`
+      : objective;
+    const plan = await executeThreeBrainPlan(sharedObjective, invokeWithRecovery);
     const rows = await prisma.agentHandoff.findMany({ where: { runId: run.id }, orderBy: { startedAt: 'asc' } });
     const outputByBrain = new Map(plan.outputs.map((item) => [item.brain, item]));
     await prisma.$transaction(async (tx) => {
