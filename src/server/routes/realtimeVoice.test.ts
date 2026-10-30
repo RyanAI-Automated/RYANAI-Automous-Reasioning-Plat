@@ -55,6 +55,7 @@ describe('authenticated realtime voice gateway', () => {
   });
 
   it('issues a random single-use ticket with a 30-second Redis expiry', async () => {
+    vi.stubEnv('RYANAI_OWNER_LANGUAGE', 've-ZA');
     const app = await createApp();
     const response = await app.inject({
       method: 'POST',
