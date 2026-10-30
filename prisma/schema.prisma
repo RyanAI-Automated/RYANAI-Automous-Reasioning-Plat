@@ -282,3 +282,25 @@ model AgentBrainHealth {
   checkedAt DateTime @default(now()) @map("checked_at")
   @@map("agent_brain_health")
 }
+
+
+// Curated platform-wide knowledge supplied to every reasoning brain.
+model BrainKnowledge {
+  id          String   @id @default(uuid())
+  fingerprint String   @unique
+  title       String
+  content     String   @db.Text
+  source      String?
+  category    String   @default("general")
+  tags        String[]
+  confidence  Float    @default(0.5)
+  priority    Int      @default(0)
+  active      Boolean  @default(true)
+  expiresAt   DateTime? @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([active, priority, updatedAt])
+  @@index([expiresAt])
+  @@map("brain_knowledge")
+}
