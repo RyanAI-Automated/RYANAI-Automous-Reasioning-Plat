@@ -8,6 +8,7 @@ import { resolveBrainProviderConfig } from './providerConfig.js';
 import { buildBrainKnowledgeContext } from './knowledgeAgent.js';
 import { getAgentRunRetryDelayMs, shouldRetryAgentRun } from './agentRunRetry.js';
 import { publishAgentTaskNotification } from './queueNotifications.js';
+import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -128,39 +129,12 @@ async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | nu
   return rows[0] ?? null;
 }
 
-function startAgentRunLeaseHeartbeat(run: ClaimedAgentRun) {
-  let stopped = false;
-  let heartbeatInFlight = false;
-  const timer = setInterval(async () => {
-    if (stopped || heartbeatInFlight) return;
-    heartbeatInFlight = true;
-    try {
-      // The attempt number and worker ID form a fencing token. An old worker
-      // cannot extend a lease after another worker has reclaimed the run.
-      await prisma.agentRun.updateMany({
-        where: {
-          id: run.id,
-          status: 'running',
-          workerId: run.worker_id,
-          attempts: run.attempts,
-        },
-        data: { lockedAt: new Date() },
-      });
-    } catch (error) {
-      console.error('[agent-worker] Lease heartbeat failed for run ' + run.id + ': ' + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      heartbeatInFlight = false;
-    }
-  }, 30_000);
-  timer.unref();
-  return () => {
-    stopped = true;
-    clearInterval(timer);
-  };
-}
-
 async function processAgentRun(run: ClaimedAgentRun) {
-  const stopHeartbeat = startAgentRunLeaseHeartbeat(run);
+  const stopHeartbeat = startAgentRunLeaseHeartbeat(
+    { id: run.id, workerId: run.worker_id, attempts: run.attempts },
+    (where) => prisma.agentRun.updateMany({ where, data: { lockedAt: new Date() } }),
+    (error) => console.error('[agent-worker] Lease heartbeat failed for run ' + run.id + ': ' + (error instanceof Error ? error.message : String(error))),
+  );
   try {
     const knowledge = await buildBrainKnowledgeContext();
     const sharedObjective = knowledge
@@ -204,12 +178,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
         },
       });
       const completion = await tx.agentRun.updateMany({
-        where: {
-          id: run.id,
-          status: 'running',
-          workerId: run.worker_id,
-          attempts: run.attempts,
-        },
+        where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
         data: {
           status: 'completed',
           result: { synthesis: plan.synthesis, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
