@@ -35,6 +35,6 @@ describe('RyanAI identity and South African English defaults', () => {
 
   it('addresses owner communications once without duplicating Sir', () => {
     expect(addressOwnerResponse('Your systems are ready.')).toBe('Certainly, Sir G. Your systems are ready.');
-    expect(addressOwnerResponse('Certainly, Sir G. Your systems are ready.')).toBe('Certainly, Sir. Your systems are ready.');
+    expect(addressOwnerResponse('Certainly, Sir G. Your systems are ready.')).toBe('Certainly, Sir G. Your systems are ready.');
   });
 });
