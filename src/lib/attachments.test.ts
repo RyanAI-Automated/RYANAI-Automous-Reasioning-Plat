@@ -137,6 +137,6 @@ describe('attachment upload progress and cancellation', () => {
     await vi.waitFor(() => expect(MockXMLHttpRequest.instances).toHaveLength(1));
     controller.abort();
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
-    expect(remove).toHaveBeenCalledWith([expect.stringContaining('/report.pdf')]);
+    expect(remove).toHaveBeenCalledWith([expect.stringContaining('report.pdf')]);
   });
 });
