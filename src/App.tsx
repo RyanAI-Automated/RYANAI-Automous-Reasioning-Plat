@@ -65,6 +65,9 @@ export default function App() {
   const { session, loading, error, signingOut, signOut } = useAuth();
   const isAuthRoute = route === 'signin' || route === 'signup';
   const user = session?.user;
+  const userId = user?.id;
+  const userEmail = user?.email;
+  const ownerClaim = user?.app_metadata?.owner === true;
   const isAdmin = user?.app_metadata?.role === 'admin';
   const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
   const displayName =
@@ -77,12 +80,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!user) {
-      setVerifiedIdentity(null);
-      return;
-    }
+    if (!userId) return;
     let active = true;
-    setVerifiedIdentity(null);
     void authenticatedFetch('/api/auth/verify')
       .then(async (response) => {
         if (!response.ok) throw new Error('Identity verification unavailable');
@@ -90,7 +89,7 @@ export default function App() {
       })
       .then((result) => {
         if (active) setVerifiedIdentity({
-          userId: user.id,
+          userId,
           isOwner: result.user?.isOwner === true,
           displayName: result.user?.displayName,
         });
@@ -98,12 +97,12 @@ export default function App() {
       .catch(() => {
         if (active) setVerifiedIdentity({
           userId: user.id,
-          isOwner: user.app_metadata?.owner === true,
+          isOwner: ownerClaim,
           displayName,
         });
       });
     return () => { active = false; };
-  }, [user?.id, user?.email, displayName]);
+  }, [userId, userEmail, ownerClaim, displayName]);
 
   useEffect(() => {
     if (session && isAuthRoute) window.location.hash = '/workspace';
