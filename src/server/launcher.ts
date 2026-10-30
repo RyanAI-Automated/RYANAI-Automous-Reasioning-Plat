@@ -480,7 +480,8 @@ async function start() {
 
     serviceStatus.api = true;
     stopBrainMonitor = startBrainHealthMonitor();
-    stopAgentWorker = startAgentTaskWorker();
+    if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
+    else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
 
     // Scheduled tasks start AI runs with no person present, and those runs cost
     // money. Turn them on with an explicit setting.
