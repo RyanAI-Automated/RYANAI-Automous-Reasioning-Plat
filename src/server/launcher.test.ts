@@ -103,12 +103,13 @@ describe('launcher reasoning routes', () => {
       method: 'POST',
       url: '/api/reasoning/stream',
       headers: { origin: 'https://frontend.vercel.app', authorization: 'Bearer test-token' },
-      payload: { prompt: 'hello' },
+      payload: { prompt: 'hello', language: 've-ZA' },
     });
     expect(response.statusCode).toBe(200);
     expect(response.headers['access-control-allow-origin']).toBe('https://frontend.vercel.app');
     expect(response.headers['content-type']).toBe('text/event-stream');
     expect(response.body).toContain('"status":"complete","result":"answer"');
+    expect(state.invoke).toHaveBeenCalledWith(expect.objectContaining({ language: 've-ZA' }));
   });
 
   it('rejects unauthenticated reasoning requests before invoking the orchestrator', async () => {

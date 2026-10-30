@@ -76,13 +76,13 @@ export default function App() {
     if (await signOut()) window.location.hash = '/signin';
   };
 
+  const authenticatedUserId = user?.id;
+  const authenticatedUserEmail = user?.email;
+  const authenticatedOwnerClaim = user?.app_metadata?.owner === true;
+
   useEffect(() => {
-    if (!user) {
-      setVerifiedIdentity(null);
-      return;
-    }
+    if (!authenticatedUserId) return;
     let active = true;
-    setVerifiedIdentity(null);
     void authenticatedFetch('/api/auth/verify')
       .then(async (response) => {
         if (!response.ok) throw new Error('Identity verification unavailable');
@@ -90,20 +90,20 @@ export default function App() {
       })
       .then((result) => {
         if (active) setVerifiedIdentity({
-          userId: user.id,
+          userId: authenticatedUserId,
           isOwner: result.user?.isOwner === true,
           displayName: result.user?.displayName,
         });
       })
       .catch(() => {
         if (active) setVerifiedIdentity({
-          userId: user.id,
-          isOwner: user.app_metadata?.owner === true,
+          userId: authenticatedUserId,
+          isOwner: authenticatedOwnerClaim,
           displayName,
         });
       });
     return () => { active = false; };
-  }, [user?.id, user?.email, displayName]);
+  }, [authenticatedUserId, authenticatedUserEmail, authenticatedOwnerClaim, displayName]);
 
   useEffect(() => {
     if (session && isAuthRoute) window.location.hash = '/workspace';
@@ -169,7 +169,7 @@ export default function App() {
         key={user?.id ?? 'signed-out'}
         className="min-h-0 flex-1 overflow-y-auto"
       >
-        {user && verifiedIdentity?.userId === user.id && <Greeting displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
+        {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
             {error}

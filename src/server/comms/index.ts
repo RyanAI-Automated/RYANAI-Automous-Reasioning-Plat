@@ -6,7 +6,7 @@ import rawBody from 'fastify-raw-body';
 import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication, updateCommunicationStatus } from './history.js';
-import { addressOwnerResponse, getTimeGreeting, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
+import { addressOwnerResponse, getTimeGreeting, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
 type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string };
@@ -51,7 +51,7 @@ function twimlSay(text: string, gather = true): string {
 async function askRyanAI(text: string, threadId: string): Promise<string> {
   const result = await humanInTheLoopAgent.invoke(
     { messages: [
-      { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear, concise and suitable for being read aloud.' },
+      { role: 'system', content: ownerCommunicationInstruction() },
       { role: 'user', content: text },
     ] },
     { configurable: { thread_id: threadId } },
@@ -183,7 +183,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress',
     });
     reply.type('text/xml');
-    return twimlSay(`${getTimeGreeting()}, Sir. I'm RyanAI. How can I help you today?`);
+    return twimlSay(addressOwnerResponse(`${getTimeGreeting()}. I'm RyanAI. How can I help you today?`));
   });
 
   fastify.post('/api/webhooks/twilio/voice/respond', { preHandler: webhookAuth('TWILIO_VOICE_ACTION_URL') }, async (request, reply) => {

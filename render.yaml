@@ -109,6 +109,10 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: RYANAI_OWNER_TITLE
+        value: Sir G
+      - key: RYANAI_OWNER_LANGUAGE
+        value: ve-ZA
       - key: RYANAI_OWNER_PHONE
         sync: false
       - key: RYANAI_OWNER_EMAIL

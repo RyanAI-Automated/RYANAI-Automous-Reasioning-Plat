@@ -3,7 +3,7 @@ import twilio from 'twilio';
 import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication } from '../comms/history.js';
-import { addressOwnerResponse } from '../../shared/ryanIdentity.js';
+import { addressOwnerResponse, ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
 
 const extractContent = (content: unknown): string =>
   typeof content === 'string' ? content : JSON.stringify(content) ?? '';
@@ -76,7 +76,7 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
 
       const result = await humanInTheLoopAgent.invoke(
         { messages: [
-          { role: 'system', content: 'You are RyanAI. Address the configured owner as Sir. Speak and write in natural English (South Africa, en-ZA). Keep replies clear and concise.' },
+          { role: 'system', content: ownerCommunicationInstruction() },
           { role: 'user', content: incomingText },
         ] },
         { configurable: { thread_id: threadId } },
