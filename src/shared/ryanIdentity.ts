@@ -32,6 +32,7 @@ export function addressOwnerResponse(response: string): string {
   const clean = response.trim();
   const title = process.env.RYANAI_OWNER_TITLE?.trim() || 'Sir G';
   if (!clean) return `Certainly, ${title}. How may I assist you?`;
-  if (new RegExp(`^(certainly, |of course, )?${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,.!]?`, 'i').test(clean)) return clean;
+  const lower = clean.toLocaleLowerCase();
+  if (lower.startsWith(title.toLocaleLowerCase()) || lower.startsWith(`certainly, ${title.toLocaleLowerCase()}`) || lower.startsWith(`of course, ${title.toLocaleLowerCase()}`)) return clean;
   return `Certainly, ${title}. ${clean}`;
 }
