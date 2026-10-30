@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 
 const LANGUAGE = 'en-ZA';
@@ -30,6 +30,7 @@ export default function RyanWelcome({
   const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const greeting = `${timeGreeting}, ${address}. I am RyanAI. Welcome back. I am ready to assist you.`;
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const autoSpokenUser = useRef<string | null>(null);
   const [voiceUri, setVoiceUri] = useState(() => {
     try { return window.localStorage.getItem(VOICE_URI_KEY) ?? ''; } catch { return ''; }
   });
@@ -75,7 +76,10 @@ export default function RyanWelcome({
   useEffect(() => {
     // Attempt the login greeting on every authenticated mount. If autoplay is blocked,
     // the visible Play button provides the browser-required user gesture.
-    if (voiceEnabled && voices.length) speak();
+    if (voiceEnabled && voices.length && autoSpokenUser.current !== userId) {
+      autoSpokenUser.current = userId;
+      speak();
+    }
   }, [userId, voiceEnabled, voices.length, speak]);
 
   const toggleVoice = () => {
