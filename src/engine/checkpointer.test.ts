@@ -38,6 +38,13 @@ describe('RyanAI durable checkpointer', () => {
       step: 2,
       state: { missionId: 'mission-1', status: 'PAUSED_FOR_APPROVAL' },
     });
+    expect(database.findFirst).toHaveBeenCalledWith({
+      where: {
+        sessionId: 'mission-1',
+        brainSource: { startsWith: 'checkpoint_step_' },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('returns null when checkpoint storage is unavailable', async () => {
