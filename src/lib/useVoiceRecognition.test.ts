@@ -5,9 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useVoiceRecognition } from './useVoiceRecognition.js';
 
-let lastRecognizer: MockSpeechRecognition | undefined;
-
 class MockSpeechRecognition {
+  static latest: MockSpeechRecognition | undefined;
   lang = '';
   continuous = false;
   interimResults = false;
@@ -16,7 +15,7 @@ class MockSpeechRecognition {
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null = null;
   onend: (() => void) | null = null;
   onstart: (() => void) | null = null;
-  constructor() { lastRecognizer = this; }
+  constructor() { MockSpeechRecognition.latest = this; }
   start = vi.fn(() => this.onstart?.());
   stop = vi.fn();
   abort = vi.fn();
@@ -49,7 +48,7 @@ afterEach(() => {
   root = undefined;
   host?.remove();
   host = undefined;
-  lastRecognizer = undefined;
+  MockSpeechRecognition.latest = undefined;
   delete window.SpeechRecognition;
   delete window.webkitSpeechRecognition;
 });
@@ -64,11 +63,11 @@ describe('useVoiceRecognition', () => {
 
     expect(getResult().isSupported).toBe(true);
     expect(getResult().state).toBe('listening');
-    expect(lastRecognizer?.lang).toBe('ve-ZA');
-    expect(lastRecognizer?.continuous).toBe(true);
-    expect(lastRecognizer?.interimResults).toBe(true);
+    expect(MockSpeechRecognition.latest?.lang).toBe('ve-ZA');
+    expect(MockSpeechRecognition.latest?.continuous).toBe(true);
+    expect(MockSpeechRecognition.latest?.interimResults).toBe(true);
 
-    act(() => lastRecognizer?.emit('Ndi khou ṱoḓa thuso', false));
+    act(() => MockSpeechRecognition.latest?.emit('Ndi khou ṱoḓa thuso', false));
     expect(getResult().interimText).toBe('Ndi khou ṱoḓa thuso');
     expect(onTranscript).not.toHaveBeenCalled();
 
