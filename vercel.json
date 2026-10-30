@@ -1,7 +1,7 @@
 {
   "framework": "vite",
-  "installCommand": "env -u npm_config_cache-dir npm ci --legacy-peer-deps",
-  "buildCommand": "env -u npm_config_cache-dir npm run build:web",
+  "installCommand": "env -u npm_config_cache-dir -u npm_config_cache_dir -u NPM_CONFIG_CACHE_DIR npm ci --legacy-peer-deps",
+  "buildCommand": "env -u npm_config_cache-dir -u npm_config_cache_dir -u NPM_CONFIG_CACHE_DIR npm run build:web",
   "outputDirectory": "dist",
   "devCommand": "npm run dev:web"
 }
