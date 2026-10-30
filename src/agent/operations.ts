@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
 import { resolveBrainProviderConfig } from './providerConfig.js';
 import { buildBrainKnowledgeContext } from './knowledgeAgent.js';
+import { getAgentRunRetryDelayMs, shouldRetryAgentRun } from './agentRunRetry.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -98,20 +99,28 @@ interface ClaimedAgentRun {
   id: string;
   user_id: string;
   objective: string;
+  attempts: number;
+  max_attempts: number;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
 async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | null> {
-  const staleBefore = new Date(Date.now() - 180_000);
-  await prisma.agentRun.updateMany({
-    where: { status: 'running', attempts: { gte: 3 }, lockedAt: { lt: staleBefore } },
-    data: { status: 'failed', error: 'Worker lease expired after the maximum number of attempts.', completedAt: new Date(), workerId: null, lockedAt: null },
-  });
+  await prisma.$executeRaw`
+    UPDATE "agent_runs"
+    SET "status" = 'failed',
+        "error" = 'Worker lease expired after the maximum number of attempts.',
+        "completed_at" = NOW(),
+        "worker_id" = NULL,
+        "locked_at" = NULL
+    WHERE "status" = 'running'
+      AND "locked_at" < NOW() - INTERVAL '3 minutes'
+      AND "attempts" >= "max_attempts"
+  `;
   const rows = await prisma.$queryRawUnsafe<ClaimedAgentRun[]>(
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
-    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "status" = \'queued\' OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts") ' +
+    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE ("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW()) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts"',
     workerId,
   );
   return rows[0] ?? null;
@@ -173,15 +182,28 @@ async function processAgentRun(run: ClaimedAgentRun) {
     });
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
-    await prisma.agentRun.update({
-      where: { id: run.id },
-      data: { status: 'failed', error: message, completedAt: new Date(), lockedAt: null, workerId: null },
+    const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
+    const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
+    await prisma.$transaction(async (tx) => {
+      await tx.agentRun.update({
+        where: { id: run.id },
+        data: {
+          status: retry ? 'queued' : 'failed',
+          error: message,
+          completedAt: retry ? null : new Date(),
+          nextAttemptAt: retry ? nextAttemptAt : undefined,
+          lockedAt: null,
+          workerId: null,
+        },
+      });
+      await tx.agentHandoff.updateMany({
+        where: { runId: run.id, status: { in: ['pending', 'running', 'failed'] } },
+        data: retry
+          ? { status: 'pending', error: null, completedAt: null }
+          : { status: 'failed', error: message, completedAt: new Date() },
+      });
     });
-    await prisma.agentHandoff.updateMany({
-      where: { runId: run.id, status: { in: ['pending', 'running'] } },
-      data: { status: 'failed', error: message, completedAt: new Date() },
-    });
-    console.error('[agent-worker] Run ' + run.id + ' failed:', message);
+    console.error('[agent-worker] Run ' + run.id + (retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
   }
 }
 
