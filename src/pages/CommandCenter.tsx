@@ -594,7 +594,7 @@ export default function CommandCenter({
         if (data.byteLength !== attachment.size) {
           throw new Error('Attachment size verification failed for ' + attachment.name + '.');
         }
-        const archivePath = 'attachments/' + message.id + '-' + attachment.id + '-' + safeAttachmentName(attachment.name);
+        const archivePath = 'attachments/' + attachment.id + '-' + safeAttachmentName(attachment.name).slice(0, 32);
         archiveEntries.push({ path: archivePath, data });
         exportedAttachments.push({
           id: attachment.id,
