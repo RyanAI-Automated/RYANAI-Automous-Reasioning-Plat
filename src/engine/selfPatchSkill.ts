@@ -4,6 +4,8 @@ import { applyWorkspacePatch } from '../utils/workspacePatch.js';
 export interface PatchRequest {
   filePath: string;
   patchContent: string;
+  /** Optional command name used by the isolated patch verification pipeline. */
+  testScript?: string;
 }
 
 export interface PatchProposalResult {
