@@ -37,7 +37,7 @@ The Compose file binds service ports to loopback (`127.0.0.1`) by default. This 
 ### Required for all installation methods
 
 - Git.
-- Node.js **22.12 or newer**.
+- Node.js **24.x** (matching `package.json`, CI and Docker images).
 - npm **10 or newer** (the root project declares npm 10.9.2 as its package manager).
 - Network access to download the locked npm dependencies.
 
