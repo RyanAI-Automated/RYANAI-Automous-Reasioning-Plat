@@ -24,8 +24,8 @@ export class RyanPatchValidatorPipeline {
       new SystemMessage(
         "You are the Lead Code Generation Agent for RyanAI. " +
         "Analyze the target problem and existing code snippet. Write a clean, highly optimized, " +
-        "self-contained TypeScript patch or solution. Return ONLY valid, executable TypeScript code " +
-        "wrapped in standard code blocks."
+        "self-contained JavaScript validation script. Return ONLY valid, executable JavaScript (ES modules) code " +
+        "wrapped in standard code blocks; it will run inside a network-disabled verifier container."
       ),
       new HumanMessage(`Target Problem: ${targetProblem}\n\nExisting Code Context:\n${existingCodeSnippet}`)
     ]);
@@ -35,43 +35,36 @@ export class RyanPatchValidatorPipeline {
 
     console.log("[Objective 3] Passing generated patch to isolated RyanAISandbox for validation...");
 
-    let attempts = 1;
-    const maxAttempts = 3;
-    let sandboxResult = await RyanAISandbox.executeInSandbox(extractedCode, "autonomous_patch.ts");
-
-    // Objective 3: Sandbox Validation & Auto-Debugging Loop
-    while (!sandboxResult.success && attempts < maxAttempts) {
-      console.warn(`[Auto-Debugger] Sandbox execution failed on attempt ${attempts}. Analyzing traceback...`);
-      
-      const fixedCode = await RyanAIAutoDebugger.diagnoseAndFix(
-        extractedCode, 
-        sandboxResult.error || "Unknown runtime exception"
-      );
-
-      attempts++;
-      console.log(`[Auto-Debugger] Re-testing patched code (Attempt ${attempts})...`);
-      sandboxResult = await RyanAISandbox.executeInSandbox(fixedCode, "autonomous_patch.ts");
-      
-      if (sandboxResult.success) {
-        return {
-          success: true,
-          generatedPatch: fixedCode,
-          sandboxOutput: sandboxResult.output || "",
-          attempts
-        };
-      }
+    let sandboxResult = await RyanAISandbox.executeInSandbox(extractedCode, "autonomous_patch.js");
+    if (sandboxResult.success) {
+      return {
+        success: true,
+        generatedPatch: extractedCode,
+        sandboxOutput: sandboxResult.output || "",
+        attempts: 1,
+      };
     }
 
+    console.warn("[Auto-Debugger] Initial isolated verification failed. Requesting a bounded repair...");
+    const repaired = await RyanAIAutoDebugger.debugAndRepair(extractedCode, sandboxResult, 2);
+    if (!repaired.success) {
+      return {
+        success: false,
+        generatedPatch: repaired.finalCode,
+        sandboxOutput: "Patch was not promoted. Isolated verification did not pass.",
+        attempts: repaired.attempts + 1,
+      };
+    }
     return {
-      success: sandboxResult.success,
-      generatedPatch: extractedCode,
-      sandboxOutput: sandboxResult.output || sandboxResult.error || "Execution failed",
-      attempts
+      success: true,
+      generatedPatch: repaired.finalCode,
+      sandboxOutput: "Repaired candidate passed isolated verification.",
+      attempts: repaired.attempts + 1,
     };
   }
 
   private static extractCodeBlock(response: string): string {
-    const match = response.match(/```(?:typescript|ts)?([\s\S]*?)```/);
+    const match = response.match(/```(?:javascript|js|typescript|ts)?([\s\S]*?)```/i);
     return match ? match[1].trim() : response.trim();
   }
 }

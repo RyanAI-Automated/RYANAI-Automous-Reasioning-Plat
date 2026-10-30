@@ -23,12 +23,12 @@ export class TelemetryDaemon {
 
         // Example trigger condition: High memory pressure or error spike
         if (diagnostics?.memoryPressure || diagnostics?.hasUnresolvedErrors) {
-          console.warn("[Telemetry Daemon] Anomaly detected! Triggering autonomous self-healing agent loop...");
+          console.warn("[Telemetry Daemon] Anomaly detected. Triggering a diagnostic-only agent review...");
 
           await ryanAgentApp.invoke({
             messages: [
               new HumanMessage(
-                `System telemetry reported an anomaly: ${JSON.stringify(diagnostics)}. Diagnose and apply necessary patches using available tools.`
+                `System telemetry reported an anomaly: ${JSON.stringify(diagnostics)}. Diagnose the issue and return recommended remediation only. Do not edit files, apply patches, restart services, or deploy.`
               ),
             ],
           });

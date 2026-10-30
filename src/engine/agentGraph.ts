@@ -4,7 +4,6 @@ import { HumanMessage, BaseMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
 import { tool, DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { SelfPatchSkill } from "./selfPatchSkill.js";
 import { systemDiagnosticsTool } from "../tools/systemTools.js";
 import { queryStackOverflow } from "../tools/stackoverflow.js";
 
@@ -19,22 +18,6 @@ const GraphState = Annotation.Root({
 type State = typeof GraphState.State;
 
 // Define Tools
-const selfPatchTool = tool(
-  async ({ filePath, patchContent, testScript }) => {
-    const result = await SelfPatchSkill.applyAndVerifyPatch({ filePath, patchContent, testScript });
-    return JSON.stringify(result);
-  },
-  {
-    name: "self_patch_workspace",
-    description: "Securely applies and sandbox-verifies code patches for RyanAI platform self-evolution.",
-    schema: z.object({
-      filePath: z.string().describe("Target file path to update."),
-      patchContent: z.string().describe("New file content or patch string."),
-      testScript: z.string().optional().describe("Optional verification script to run in sandbox."),
-    }),
-  }
-);
-
 const diagnosticsToolWrapper = tool(
   async ({ queryType }) => {
     const result = await systemDiagnosticsTool.invoke({ queryType });
@@ -62,7 +45,7 @@ export const stackOverflowTool = new DynamicStructuredTool({
   },
 });
 
-const tools = [selfPatchTool, diagnosticsToolWrapper, stackOverflowTool];
+const tools = [diagnosticsToolWrapper, stackOverflowTool];
 const toolNode = new ToolNode(tools);
 
 // Initialize Model
@@ -105,13 +88,14 @@ export const ryanAgentApp = workflow.compile();
  * Autonomous Self-Update Trigger for background processes or API routes.
  */
 export async function triggerSelfCheckAndPatch(objective: string) {
-  console.log(`[RyanAI Engine] Initiating autonomous objective: "${objective}"`);
+  console.log(`[RyanAI Engine] Initiating diagnostic objective: "${objective}"`);
 
+  const diagnosticObjective = `Diagnose and report only. Do not edit files, apply patches, deploy, or perform external actions. Recommend any required changes for an administrator to review.\\n\\nObjective: ${objective}`;
   const finalState = await ryanAgentApp.invoke({
-    messages: [new HumanMessage(objective)],
+    messages: [new HumanMessage(diagnosticObjective)],
   });
 
   const lastMessage = finalState.messages[finalState.messages.length - 1];
-  console.log("[RyanAI Engine] Objective completed:", lastMessage.content);
+  console.log("[RyanAI Engine] Diagnostic report completed:", lastMessage.content);
   return lastMessage.content;
 }
