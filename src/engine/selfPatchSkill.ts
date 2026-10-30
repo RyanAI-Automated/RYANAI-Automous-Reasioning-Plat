@@ -24,7 +24,7 @@ class GitHubApiError extends Error {
 }
 
 const MAX_PATCH_BYTES = 200_000;
-const SECRET_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+\/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
+const SECRET_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
 const ALLOWED_PREFIXES = ['src/', 'mcp-server/', 'scripts/'];
 
 function validatePatch(request: PatchRequest): string | null {
