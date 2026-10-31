@@ -114,6 +114,9 @@ describe('attachment upload progress and cancellation', () => {
     const result = await uploadConversationAttachments(client, 'user-1', 'conversation-1', 'message-1', [file], { onProgress });
 
     expect(createSignedUploadUrl).toHaveBeenCalledOnce();
+    expect(MockXMLHttpRequest.instances[0].send).toHaveBeenCalledWith(file);
+    expect(MockXMLHttpRequest.instances[0].setRequestHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+    expect(MockXMLHttpRequest.instances[0].setRequestHeader).toHaveBeenCalledWith('Cache-Control', '3600');
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ name: 'report.pdf', mimeType: 'application/pdf', size: file.size });
     expect(onProgress).toHaveBeenLastCalledWith(expect.objectContaining({ loaded: file.size, total: file.size }));
