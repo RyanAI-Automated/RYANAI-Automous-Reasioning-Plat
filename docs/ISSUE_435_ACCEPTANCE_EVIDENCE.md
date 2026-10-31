@@ -1,49 +1,63 @@
 # Issue #435 — attachment security acceptance evidence
 
-## Migration sequence
+## Implemented repository changes
 
-Apply migrations in this order in a disposable/local Supabase project first:
+The following code is merged on `main`:
 
-1. `20261030120000_private_conversation_attachments.sql` — private bucket and owner/conversation Storage CRUD policies.
-2. `20261030130000_attachment_quota_enforcement.sql` — path validation, upload limits and rate accounting.
-3. `20261030140000_attachment_malware_scan_quarantine.sql` — scan queue and clean-only authenticated reads.
-4. `20261031100000_attachment_quarantine_retention.sql` — infected-object retention audit state.
-5. `20261031110000_attachment_orphan_cleanup.sql` — conservative orphan cleanup (currently proposed in PR #493; do not apply until merged and reviewed).
+- PRs #441 and #444: private bucket, owner/conversation-scoped Storage policies, allowlist/signature validation, metadata persistence, multi-file composer, signed links, and conversation deletion cleanup.
+- PR #475: TAR export with Markdown transcript, versioned manifest, and original attachment bytes.
+- PR #476: validated TAR import into a new conversation, regenerated IDs, revalidation, and partial rollback.
+- PRs #477/#478: XHR byte progress, cancellation, failed-batch cleanup, retained-file retry, and regression assertion correction.
+- PR #479: quota/storage rollout documentation and static migration regression tests.
+- PR #491: scanner resource-use hardening.
+- PR #492: quarantine retention controls.
+- PR #493: opt-in conservative orphan cleanup worker.
+- PR #494: attachment security regression gates and this acceptance record.
+- PR #495: message-path guard requiring the message to exist in the path's conversation.
+- PR #496: persist provisional message before Storage upload and roll back on failure.
+- PR #497/#498: scanner Supabase client typing and zero-warning lint correction.
 
-The application must not enable scanner or cleanup workers merely because migrations exist. Keep both workers opt-in.
+## Migration order
 
-## Rollback and recovery
+Apply only in a disposable/local Supabase project first:
 
-- Take a database backup and an object-storage inventory/backup before staging or production changes.
-- Test rollback only in a disposable project. Dropping the bucket or scan/quota tables is not a safe production rollback because it can orphan or destroy user data.
-- For a failed rollout, first disable the corresponding opt-in worker and block new attachment uploads at the application/configuration layer. Preserve object bytes and scan/audit rows.
-- Restore the database snapshot and matching object-storage backup together if schema/data restoration is required. Verify object counts and representative hashes before reopening uploads.
-- Do not manually delete rows from `storage.objects`; object deletion must use the Supabase Storage API.
-- A migration rollback plan must be rehearsed against the exact deployed migration set; this repository change does not execute or prove that rehearsal.
+1. `20261030120000_private_conversation_attachments.sql`
+2. `20261030130000_attachment_quota_enforcement.sql`
+3. `20261030140000_attachment_malware_scan_quarantine.sql`
+4. `20261031100000_attachment_quarantine_retention.sql`
+5. `20261031110000_attachment_orphan_cleanup.sql`
+6. `20261031120000_attachment_message_path_guard.sql`
 
-## Issue #435 acceptance matrix
+Do not enable the scanner or orphan-cleanup worker until its schema is applied and its service dependencies are configured. The message must be persisted before object upload; the path guard rejects uploads whose message does not exist in the named conversation.
 
-| Acceptance area | Repository evidence | Status / remaining proof |
+## Acceptance matrix
+
+| Acceptance area | Repository evidence | Remaining evidence |
 | --- | --- | --- |
-| Multiple uploads | `uploadConversationAttachments`, batch validation, multi-file composer | Implemented; browser/device E2E still required |
-| Progress and cancellation | XHR progress, AbortSignal, cleanup on failed batch; unit tests | Unit-tested; browser/device E2E still required |
-| Retry / partial failure | Selected files retained after send failure; failed batch cleanup | Partial behavior implemented; explicit per-file partial-failure E2E still required |
-| Private storage and owner checks | Private bucket and owner/conversation CRUD policies | SQL policy regression checks added; two-authenticated-account direct API proof still required |
-| No cross-account read/download | Clean-only SELECT policy and owner scan gate | Static regression checks added; live Storage API denial tests still required |
-| No cross-account overwrite/delete | Owner-scoped UPDATE/DELETE policies | Static regression checks added; live Storage API denial tests still required |
-| Safe preview and original download | Short-lived signed URLs; clean scan gate | Helper/unit coverage exists; browser/device E2E still required |
-| Persistence and archive round-trip | Attachment metadata, TAR export/import implementation | Automated end-to-end integrity proof still required |
-| Limits/provider setup | Quota migration and `docs/SECURE_ATTACHMENT_STORAGE.md` | Documented; verify Storage metadata size in staging |
-| Migration, backup and retention review | Ordered migrations and this recovery runbook | Review documented; staging apply/rollback and backup restore not yet evidenced |
+| Multi-file upload | Composer, batch validation and storage helper | Android and desktop browser E2E |
+| Progress, cancel, retry | XHR progress, AbortSignal, retained files, cleanup tests | Device/browser E2E and partial-failure scenario |
+| Private storage and owner checks | Private bucket and owner/conversation Storage policies | Live two-account direct Storage API tests |
+| Cross-account read/download | Clean-only SELECT policy and scan gate | Prove B cannot list/read/sign A's objects |
+| Cross-account overwrite/delete | Owner-scoped Storage policies | Prove B cannot upsert/update/remove A's objects |
+| Message/conversation binding | Message path trigger and persistence-before-upload flow | Apply in disposable Supabase; valid and invalid path tests |
+| Malware quarantine | Scan queue, worker, clean-only read policy | Live ClamAV clean/infected/pending/failed lifecycle |
+| Quarantine retention | Opt-in retention worker and audit columns | Staging retention run and byte/audit verification |
+| Orphan cleanup | Opt-in conservative worker and claim RPC | Staging run, retry/idempotency and object/audit verification |
+| Quotas | Per-file/message/account/hour database trigger | Verify Storage metadata size and concurrent quota behavior |
+| Preview/download | Short-lived signed read URL and scan gate | Android/desktop browser E2E |
+| Export/import integrity | TAR manifest, validation and regenerated paths | Full round-trip byte/hash test in integration environment |
+| Backup and rollback | Documented migration order and recovery procedure | Actual backup, restore and rollback rehearsal |
 
-## Mandatory staging gate
+## Mandatory two-account staging protocol
 
-Before production approval, use two separate Supabase Auth users (A and B) and distinct conversations/messages. Upload a clean object as A at:
+Create two independent Supabase Auth users A and B and distinct conversations/messages. Upload a clean fixture as A using a path shaped as:
 
 `<A-user-uuid>/<A-conversation-uuid>/<A-message-uuid>/<random>-fixture.pdf`
 
-Using B's authenticated client and direct Storage API calls, assert that listing the bucket/prefix, downloading, creating a signed read URL, uploading with upsert to A's path, updating, and removing A's object are all denied. Repeat with A as the owner to prove legitimate access still works. Verify pending/infected/failed objects are not readable and clean objects are readable only by their owner. Record HTTP status/error and object state for each assertion.
+With B's authenticated client, attempt bucket/prefix listing, download, signed read URL creation, upload with upsert to A's path, update, and remove. Every operation must be denied. Repeat legitimate operations as A and verify they work only after the scan is clean. Confirm pending/scanning/infected/failed objects remain unreadable. Verify the path's third UUID references a message belonging to the second UUID conversation.
 
-Also verify the third path segment references the intended message in the intended conversation. The current quota trigger validates that the segment is a UUID and validates the owner/conversation relationship, but it does not yet query `public.messages` to prove that message belongs to that conversation. Treat that as an outstanding security hardening item until the upload lifecycle is confirmed and a compatible server-side check is added.
+Record each request, HTTP status/error, scan state, object state, and file hash. Run upload/cancel/retry/partial failure, preview/download, delete, export/import, and responsive layout flows at Android-sized and desktop viewports.
 
-Run the Android-sized viewport and desktop browser flows for multi-file upload, progress, cancel, retry, partial failure, previews, original downloads, export and import. No production rollout until these results and a backup/restore rehearsal are attached to the release record.
+## Rollout decision
+
+**Not approved for production yet.** This repository record does not claim that Supabase migrations have been applied, that two-account API tests have run, or that staging E2E and backup/restore rehearsal have passed. No production migration, secret change, worker enablement, or deployment is performed by this change.
