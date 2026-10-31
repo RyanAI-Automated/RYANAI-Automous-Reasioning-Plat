@@ -343,16 +343,44 @@ jobs:
           END $$;
           DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261031150000';
           SQL
-          supabase migration list --local | tee /tmp/pre-include-all-list.txt
-          grep -F '99999999999999' /tmp/pre-include-all-list.txt
-          if grep -F '20261031150000' /tmp/pre-include-all-list.txt; then
-            echo 'Corrective migration unexpectedly remains recorded before simulation.' >&2
-            exit 1
-          fi
+          # Assert the actual remote migration ledger, not the CLI's Local
+          # column (which still lists every file present on disk).
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '99999999999999'
+            ) THEN
+              RAISE EXCEPTION 'legacy far-future migration is not recorded';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '20261031150000'
+            ) THEN
+              RAISE EXCEPTION 'corrective migration unexpectedly remains recorded before simulation';
+            END IF;
+          END $;
+          SQL
           supabase migration up --local --include-all
-          supabase migration list --local | tee /tmp/post-include-all-list.txt
-          grep -F '20261031150000' /tmp/post-include-all-list.txt
-          grep -F '99999999999999' /tmp/post-include-all-list.txt
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '20261031150000'
+            ) THEN
+              RAISE EXCEPTION 'corrective migration was not recorded after include-all';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '99999999999999'
+            ) THEN
+              RAISE EXCEPTION 'legacy far-future migration ledger entry was lost';
+            END IF;
+          END $;
+          SQL
+          supabase migration list --local
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
