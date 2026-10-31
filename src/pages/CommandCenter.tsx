@@ -351,23 +351,40 @@ export default function CommandCenter({
       if (!mountedRef.current) return;
       const userMsg = createMessage('user', prompt);
       let attachments: MessageAttachment[] = [];
+      let persistedMessage = false;
       try {
-        if (files.length) {
-          if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
-          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files, uploadOptions);
-        }
         if (supabase) {
+          // Persist the exact client-generated UUID before uploading: Storage paths
+          // are guarded by a database trigger that requires this message to exist.
           const { error } = await supabase.from('messages').insert({
+            id: userMsg.id,
             conversation_id: convId,
             role: 'user',
             content: prompt,
-            metadata: attachments.length ? { attachments } : null,
+            metadata: null,
           });
           if (error) throw new Error(error.message || 'Unable to save your message.');
+          persistedMessage = true;
+        }
+        if (files.length) {
+          if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
+          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files, uploadOptions);
+          const { error } = await supabase.from('messages')
+            .update({ metadata: { attachments } })
+            .eq('id', userMsg.id)
+            .eq('conversation_id', convId);
+          if (error) throw new Error(error.message || 'Unable to attach uploaded files to your message.');
         }
       } catch (error) {
         if (supabase && attachments.length) {
           try { await removeConversationAttachments(supabase, attachments); } catch { /* cleanup can be retried by storage retention tooling */ }
+        }
+        if (supabase && persistedMessage) {
+          const { error: rollbackError } = await supabase.from('messages')
+            .delete()
+            .eq('id', userMsg.id)
+            .eq('conversation_id', convId);
+          if (rollbackError) console.error('Unable to roll back failed attachment message:', rollbackError.message);
         }
         throw error;
       }
