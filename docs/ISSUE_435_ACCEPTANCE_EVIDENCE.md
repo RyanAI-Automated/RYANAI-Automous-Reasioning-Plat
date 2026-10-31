@@ -27,8 +27,11 @@ Apply only in a disposable/local Supabase project first:
 4. `20261031100000_attachment_quarantine_retention.sql`
 5. `20261031110000_attachment_orphan_cleanup.sql`
 6. `20261031120000_attachment_message_path_guard.sql`
+7. `20261031130000_attachment_update_guard.sql`
 
 Do not enable the scanner or orphan-cleanup worker until its schema is applied and its service dependencies are configured. The message must be persisted before object upload; the path guard rejects uploads whose message does not exist in the named conversation.
+
+PR #502 adds UPDATE/UPSERT path and quota enforcement and requeues malware scanning whenever object bytes are replaced. Cross-account upsert/update denial remains a required live test.
 
 ## Acceptance matrix
 
