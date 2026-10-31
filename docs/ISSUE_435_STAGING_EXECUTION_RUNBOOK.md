@@ -20,6 +20,21 @@ This runbook defines a controlled acceptance exercise for a **new, disposable Su
 5. Synthetic clean PDF, EICAR test fixture (not live malware), malformed/oversized files, and hash fixture.
 6. Desktop Chromium and Android browser/device test capability.
 
+## Supabase Free-tier project-quota recovery
+
+Supabase Free currently permits two active projects across all organizations in which the account is an Owner or Administrator. Paused projects do not count toward that allowance. The limit is not safely diagnosed by looking only at the project list for this one organization: another organization or another Owner/Admin membership may be consuming the account-level allowance. See the [Supabase billing FAQ](https://supabase.com/docs/guides/platform/billing-faq) and [organization-based billing guide](https://supabase.com/docs/guides/platform/billing-on-supabase).
+
+When project creation or restoration is rejected for the active-project limit:
+
+1. Do not delete, pause, transfer, or change roles on any project as an automatic workaround. First inventory all organizations in which the account is an Owner/Admin and all projects in those organizations.
+2. In each organization, distinguish genuinely active projects from paused projects. Confirm status in the Supabase Dashboard; do not infer that a project is disposable from its name, age, region, or an API connection timeout.
+3. Inspect the organization Team settings for Owner/Admin memberships. Supabase documents that another Owner/Admin member who has exhausted their allowance can block project creation. Do not demote, remove, or change a member's role without the organization owner's explicit approval and a least-privilege review.
+4. If the account's two active slots are already occupied, prefer a verified existing paused project or a separately authorized Free organization over deleting an unknown project. A new organization does not make an existing project disposable; project transfers and role changes must be reviewed separately.
+5. If the Dashboard and management API disagree, or the account-wide quota remains inexplicably blocked, stop and contact Supabase Support with the organization ID, affected project refs, error text, and timestamps. Do not send passwords, access tokens, service-role keys, or database contents.
+6. Record the exact quota error and the read-only checks in Issue #435. Keep production project `narsvpwymvlrhurqbthu` untouched. Do not run migrations until a dedicated staging project is active, its project ref is independently verified, and its database/storage contents are known.
+
+**Current investigation note (2026-10-31):** the production project is `ACTIVE_HEALTHY`; projects `xgxvvgbirrxwmelimqla` (`RYAN`) and `mvcmxqhbgvfgmxmfhqww` (`rmnganyane-dev's Project`) report `INACTIVE`. Read-only table, migration, and extension inspection for both inactive projects failed with database-access errors/timeouts. Neither is confirmed empty or disposable. Restore of `RYAN` and creation of a new staging project were rejected with the Free-tier active-project limit. No project was deleted, no role changed, and no hosted migration was run. The available organization listing showed one organization only; it does not prove there are no other Owner/Admin memberships consuming the account-wide quota.
+
 ## Preflight — read-only
 
 - Confirm staging project reference in Supabase Dashboard.
