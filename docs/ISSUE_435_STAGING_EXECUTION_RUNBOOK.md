@@ -51,6 +51,7 @@ Apply one migration at a time to the disposable staging database, checking the r
 4. `20261031100000_attachment_quarantine_retention.sql`
 5. `20261031110000_attachment_orphan_cleanup.sql`
 6. `20261031120000_attachment_message_path_guard.sql`
+7. `20261031130000_attachment_update_guard.sql`
 
 Do not run a blanket migration command while the CLI may be linked to an unknown project. Prefer the Supabase dashboard SQL editor after independently verifying the staging project reference, or explicitly link the CLI to the newly created disposable project and verify the linked reference immediately before applying. Never apply these migrations to production as part of this acceptance run.
 
