@@ -9,6 +9,7 @@ const expectedAttachmentMigrations = [
   '20261031100000_attachment_quarantine_retention.sql',
   '20261031110000_attachment_orphan_cleanup.sql',
   '20261031120000_attachment_message_path_guard.sql',
+  '20261031130000_attachment_update_guard.sql',
 ];
 
 describe('Issue #435 Supabase migration preflight', () => {
