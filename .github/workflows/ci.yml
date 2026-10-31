@@ -329,9 +329,7 @@ jobs:
         run: |
           set -euo pipefail
           eval "$(supabase status -o env)"
-          # Fixture changes affect only this ephemeral CI database. Revoke the
-          # allowlisted client grants and remove the corrective migration's
-          # ledger row while retaining the recorded 99999999999999 row.
+          # This fixture changes only the disposable CI database.
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           DECLARE r record;
@@ -342,11 +340,7 @@ jobs:
             END LOOP;
           END $$;
           DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261031150000';
-          SQL
-          # Assert the actual remote migration ledger, not the CLI's Local
-          # column (which still lists every file present on disk).
-          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF NOT EXISTS (
               SELECT 1 FROM supabase_migrations.schema_migrations
@@ -360,11 +354,13 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'corrective migration unexpectedly remains recorded before simulation';
             END IF;
-          END $;
+          END $$;
           SQL
+          # The CLI Local column is a file inventory, not a ledger assertion.
+          # Apply the missing timestamp despite the recorded far-future entry.
           supabase migration up --local --include-all
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF NOT EXISTS (
               SELECT 1 FROM supabase_migrations.schema_migrations
@@ -378,7 +374,7 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'legacy far-future migration ledger entry was lost';
             END IF;
-          END $;
+          END $$;
           SQL
           supabase migration list --local
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
