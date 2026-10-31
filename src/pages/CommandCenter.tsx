@@ -350,6 +350,8 @@ export default function CommandCenter({
 
       if (!mountedRef.current) return;
       const userMsg = createMessage('user', prompt);
+      // Cloud message IDs are also the third UUID segment in private Storage paths.
+      if (supabase) userMsg.id = crypto.randomUUID();
       let attachments: MessageAttachment[] = [];
       let persistedMessage = false;
       try {
