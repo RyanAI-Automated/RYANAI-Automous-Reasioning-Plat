@@ -4,6 +4,56 @@ import net from 'node:net';
 type ScanJob = { bucket_id: string; object_name: string; attempt: number };
 type ScanResult = 'clean' | 'infected';
 
+type ScannerDatabase = {
+  public: {
+    Tables: {
+      ryanai_attachment_scans: {
+        Row: {
+          bucket_id: string;
+          object_name: string;
+          status: 'pending' | 'scanning' | 'clean' | 'infected' | 'failed';
+          purged_at: string | null;
+          scanned_at: string | null;
+        };
+        Insert: {
+          bucket_id: string;
+          object_name: string;
+          status?: 'pending' | 'scanning' | 'clean' | 'infected' | 'failed';
+          purged_at?: string | null;
+          scanned_at?: string | null;
+        };
+        Update: {
+          bucket_id?: string;
+          object_name?: string;
+          status?: 'pending' | 'scanning' | 'clean' | 'infected' | 'failed';
+          purged_at?: string | null;
+          scanned_at?: string | null;
+        };
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      claim_ryanai_attachment_scan: {
+        Args: Record<string, never>;
+        Returns: ScanJob[];
+      };
+      finish_ryanai_attachment_scan: {
+        Args: {
+          p_bucket_id: string;
+          p_object_name: string;
+          p_status: ScanResult | 'failed';
+          p_error: string | null;
+        };
+        Returns: undefined;
+      };
+    };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+
+
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const MAX_CLAMAV_RESPONSE_BYTES = 4096;
 
@@ -91,7 +141,7 @@ export function quarantinePurgeCutoff(now: Date, retentionDays: number): string 
  * scan row as an audit record. Never deletes storage.objects rows directly.
  */
 export async function purgeExpiredQuarantinedAttachments(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: SupabaseClient<ScannerDatabase>,
   now = new Date(),
 ): Promise<number> {
   const retentionDays = boundedInteger(
@@ -155,7 +205,7 @@ export async function purgeExpiredQuarantinedAttachments(
 }
 
 export function startAttachmentScanner(): () => void {
-  const supabase = createClient<any>(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
+  const supabase = createClient<ScannerDatabase>(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   let stopped = false;
