@@ -329,9 +329,7 @@ jobs:
         run: |
           set -euo pipefail
           eval "$(supabase status -o env)"
-          # Fixture changes affect only this ephemeral CI database. Revoke the
-          # allowlisted client grants and remove the corrective migration's
-          # ledger row while retaining the recorded 99999999999999 row.
+          # This fixture changes only the disposable CI database.
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           DECLARE r record;
@@ -342,17 +340,44 @@ jobs:
             END LOOP;
           END $$;
           DELETE FROM supabase_migrations.schema_migrations WHERE version = '20261031150000';
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '99999999999999'
+            ) THEN
+              RAISE EXCEPTION 'legacy far-future migration is not recorded';
+            END IF;
+            IF EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '20261031150000'
+            ) THEN
+              RAISE EXCEPTION 'corrective migration unexpectedly remains recorded before simulation';
+            END IF;
+          END $$;
           SQL
-          supabase migration list --local | tee /tmp/pre-include-all-list.txt
-          grep -F '99999999999999' /tmp/pre-include-all-list.txt
-          if grep -F '20261031150000' /tmp/pre-include-all-list.txt; then
-            echo 'Corrective migration unexpectedly remains recorded before simulation.' >&2
-            exit 1
-          fi
+          # The CLI Local column is a file inventory, not a migration-ledger
+          # assertion. Apply the missing timestamp explicitly despite the
+          # already-recorded far-future legacy migration.
           supabase migration up --local --include-all
-          supabase migration list --local | tee /tmp/post-include-all-list.txt
-          grep -F '20261031150000' /tmp/post-include-all-list.txt
-          grep -F '99999999999999' /tmp/post-include-all-list.txt
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '20261031150000'
+            ) THEN
+              RAISE EXCEPTION 'corrective migration was not recorded after include-all';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM supabase_migrations.schema_migrations
+              WHERE version = '99999999999999'
+            ) THEN
+              RAISE EXCEPTION 'legacy far-future migration ledger entry was lost';
+            END IF;
+          END $$;
+          SQL
+          supabase migration list --local
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
