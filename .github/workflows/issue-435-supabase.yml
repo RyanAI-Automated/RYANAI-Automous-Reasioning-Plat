@@ -97,7 +97,7 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'RyanAI attachment bucket is missing or public';
             END IF;
-            IF NOT has_table_privilege('anon', 'public.profiles', 'SELECT') = false THEN
+            IF has_table_privilege('anon', 'public.profiles', 'SELECT') THEN
               RAISE EXCEPTION 'anon unexpectedly has SELECT on profiles';
             END IF;
             IF NOT has_table_privilege('authenticated', 'public.profiles', 'SELECT') THEN
