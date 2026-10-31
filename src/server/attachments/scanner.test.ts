@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { scanWithClamAv } from './scanner';
+import { quarantinePurgeCutoff, scanWithClamAv } from './scanner';
 
 const originalHost = process.env.CLAMAV_HOST;
 const originalPort = process.env.CLAMAV_PORT;
@@ -78,5 +78,22 @@ describe('ClamAV INSTREAM protocol', () => {
     await expect(scanWithClamAv(new Uint8Array())).rejects.toThrow(
       'Attachment size is outside the scanner limit.',
     );
+  });
+});
+
+describe('quarantine retention policy', () => {
+  it('calculates the exact retention cutoff', () => {
+    expect(quarantinePurgeCutoff(new Date('2026-10-31T12:00:00.000Z'), 30))
+      .toBe('2026-10-01T12:00:00.000Z');
+  });
+
+  it('rejects unsafe retention windows', () => {
+    expect(() => quarantinePurgeCutoff(new Date('2026-10-31T12:00:00.000Z'), 0)).toThrow(
+      'ATTACHMENT_QUARANTINE_RETENTION_DAYS must be an integer between 1 and 3650.',
+    );
+    expect(() => quarantinePurgeCutoff(new Date('2026-10-31T12:00:00.000Z'), 3651)).toThrow(
+      'ATTACHMENT_QUARANTINE_RETENTION_DAYS must be an integer between 1 and 3650.',
+    );
+    expect(() => quarantinePurgeCutoff(new Date('invalid'), 30)).toThrow('A valid current date is required.');
   });
 });
