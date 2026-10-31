@@ -74,18 +74,108 @@ export async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
   });
 }
 
+
+const QUARANTINE_PURGE_BATCH_SIZE = 25;
+const DEFAULT_QUARANTINE_RETENTION_DAYS = 30;
+
+export function quarantinePurgeCutoff(now: Date, retentionDays: number): string {
+  if (!Number.isSafeInteger(retentionDays) || retentionDays < 1 || retentionDays > 3650) {
+    throw new Error('ATTACHMENT_QUARANTINE_RETENTION_DAYS must be an integer between 1 and 3650.');
+  }
+  if (!Number.isFinite(now.getTime())) throw new Error('A valid current date is required.');
+  return new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * Permanently removes old infected objects via the Storage API, retaining the
+ * scan row as an audit record. Never deletes storage.objects rows directly.
+ */
+export async function purgeExpiredQuarantinedAttachments(
+  supabase: ReturnType<typeof createClient>,
+  now = new Date(),
+): Promise<number> {
+  const retentionDays = boundedInteger(
+    'ATTACHMENT_QUARANTINE_RETENTION_DAYS',
+    DEFAULT_QUARANTINE_RETENTION_DAYS,
+    1,
+    3650,
+  );
+  const cutoff = quarantinePurgeCutoff(now, retentionDays);
+  const { data: candidates, error: queryError } = await supabase
+    .from('ryanai_attachment_scans')
+    .select('bucket_id, object_name')
+    .eq('status', 'infected')
+    .is('purged_at', null)
+    .lt('scanned_at', cutoff)
+    .order('scanned_at', { ascending: true })
+    .limit(QUARANTINE_PURGE_BATCH_SIZE);
+  if (queryError) throw queryError;
+  if (!candidates?.length) return 0;
+
+  let purged = 0;
+  const buckets = new Map<string, string[]>();
+  for (const candidate of candidates) {
+    const paths = buckets.get(candidate.bucket_id) ?? [];
+    paths.push(candidate.object_name);
+    buckets.set(candidate.bucket_id, paths);
+  }
+
+  for (const [bucketId, paths] of buckets) {
+    const { error: removeError } = await supabase.storage.from(bucketId).remove(paths);
+    if (removeError) {
+      console.error('[attachment-scanner] quarantined object purge failed', {
+        bucketId,
+        count: paths.length,
+        message: removeError.message,
+      });
+      continue;
+    }
+
+    const { error: auditError } = await supabase
+      .from('ryanai_attachment_scans')
+      .update({ purged_at: now.toISOString() })
+      .eq('bucket_id', bucketId)
+      .in('object_name', paths)
+      .eq('status', 'infected')
+      .is('purged_at', null);
+    if (auditError) {
+      // Object deletion succeeded; the remaining null marker causes a safe,
+      // idempotent retry. Do not log object paths or signed URLs.
+      console.error('[attachment-scanner] unable to persist quarantine purge audit', {
+        bucketId,
+        count: paths.length,
+        message: auditError.message,
+      });
+      continue;
+    }
+    purged += paths.length;
+  }
+  return purged;
+}
+
 export function startAttachmentScanner(): () => void {
   const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   let stopped = false;
   let active = false;
+  let lastPurgeAt = 0;
+  const purgeIntervalMs = boundedInteger('ATTACHMENT_QUARANTINE_PURGE_INTERVAL_MS', 60 * 60 * 1000, 60000, 24 * 60 * 60 * 1000);
   const intervalMs = boundedInteger('ATTACHMENT_SCAN_INTERVAL_MS', 5000, 1000, 300000);
 
   const processOne = async () => {
     if (stopped || active) return;
     active = true;
     try {
+      if (Date.now() - lastPurgeAt >= purgeIntervalMs) {
+        lastPurgeAt = Date.now();
+        try {
+          const purged = await purgeExpiredQuarantinedAttachments(supabase);
+          if (purged > 0) console.info('[attachment-scanner] expired quarantined objects purged', { count: purged });
+        } catch (error) {
+          console.error('[attachment-scanner] quarantine purge cycle failed', error instanceof Error ? error.message : error);
+        }
+      }
       const { data, error } = await supabase.rpc('claim_ryanai_attachment_scan');
       if (error) throw error;
       const job = (data as ScanJob[] | null)?.[0];
