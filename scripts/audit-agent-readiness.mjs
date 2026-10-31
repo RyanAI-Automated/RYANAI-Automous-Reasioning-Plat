@@ -93,7 +93,8 @@ export function auditAgentReadiness({ env = process.env, sourceRoot = root } = {
     brains,
     agents,
     summary: {
-      configuredBrainRoles: brains.length,
+      brainRolesAudited: brains.length,
+      configuredBrainRoles: brains.filter((brain) => brain.endpointPresent && brain.credentialPresent).length,
       credentialConfiguredBrains: brains.filter((brain) => brain.credentialPresent).length,
       codeDefinedAgents: agents.filter((agent) => agent.implemented).length,
       liveAgentsVerified: agents.filter((agent) => agent.executionVerified).length,
