@@ -53,14 +53,14 @@ export async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
       }
       response.push(chunk);
       const text = Buffer.concat(response, responseBytes).toString('utf8');
-      const complete = text.endsWith('\\0') || text.endsWith('\\n');
+      const complete = text.endsWith('\0') || text.endsWith('\n');
       if (!complete) return;
-      if (/\\bFOUND(?:\\0|\\n)$/.test(text)) finish(undefined, 'infected');
-      else if (/\\bOK(?:\\0|\\n)$/.test(text)) finish(undefined, 'clean');
+      if (/\bFOUND(?:\0|\n)$/.test(text)) finish(undefined, 'infected');
+      else if (/\bOK(?:\0|\n)$/.test(text)) finish(undefined, 'clean');
       else finish(new Error('ClamAV returned an unrecognized response.'));
     });
     socket.on('connect', () => {
-      socket.write(Buffer.from('zINSTREAM\\0'));
+      socket.write(Buffer.from('zINSTREAM\0'));
       const chunkSize = 64 * 1024;
       for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
         const chunk = Buffer.from(bytes.slice(offset, Math.min(offset + chunkSize, bytes.byteLength)));
