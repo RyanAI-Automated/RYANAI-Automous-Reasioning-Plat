@@ -4,21 +4,37 @@ import net from 'node:net';
 type ScanJob = { bucket_id: string; object_name: string; attempt: number };
 type ScanResult = 'clean' | 'infected';
 
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const MAX_CLAMAV_RESPONSE_BYTES = 4096;
+
 function required(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(name + ' is required when attachment scanning is enabled.');
   return value;
 }
 
+function boundedInteger(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(name + ` must be an integer between ${min} and ${max}.`);
+  }
+  return value;
+}
+
 export async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
   const host = required('CLAMAV_HOST');
-  const port = Number(process.env.CLAMAV_PORT || 3310);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('CLAMAV_PORT is invalid.');
-  const timeoutMs = Math.max(1000, Number(process.env.CLAMAV_TIMEOUT_MS || 60000));
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+    throw new Error('Attachment size is outside the scanner limit.');
+  }
+  const port = boundedInteger('CLAMAV_PORT', 3310, 1, 65535);
+  const timeoutMs = boundedInteger('CLAMAV_TIMEOUT_MS', 60000, 1000, 300000);
 
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({ host, port });
     const response: Buffer[] = [];
+    let responseBytes = 0;
     let settled = false;
     const finish = (error?: Error, result?: ScanResult) => {
       if (settled) return;
@@ -30,11 +46,18 @@ export async function scanWithClamAv(bytes: Uint8Array): Promise<ScanResult> {
     socket.setTimeout(timeoutMs, () => finish(new Error('ClamAV scan timed out.')));
     socket.on('error', (error) => finish(error));
     socket.on('data', (chunk: Buffer) => {
+      responseBytes += chunk.length;
+      if (responseBytes > MAX_CLAMAV_RESPONSE_BYTES) {
+        finish(new Error('ClamAV response exceeded the allowed size.'));
+        return;
+      }
       response.push(chunk);
-      const text = Buffer.concat(response).toString('utf8');
-      if (text.endsWith('OK\0') || text.endsWith('OK\n')) finish(undefined, 'clean');
-      else if (text.includes('FOUND')) finish(undefined, 'infected');
-      else if (text.includes('ERROR')) finish(new Error('ClamAV returned an error.'));
+      const text = Buffer.concat(response, responseBytes).toString('utf8');
+      const complete = text.endsWith('\0') || text.endsWith('\n');
+      if (!complete) return;
+      if (/\bFOUND(?:\0|\n)$/.test(text)) finish(undefined, 'infected');
+      else if (/\bOK(?:\0|\n)$/.test(text)) finish(undefined, 'clean');
+      else finish(new Error('ClamAV returned an unrecognized response.'));
     });
     socket.on('connect', () => {
       socket.write(Buffer.from('zINSTREAM\0'));
@@ -57,7 +80,7 @@ export function startAttachmentScanner(): () => void {
   });
   let stopped = false;
   let active = false;
-  const intervalMs = Math.max(1000, Number(process.env.ATTACHMENT_SCAN_INTERVAL_MS || 5000));
+  const intervalMs = boundedInteger('ATTACHMENT_SCAN_INTERVAL_MS', 5000, 1000, 300000);
 
   const processOne = async () => {
     if (stopped || active) return;
@@ -72,6 +95,9 @@ export function startAttachmentScanner(): () => void {
         const { data: file, error: downloadError } = await supabase.storage
           .from(job.bucket_id).download(job.object_name);
         if (downloadError || !file) throw downloadError || new Error('Storage returned no attachment data.');
+        if (file.size === 0 || file.size > MAX_ATTACHMENT_BYTES) {
+          throw new Error('Attachment size is outside the scanner limit.');
+        }
         const result = await scanWithClamAv(new Uint8Array(await file.arrayBuffer()));
         const { error: finishError } = await supabase.rpc('finish_ryanai_attachment_scan', {
           p_bucket_id: job.bucket_id,
