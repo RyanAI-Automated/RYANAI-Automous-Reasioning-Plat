@@ -50,7 +50,7 @@ The attachment feature has seven schema/policy migrations. PR #504 adds a separa
 
 For a fresh local database, use an isolated local Supabase stack and inspect `supabase migration list --local` before/after reset. A local reset is destructive to that local database; use only a disposable local database with no data to preserve.
 
-After application, verify the bucket is private; expected policies, triggers, tables, indexes and RPC grants exist; authenticated clients cannot execute service-role scanner operations; and existing objects are not implicitly marked clean.
+After application, verify the bucket is private; expected policies, triggers, tables, indexes and RPC grants exist; authenticated clients cannot execute service-role scanner operations; the `postgres` creator role's `public` default table ACL grants no privileges to `PUBLIC`, `anon` or `authenticated`; and existing objects are not implicitly marked clean. This default-ACL check protects future tables created by the migration owner; other schema-owner roles must be reviewed separately if they create Data API tables.
 
 ## Automated isolated validation
 

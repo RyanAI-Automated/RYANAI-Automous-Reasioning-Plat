@@ -1,6 +1,12 @@
 -- Fail-closed Data API grants for the public schema.
 -- RLS policies are necessary but do not replace SQL privileges.
--- New public tables receive no client access until an explicit grant is added.
+-- Future public tables created by the migration owner receive no client access
+-- until an explicit grant is added.
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    GRANT ALL PRIVILEGES ON TABLES TO service_role;
+
 DO $$
 DECLARE
     r RECORD;

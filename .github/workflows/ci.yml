@@ -312,6 +312,17 @@ jobs:
             IF has_table_privilege('authenticated', 'public.ryanai_attachment_scans', 'INSERT') THEN
               RAISE EXCEPTION 'authenticated unexpectedly has INSERT on scan state';
             END IF;
+            IF EXISTS (
+              SELECT 1
+              FROM pg_default_acl d
+              CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+              WHERE d.defaclrole = 'postgres'::regrole
+                AND d.defaclnamespace = 'public'::regnamespace
+                AND d.defaclobjtype = 'r'
+                AND a.grantee IN (0, 'anon'::regrole, 'authenticated'::regrole)
+            ) THEN
+              RAISE EXCEPTION 'public default table ACL grants client access';
+            END IF;
           END $$;
           SQL
       - name: Simulate recorded far-future legacy migration and apply corrective migration
@@ -356,6 +367,17 @@ jobs:
             END IF;
             IF has_table_privilege('authenticated', 'public.ryanai_attachment_scans', 'INSERT') THEN
               RAISE EXCEPTION 'authenticated gained scan INSERT';
+            END IF;
+            IF EXISTS (
+              SELECT 1
+              FROM pg_default_acl d
+              CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+              WHERE d.defaclrole = 'postgres'::regrole
+                AND d.defaclnamespace = 'public'::regnamespace
+                AND d.defaclobjtype = 'r'
+                AND a.grantee IN (0, 'anon'::regrole, 'authenticated'::regrole)
+            ) THEN
+              RAISE EXCEPTION 'public default table ACL grants client access';
             END IF;
           END $$;
           SQL

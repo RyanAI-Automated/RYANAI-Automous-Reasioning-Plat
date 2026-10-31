@@ -15,11 +15,15 @@ const seed = readFileSync(
 );
 
 describe('least-privilege Supabase grants', () => {
-  it('revokes default client access from every public table before allowlisting', () => {
-    expect(migration).toContain('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, anon, authenticated');
-    expect(migration).toContain('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, anon, authenticated');
-    expect(migration).toContain('GRANT SELECT, INSERT, UPDATE, DELETE');
-    expect(migration).toContain('public.profiles, public.conversations, public.messages, public.memory_entries');
+  it('revokes client access from existing and future public tables', () => {
+    for (const sql of [migration, legacyMigration]) {
+      expect(sql).toContain('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, anon, authenticated');
+      expect(sql).toContain('ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public');
+      expect(sql).toContain('REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated');
+      expect(sql).toContain('GRANT ALL PRIVILEGES ON TABLES TO service_role');
+      expect(sql).toContain('GRANT SELECT, INSERT, UPDATE, DELETE');
+      expect(sql).toContain('public.profiles, public.conversations, public.messages, public.memory_entries');
+    }
   });
 
   it('keeps attachment scanner state read-only to clients and upload events private', () => {
@@ -29,7 +33,6 @@ describe('least-privilege Supabase grants', () => {
   });
 
   it('removes the blanket grant pattern from clean installs and seed guidance', () => {
-    expect(legacyMigration).toContain('REVOKE ALL PRIVILEGES');
     expect(legacyMigration).not.toContain('GRANT SELECT ON TABLE public.%I TO anon');
     expect(legacyMigration).not.toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO authenticated');
     expect(seed).not.toContain('grant_public_table_access');

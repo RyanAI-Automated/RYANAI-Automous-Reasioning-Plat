@@ -1,5 +1,12 @@
 -- Correct grants on databases where the former blanket post-grants migration
 -- has already been applied. This migration is intentionally fail-closed.
+-- Also secure future tables created by the Supabase migration owner; otherwise
+-- default ACLs could reintroduce client access after this migration runs.
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    GRANT ALL PRIVILEGES ON TABLES TO service_role;
+
 DO $$
 DECLARE
     r RECORD;
