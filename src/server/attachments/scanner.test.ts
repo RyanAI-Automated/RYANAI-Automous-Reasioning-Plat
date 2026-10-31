@@ -39,18 +39,18 @@ async function withClamAvReply(reply: string, run: (port: number, received: Buff
 
 describe('ClamAV INSTREAM protocol', () => {
   it('sends a length-prefixed stream and accepts a clean response', async () => {
-    await withClamAvReply('stream: OK\\0', async (port, received) => {
+    await withClamAvReply('stream: OK\0', async (port, received) => {
       process.env.CLAMAV_HOST = '127.0.0.1';
       process.env.CLAMAV_PORT = String(port);
       await expect(scanWithClamAv(new TextEncoder().encode('safe attachment'))).resolves.toBe('clean');
       const request = Buffer.concat(received);
-      expect(request.subarray(0, 10)).toEqual(Buffer.from('zINSTREAM\\0'));
+      expect(request.subarray(0, 10)).toEqual(Buffer.from('zINSTREAM\0'));
       expect(request.includes(Buffer.from('safe attachment'))).toBe(true);
     });
   });
 
   it('returns infected when ClamAV reports a complete detection response', async () => {
-    await withClamAvReply('stream: test-signature FOUND\\0', async (port) => {
+    await withClamAvReply('stream: test-signature FOUND\0', async (port) => {
       process.env.CLAMAV_HOST = '127.0.0.1';
       process.env.CLAMAV_PORT = String(port);
       await expect(scanWithClamAv(new TextEncoder().encode('test payload'))).resolves.toBe('infected');
