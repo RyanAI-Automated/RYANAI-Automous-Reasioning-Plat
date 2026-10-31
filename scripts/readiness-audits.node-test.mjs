@@ -31,7 +31,9 @@ test('fully configured optional target reports ready without deploying', () => {
 
 test('agent audit distinguishes code definitions from verified live agents', () => {
   const report = auditAgentReadiness({ env: {}, sourceRoot: process.cwd() });
-  assert.equal(report.summary.configuredBrainRoles, 3);
+  assert.equal(report.summary.brainRolesAudited, 3);
+  assert.equal(report.summary.configuredBrainRoles, 0);
+  assert.equal(report.summary.credentialConfiguredBrains, 0);
   assert.ok(report.summary.codeDefinedAgents >= 7);
   assert.equal(report.summary.liveAgentsVerified, 0);
   assert.equal(report.summary.runtimeTelemetryAvailable, false);
@@ -65,6 +67,8 @@ test('brain credentials are attributed only to providers actually used by each b
   assert.equal(secondary.credentialPresent, false);
   assert.equal(logic.credentialPresent, false);
   assert.equal(report.summary.credentialConfiguredBrains, 1);
+  assert.equal(report.summary.configuredBrainRoles, 1);
+  assert.equal(report.summary.brainRolesAudited, 3);
 });
 
 test('explicit Logic cloud endpoints never inherit the shared LM Studio credential', () => {
