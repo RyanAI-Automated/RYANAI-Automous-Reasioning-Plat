@@ -82,6 +82,10 @@ REVOKE ALL ON FUNCTION public.claim_ryanai_orphan_attachment_cleanup(timestamptz
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_ryanai_orphan_attachment_cleanup(timestamptz, integer)
   TO service_role;
+GRANT UPDATE (orphan_purged_at, orphan_cleanup_last_error)
+  ON TABLE public.ryanai_attachment_scans TO service_role;
+REVOKE UPDATE (orphan_purged_at, orphan_cleanup_last_error)
+  ON TABLE public.ryanai_attachment_scans FROM PUBLIC, anon, authenticated;
 
 COMMENT ON FUNCTION public.claim_ryanai_orphan_attachment_cleanup(timestamptz, integer) IS
   'Claims old attachment objects only when their owning message row no longer exists; infected quarantine is excluded.';
