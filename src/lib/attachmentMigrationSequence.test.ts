@@ -14,7 +14,7 @@ const expectedAttachmentMigrations = [
 describe('Issue #435 Supabase migration preflight', () => {
   it('keeps every attachment migration present and in timestamp order', () => {
     const files = readdirSync(migrationsDirectory);
-    const actual = files.filter((file) => /^202610(?:30|31)\d{8}_.+\.sql$/.test(file));
+    const actual = files.filter((file) => /^202610(?:30|31)\d{6}_.+\.sql$/.test(file));
 
     for (const migration of expectedAttachmentMigrations) {
       expect(files, `Missing migration: ${migration}`).toContain(migration);
