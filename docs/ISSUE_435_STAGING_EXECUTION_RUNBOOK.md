@@ -7,7 +7,7 @@ This runbook turns the acceptance matrix in `ISSUE_435_ACCEPTANCE_EVIDENCE.md` i
 - Create a new Supabase project named for RyanAI attachment acceptance (for example, `ryanai-attachments-acceptance`). Confirm its project reference and dashboard URL before running SQL.
 - Do not reuse production project URLs, database passwords, anon keys, service-role keys, Storage buckets, or user accounts.
 - Use staging-only credentials in the deployment secret manager or an approved local `.env.local` ignored by Git. Never paste secrets into an issue, PR, chat, test log, screenshot, or shell history.
-- Keep the scanner and orphan-cleanup workers disabled until all six migrations are applied and reviewed.
+- Keep the scanner and orphan-cleanup workers disabled until all seven migrations are applied and reviewed.
 - Keep the project disposable. No real user files or personal data.
 - Before any migration, export a database backup and record an object inventory. Verify that both can be retrieved.
 - Stop immediately if the project reference does not match the newly created staging project.
@@ -39,7 +39,7 @@ Do not put the service-role key or test-user passwords in frontend variables (an
 - Verify Auth users A and B can sign in independently.
 - Verify the ClamAV daemon is reachable from the staging worker network, but leave the scanner worker disabled.
 - Capture the initial database backup and Storage object inventory; record timestamps and checksums in the private test record.
-- Confirm the six migration files below exist on the tested commit and review their SQL before execution.
+- Confirm all seven migration files below exist on the tested commit and review their SQL before execution.
 
 ## Apply migrations in this exact order
 
