@@ -39,6 +39,7 @@ import { agentOperationsRoutes } from './routes/agentOperations.js';
 import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { startAgentTaskWorker, startBrainHealthMonitor } from '../agent/operations.js';
 import { startAttachmentScanner } from './attachments/scanner.js';
+import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 
 const { Pool } = pg;
 
@@ -519,6 +520,9 @@ async function start() {
     if (process.env.ATTACHMENT_SCANNER_ENABLED === 'true') {
       stopAttachmentScanner = startAttachmentScanner();
     }
+    if (process.env.ATTACHMENT_ORPHAN_CLEANUP_ENABLED === 'true') {
+      stopAttachmentOrphanCleanup = startAttachmentOrphanCleanup();
+    }
 
     // Scheduled tasks start AI runs with no person present, and those runs cost
     // money. Turn them on with an explicit setting.
@@ -543,6 +547,7 @@ let stopScheduler: (() => void) | undefined;
 let stopBrainMonitor: (() => void) | undefined;
 let stopAgentWorker: (() => void) | undefined;
 let stopAttachmentScanner: (() => void) | undefined;
+let stopAttachmentOrphanCleanup: (() => void) | undefined;
 let stopAlerts: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
@@ -550,6 +555,7 @@ const shutdown = async () => {
   stopBrainMonitor?.();
   stopAgentWorker?.();
   stopAttachmentScanner?.();
+  stopAttachmentOrphanCleanup?.();
   stopAlerts?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
