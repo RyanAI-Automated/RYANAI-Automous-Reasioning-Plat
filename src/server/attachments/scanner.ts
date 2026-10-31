@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import net from 'node:net';
 
 type ScanJob = { bucket_id: string; object_name: string; attempt: number };
@@ -91,7 +91,7 @@ export function quarantinePurgeCutoff(now: Date, retentionDays: number): string 
  * scan row as an audit record. Never deletes storage.objects rows directly.
  */
 export async function purgeExpiredQuarantinedAttachments(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any, 'public', any>,
   now = new Date(),
 ): Promise<number> {
   const retentionDays = boundedInteger(
@@ -155,7 +155,7 @@ export async function purgeExpiredQuarantinedAttachments(
 }
 
 export function startAttachmentScanner(): () => void {
-  const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
+  const supabase = createClient<any>(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   let stopped = false;
