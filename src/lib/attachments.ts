@@ -141,12 +141,12 @@ function uploadSignedFileWithProgress(
     }
     signal?.addEventListener('abort', abortRequest, { once: true });
     request.open('PUT', signedUrl, true);
+    const { mimeType } = validateAttachment(file);
     request.setRequestHeader('x-upsert', 'false');
-    const body = new FormData();
-    body.append('cacheControl', '3600');
-    body.append('', file);
+    request.setRequestHeader('Content-Type', mimeType);
+    request.setRequestHeader('Cache-Control', '3600');
     request.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress?.(Math.min(Math.max(0, file.size - 1), event.loaded));
+      if (event.lengthComputable) onProgress?.(Math.min(file.size, Math.max(0, event.loaded)));
     };
     request.onload = () => {
       if (request.status >= 200 && request.status < 300) {
@@ -159,7 +159,8 @@ function uploadSignedFileWithProgress(
     request.onerror = () => finish(new Error('Network error while uploading ' + file.name + '.'));
     request.onabort = () => finish(new DOMException('Attachment upload cancelled.', 'AbortError'));
     try {
-      request.send(body);
+      // Supabase signed object uploads expect the original file bytes, not multipart FormData.
+      request.send(file);
     } catch (error) {
       finish(error instanceof Error ? error : new Error('Unable to start attachment upload.'));
     }
