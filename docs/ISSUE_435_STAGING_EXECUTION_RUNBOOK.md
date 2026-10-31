@@ -52,6 +52,10 @@ For a fresh local database, use an isolated local Supabase stack and inspect `su
 
 After application, verify the bucket is private; expected policies, triggers, tables, indexes and RPC grants exist; authenticated clients cannot execute service-role scanner operations; and existing objects are not implicitly marked clean.
 
+## Automated isolated validation
+
+The `issue-435-supabase` job in `.github/workflows/ci.yml` runs the six focused Vitest files and starts a disposable local Supabase stack in GitHub Actions. It performs a fresh migration reset, checks all nine migration versions and key grants/private-bucket properties, then builds a far-future-history fixture in that disposable database and uses `supabase migration up --local --include-all` to apply the pending corrective migration. The fixture edits only the ephemeral CI migration ledger to model an older installation; it does not use `migration repair`, link a hosted project, or contact production. A green workflow is evidence for local migration execution and focused tests only; it is not staging two-account acceptance.
+
 ## Test execution
 
 ### 1. Static regression suite
