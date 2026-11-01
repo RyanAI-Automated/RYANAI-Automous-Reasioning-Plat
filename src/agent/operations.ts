@@ -107,7 +107,7 @@ interface ClaimedAgentRun {
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
-async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | null> {
+export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | null> {
   await prisma.$executeRaw`
     UPDATE "agent_runs"
     SET "status" = 'failed',
