@@ -49,9 +49,11 @@ describe('inspectDatabaseSchema', () => {
   });
 
   it('reports missing communication schema without pretending the database is ready', async () => {
-    const query = vi.fn().mockResolvedValueOnce({
-      rows: [{ ...readyTables, communication_messages: false }],
-    });
+    const query = vi.fn()
+      .mockResolvedValueOnce({
+        rows: [{ ...readyTables, communication_messages: false }],
+      })
+      .mockResolvedValueOnce({ rows: [{ version: 5 }] });
 
     await expect(inspectDatabaseSchema(query)).resolves.toEqual({
       communications: false,
