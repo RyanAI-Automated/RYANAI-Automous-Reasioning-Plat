@@ -1,0 +1,67 @@
+name: Isolated Provider Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to probe independently
+        required: true
+        type: choice
+        options:
+          - primary
+          - secondary
+          - logic
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ryanai-provider-verification-${{ inputs.provider }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify ${{ inputs.provider }} provider
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ryanai-provider-verification
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ryanai_probe
+          POSTGRES_PASSWORD: disposable_ci_password
+          POSTGRES_DB: ryanai_probe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ryanai_probe -d ryanai_probe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ryanai_probe:disposable_ci_password@127.0.0.1:5432/ryanai_probe
+      RYANAI_PROBE_BRAIN: ${{ inputs.provider }}
+      PROVIDER_API_KEY: ${{ (inputs.provider == 'primary' && secrets.NVIDIA_API_KEY) || (inputs.provider == 'secondary' && secrets.QWEN_API_KEY) || (inputs.provider == 'logic' && secrets.LOGIC_API_KEY) || '' }}
+      NVIDIA_API_ENDPOINT: ${{ vars.NVIDIA_API_ENDPOINT }}
+      QWEN_API_ENDPOINT: ${{ vars.QWEN_API_ENDPOINT }}
+      LOGIC_API_ENDPOINT: ${{ vars.LOGIC_API_ENDPOINT }}
+      PRIMARY_REASONING_MODEL: ${{ vars.PRIMARY_REASONING_MODEL }}
+      SECONDARY_REASONING_MODEL: ${{ vars.SECONDARY_REASONING_MODEL }}
+      LOGIC_REASONING_MODEL: ${{ vars.LOGIC_REASONING_MODEL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Generate Prisma client and prepare disposable health database
+        run: |
+          npm run db:generate
+          npx prisma db push --accept-data-loss
+      - name: Execute one authenticated provider challenge and persist health record
+        run: node --import tsx scripts/provider-live-probe.mjs
