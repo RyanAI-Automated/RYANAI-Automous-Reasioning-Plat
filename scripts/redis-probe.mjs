@@ -1,10 +1,7 @@
 import net from 'node:net';
 import tls from 'node:tls';
 
-/**
- * Send a Redis PING over TCP or TLS and wait for the RESP PONG.
- * TLS verification remains enabled by default; tests may inject local CA options.
- */
+/** Send a Redis PING over TCP or TLS and wait for the RESP PONG. */
 export function redisPing(connectionUrl, options = {}) {
   const parsed = new URL(connectionUrl);
   const secure = parsed.protocol === 'rediss:';
@@ -23,7 +20,8 @@ export function redisPing(connectionUrl, options = {}) {
   commands.push(['PING']);
 
   const request = commands.map((parts) =>
-    \`*\${parts.length}\r\n\${parts.map((part) => \`$\${Buffer.byteLength(part)}\r\n\${part}\r\n\`).join('')}\`,
+    '*' + parts.length + '\r\n' +
+    parts.map((part) => '$' + Buffer.byteLength(part) + '\r\n' + part + '\r\n').join(''),
   ).join('');
 
   return new Promise((resolve, reject) => {
@@ -47,10 +45,11 @@ export function redisPing(connectionUrl, options = {}) {
       options.timeoutMs ?? 5000,
     );
 
+    // TLS must be ready before sending RESP; the selected event fires once.
     socket.once(secure ? 'secureConnect' : 'connect', () => socket.write(request));
     socket.on('data', (chunk) => {
       response += chunk.toString();
-      if (response.includes('-ERR')) finish(new Error(\`Redis error: \${response.trim()}\`));
+      if (response.includes('-ERR')) finish(new Error('Redis error: ' + response.trim()));
       else if (response.includes('+PONG')) finish();
     });
     socket.once('error', (error) => {
