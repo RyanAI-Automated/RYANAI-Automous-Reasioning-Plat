@@ -16,6 +16,7 @@ import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
+import { inspectReadiness } from './readiness.js';
 
 import { API_ROUTES } from '../config/core.js';
 
@@ -143,17 +144,23 @@ const serviceStatus = {
 
 function registerCoreRoutes() {
   const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
-    const healthy =
-      serviceStatus.database &&
-      serviceStatus.redis &&
-      serviceStatus.agentCheckpointer &&
-      serviceStatus.api;
-    reply.code(healthy ? 200 : 503);
+    const readiness = await inspectReadiness({
+      database: async () => {
+        if (!dbPool) throw new Error('PostgreSQL pool is unavailable');
+        await dbPool.query('SELECT 1');
+      },
+      redis: async () => {
+        await fastify.redis.ping();
+      },
+      agentCheckpointerInitialized: serviceStatus.agentCheckpointer,
+      apiListening: serviceStatus.api,
+    });
+    reply.code(readiness.ready ? 200 : 503);
     return {
-      status: healthy ? 'online' : 'degraded',
+      status: readiness.ready ? 'online' : 'degraded',
       service: 'ryanai-api-gateway',
       timestamp: new Date().toISOString(),
-      services: serviceStatus,
+      services: readiness.services,
       engine: 'LangGraph ReAct',
       architect: 'RyanAI',
       cudaActive: false,
@@ -161,7 +168,17 @@ function registerCoreRoutes() {
     };
   };
 
-  // Collision-free health check registrations
+  // Liveness is deliberately independent of dependency readiness.
+  fastify.get('/livez', async () => ({
+    status: 'alive',
+    service: 'ryanai-api-gateway',
+    timestamp: new Date().toISOString(),
+  }));
+
+  // Readiness probes live PostgreSQL and Redis connections on every request.
+  fastify.get('/readyz', healthCheck);
+
+  // Collision-free health check registrations; legacy paths remain readiness aliases.
   fastify.get('/health', healthCheck);
   if ((API_ROUTES.healthPath as string) !== '/health') {
     fastify.get(API_ROUTES.healthPath, healthCheck);
