@@ -438,7 +438,7 @@ async function verifyRedis() {
     console.log(`✓ Redis connected: ${pong}`);
     serviceStatus.redis = true;
     return true;
-  } catch (err) {
+  } catch {
     console.error(
       `✗ Redis connection failed:`,
       'Redis health probe failed. Raw error details are omitted to protect credentials.',
