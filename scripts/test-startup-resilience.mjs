@@ -6,6 +6,9 @@
  */
 import { spawn } from 'node:child_process';
 import net from 'node:net';
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
@@ -93,6 +96,49 @@ async function expectStartupFailure(label, env, expectedText) {
   console.log('PASS ' + label + ': process exited before opening the API listener');
 }
 
+async function withInjectedCheckpointerFailure(run) {
+  const pool = new Pool({ connectionString: databaseUrl });
+  try {
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION public.ryanai_test_reject_checkpoint_ddl()
+      RETURNS event_trigger
+      LANGUAGE plpgsql
+      AS $body$
+      DECLARE command record;
+      BEGIN
+        FOR command IN SELECT * FROM pg_event_trigger_ddl_commands() LOOP
+          IF command.command_tag = 'CREATE TABLE'
+            AND command.object_identity ~* '(checkpoint_migrations|checkpoints|checkpoint_blobs|checkpoint_writes)' THEN
+            RAISE EXCEPTION 'injected LangGraph checkpointer setup failure';
+          END IF;
+        END LOOP;
+      END;
+      $body$;
+    `);
+    await pool.query(`
+      CREATE EVENT TRIGGER ryanai_test_reject_checkpoint_ddl
+      ON ddl_command_end
+      EXECUTE FUNCTION public.ryanai_test_reject_checkpoint_ddl();
+    `);
+    try {
+      await run();
+    } finally {
+      await pool.query('DROP EVENT TRIGGER IF EXISTS ryanai_test_reject_checkpoint_ddl');
+      await pool.query('DROP FUNCTION IF EXISTS public.ryanai_test_reject_checkpoint_ddl()');
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+async function expectCheckpointerSetupFailure() {
+  await withInjectedCheckpointerFailure(() => expectStartupFailure(
+    'Agent checkpointer setup failure',
+    { DATABASE_URL: databaseUrl, REDIS_URL: redisUrl },
+    'Production startup blocked: required dependency checks failed for agent checkpointer',
+  ));
+}
+
 async function expectHealthyRecovery() {
   const port = await reservePort();
   const process = runChild('healthy recovery', {
@@ -143,6 +189,10 @@ try {
     { DATABASE_URL: unreachableDatabase.toString(), REDIS_URL: redisUrl },
     'Production startup blocked',
   );
+
+  // Inject a real PostgreSQL DDL failure into LangGraph PostgresSaver setup.
+  // This runs before any successful checkpointer setup creates its tables.
+  await expectCheckpointerSetupFailure();
 
   const unreachableRedis = new URL(redisUrl);
   unreachableRedis.port = '1';
