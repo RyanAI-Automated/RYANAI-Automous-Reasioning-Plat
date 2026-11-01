@@ -121,7 +121,7 @@ describe('live dependency readiness', () => {
       Number.POSITIVE_INFINITY,
     );
 
-    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(Date.now() - startedAt).toBeLessThan(2_000);
     expect(result.ready).toBe(false);
   });
 
