@@ -190,7 +190,7 @@ jobs:
           test -s dist/server/server/launcher.js
 
       - name: Verify production startup failure and recovery against disposable services
-        run: node scripts/test-startup-resilience.mjs && npx vitest run src/server/startupConfig.test.ts
+        run: node --test scripts/redis-probe.test.mjs && node scripts/test-startup-resilience.mjs && npx vitest run src/server/startupConfig.test.ts
 
       - name: Start services and run integration checks
         shell: bash
