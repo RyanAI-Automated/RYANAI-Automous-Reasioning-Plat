@@ -96,6 +96,8 @@ describe('production self-patch proposal', () => {
     'export const TWILIO_AUTH_TOKEN = "twilio-secret-value-12345";',
     'SUPABASE_SERVICE_ROLE_KEY: "service-role-secret-value-12345"',
     'SMTP_PASS=mail-password-value-12345',
+    'AWS_SECRET_ACCESS_KEY = "aws-secret-access-key-value-12345";',
+    'RYANAI_GITHUB_TOKEN = "github-private-token-value-12345";',
     'const databaseUrl = "postgresql://admin:password123@db.example.test:5432/app";',
   ])('rejects literal sensitive configuration assignments before contacting GitHub', async (patchContent) => {
     const result = await SelfPatchSkill.proposePullRequest({
