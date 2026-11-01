@@ -4,7 +4,10 @@ import { summarizeProviderError } from './providerErrors.js';
 describe('summarizeProviderError', () => {
   it('never returns raw provider messages or embedded credential values', () => {
     const secret = 'nvapi-example-secret-value';
-    const result = summarizeProviderError(new Error('401 invalid api key ' + secret));
+    const result = summarizeProviderError({
+      status: 401,
+      message: 'invalid api key ' + secret,
+    });
     expect(result).toContain('HTTP 401');
     expect(result).not.toContain(secret);
     expect(result).not.toContain('invalid api key');
