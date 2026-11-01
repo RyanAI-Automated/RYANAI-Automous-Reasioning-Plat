@@ -55,7 +55,8 @@ describe('inspectDatabaseSchema', () => {
 
     await expect(inspectDatabaseSchema(query)).resolves.toEqual({
       communications: false,
-      agentCheckpointer: false,
+      agentCheckpointer: true,
     });
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });
