@@ -17,13 +17,29 @@ export interface ReadinessResult {
   };
 }
 
-async function probe(probeService: ReadinessProbe): Promise<boolean> {
+async function probe(
+  probeService: ReadinessProbe,
+  timeoutMs: number,
+): Promise<boolean> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    await probeService();
-    return true;
+    const result = await Promise.race([
+      Promise.resolve()
+        .then(probeService)
+        .then(
+          () => true,
+          () => false,
+        ),
+      new Promise<boolean>((resolve) => {
+        timeout = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+    return result;
   } catch {
     // Never expose connection strings or raw provider/client errors in health output.
     return false;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -34,10 +50,14 @@ async function probe(probeService: ReadinessProbe): Promise<boolean> {
  */
 export async function inspectReadiness(
   probes: ReadinessProbeSet,
+  timeoutMs = 1500,
 ): Promise<ReadinessResult> {
+  const boundedTimeoutMs = Number.isFinite(timeoutMs)
+    ? Math.max(1, Math.min(timeoutMs, 10_000))
+    : 1500;
   const [database, redis] = await Promise.all([
-    probe(probes.database),
-    probe(probes.redis),
+    probe(probes.database, boundedTimeoutMs),
+    probe(probes.redis, boundedTimeoutMs),
   ]);
   const services = {
     database,
