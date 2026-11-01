@@ -67,8 +67,11 @@ vi.mock('./routes/twilioWebhook.js', () => ({
   twilioWebhookPlugin: async () => {},
 }));
 vi.mock('./routes/metrics.js', () => ({ metricsRoutes: async () => {} }));
-vi.mock('../agent/approvalEngine.js', () => ({
-  initializeAgentDatabase: async () => {},
+vi.mock('./databaseSchema.js', () => ({
+  inspectDatabaseSchema: async () => ({
+    communications: true,
+    agentCheckpointer: true,
+  }),
 }));
 vi.mock('../agent/invoke.js', () => ({
   invokeReasoningAgent: state.invoke,
