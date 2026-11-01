@@ -144,7 +144,10 @@ const serviceStatus = {
 function registerCoreRoutes() {
   const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
     const healthy =
-      serviceStatus.database && serviceStatus.redis && serviceStatus.api;
+      serviceStatus.database &&
+      serviceStatus.redis &&
+      serviceStatus.agentCheckpointer &&
+      serviceStatus.api;
     reply.code(healthy ? 200 : 503);
     return {
       status: healthy ? 'online' : 'degraded',
@@ -438,7 +441,7 @@ async function verifyRedis() {
   } catch (err) {
     console.error(
       `✗ Redis connection failed:`,
-      err instanceof Error ? err.message : err,
+      'Redis health probe failed. Raw error details are omitted to protect credentials.',
     );
     return false;
   }
@@ -501,6 +504,7 @@ async function start() {
     assertProductionDependencies(config.nodeEnv, {
       database: databaseReady,
       redis: redisReady,
+      agentCheckpointer: serviceStatus.agentCheckpointer,
     });
 
     console.log(`\n🚀 Starting Fastify Server...\n`);
