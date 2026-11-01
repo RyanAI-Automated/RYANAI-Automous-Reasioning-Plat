@@ -11,17 +11,23 @@ const providers = {
 };
 const brain = process.env.RYANAI_PROBE_BRAIN;
 if (!Object.hasOwn(providers, brain)) throw new Error('RYANAI_PROBE_BRAIN must be primary, secondary, or logic.');
+
 const provider = providers[brain];
 const apiKey = process.env.PROVIDER_API_KEY;
+if (apiKey) process.env[provider.key] = apiKey;
+
+const config = resolveBrainProviderConfig(brain);
+const model = process.env[provider.model] || config.model;
+const endpoint = process.env[provider.endpoint] || config.endpoint;
 const prisma = new PrismaClient();
 const started = Date.now();
 let record;
 
 try {
-  if (!apiKey) throw new Error('Provider credential is not configured.');
-  const config = resolveBrainProviderConfig(brain);
-  const model = process.env[provider.model] || config.model;
-  const endpoint = process.env[provider.endpoint] || config.endpoint;
+  if (!apiKey || !config.credential) {
+    throw new Error('Provider credential is not configured.');
+  }
+
   const client = new ChatOpenAI({
     modelName: model,
     temperature: 0,
@@ -52,8 +58,7 @@ try {
           ? 'Provider request timed out.'
           : 'Provider request failed or returned an invalid challenge; raw details withheld.';
   record = {
-    brain, model: process.env[provider.model] || resolveBrainProviderConfig(brain).model,
-    status: apiKey ? 'DEGRADED' : 'UNCONFIGURED',
+    brain, model, status: apiKey ? 'DEGRADED' : 'UNCONFIGURED',
     latencyMs: Date.now() - started, lastSuccessAt: null, lastError: safeMessage,
   };
 }
@@ -64,11 +69,28 @@ try {
     create: record,
     update: { ...record, checkedAt: new Date() },
   });
+
+  const persisted = await prisma.agentBrainHealth.findUnique({ where: { brain } });
+  if (
+    !persisted ||
+    persisted.brain !== record.brain ||
+    persisted.model !== record.model ||
+    persisted.status !== record.status ||
+    persisted.latencyMs !== record.latencyMs ||
+    persisted.lastError !== record.lastError
+  ) {
+    throw new Error('Persisted provider health record did not match the probe result.');
+  }
+
   console.log(JSON.stringify({
-    brain: record.brain, model: record.model, status: record.status,
-    responseValidated: record.status === 'HEALTHY',
-    latencyMs: record.latencyMs, checkedAt: new Date().toISOString(),
-    diagnostic: record.lastError,
+    brain: persisted.brain,
+    model: persisted.model,
+    status: persisted.status,
+    responseValidated: persisted.status === 'HEALTHY',
+    latencyMs: persisted.latencyMs,
+    checkedAt: persisted.checkedAt.toISOString(),
+    diagnostic: persisted.lastError,
+    persistenceVerified: true,
   }));
 } finally {
   await prisma.$disconnect();
