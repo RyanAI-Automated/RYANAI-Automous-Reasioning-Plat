@@ -6,7 +6,8 @@ import { prisma } from '../lib/prisma.js';
 import { executeThreeBrainPlan, type BrainId, type BrainOutput } from './operationsCore.js';
 import { resolveBrainProviderConfig } from './providerConfig.js';
 import { buildBrainKnowledgeContext } from './knowledgeAgent.js';
-import { getAgentRunRetryDelayMs, shouldRetryAgentRun } from './agentRunRetry.js';
+import { getAgentRunRetryDelayMs, invokeWithCancellationRetry, shouldRetryAgentRun } from './agentRunRetry.js';
+import { persistAgentRunCompletion } from './agentRunPersistence.js';
 import { publishAgentTaskNotification } from './queueNotifications.js';
 import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
 
@@ -21,13 +22,7 @@ const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stri
 async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSignal?: AbortSignal): Promise<BrainOutput> {
   const config = brains[brain];
   if (!config.credential && !localRuntime(config.endpoint)) throw new Error(brain + ' brain credential is not configured');
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (cancellationSignal?.aborted) {
-      throw cancellationSignal.reason instanceof Error
-        ? cancellationSignal.reason
-        : new Error('Brain invocation cancelled because the worker no longer owns its lease.');
-    }
+  return invokeWithCancellationRetry(async () => {
     const started = Date.now();
     const timeoutSignal = AbortSignal.timeout(20_000);
     const invocationSignal = cancellationSignal
@@ -54,19 +49,10 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
       const output = asText(response.content);
       if (!output.trim()) throw new Error('Provider returned an empty response');
       return { brain, output, latencyMs: Date.now() - started };
-    } catch (error) {
-      lastError = error;
-      if (cancellationSignal?.aborted) {
-        throw cancellationSignal.reason instanceof Error
-          ? cancellationSignal.reason
-          : new Error('Brain invocation cancelled because the worker no longer owns its lease.');
-      }
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400));
     } finally {
       if (abortHandler) invocationSignal.removeEventListener('abort', abortHandler);
     }
-  }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }, cancellationSignal);
 }
 
 export async function probeAllBrains() {
@@ -179,47 +165,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
       orderBy: { startedAt: 'asc' },
     });
     const outputByBrain = new Map(plan.outputs.map((item) => [item.brain, item]));
-    await prisma.$transaction(async (tx) => {
-      await Promise.all(rows.map(async (row) => {
-        const output = row.toAgent === 'primary'
-          ? outputByBrain.get('primary')
-          : row.toAgent === 'secondary'
-            ? outputByBrain.get('secondary')
-            : outputByBrain.get(row.fromAgent as 'primary' | 'secondary');
-        if (!output) throw new Error('Missing verified output for handoff ' + row.id);
-        await tx.agentHandoff.update({
-          where: { id: row.id },
-          data: {
-            status: 'completed',
-            output: row.toAgent === 'logic' ? plan.synthesis : output.output,
-            input: row.toAgent === 'logic' ? output.output : row.input,
-            completedAt: new Date(),
-          },
-        });
-      }));
-      await tx.memoryVault.create({
-        data: {
-          userId: run.user_id,
-          title: 'Autonomous task ' + run.id,
-          content: 'Objective:\n' + run.objective + '\n\nResult:\n' + plan.synthesis,
-          category: 'agent-task',
-          tags: ['agent-run', 'autonomous'],
-        },
-      });
-      const completion = await tx.agentRun.updateMany({
-        where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
-        data: {
-          status: 'completed',
-          result: { synthesis: plan.synthesis, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
-          completedAt: new Date(),
-          lockedAt: null,
-          workerId: null,
-        },
-      });
-      if (completion.count !== 1) {
-        throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
-      }
-    });
+    await prisma.$transaction((tx) => persistAgentRunCompletion(tx, run, rows, plan));;
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);

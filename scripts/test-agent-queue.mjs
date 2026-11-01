@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/lib/prisma.ts';
 import { claimNextAgentRun } from '../src/agent/operations.ts';
+import { persistAgentRunCompletion } from '../src/agent/agentRunPersistence.ts';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL must target a disposable PostgreSQL database.');
@@ -98,9 +99,65 @@ try {
   const due = await claimNextAgentRun(retryWorker);
   assert.equal(due?.id, delayed.id, 'a due retry should become claimable');
 
+  // Worker A computes after losing its lease to B; all A writes must roll back.
+  const staleRun = await prisma.agentRun.create({
+    data: {
+      userId,
+      objective: 'CI stale writer rollback fixture',
+      status: 'running',
+      workerId: 'worker-a-' + suffix,
+      attempts: 1,
+      maxAttempts: 3,
+    },
+  });
+  await prisma.agentHandoff.createMany({ data: [
+    { runId: staleRun.id, fromAgent: 'supervisor', toAgent: 'primary', input: staleRun.objective, status: 'pending' },
+    { runId: staleRun.id, fromAgent: 'supervisor', toAgent: 'secondary', input: staleRun.objective, status: 'pending' },
+    { runId: staleRun.id, fromAgent: 'primary', toAgent: 'logic', input: 'Awaiting primary', status: 'pending' },
+    { runId: staleRun.id, fromAgent: 'secondary', toAgent: 'logic', input: 'Awaiting secondary', status: 'pending' },
+  ] });
+  const staleHandoffs = await prisma.agentHandoff.findMany({
+    where: { runId: staleRun.id },
+    orderBy: { startedAt: 'asc' },
+    select: { id: true, fromAgent: true, toAgent: true, input: true },
+  });
+  await prisma.agentRun.update({
+    where: { id: staleRun.id },
+    data: { workerId: 'worker-b-' + suffix, attempts: 2, lockedAt: new Date() },
+  });
+  const stalePlan = {
+    outputs: [
+      { brain: 'primary', output: 'A primary', latencyMs: 1 },
+      { brain: 'secondary', output: 'A secondary', latencyMs: 1 },
+      { brain: 'logic', output: 'A stale synthesis', latencyMs: 1 },
+    ],
+    synthesis: 'A stale synthesis',
+  };
+  await assert.rejects(
+    prisma.$transaction((tx) => persistAgentRunCompletion(tx, {
+      id: staleRun.id,
+      user_id: userId,
+      objective: staleRun.objective,
+      attempts: 1,
+      worker_id: 'worker-a-' + suffix,
+    }, staleHandoffs, stalePlan)),
+    /lease was lost before completion/,
+  );
+  const [afterStaleWrite, afterStaleHandoffs, staleMemoryCount] = await Promise.all([
+    prisma.agentRun.findUnique({ where: { id: staleRun.id }, select: { status: true, workerId: true, attempts: true, result: true } }),
+    prisma.agentHandoff.findMany({ where: { runId: staleRun.id }, orderBy: { startedAt: 'asc' }, select: { status: true, output: true, completedAt: true } }),
+    prisma.memoryVault.count({ where: { userId, title: 'Autonomous task ' + staleRun.id } }),
+  ]);
+  assert.deepEqual(afterStaleWrite, { status: 'running', workerId: 'worker-b-' + suffix, attempts: 2, result: null },
+    'worker B ownership and uncompleted run state must survive worker A rollback');
+  assert.ok(afterStaleHandoffs.every((handoff) => handoff.status === 'pending' && handoff.output === null && handoff.completedAt === null),
+    'worker A handoff writes must be rolled back');
+  assert.equal(staleMemoryCount, 0, 'worker A memory write must be rolled back');
+
   console.log('PASS concurrent PostgreSQL claims: distinct rows, no duplicate ownership');
   console.log('PASS expired lease recovery: ownership transferred and attempt incremented');
   console.log('PASS retry policy: exhausted runs fail closed and future backoff is respected');
+  console.log('PASS stale worker fencing: handoffs, memory and completion roll back after lease transfer');
   console.log('Agent queue PostgreSQL checks passed.');
 } finally {
   if (userId) {
