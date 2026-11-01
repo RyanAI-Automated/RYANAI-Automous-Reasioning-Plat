@@ -1,4 +1,5 @@
 export const BRAIN_PROBE_CHALLENGE = 'RYANAI_BRAIN_READY';
+export const BRAIN_PROBE_ORDER = ['logic', 'primary', 'secondary'] as const;
 
 /** A brain is healthy only when it completes the exact challenge response. */
 export function assertBrainProbeResponse(output: string): void {
