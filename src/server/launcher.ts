@@ -14,7 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 
 import { API_ROUTES } from '../config/core.js';
@@ -415,7 +415,6 @@ async function initializeDatabase() {
       console.warn(
         '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
         databaseFailureDiagnostic(agentErr),
-        agentErr instanceof Error ? agentErr.message : agentErr,
       );
     }
 
@@ -424,7 +423,6 @@ async function initializeDatabase() {
     console.error(
       `✗ Database connection failed:`,
       databaseFailureDiagnostic(err),
-      err instanceof Error ? err.message : err,
     );
     return false;
   }
@@ -498,8 +496,12 @@ async function start() {
     await registerPlugins();
 
     console.log('\n📡 Connecting Services...\n');
-    await initializeDatabase();
-    await verifyRedis();
+    const databaseReady = await initializeDatabase();
+    const redisReady = await verifyRedis();
+    assertProductionDependencies(config.nodeEnv, {
+      database: databaseReady,
+      redis: redisReady,
+    });
 
     console.log(`\n🚀 Starting Fastify Server...\n`);
     await fastify.listen({ port: config.port, host: config.host });
