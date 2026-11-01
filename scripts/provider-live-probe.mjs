@@ -54,7 +54,7 @@ try {
   record = {
     brain, model: process.env[provider.model] || resolveBrainProviderConfig(brain).model,
     status: apiKey ? 'DEGRADED' : 'UNCONFIGURED',
-    latencyMs: null, lastSuccessAt: null, lastError: safeMessage,
+    latencyMs: Date.now() - started, lastSuccessAt: null, lastError: safeMessage,
   };
 }
 
