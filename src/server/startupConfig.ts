@@ -49,13 +49,14 @@ export function resolveConnectionUrls(
  */
 export function assertProductionDependencies(
   nodeEnv: string,
-  services: { database: boolean; redis: boolean },
+  services: { database: boolean; redis: boolean; agentCheckpointer: boolean },
 ): void {
   if (nodeEnv !== 'production') return;
 
   const unavailable = [
     !services.database ? 'PostgreSQL' : undefined,
     !services.redis ? 'Redis' : undefined,
+    !services.agentCheckpointer ? 'agent checkpointer' : undefined,
   ].filter(Boolean);
 
   if (unavailable.length) {
