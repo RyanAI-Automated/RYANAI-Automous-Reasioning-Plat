@@ -11,6 +11,7 @@ import { persistAgentRunCompletion } from './agentRunPersistence.js';
 import { publishAgentTaskNotification } from './queueNotifications.js';
 import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
 import { summarizeProviderError } from './providerErrors.js';
+import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE } from './brainProbe.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -71,7 +72,8 @@ export async function probeAllBrains() {
     let lastSuccessAt: Date | null = null;
     try {
       if (!config.credential && !localRuntime(config.endpoint)) throw new Error('Credential missing; no network request made');
-      await invokeWithRecovery(brain, 'Connectivity test. Reply exactly: RYANAI_BRAIN_READY');
+      const probe = await invokeWithRecovery(brain, 'Connectivity test. Reply exactly: ' + BRAIN_PROBE_CHALLENGE);
+      assertBrainProbeResponse(probe.output);
       status = 'HEALTHY';
       latencyMs = Date.now() - started;
       lastSuccessAt = new Date();
