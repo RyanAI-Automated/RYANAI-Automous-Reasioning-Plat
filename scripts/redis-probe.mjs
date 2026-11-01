@@ -18,12 +18,12 @@ export function redisPing(connectionUrl, options = {}) {
         : ['AUTH', decodeURIComponent(parsed.password)],
     );
   }
-  const db = parsed.pathname.replace(/^\\//, '');
+  const db = parsed.pathname.replace(/^\//, '');
   if (db && db !== '0') commands.push(['SELECT', db]);
   commands.push(['PING']);
 
   const request = commands.map((parts) =>
-    `*${parts.length}\\r\\n${parts.map((part) => `$${Buffer.byteLength(part)}\\r\\n${part}\\r\\n`).join('')}`,
+    \`*\${parts.length}\r\n\${parts.map((part) => \`$\${Buffer.byteLength(part)}\r\n\${part}\r\n\`).join('')}\`,
   ).join('');
 
   return new Promise((resolve, reject) => {
@@ -50,7 +50,7 @@ export function redisPing(connectionUrl, options = {}) {
     socket.once(secure ? 'secureConnect' : 'connect', () => socket.write(request));
     socket.on('data', (chunk) => {
       response += chunk.toString();
-      if (response.includes('-ERR')) finish(new Error(`Redis error: ${response.trim()}`));
+      if (response.includes('-ERR')) finish(new Error(\`Redis error: \${response.trim()}\`));
       else if (response.includes('+PONG')) finish();
     });
     socket.once('error', (error) => {
