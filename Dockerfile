@@ -22,15 +22,31 @@ WORKDIR /work
 # =====================================================================
 # 2. API / SERVER BUILDER STAGE
 # =====================================================================
-FROM node:24-alpine AS api-builder
+FROM node:24-alpine AS api-deps
 
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
-
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
+
+# Keep the Prisma CLI and tsx available in a one-shot migration image. This
+# stage is intentionally separate from the pruned API runtime image.
+FROM api-deps AS migrate
+
+WORKDIR /app
+COPY prisma ./prisma
+COPY src/db/migrate.ts ./src/db/migrate.ts
+RUN npm run db:generate
+
+ENV NODE_ENV=production
+USER node
+CMD ["npm", "run", "db:migrate"]
+
+# The API builder shares the locked dependency install but prunes development
+# dependencies before the production runtime image is assembled.
+FROM api-deps AS api-builder
 
 COPY tsconfig*.json ./
 COPY src ./src
