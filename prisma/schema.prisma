@@ -129,7 +129,7 @@ model MemoryVault {
   userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([userId])
   @@map("memory_vault")
@@ -285,7 +285,7 @@ model AgentBrainHealth {
   brain String @unique
   model String
   status String
-  latencyMs Int?
+  latencyMs Int? @map("latency_ms")
   lastSuccessAt DateTime? @map("last_success_at")
   lastError String? @db.Text @map("last_error")
   checkedAt DateTime @default(now()) @map("checked_at")
@@ -319,12 +319,12 @@ model CommunicationConversation {
   id              String                   @id @default(uuid())
   channel         String
   externalAddress String                   @map("external_address")
-  createdAt       DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  createdAt       DateTime                 @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime                 @default(now()) @updatedAt @db.Timestamptz(6) @map("updated_at")
   messages        CommunicationMessage[]
 
-  @@unique([channel, externalAddress])
-  @@index([channel, updatedAt])
+  @@unique([channel, externalAddress], map: "communication_conversations_channel_address_key")
+  @@index([channel, updatedAt], map: "communication_conversations_channel_updated_idx")
   @@map("communication_conversations")
 }
 
@@ -337,9 +337,58 @@ model CommunicationMessage {
   providerMessageId String?                   @unique @map("provider_message_id")
   status            String                    @default("received")
   metadata          Json?
-  createdAt         DateTime                  @default(now()) @map("created_at")
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  @@index([conversationId, createdAt])
-  @@index([status, createdAt])
+  @@index([conversationId, createdAt], map: "communication_messages_conversation_created_idx")
+  @@index([status, createdAt], map: "communication_messages_status_created_idx")
   @@map("communication_messages")
+}
+
+
+// LangGraph PostgresSaver 1.1.2 persistence schema.
+// These tables are managed by versioned migrations, not API startup.
+model LangGraphCheckpointMigration {
+  v Int @id
+
+  @@map("checkpoint_migrations")
+}
+
+model LangGraphCheckpoint {
+  threadId           String  @map("thread_id")
+  checkpointNs       String  @default("") @map("checkpoint_ns")
+  checkpointId       String  @map("checkpoint_id")
+  parentCheckpointId String? @map("parent_checkpoint_id")
+  type               String?
+  checkpoint         Json
+  metadata           Json    @default("{}")
+
+  @@id([threadId, checkpointNs, checkpointId])
+  @@map("checkpoints")
+}
+
+model LangGraphCheckpointBlob {
+  threadId     String  @map("thread_id")
+  checkpointNs String  @default("") @map("checkpoint_ns")
+  channel      String
+  version      String
+  type         String
+  blob         Bytes?
+
+  @@id([threadId, checkpointNs, channel, version])
+  @@map("checkpoint_blobs")
+}
+
+model LangGraphCheckpointWrite {
+  threadId     String  @map("thread_id")
+  checkpointNs String  @default("") @map("checkpoint_ns")
+  checkpointId String  @map("checkpoint_id")
+  taskId       String  @map("task_id")
+  idx          Int
+  channel      String
+  type         String?
+  blob         Bytes
+  taskPath     String  @default("") @map("task_path")
+
+  @@id([threadId, checkpointNs, checkpointId, taskId, idx])
+  @@map("checkpoint_writes")
 }
