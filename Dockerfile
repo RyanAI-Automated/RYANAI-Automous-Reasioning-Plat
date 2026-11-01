@@ -38,11 +38,15 @@ FROM api-deps AS migrate
 WORKDIR /app
 COPY prisma ./prisma
 COPY src/db/migrate.ts ./src/db/migrate.ts
-RUN npm run db:generate
+RUN npm run db:generate \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
+# The migration runner only needs Node and the locked project dependencies.
+# Remove the base image's global npm CLI from the runtime attack surface.
 ENV NODE_ENV=production
 USER node
-CMD ["npm", "run", "db:migrate"]
+CMD ["node", "--import", "tsx/esm", "src/db/migrate.ts"]
 
 # The API builder shares the locked dependency install but prunes development
 # dependencies before the production runtime image is assembled.
