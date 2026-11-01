@@ -26,7 +26,7 @@ describe('executeThreeBrainPlan', () => {
       calls.push(brain);
       if (signal) signals.push(signal);
       if (calls.length === 2) resolveStarted();
-      return new Promise((_, reject) => {
+      return new Promise<{ brain: BrainId; output: string; latencyMs: number }>((_, reject) => {
         if (signal?.aborted) reject(signal.reason);
         else signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
       });
