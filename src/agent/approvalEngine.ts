@@ -2,7 +2,6 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { commsTools } from './tools/commsTools.js';
 import { sendWhatsAppTool } from './tools/whatsappTool.js';
-import { databaseFailureDiagnostic } from '../server/startupDiagnostics.js';
 import { createChatModel } from '../config/llm.js';
 
 const llm = createChatModel();
@@ -14,27 +13,8 @@ const databaseUrl =
 
 export const checkpointer = PostgresSaver.fromConnString(databaseUrl);
 
-// Safe, non-blocking initialization function
-let isInitialized = false;
-/** Initialize checkpoint storage, retaining failures for the startup caller. */
-export async function initializeAgentDatabase() {
-  if (isInitialized) return;
-  try {
-    console.log(
-      '[DB] Connecting and setting up LangGraph PostgresSaver checkpointer...',
-    );
-    await checkpointer.setup();
-    isInitialized = true;
-    console.log('[DB] PostgresSaver checkpointer successfully initialized.');
-  } catch (error) {
-    console.error(
-      '[CRITICAL] Failed to initialize PostgresSaver checkpointer:',
-      databaseFailureDiagnostic(error),
-    );
-    throw error;
-  }
-}
-
+// Checkpoint tables are provisioned only by the explicit Prisma migration command.
+// API startup verifies the schema and never calls PostgresSaver.setup(), which performs DDL.
 // Register communication tools alongside WhatsApp integration
 const agentTools = [...commsTools, sendWhatsAppTool];
 
