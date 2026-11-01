@@ -57,8 +57,12 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
     }
     }, cancellationSignal);
   } catch (error) {
-    if (cancellationSignal?.aborted) throw new Error('Agent run cancelled after lease loss.');
-    throw new Error(summarizeProviderError(error));
+    if (cancellationSignal?.aborted) {
+      const safeCause = new Error('Provider request cancelled after worker lease loss.');
+      throw new Error('Agent run cancelled after lease loss.', { cause: safeCause });
+    }
+    const safeCause = new Error(summarizeProviderError(error));
+    throw new Error(safeCause.message, { cause: safeCause });
   }
 }
 
