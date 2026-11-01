@@ -27,6 +27,17 @@ class GitHubApiError extends Error {
 
 const MAX_PATCH_BYTES = 200_000;
 const SECRET_PATTERN = /(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._~+/-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/i;
+const SECRET_ASSIGNMENT_PATTERN = /\b[A-Z0-9_]*(?:API[_-]?KEY|ACCESS[_-]?TOKEN|AUTH[_-]?TOKEN|CLIENT[_-]?SECRET|SECRET[_-]?KEY|SERVICE[_-]?ROLE[_-]?KEY|PASSWORD|PASSWD|SMTP[_-]?PASS|DATABASE[_-]?URL|REDIS[_-]?URL)[A-Z0-9_]*\b\s*(?:=|:)\s*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s,;}\]]+))/gi;
+const SECRET_VALUE_PLACEHOLDER = /^(?:process\.env(?:\.[A-Z0-9_]+|\[['"][A-Z0-9_]+['"]\])?|\$\{?[A-Z0-9_]+\}?|<[^>]+>|YOUR_[A-Z0-9_]+|REPLACE(?:_ME)?|CHANGE(?:_ME)?|EXAMPLE|DUMMY|TEST_ONLY|REDACTED|CHANGEME)$/i;
+
+function containsSensitiveAssignment(content: string): boolean {
+  for (const match of content.matchAll(SECRET_ASSIGNMENT_PATTERN)) {
+    const value = match[1] ?? match[2] ?? match[3] ?? '';
+    if (value.length < 8 || SECRET_VALUE_PLACEHOLDER.test(value)) continue;
+    return true;
+  }
+  return false;
+}
 const ALLOWED_PREFIXES = ['src/', 'mcp-server/', 'scripts/'];
 
 function validatePatch(request: PatchRequest): string | null {
@@ -49,7 +60,7 @@ function validatePatch(request: PatchRequest): string | null {
   if (typeof request.patchContent !== 'string' || request.patchContent.length === 0 || Buffer.byteLength(request.patchContent) > MAX_PATCH_BYTES) {
     return 'Patch content must contain 1–200,000 bytes.';
   }
-  if (SECRET_PATTERN.test(request.patchContent)) {
+  if (SECRET_PATTERN.test(request.patchContent) || containsSensitiveAssignment(request.patchContent)) {
     return 'Patch content appears to contain a credential or private key and was rejected.';
   }
   return null;
