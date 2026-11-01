@@ -188,6 +188,21 @@ try {
     'Redis is unavailable',
   );
 
+  // Combined outage: both configured dependencies are unreachable in the
+  // same production startup attempt. Redis plugin registration currently runs
+  // before PostgreSQL initialization, so Redis is the first observed blocker;
+  // the independent PostgreSQL failure above covers its own fail-closed path.
+  const combinedUnavailableDatabase = new URL(databaseUrl);
+  combinedUnavailableDatabase.port = '1';
+  await expectStartupFailure(
+    'PostgreSQL and Redis unavailable together',
+    {
+      DATABASE_URL: combinedUnavailableDatabase.toString(),
+      REDIS_URL: unreachableRedis.toString(),
+    },
+    'Redis is unavailable',
+  );
+
   await expectHealthyRecovery();
   console.log('Startup resilience checks passed.');
 } catch (error) {
