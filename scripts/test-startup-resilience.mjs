@@ -53,16 +53,23 @@ function runChild(label, env) {
     child,
     get output() { return output; },
     async exited() {
-      return Promise.race([
-        new Promise((resolve, reject) => {
-          child.once('error', reject);
-          child.once('exit', (code, signal) => resolve({ code, signal }));
-        }),
-        new Promise((_, reject) => setTimeout(() => {
-          child.kill('SIGKILL');
-          reject(new Error(label + ' did not exit within ' + timeoutMs + 'ms'));
-        }, timeoutMs)),
-      ]);
+      let timer;
+      try {
+        return await Promise.race([
+          new Promise((resolve, reject) => {
+            child.once('error', reject);
+            child.once('exit', (code, signal) => resolve({ code, signal }));
+          }),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => {
+              child.kill('SIGKILL');
+              reject(new Error(label + ' did not exit within ' + timeoutMs + 'ms'));
+            }, timeoutMs);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
     },
   };
 }
