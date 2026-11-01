@@ -114,8 +114,9 @@ function redisPing(connectionUrl) {
       timeoutMs,
     );
 
-    socket.once('connect', () => socket.write(request));
-    if (secure) socket.once('secureConnect', () => socket.write(request));
+    // TLS sockets emit both `connect` and `secureConnect`; send the RESP
+    // request only after the transport is ready, exactly once.
+    socket.once(secure ? 'secureConnect' : 'connect', () => socket.write(request));
 
     socket.on('data', (chunk) => {
       response += chunk.toString();
