@@ -20,7 +20,7 @@ export function agentRunLeaseFilter(lease: AgentRunLease) {
  */
 export function startAgentRunLeaseHeartbeat(
   lease: AgentRunLease,
-  refresh: (where: ReturnType<typeof agentRunLeaseFilter>) => Promise<unknown>,
+  refresh: (where: ReturnType<typeof agentRunLeaseFilter>) => Promise<{ count: number }>,
   onError: (error: unknown) => void = () => undefined,
   intervalMs = 30_000,
 ): () => void {
@@ -30,9 +30,12 @@ export function startAgentRunLeaseHeartbeat(
     if (stopped || inFlight) return;
     inFlight = true;
     try {
-      await refresh(agentRunLeaseFilter(lease));
+      const result = await refresh(agentRunLeaseFilter(lease));
+      if (!stopped && result.count !== 1) {
+        onError(new Error('Agent run lease ownership was lost; this worker must stop processing.'));
+      }
     } catch (error) {
-      onError(error);
+      if (!stopped) onError(error);
     } finally {
       inFlight = false;
     }
