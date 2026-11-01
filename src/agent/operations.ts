@@ -10,6 +10,8 @@ import { getAgentRunRetryDelayMs, invokeWithCancellationRetry, shouldRetryAgentR
 import { persistAgentRunCompletion } from './agentRunPersistence.js';
 import { publishAgentTaskNotification } from './queueNotifications.js';
 import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
+import { summarizeProviderError } from './providerErrors.js';
+import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE } from './brainProbe.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -22,7 +24,8 @@ const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stri
 async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSignal?: AbortSignal): Promise<BrainOutput> {
   const config = brains[brain];
   if (!config.credential && !localRuntime(config.endpoint)) throw new Error(brain + ' brain credential is not configured');
-  return invokeWithCancellationRetry(async () => {
+  try {
+    return await invokeWithCancellationRetry(async () => {
     const started = Date.now();
     const timeoutSignal = AbortSignal.timeout(20_000);
     const invocationSignal = cancellationSignal
@@ -52,7 +55,18 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
     } finally {
       if (abortHandler) invocationSignal.removeEventListener('abort', abortHandler);
     }
-  }, cancellationSignal);
+    }, cancellationSignal);
+  } catch (error) {
+    if (cancellationSignal?.aborted) {
+      const safeCause = new Error('Provider request cancelled after worker lease loss.');
+      // The original provider exception may contain secrets; preserve only the sanitized cause.
+      // eslint-disable-next-line preserve-caught-error -- raw provider errors must never escape this boundary.
+      throw new Error('Agent run cancelled after lease loss.', { cause: safeCause });
+    }
+    const safeCause = new Error(summarizeProviderError(error));
+    // eslint-disable-next-line preserve-caught-error -- raw provider errors must never escape this boundary.
+    throw new Error(safeCause.message, { cause: safeCause });
+  }
 }
 
 export async function probeAllBrains() {
@@ -65,7 +79,8 @@ export async function probeAllBrains() {
     let lastSuccessAt: Date | null = null;
     try {
       if (!config.credential && !localRuntime(config.endpoint)) throw new Error('Credential missing; no network request made');
-      await invokeWithRecovery(brain, 'Connectivity test. Reply exactly: RYANAI_BRAIN_READY');
+      const probe = await invokeWithRecovery(brain, 'Connectivity test. Reply exactly: ' + BRAIN_PROBE_CHALLENGE);
+      assertBrainProbeResponse(probe.output);
       status = 'HEALTHY';
       latencyMs = Date.now() - started;
       lastSuccessAt = new Date();
