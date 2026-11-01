@@ -319,12 +319,12 @@ model CommunicationConversation {
   id              String                   @id @default(uuid())
   channel         String
   externalAddress String                   @map("external_address")
-  createdAt       DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  createdAt       DateTime                 @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime                 @default(now()) @updatedAt @db.Timestamptz(6) @map("updated_at")
   messages        CommunicationMessage[]
 
-  @@unique([channel, externalAddress])
-  @@index([channel, updatedAt])
+  @@unique([channel, externalAddress], map: "communication_conversations_channel_address_key")
+  @@index([channel, updatedAt], map: "communication_conversations_channel_updated_idx")
   @@map("communication_conversations")
 }
 
@@ -337,9 +337,9 @@ model CommunicationMessage {
   providerMessageId String?                   @unique @map("provider_message_id")
   status            String                    @default("received")
   metadata          Json?
-  createdAt         DateTime                  @default(now()) @map("created_at")
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  @@index([conversationId, createdAt])
-  @@index([status, createdAt])
+  @@index([conversationId, createdAt], map: "communication_messages_conversation_created_idx")
+  @@index([status, createdAt], map: "communication_messages_status_created_idx")
   @@map("communication_messages")
 }
