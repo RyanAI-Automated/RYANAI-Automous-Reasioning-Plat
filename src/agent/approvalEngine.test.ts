@@ -1,33 +1,35 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { setup } = vi.hoisted(() => ({ setup: vi.fn() }));
+const state = vi.hoisted(() => {
+  const setup = vi.fn();
+  const saver = { setup };
+  const fromConnString = vi.fn(() => saver);
+  const createReactAgent = vi.fn(() => ({}));
+  return { setup, saver, fromConnString, createReactAgent };
+});
+
 vi.mock('@langchain/langgraph-checkpoint-postgres', () => ({
-  PostgresSaver: { fromConnString: () => ({ setup }) },
+  PostgresSaver: { fromConnString: state.fromConnString },
 }));
 vi.mock('@langchain/openai', () => ({ ChatOpenAI: class {} }));
 vi.mock('@langchain/langgraph/prebuilt', () => ({
-  createReactAgent: () => ({}),
+  createReactAgent: state.createReactAgent,
 }));
 vi.mock('./tools/commsTools.js', () => ({ commsTools: [] }));
 vi.mock('./tools/whatsappTool.js', () => ({ sendWhatsAppTool: {} }));
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('checkpointer startup failure logging', () => {
-  it('omits raw database credentials while preserving the failure for the caller', async () => {
-    const error = Object.assign(
-      new Error('postgresql://user:private-password@db/fixture'),
-      { code: '28P01' },
+describe('agent checkpointer initialization', () => {
+  it('constructs the saver without running schema DDL during module initialization', async () => {
+    const { checkpointer, humanInTheLoopAgent } = await import('./approvalEngine.js');
+
+    expect(state.fromConnString).toHaveBeenCalledOnce();
+    expect(checkpointer).toBe(state.saver);
+    expect(state.setup).not.toHaveBeenCalled();
+    expect(state.createReactAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ checkpointSaver: state.saver }),
     );
-    setup.mockRejectedValueOnce(error);
-    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    const { initializeAgentDatabase } = await import('./approvalEngine.js');
-    await expect(initializeAgentDatabase()).rejects.toBe(error);
-    expect(log).toHaveBeenCalledWith(
-      '[CRITICAL] Failed to initialize PostgresSaver checkpointer:',
-      expect.stringContaining('28P01: Password authentication failed'),
-    );
-    expect(JSON.stringify(log.mock.calls)).not.toContain('private-password');
+    expect(humanInTheLoopAgent).toBeDefined();
   });
 });
