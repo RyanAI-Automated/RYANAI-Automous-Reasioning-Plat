@@ -283,9 +283,11 @@ jobs:
             src/lib/attachmentUpdateGuardMigration.test.ts \
             src/lib/attachments.test.ts \
             src/server/attachments/scanner.test.ts
-      - uses: supabase/setup-cli@v1
+      - name: Set up pinned Supabase CLI
+        id: setup_supabase_cli
+        uses: supabase/setup-cli@v3.0.1
         with:
-          version: latest
+          version: 2.120.0
       - name: Start isolated local Supabase stack
         run: supabase start -x studio,mailpit,edge-runtime,logflare,vector
       - name: Apply all migrations to a fresh local database
@@ -412,5 +414,5 @@ jobs:
           END $$;
           SQL
       - name: Stop isolated Supabase stack
-        if: always()
+        if: always() && steps.setup_supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
