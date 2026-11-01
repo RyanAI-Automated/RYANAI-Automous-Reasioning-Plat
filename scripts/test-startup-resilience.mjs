@@ -2,7 +2,8 @@
 /**
  * Exercise production startup against disposable CI PostgreSQL/Redis services.
  * Each failure case runs in a child process and must exit before opening its
- * HTTP listener. A final clean restart proves recovery after transient faults.
+ * HTTP listener. Checkpointer setup failure is injected through disposable
+ * PostgreSQL DDL; a final clean restart proves recovery after transient faults.
  */
 import { spawn } from 'node:child_process';
 import net from 'node:net';
@@ -115,12 +116,12 @@ async function withInjectedCheckpointerFailure(run) {
       END;
       $body$;
     `);
-    await pool.query(`
-      CREATE EVENT TRIGGER ryanai_test_reject_checkpoint_ddl
-      ON ddl_command_end
-      EXECUTE FUNCTION public.ryanai_test_reject_checkpoint_ddl();
-    `);
     try {
+      await pool.query(`
+        CREATE EVENT TRIGGER ryanai_test_reject_checkpoint_ddl
+        ON ddl_command_end
+        EXECUTE FUNCTION public.ryanai_test_reject_checkpoint_ddl();
+      `);
       await run();
     } finally {
       await pool.query('DROP EVENT TRIGGER IF EXISTS ryanai_test_reject_checkpoint_ddl');
