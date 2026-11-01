@@ -43,7 +43,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://ryanai_probe:disposable_ci_password@127.0.0.1:5432/ryanai_probe
       RYANAI_PROBE_BRAIN: ${{ inputs.provider }}
-      PROVIDER_API_KEY: ${{ inputs.provider == 'primary' && secrets.NVIDIA_API_KEY || inputs.provider == 'secondary' && secrets.QWEN_API_KEY || secrets.LOGIC_API_KEY }}
+      PROVIDER_API_KEY: ${{ (inputs.provider == 'primary' && secrets.NVIDIA_API_KEY) || (inputs.provider == 'secondary' && secrets.QWEN_API_KEY) || (inputs.provider == 'logic' && secrets.LOGIC_API_KEY) || '' }}
       NVIDIA_API_ENDPOINT: ${{ vars.NVIDIA_API_ENDPOINT }}
       QWEN_API_ENDPOINT: ${{ vars.QWEN_API_ENDPOINT }}
       LOGIC_API_ENDPOINT: ${{ vars.LOGIC_API_ENDPOINT }}
