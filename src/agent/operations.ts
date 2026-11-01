@@ -169,7 +169,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
     const sharedObjective = knowledge
       ? knowledge + '\n\nUser task objective:\n' + run.objective
       : run.objective;
-    const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt) => invokeWithRecovery(brain, prompt, cancellation.signal));
+    const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => invokeWithRecovery(brain, prompt, signal), cancellation.signal);
     if (plan.outputs.length !== 3 || plan.outputs.some((item) => !item.output.trim()) || !plan.synthesis.trim()) {
       throw new Error('Three-brain result verification failed: every brain must return a non-empty result.');
     }
