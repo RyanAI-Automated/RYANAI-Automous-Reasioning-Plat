@@ -109,6 +109,16 @@ describe('production self-patch proposal', () => {
   });
 
   it('allows environment references and explicit placeholders without embedding secret values', async () => {
+    fetchMock
+      .mockResolvedValueOnce(githubResponse({ object: { sha: 'base-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ tree: { sha: 'base-tree-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ truncated: false, tree: [{ path: 'src/agent/example.ts', mode: '100644', type: 'blob', sha: 'existing-file-sha' }] }))
+      .mockResolvedValueOnce(githubResponse({ sha: 'blob-sha' }))
+      .mockResolvedValueOnce(githubResponse({ sha: 'new-tree-sha' }))
+      .mockResolvedValueOnce(githubResponse({ sha: 'candidate-commit-sha' }))
+      .mockResolvedValueOnce(githubResponse({ ref: 'refs/heads/self-patch/test' }))
+      .mockResolvedValueOnce(githubResponse({ html_url: 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat/pull/901' }));
+
     const result = await SelfPatchSkill.proposePullRequest({
       filePath: 'src/agent/example.ts',
       patchContent: [
