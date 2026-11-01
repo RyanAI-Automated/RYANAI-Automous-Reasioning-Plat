@@ -40,3 +40,27 @@ export function resolveConnectionUrls(
     redisUrl: redis || 'redis://localhost:6379',
   };
 }
+
+
+/**
+ * Prevent a production API process from listening when required infrastructure
+ * failed its startup connectivity check. Non-production environments retain
+ * degraded-start behavior for local development and isolated tests.
+ */
+export function assertProductionDependencies(
+  nodeEnv: string,
+  services: { database: boolean; redis: boolean },
+): void {
+  if (nodeEnv !== 'production') return;
+
+  const unavailable = [
+    !services.database ? 'PostgreSQL' : undefined,
+    !services.redis ? 'Redis' : undefined,
+  ].filter(Boolean);
+
+  if (unavailable.length) {
+    throw new Error(
+      `Production startup blocked: required dependency checks failed for ${unavailable.join(', ')}. The API listener was not started.`,
+    );
+  }
+}
