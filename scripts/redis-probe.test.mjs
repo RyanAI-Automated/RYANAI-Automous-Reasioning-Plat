@@ -26,7 +26,7 @@ test('Redis TLS probe sends exactly one PING after the secure handshake', async 
       socket.on('data', (chunk) => {
         requestCount += 1;
         assert.match(chunk.toString(), /PING/);
-        socket.write('+PONG\\r\\n');
+        socket.write('+PONG\r\n');
       });
     });
 
