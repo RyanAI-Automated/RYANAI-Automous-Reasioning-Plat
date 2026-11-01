@@ -164,8 +164,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
       where: { runId: run.id },
       orderBy: { startedAt: 'asc' },
     });
-    const outputByBrain = new Map(plan.outputs.map((item) => [item.brain, item]));
-    await prisma.$transaction((tx) => persistAgentRunCompletion(tx, run, rows, plan));;
+    await prisma.$transaction((tx) => persistAgentRunCompletion(tx, run, rows, plan));
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
