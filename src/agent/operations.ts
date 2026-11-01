@@ -70,7 +70,10 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
 }
 
 export async function probeAllBrains() {
-  return Promise.all((Object.keys(brains) as BrainId[]).map(async (brain) => {
+  // Keep provider probes deterministic and cost-controlled: Logic, NVIDIA, then Qwen.
+  const results = [];
+  const probeOrder: BrainId[] = ['logic', 'primary', 'secondary'];
+  for (const brain of probeOrder) {
     const config = brains[brain];
     const started = Date.now();
     let status: string;
@@ -93,8 +96,9 @@ export async function probeAllBrains() {
       create: { brain, model: config.model, status, latencyMs, lastSuccessAt, lastError },
       update: { model: config.model, status, latencyMs, lastSuccessAt, lastError, checkedAt: new Date() },
     });
-    return { brain, model: config.model, status, latencyMs, lastSuccessAt, lastError };
-  }));
+    results.push({ brain, model: config.model, status, latencyMs, lastSuccessAt, lastError });
+  }
+  return results;
 }
 
 export async function listBrainHealth() {
