@@ -62,5 +62,8 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema=prisma/schema.prisma
 
-      - name: Apply schema to ephemeral PostgreSQL
-        run: npx prisma db push --schema=prisma/schema.prisma --skip-generate
+      - name: Apply committed migrations to ephemeral PostgreSQL
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: Verify migrations match the Prisma data model
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
