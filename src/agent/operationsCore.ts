@@ -17,13 +17,13 @@ export function verifyThreeBrainResult(outputs: BrainOutput[], synthesis: string
   return { verified: true, reason: null };
 }
 
-export async function executeThreeBrainPlan(objective: string, invoke: (brain: BrainId, prompt: string) => Promise<BrainOutput>) {
-  const [primary, secondary] = await Promise.all([invoke('primary', objective), invoke('secondary', objective)]);
+export async function executeThreeBrainPlan(objective: string, invoke: (brain: BrainId, prompt: string, signal?: AbortSignal) => Promise<BrainOutput>, cancellationSignal?: AbortSignal) {
+  const [primary, secondary] = await Promise.all([invoke('primary', objective, cancellationSignal), invoke('secondary', objective, cancellationSignal)]);
   const prompt = [
     'Synthesize both specialist analyses. Identify agreement, disagreement, assumptions, and unresolved risks. Do not claim external actions were taken.',
     'OBJECTIVE:', objective, 'PRIMARY:', primary.output, 'SECONDARY:', secondary.output,
   ].join('\n');
-  const logic = await invoke('logic', prompt);
+  const logic = await invoke('logic', prompt, cancellationSignal);
   const outputs = [primary, secondary, logic];
   const verification = verifyThreeBrainResult(outputs, logic.output);
   if (!verification.verified) throw new Error('Three-brain result verification failed: ' + verification.reason);
