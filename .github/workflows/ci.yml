@@ -178,6 +178,9 @@ jobs:
       - name: Prepare database
         run: npm run db:setup
 
+      - name: Verify durable agent queue claims and lease recovery against disposable PostgreSQL
+        run: node --import tsx/esm scripts/test-agent-queue.mjs
+
       # Vite's build uses emptyOutDir=true and clears dist/. Build the frontend
       # first, then compile the API so the server output survives for startup.
       - name: Build frontend and API
