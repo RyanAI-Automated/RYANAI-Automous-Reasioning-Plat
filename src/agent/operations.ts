@@ -10,6 +10,7 @@ import { getAgentRunRetryDelayMs, invokeWithCancellationRetry, shouldRetryAgentR
 import { persistAgentRunCompletion } from './agentRunPersistence.js';
 import { publishAgentTaskNotification } from './queueNotifications.js';
 import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
+import { summarizeProviderError } from './providerErrors.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -22,7 +23,8 @@ const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stri
 async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSignal?: AbortSignal): Promise<BrainOutput> {
   const config = brains[brain];
   if (!config.credential && !localRuntime(config.endpoint)) throw new Error(brain + ' brain credential is not configured');
-  return invokeWithCancellationRetry(async () => {
+  try {
+    return await invokeWithCancellationRetry(async () => {
     const started = Date.now();
     const timeoutSignal = AbortSignal.timeout(20_000);
     const invocationSignal = cancellationSignal
@@ -52,7 +54,11 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
     } finally {
       if (abortHandler) invocationSignal.removeEventListener('abort', abortHandler);
     }
-  }, cancellationSignal);
+    }, cancellationSignal);
+  } catch (error) {
+    if (cancellationSignal?.aborted) throw new Error('Agent run cancelled after lease loss.');
+    throw new Error(summarizeProviderError(error));
+  }
 }
 
 export async function probeAllBrains() {
