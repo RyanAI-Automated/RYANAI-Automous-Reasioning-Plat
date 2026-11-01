@@ -59,9 +59,12 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
   } catch (error) {
     if (cancellationSignal?.aborted) {
       const safeCause = new Error('Provider request cancelled after worker lease loss.');
+      // The original provider exception may contain secrets; preserve only the sanitized cause.
+      // eslint-disable-next-line preserve-caught-error -- raw provider errors must never escape this boundary.
       throw new Error('Agent run cancelled after lease loss.', { cause: safeCause });
     }
     const safeCause = new Error(summarizeProviderError(error));
+    // eslint-disable-next-line preserve-caught-error -- raw provider errors must never escape this boundary.
     throw new Error(safeCause.message, { cause: safeCause });
   }
 }
