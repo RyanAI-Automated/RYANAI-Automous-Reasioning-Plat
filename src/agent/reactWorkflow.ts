@@ -9,10 +9,11 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/ryan_ai_db",
 });
 
+// The checkpointer schema is applied by npm run db:migrate before service use.
+// Graph creation and requests must never perform schema DDL.
+const checkpointer = new PostgresSaver(pool);
+
 export async function createRyanAgentGraph() {
-  // Initialize and setup checkpointer tables if not exists
-  const checkpointer = new PostgresSaver(pool);
-  await checkpointer.setup();
 
   // 2. Define the agent reasoning node (integrating our C++ bridge for fast tensor/token logic)
   const reasoningNode = async (state: typeof MessagesAnnotation.State) => {

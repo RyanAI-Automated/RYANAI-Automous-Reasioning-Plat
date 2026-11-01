@@ -2,8 +2,8 @@
 /**
  * Exercise production startup against disposable CI PostgreSQL/Redis services.
  * Each failure case runs in a child process and must exit before opening its
- * HTTP listener. Checkpointer setup failure is injected through disposable
- * PostgreSQL DDL; a final clean restart proves recovery after transient faults.
+ * HTTP listener. Missing checkpoint schema is simulated only in disposable
+ * PostgreSQL; a final clean restart proves recovery after transient faults.
  */
 import { spawn } from 'node:child_process';
 import net from 'node:net';
@@ -97,44 +97,29 @@ async function expectStartupFailure(label, env, expectedText) {
   console.log('PASS ' + label + ': process exited before opening the API listener');
 }
 
-async function withInjectedCheckpointerFailure(run) {
+async function withMissingCheckpointerSchema(run) {
   const pool = new Pool({ connectionString: databaseUrl });
   try {
-    await pool.query(`
-      CREATE OR REPLACE FUNCTION public.ryanai_test_reject_checkpoint_ddl()
-      RETURNS event_trigger
-      LANGUAGE plpgsql
-      AS $body$
-      DECLARE command record;
-      BEGIN
-        FOR command IN SELECT * FROM pg_event_trigger_ddl_commands() LOOP
-          IF command.command_tag = 'CREATE TABLE'
-            AND command.object_identity ~* '(checkpoint_migrations|checkpoints|checkpoint_blobs|checkpoint_writes)' THEN
-            RAISE EXCEPTION 'injected LangGraph checkpointer setup failure';
-          END IF;
-        END LOOP;
-      END;
-      $body$;
-    `);
+    // This test targets only the disposable CI database prepared by db:setup.
+    // Hide the migration ledger so startup must fail its read-only schema check.
+    await pool.query(
+      'ALTER TABLE public.checkpoint_migrations RENAME TO checkpoint_migrations_startup_test',
+    );
     try {
-      await pool.query(`
-        CREATE EVENT TRIGGER ryanai_test_reject_checkpoint_ddl
-        ON ddl_command_end
-        EXECUTE FUNCTION public.ryanai_test_reject_checkpoint_ddl();
-      `);
       await run();
     } finally {
-      await pool.query('DROP EVENT TRIGGER IF EXISTS ryanai_test_reject_checkpoint_ddl');
-      await pool.query('DROP FUNCTION IF EXISTS public.ryanai_test_reject_checkpoint_ddl()');
+      await pool.query(
+        'ALTER TABLE public.checkpoint_migrations_startup_test RENAME TO checkpoint_migrations',
+      );
     }
   } finally {
     await pool.end();
   }
 }
 
-async function expectCheckpointerSetupFailure() {
-  await withInjectedCheckpointerFailure(() => expectStartupFailure(
-    'Agent checkpointer setup failure',
+async function expectMissingCheckpointerSchema() {
+  await withMissingCheckpointerSchema(() => expectStartupFailure(
+    'Agent checkpointer schema missing',
     { DATABASE_URL: databaseUrl, REDIS_URL: redisUrl },
     'Production startup blocked: required dependency checks failed for agent checkpointer',
   ));
@@ -191,9 +176,9 @@ try {
     'Production startup blocked',
   );
 
-  // Inject a real PostgreSQL DDL failure into LangGraph PostgresSaver setup.
-  // This runs before any successful checkpointer setup creates its tables.
-  await expectCheckpointerSetupFailure();
+  // Hide the migrated checkpoint ledger in disposable CI PostgreSQL.
+  // Startup must fail closed without trying to create or repair the schema.
+  await expectMissingCheckpointerSchema();
 
   const unreachableRedis = new URL(redisUrl);
   unreachableRedis.port = '1';
