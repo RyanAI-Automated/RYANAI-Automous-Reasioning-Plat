@@ -60,6 +60,71 @@ describe('live dependency readiness', () => {
     expect((await inspectReadiness(probes)).ready).toBe(true);
   });
 
+  it('marks Redis unavailable when its live probe fails', async () => {
+    const result = await inspectReadiness({
+      database: healthy,
+      redis: unavailable,
+      agentCheckpointerInitialized: true,
+      apiListening: true,
+    });
+
+    expect(result.ready).toBe(false);
+    expect(result.services.redis).toBe(false);
+    expect(result.services.database).toBe(true);
+  });
+
+  it('recovers readiness when Redis becomes available again', async () => {
+    const redis = vi
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce('PONG');
+    const probes = {
+      database: healthy,
+      redis,
+      agentCheckpointerInitialized: true,
+      apiListening: true,
+    };
+
+    expect((await inspectReadiness(probes)).ready).toBe(false);
+    expect((await inspectReadiness(probes)).ready).toBe(true);
+  });
+
+  it('bounds a dependency probe that never settles', async () => {
+    const neverSettles = () => new Promise<never>(() => {});
+    const startedAt = Date.now();
+    const result = await inspectReadiness(
+      {
+        database: neverSettles,
+        redis: healthy,
+        agentCheckpointerInitialized: true,
+        apiListening: true,
+      },
+      10,
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(result.ready).toBe(false);
+    expect(result.services.database).toBe(false);
+    expect(result.services.agentCheckpointer).toBe(false);
+  });
+
+  it('clamps invalid and excessive probe timeouts to a safe bound', async () => {
+    const neverSettles = () => new Promise<never>(() => {});
+    const startedAt = Date.now();
+    const result = await inspectReadiness(
+      {
+        database: neverSettles,
+        redis: healthy,
+        agentCheckpointerInitialized: true,
+        apiListening: true,
+      },
+      Number.POSITIVE_INFINITY,
+    );
+
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(result.ready).toBe(false);
+  });
+
   it('keeps readiness false when the checkpointer did not initialize', async () => {
     const result = await inspectReadiness({
       database: healthy,
