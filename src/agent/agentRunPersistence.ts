@@ -62,7 +62,7 @@ export async function persistAgentRunCompletion(
     },
   });
   const completion = await tx.agentRun.updateMany({
-    where: { id: run.id, status: 'running', workerId: run.worker_id, attempts: run.attempts },
+    where: { id: run.id, status: 'running', workerId: run.worker_id, attempts: run.attempts, cancelRequestedAt: null },
     data: {
       status: 'completed',
       result: { synthesis: plan.synthesis, degraded: plan.degraded, executionPlan, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
