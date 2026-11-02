@@ -9,12 +9,16 @@ export function parseAgentRunExecutionChange(value: unknown): ExecutionChange {
     return { eventKnown: false, snapshotFresh: false };
   }
   const candidate = value as Record<string, unknown>;
-  const resourceKeys = Array.isArray(candidate.resourceKeys)
-    ? candidate.resourceKeys.filter((key): key is string => typeof key === 'string')
+  const hasResourceKeys = Array.isArray(candidate.resourceKeys);
+  const resourceKeysValid = !hasResourceKeys || candidate.resourceKeys.every((key) => typeof key === 'string');
+  const resourceKeys = hasResourceKeys
+    ? resourceKeysValid
+      ? candidate.resourceKeys as string[]
+      : ['']
     : undefined;
 
   return {
-    eventKnown: candidate.eventKnown === true,
+    eventKnown: candidate.eventKnown === true && resourceKeysValid,
     snapshotFresh: candidate.snapshotFresh === true,
     resourceKeys,
     requiresSharedMetadata: candidate.requiresSharedMetadata === true,
