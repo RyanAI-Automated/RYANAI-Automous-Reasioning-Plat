@@ -183,7 +183,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     if (!url) throw new Error('A secure download link could not be created.');
     setAttachmentUrls((current) => ({
       ...current,
-      [attachment.id]: { url, expiresAt: Date.now() + 8 * 60 * 1000 },
+      [attachment.id]: { url, expiresAt: Date.now() + 45_000 },
     }));
     return url;
   };
@@ -363,7 +363,9 @@ export default function ChatPanel(props: ChatPanelProps) {
               <p className="whitespace-pre-wrap break-words">{msg.content}</p>
               {msg.attachments?.length ? (
                 <div className="mt-2 flex flex-col gap-2">
-                  {msg.attachments.map((attachment) => (
+                  {msg.attachments.map((attachment) => {
+                    const previewUrl = attachmentUrls[attachment.id]?.url ?? attachment.url;
+                    return (
                     <a
                       key={attachment.id}
                       href={attachment.url}
@@ -376,11 +378,11 @@ export default function ChatPanel(props: ChatPanelProps) {
                       className="flex items-center gap-2 rounded border border-cyan-500/20 bg-ink-950/40 p-2 text-xs text-cyan-200 hover:bg-cyan-500/10"
                     >
                       {attachment.mimeType.startsWith('image/') && attachment.url ? (
-                        <img src={attachment.url} alt={attachment.name} loading="lazy" className="h-12 w-12 rounded object-cover" />
+                        <img src={previewUrl} alt={attachment.name} loading="lazy" className="h-12 w-12 rounded object-cover" />
                       ) : attachment.mimeType.startsWith('video/') && attachment.url ? (
-                        <video src={attachment.url} controls preload="metadata" className="max-h-32 max-w-40 rounded" aria-label={`Preview ${attachment.name}`} />
+                        <video src={previewUrl} controls preload="metadata" className="max-h-32 max-w-40 rounded" aria-label={`Preview ${attachment.name}`} />
                       ) : attachment.mimeType.startsWith('audio/') && attachment.url ? (
-                        <audio src={attachment.url} controls preload="metadata" className="max-w-48" aria-label={`Preview ${attachment.name}`} />
+                        <audio src={previewUrl} controls preload="metadata" className="max-w-48" aria-label={`Preview ${attachment.name}`} />
                       ) : (
                         <Paperclip size={14} />
                       )}
@@ -388,7 +390,8 @@ export default function ChatPanel(props: ChatPanelProps) {
                       <span className="shrink-0 text-ink-500">{(attachment.size / 1024).toFixed(0)} KB</span>
                       <span className="shrink-0 text-cyan-300">Open</span>
                     </a>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
               {msg.role === 'assistant' && (
