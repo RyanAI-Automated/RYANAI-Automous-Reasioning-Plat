@@ -34,7 +34,7 @@ projects:
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             branch: main
             plan: free
-            region: virginia
+            region: oregon
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
             autoDeployTrigger: "off"
