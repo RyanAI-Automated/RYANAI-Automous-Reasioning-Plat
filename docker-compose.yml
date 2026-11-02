@@ -197,7 +197,7 @@ services:
     container_name: ryanai-mcpjungle-db
     environment:
       POSTGRES_USER: mcpjungle
-      POSTGRES_PASSWORD: ${MCPJUNGLE_DB_PASSWORD:?Set a URL-safe MCPJUNGLE_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${MCPJUNGLE_DB_PASSWORD:-}
       POSTGRES_DB: mcpjungle
     networks: [ryanai-net]
     volumes:
@@ -211,7 +211,7 @@ services:
 
   mcpjungle:
     profiles: [mcp-gateway]
-    image: ghcr.io/mcpjungle/mcpjungle:${MCPJUNGLE_IMAGE_TAG:-0.4.7}
+    image: ghcr.io/mcpjungle/mcpjungle:${MCPJUNGLE_IMAGE_TAG:-0.4.6}
     container_name: ryanai-mcpjungle
     environment:
       DATABASE_URL: postgres://mcpjungle:${MCPJUNGLE_DB_PASSWORD:?Set a URL-safe MCPJUNGLE_DB_PASSWORD in .env}@mcpjungle-db:5432/mcpjungle?sslmode=disable
