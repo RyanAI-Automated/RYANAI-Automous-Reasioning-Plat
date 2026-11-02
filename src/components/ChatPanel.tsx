@@ -193,7 +193,6 @@ export default function ChatPanel(props: ChatPanelProps) {
           <button
             type="button"
             aria-label={`Choose reasoning model. Current model: ${props.model}`}
-            aria-haspopup="true"
             aria-expanded={showModelMenu}
             aria-controls="chat-model-options"
             onClick={() => setShowModelMenu(!showModelMenu)}
