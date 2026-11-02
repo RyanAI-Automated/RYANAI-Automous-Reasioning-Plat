@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveBrainProviderConfig } from './providerConfig.js';
+import { resolveProviderProbeConfig } from './providerProbeConfig.js';
 
 describe('independent brain provider credentials', () => {
   it('does not report cloud providers as configured without their own credentials', () => {
@@ -62,7 +63,6 @@ describe('independent brain provider credentials', () => {
     }
   });
 });
-import { resolveProviderProbeConfig } from './providerProbeConfig.js';
 
 describe('isolated provider probe credential resolution', () => {
   it.each([
