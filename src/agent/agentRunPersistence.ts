@@ -15,12 +15,12 @@ interface PersistableHandoff {
   input: string;
 }
 
-/** Persist worker output atomically under the original worker/attempt lease fence. */
+/** Persist actual provider outputs atomically; unavailable brains remain failed rather than being fabricated. */
 export async function persistAgentRunCompletion(
   tx: Prisma.TransactionClient,
   run: PersistableAgentRun,
   handoffs: PersistableHandoff[],
-  plan: { outputs: BrainOutput[]; synthesis: string },
+  plan: { outputs: BrainOutput[]; synthesis: string; degraded: boolean },
 ): Promise<void> {
   const outputByBrain = new Map(plan.outputs.map((item) => [item.brain, item]));
   for (const row of handoffs) {
@@ -29,13 +29,21 @@ export async function persistAgentRunCompletion(
       : row.toAgent === 'secondary'
         ? outputByBrain.get('secondary')
         : outputByBrain.get(row.fromAgent as 'primary' | 'secondary');
-    if (!output) throw new Error('Missing verified output for handoff ' + row.id);
+    const logicOutput = outputByBrain.get('logic');
+    if (!output || (row.toAgent === 'logic' && !logicOutput)) {
+      await tx.agentHandoff.update({
+        where: { id: row.id },
+        data: { status: 'failed', error: 'Required brain unavailable; no output or consensus was fabricated.', completedAt: new Date() },
+      });
+      continue;
+    }
     await tx.agentHandoff.update({
       where: { id: row.id },
       data: {
         status: 'completed',
         output: row.toAgent === 'logic' ? plan.synthesis : output.output,
         input: row.toAgent === 'logic' ? output.output : row.input,
+        error: null,
         completedAt: new Date(),
       },
     });
@@ -46,20 +54,18 @@ export async function persistAgentRunCompletion(
       title: 'Autonomous task ' + run.id,
       content: 'Objective:\n' + run.objective + '\n\nResult:\n' + plan.synthesis,
       category: 'agent-task',
-      tags: ['agent-run', 'autonomous'],
+      tags: ['agent-run', 'autonomous', ...(plan.degraded ? ['degraded'] : [])],
     },
   });
   const completion = await tx.agentRun.updateMany({
     where: { id: run.id, status: 'running', workerId: run.worker_id, attempts: run.attempts },
     data: {
       status: 'completed',
-      result: { synthesis: plan.synthesis, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
+      result: { synthesis: plan.synthesis, degraded: plan.degraded, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
       completedAt: new Date(),
       lockedAt: null,
       workerId: null,
     },
   });
-  if (completion.count !== 1) {
-    throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
-  }
+  if (completion.count !== 1) throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
 }
