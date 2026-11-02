@@ -129,6 +129,51 @@ describe('launcher reasoning routes', () => {
     expect(state.invoke).toHaveBeenCalledWith(expect.objectContaining({ language: 've-ZA' }));
   });
 
+  it('streams persisted brain handoff transitions during authenticated reasoning', async () => {
+    state.invoke.mockImplementationOnce((input: {
+      onProgress?: (event: {
+        runId: string;
+        status: string;
+        handoffs: Array<{
+          fromAgent: string;
+          toAgent: string;
+          status: string;
+          startedAt: Date;
+          completedAt: Date | null;
+          error: string | null;
+        }>;
+      }) => void;
+    }) => {
+      input.onProgress?.({
+        runId: 'run-live',
+        status: 'running',
+        handoffs: [{
+          fromAgent: 'supervisor',
+          toAgent: 'primary',
+          status: 'running',
+          startedAt: new Date('2026-11-02T12:00:00.000Z'),
+          completedAt: null,
+          error: null,
+        }],
+      });
+      return Promise.resolve({
+        messages: [{ content: 'answer' }],
+        engine: 'RyanAI Three-Brain Orchestrator',
+        runId: 'run-live',
+        handoffs: [],
+      });
+    });
+    const response = await state.app!.inject({
+      method: 'POST',
+      url: '/api/reasoning/stream',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { prompt: 'hello' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('"status":"processing","message":"Persisted brain handoff state changed."');
+    expect(response.body).toContain('"toAgent":"primary","status":"running"');
+  });
+
   it('rejects unauthenticated reasoning requests before invoking the orchestrator', async () => {
     state.invoke.mockClear();
     const response = await state.app!.inject({
