@@ -1,0 +1,33 @@
+name: Opt-in GPT-Live Voice Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_live_voice_call:
+        description: Confirm one real, potentially billable GPT-Live audio session
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  live-voice:
+    name: Verify real GPT-Live audio transport
+    if: ${{ inputs.confirm_live_voice_call == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      RYANAI_REALTIME_MODEL: ${{ vars.RYANAI_REALTIME_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Verify real Live session, input frame, output audio and finalization
+        run: node scripts/test-realtime-voice-live.mjs
