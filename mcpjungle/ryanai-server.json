@@ -1,0 +1,7 @@
+{
+  "name": "ryanai",
+  "transport": "streamable_http",
+  "description": "RyanAI internal MCP tools for Jarvis engineering orchestration",
+  "url": "http://mcp-server:8765/mcp",
+  "bearer_token": "${RYANAI_MCP_AUTH_TOKEN}"
+}
