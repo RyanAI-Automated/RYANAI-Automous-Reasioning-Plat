@@ -60,13 +60,13 @@ export function createMcpServer() {
     },
     {
       name: 'reasoning_route',
-      description: 'Send a prompt to the configured Nemotron, Qwen, or optional DeepSeek OpenAI-compatible endpoint. DeepSeek permits unauthenticated requests only to loopback; remote endpoints require DEEPSEEK_API_KEY.'
+      description: 'Send a prompt to the configured Nemotron, Qwen, or optional DeepSeek OpenAI-compatible endpoint. DeepSeek permits unauthenticated requests only to loopback; remote endpoints require DEEPSEEK_API_KEY.',
       inputSchema: {
         type: 'object',
         properties: {
           prompt: { type: 'string', description: 'Prompt to process, up to 20,000 characters.' },
           brain: { type: 'string', enum: ['nemotron', 'qwen', 'deepseek'], description: 'Provider brain; defaults to nemotron. DeepSeek defaults to http://127.0.0.1:8888/v1.' },
-          response_format: { type: 'string', enum: ['text', 'json_object'], description: 'Request plain text (default) or validated JSON object output.' }
+          response_format: { type: 'string', enum: ['text', 'json_object'], description: 'Request plain text (default) or validated JSON object output.' },
         },
         required: ['prompt'],
       },
