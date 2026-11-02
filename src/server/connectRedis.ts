@@ -17,6 +17,9 @@ export function inspectRedisConnectionUrl(url: string): RedisConnectionTarget {
   } catch {
     throw new Error('Invalid REDIS_URL: expected a valid redis:// or rediss:// URL.');
   }
+  if (!url.startsWith('redis://') && !url.startsWith('rediss://')) {
+    throw new Error('Invalid REDIS_URL scheme: use lowercase redis:// or rediss://.');
+  }
   if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
     throw new Error('Invalid REDIS_URL scheme: use redis:// or rediss://.');
   }
