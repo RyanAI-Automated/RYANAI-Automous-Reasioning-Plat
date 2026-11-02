@@ -2,6 +2,7 @@ const PROVIDER_DEFAULTS = {
   nemotron: { id: 'nvidia/nemotron-3-ultra-550b-a55b', endpoint: 'https://integrate.api.nvidia.com/v1', modelEnv: 'NVIDIA_MODEL', endpointEnv: 'NVIDIA_API_ENDPOINT', keyEnv: 'NVIDIA_API_KEY' },
   qwen: { id: 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput', endpoint: 'https://api.together.xyz/v1', modelEnv: 'QWEN_MODEL', endpointEnv: 'QWEN_API_ENDPOINT', keyEnv: 'QWEN_API_KEY' },
   deepseek: { id: 'DeepSeek-V4.1-Flash-1017', endpoint: 'http://127.0.0.1:8888/v1', modelEnv: 'DEEPSEEK_MODEL', endpointEnv: 'DEEPSEEK_API_ENDPOINT', keyEnv: 'DEEPSEEK_API_KEY' },
+  torch_tpu: { id: '', endpoint: 'http://127.0.0.1:8000/v1', modelEnv: 'TORCHTPU_MODEL', endpointEnv: 'TORCHTPU_API_ENDPOINT', keyEnv: 'TORCHTPU_API_KEY' },
 };
 
 export function resolveBrain(name = 'nemotron', env = process.env) {
@@ -21,8 +22,8 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
   if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
     throw new Error('The configured ' + name + ' API endpoint must be a clean HTTP or HTTPS URL without credentials, query strings, or fragments.');
   }
-  const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(endpoint.hostname.toLowerCase());
-  if (!isLoopback && endpoint.protocol !== 'https:') throw new Error('Remote ' + name + ' API endpoints must use HTTPS.');
+  const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(baseUrl.hostname.toLowerCase());
+  if (!isLoopback && baseUrl.protocol !== 'https:') throw new Error('Remote ' + name + ' API endpoints must use HTTPS.');
   if (!brain.key && !isLoopback) throw new Error('No API key is configured for ' + name + '; unauthenticated requests are allowed only to a loopback endpoint.');
 
   const responseFormat = options.responseFormat || 'text';
