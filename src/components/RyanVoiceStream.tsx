@@ -112,6 +112,35 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   useEffect(() => () => stop(), [stop]);
 
   const start = useCallback(async () => {
+    setStatus('connecting');
+    setError('');
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone access is not available in this browser.');
+      }
+      const context = new AudioContext({ sampleRate: REALTIME_SAMPLE_RATE });
+      audioContext.current = context;
+      await context.resume();
+      mediaStream.current = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+
+      const ticketResponse = await authenticatedFetch('/api/v1/realtime/voice-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language }),
+      });
+      const ticketBody = await ticketResponse.json() as VoiceTicketResponse;
+      if (!ticketResponse.ok || !ticketBody.ticket) {
+        throw new Error(ticketBody.error || 'Could not authorize the realtime voice session.');
+      }
+
+      const endpoint = new URL('/api/v1/realtime/voice', API_BASE_URL);
+      endpoint.protocol = endpoint.protocol === 'https:' ? 'wss:' : 'ws:';
+      endpoint.searchParams.set('ticket', ticketBody.ticket);
+      const ws = new WebSocket(endpoint.toString());
+      socket.current = ws;
+
   }, []);
 
   const stop = useCallback(() => {
@@ -179,6 +208,7 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
         } catch {
           setError('RyanAI returned an unreadable voice event.');
           return;
+        }
         }
         if (event.type === 'session.started') {
           const activeContext = audioContext.current;
@@ -306,6 +336,8 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
       };
       ws.onclose = () => {
         if (socket.current === ws) stop();
+      };
+    } catch (cause) {
       };
     } catch (cause) {
 

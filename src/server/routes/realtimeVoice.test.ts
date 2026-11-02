@@ -2,6 +2,34 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { realtimeVoiceRoutes } from './realtimeVoice.js';
+import { EventEmitter } from 'node:events';
+
+const upstreamState = vi.hoisted(() => ({ latest: undefined as unknown }));
+
+vi.mock('ws', () => {
+  class MockWebSocket extends EventEmitter {
+    static OPEN = 1;
+    static CONNECTING = 0;
+    readyState = 0;
+    sent: string[] = [];
+    constructor() {
+      super();
+      upstreamState.latest = this;
+      queueMicrotask(() => {
+        this.readyState = 1;
+        this.emit('open');
+      });
+    }
+    send(payload: string) { this.sent.push(payload); }
+    close() {
+      this.readyState = 3;
+      this.emit('close');
+    }
+  }
+  return { default: MockWebSocket };
+});
+
+import { realtimeVoiceRoutes } from './realtimeVoice.js';
 
 const apps: FastifyInstance[] = [];
 const tickets = new Map<string, string>();
