@@ -6,6 +6,7 @@ on:
     paths:
       - 'prisma/**'
       - 'src/db/**'
+      - 'tests/fixtures/supabase-auth-ci-*.sql'
       - 'Dockerfile'
       - 'docker-compose.yml'
       - '.github/workflows/database.yml'
@@ -14,6 +15,8 @@ on:
     paths:
       - 'prisma/**'
       - 'src/db/**'
+      - 'tests/fixtures/supabase-auth-ci-*.sql'
+      - 'Dockerfile'
       - '.github/workflows/database.yml'
   workflow_dispatch:
 
@@ -64,15 +67,33 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema=prisma/schema.prisma
 
+      - name: Provision minimal Supabase Auth roles and schema for CI
+        run: |
+          docker run --rm --network host -e PGPASSWORD=ci_password \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bootstrap.sql:/tmp/supabase-auth-ci-bootstrap.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_db \
+              -v ON_ERROR_STOP=1 -f /tmp/supabase-auth-ci-bootstrap.sql
+
       - name: Apply committed migrations to ephemeral PostgreSQL
         run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: Verify Supabase Auth identity bridge insert, update, and delete
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bridge-smoke.sql:/tmp/supabase-auth-ci-bridge-smoke.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_db \
+              -v ON_ERROR_STOP=1 -f /tmp/supabase-auth-ci-bridge-smoke.sql
 
       - name: Create a second disposable database for the migration image
         env:
           PGPASSWORD: ci_password
         run: |
-          docker run --rm --network host -e PGPASSWORD postgres:16-alpine \
-            createdb -h 127.0.0.1 -U ryanai ryanai_migration_container
+          docker run --rm --network host -e PGPASSWORD \
+            postgres:16-alpine createdb -h 127.0.0.1 -U ryanai ryanai_migration_container
+          docker run --rm --network host -e PGPASSWORD \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bootstrap.sql:/tmp/supabase-auth-ci-bootstrap.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_migration_container \
+              -v ON_ERROR_STOP=1 -f /tmp/supabase-auth-ci-bootstrap.sql
 
       - name: Build and run the one-shot migration image twice
         env:
