@@ -24,7 +24,7 @@ const PROVIDER_DEFAULTS = {
 
 export function resolveBrain(name = 'nemotron', env = process.env) {
   const defaults = PROVIDER_DEFAULTS[name];
-  if (!defaults) throw new Error(`Unknown reasoning provider: ${name}`);
+  if (!defaults) throw new Error('Unknown reasoning provider: ' + name);
   return {
     id: env[defaults.modelEnv] || defaults.id,
     endpoint: env[defaults.endpointEnv] || defaults.endpoint,
@@ -36,17 +36,17 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
   const brain = resolveBrain(name, options.env || process.env);
   let endpoint;
   try {
-    endpoint = new URL('chat/completions', `${brain.endpoint.replace(/\\/+$/, '')}/`);
+    endpoint = new URL('chat/completions', brain.endpoint.replace(/\/+$/, '') + '/');
   } catch {
-    throw new Error(`The configured ${name} API endpoint is not a valid URL.`);
+    throw new Error('The configured ' + name + ' API endpoint is not a valid URL.');
   }
   if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-    throw new Error(`The configured ${name} API endpoint must be a clean HTTP or HTTPS URL without credentials, query strings, or fragments.`);
+    throw new Error('The configured ' + name + ' API endpoint must be a clean HTTP or HTTPS URL without credentials, query strings, or fragments.');
   }
 
   const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(endpoint.hostname.toLowerCase());
   if (!brain.key && !isLoopback) {
-    throw new Error(`No API key is configured for ${name}; unauthenticated requests are allowed only to a loopback endpoint.`);
+    throw new Error('No API key is configured for ' + name + '; unauthenticated requests are allowed only to a loopback endpoint.');
   }
 
   const responseFormat = options.responseFormat || 'text';
@@ -54,7 +54,7 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
     throw new Error('responseFormat must be text or json_object.');
   }
   const headers = { 'content-type': 'application/json' };
-  if (brain.key) headers.authorization = `Bearer ${brain.key}`;
+  if (brain.key) headers.authorization = 'Bearer ' + brain.key;
 
   const response = await (options.fetch || fetch)(endpoint, {
     method: 'POST',
@@ -70,7 +70,7 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
 
   if (!response.ok) {
     const details = (await response.text()).slice(0, 500);
-    throw new Error(`${brain.id} provider returned HTTP ${response.status}: ${details}`);
+    throw new Error(brain.id + ' provider returned HTTP ' + response.status + ': ' + details);
   }
 
   const payload = await response.json();
@@ -78,16 +78,16 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
   const content = message?.content;
   if (typeof content !== 'string' || !content.trim()) {
     if (Array.isArray(message?.tool_calls) && message.tool_calls.length) {
-      throw new Error(`${brain.id} returned tool calls without text; this route does not execute provider tool calls.`);
+      throw new Error(brain.id + ' returned tool calls without text; this route does not execute provider tool calls.');
     }
-    throw new Error(`${brain.id} provider returned no text response.`);
+    throw new Error(brain.id + ' provider returned no text response.');
   }
 
   if (responseFormat === 'json_object') {
     try {
       JSON.parse(content);
     } catch {
-      throw new Error(`${brain.id} did not return valid JSON while JSON response mode was requested.`);
+      throw new Error(brain.id + ' did not return valid JSON while JSON response mode was requested.');
     }
   }
   return { mode: 'provider', brain: brain.id, response: content, responseFormat };
