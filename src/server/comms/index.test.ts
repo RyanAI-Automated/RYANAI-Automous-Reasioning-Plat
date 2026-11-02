@@ -81,7 +81,7 @@ describe('Twilio conversational voice webhooks', () => {
     expect(response.body).toContain('This is RyanAI. How may I assist you?');
     expect(response.body).toContain('language="en-ZA"');
     expect(response.body).toContain('<Gather input="speech" language="en-ZA"');
-    expect(response.body).toMatch(/Certainly, Sir G\. Good (morning|afternoon|evening)\./);
+    expect(response.body).toMatch(/Good (morning|afternoon|evening), Sir G\. This is RyanAI\. How may I assist you\?/);
     expect(response.body).toContain('Please speak after the tone.');
     expect(response.body).toContain('language="en-ZA" voice="Polly.Ayanda-Neural"');
     expect(response.body).toContain('<Gather input="speech"');
