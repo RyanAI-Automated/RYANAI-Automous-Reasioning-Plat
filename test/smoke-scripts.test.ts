@@ -190,7 +190,7 @@ describe('live smoke script contracts', () => {
   it('integration checks share the authenticated WebSocket contract while reporting unavailable databases', async () => {
     const result = await runScript(await fixture(), {
       integration: true,
-      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin',
+      tokens: 'TEST_ADMIN_ACCESS_TOKEN=fixture-admin\nMCP_URL=http://127.0.0.1:1',
     });
     expect(result.code).toBe(1);
     expect(result.stdout).toContain(
@@ -202,8 +202,9 @@ describe('live smoke script contracts', () => {
     expect(result.stdout).toContain('FAIL PostgreSQL connection:');
     expect(result.stdout).toContain('FAIL Redis connection:');
     expect(result.stdout).toContain('FAIL Web document and built assets:');
+    expect(result.stdout).toContain('FAIL MCP health endpoint:');
     expect(result.stdout).toContain(
-      'Integration checks: 4/7 passed; 0 skipped',
+      'Integration checks: 3/7 passed; 0 skipped',
     );
   });
 
