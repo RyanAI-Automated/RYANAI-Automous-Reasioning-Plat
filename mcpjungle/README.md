@@ -45,7 +45,7 @@ In enterprise mode, create a dedicated MCP client and grant it only the required
 
 - `mcpjungle list servers` shows the registered `ryanai` server.
 - `mcpjungle list tools --server ryanai` shows only tools enabled by RyanAI's operator allowlist.
-- `mcpjungle list tools --group jarvis-readonly` (or the CLI's documented group listing) confirms the read-only surface.
+- Connect the dedicated Jarvis MCP client to the group endpoint `http://127.0.0.1:8080/v0/groups/jarvis-readonly/mcp`; the group exposes only its configured tool subset.
 - Connect Jarvis using the dedicated group endpoint and client token, then verify tool discovery and a harmless `repository_status` call.
 - Confirm a tool not included in the group is unavailable to that client.
 
