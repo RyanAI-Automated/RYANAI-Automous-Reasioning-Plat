@@ -93,6 +93,6 @@ RUN sed -i 's/\r$//' /usr/local/bin/ryanai-web-entrypoint.sh \
     && chmod 0755 /usr/local/bin/ryanai-web-entrypoint.sh
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:\${PORT}/health" || exit 1
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT}/health" || exit 1
 ENTRYPOINT ["/usr/local/bin/ryanai-web-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
