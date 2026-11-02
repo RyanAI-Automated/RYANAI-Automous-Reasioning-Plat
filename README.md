@@ -27,6 +27,7 @@ This README describes the current repository implementation and its intended loc
 - [AI brains and provider connectivity](#ai-brains-and-provider-connectivity)
 - [Autonomous tasks, persistence, and recovery](#autonomous-tasks-persistence-and-recovery)
 - [MCP service](#mcp-service)
+- [MCPJungle gateway and TorchTPU](#mcpjungle-gateway-and-torchtpu)
 - [Self-patching and change safety](#self-patching-and-change-safety)
 - [Database operations](#database-operations)
 - [Commands and validation](#commands-and-validation)
@@ -517,6 +518,10 @@ npm run mcp:health
 ```
 
 With Compose, the MCP HTTP service is available at `http://localhost:8765/mcp` and its health endpoint at `http://localhost:8765/health`. Use the configured bearer token for MCP requests. Restrict allowed hosts and network exposure to the minimum required.
+
+## MCPJungle gateway and TorchTPU
+
+RyanAI includes an optional, self-hosted MCPJungle gateway profile and an OpenAI-compatible endpoint adapter for a separately operated TorchTPU serving stack. Neither integration is started or provisioned by default. See [MCPJungle integration](./docs/MCPJUNGLE_INTEGRATION.md) and [TorchTPU integration](./docs/TORCHTPU_INTEGRATION.md). The MCPJungle gateway is loopback-bound and enterprise mode is mandatory; register only the least-privilege tool group. TorchTPU requires compatible Google Cloud TPU infrastructure and a serving layer such as vLLM or SGLang; RyanAI does not install TPU drivers or provision TPU resources.
 
 ## Self-patching and change safety
 
