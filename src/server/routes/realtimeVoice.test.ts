@@ -29,8 +29,6 @@ vi.mock('ws', () => {
   return { default: MockWebSocket };
 });
 
-import { realtimeVoiceRoutes } from './realtimeVoice.js';
-
 const apps: FastifyInstance[] = [];
 const tickets = new Map<string, string>();
 const redis = {
