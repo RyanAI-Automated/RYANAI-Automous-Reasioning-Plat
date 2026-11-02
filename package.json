@@ -110,7 +110,7 @@
   "dependencies": {
     "@base-ui/react": "^1.9.0",
     "@fastify/cookie": "^11.1.2",
-    "@fastify/cors": "^10.1.0",
+    "@fastify/cors": "^11.3.1",
     "@fastify/env": "^7.0.0",
     "@fastify/formbody": "^9.0.0",
     "@fastify/jwt": "^10.2.4",
