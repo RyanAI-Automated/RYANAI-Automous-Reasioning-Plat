@@ -7,7 +7,7 @@ services:
     container_name: ryanai-db
     environment:
       POSTGRES_USER: ryanai
-      POSTGRES_PASSWORD: \${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: ryanai_db
     networks: [ryanai-net]
     ports:
@@ -32,13 +32,13 @@ services:
     image: redis:7-alpine
     container_name: ryanai-redis
     environment:
-      REDIS_PASSWORD: \${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     command:
       - redis-server
       - --appendonly
       - "yes"
       - --requirepass
-      - \${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      - ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     networks: [ryanai-net]
     ports:
       - "127.0.0.1:6379:6379"
@@ -67,7 +67,7 @@ services:
         required: false
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://ryanai:\${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
+      DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
     networks: [ryanai-net]
     depends_on:
       postgres:
@@ -87,40 +87,40 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: postgresql://ryanai:\${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
-      REDIS_URL: redis://:\${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
-      JWT_SECRET: \${JWT_SECRET:?Set JWT_SECRET in .env}
-      SUPABASE_URL: \${SUPABASE_URL:-}
-      SUPABASE_ANON_KEY: \${SUPABASE_ANON_KEY:-}
-      SUPABASE_PUBLISHABLE_KEY: \${SUPABASE_PUBLISHABLE_KEY:-}
-      SUPABASE_SERVICE_ROLE_KEY: \${SUPABASE_SERVICE_ROLE_KEY:-}
-      ATTACHMENT_SCANNER_ENABLED: \${ATTACHMENT_SCANNER_ENABLED:-false}
-      CLAMAV_HOST: \${CLAMAV_HOST:-}
-      CLAMAV_PORT: \${CLAMAV_PORT:-3310}
-      CLAMAV_TIMEOUT_MS: \${CLAMAV_TIMEOUT_MS:-60000}
-      ATTACHMENT_SCAN_INTERVAL_MS: \${ATTACHMENT_SCAN_INTERVAL_MS:-5000}
-      OPENAI_API_KEY: \${OPENAI_API_KEY:-}
-      NVIDIA_API_KEY: \${NVIDIA_API_KEY:-}
-      NVIDIA_API_ENDPOINT: \${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: \${NVIDIA_MODEL:-nvidia/nemotron-3-ultra}
-      QWEN_API_KEY: \${QWEN_API_KEY:-}
-      QWEN_API_ENDPOINT: \${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
-      QWEN_MODEL: \${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
-      LOGIC_API_KEY: \${LOGIC_API_KEY:-}
-      LOGIC_API_ENDPOINT: \${LOGIC_API_ENDPOINT:-https://api.openai.com/v1}
-      LOGIC_REASONING_MODEL: \${LOGIC_REASONING_MODEL:-gpt-4o-mini}
-      RYANAI_GITHUB_TOKEN: \${RYANAI_GITHUB_TOKEN:-}
-      RYANAI_GITHUB_REPOSITORY: \${RYANAI_GITHUB_REPOSITORY:-RyanAI-Automated/RYANAI-Automous-Reasioning-Plat}
-      RYANAI_GITHUB_BASE_BRANCH: \${RYANAI_GITHUB_BASE_BRANCH:-main}
-      JARVIS_BASE_URL: \${JARVIS_BASE_URL:-}
-      JARVIS_API_TOKEN: \${JARVIS_API_TOKEN:-}
-      JARVIS_SYNC_ENABLED: \${JARVIS_SYNC_ENABLED:-false}
-      JARVIS_ALLOW_PRODUCTION_SYNC: \${JARVIS_ALLOW_PRODUCTION_SYNC:-false}
-      JARVIS_PATCH_INGRESS_ENABLED: \${JARVIS_PATCH_INGRESS_ENABLED:-false}
-      JARVIS_INGRESS_TOKEN: \${JARVIS_INGRESS_TOKEN:-}
-      JARVIS_HEALTH_PATH: \${JARVIS_HEALTH_PATH:-/health}
-      JARVIS_PATCH_PATH: \${JARVIS_PATCH_PATH:-/api/v1/patches}
-      JARVIS_STACK_PATH: \${JARVIS_STACK_PATH:-/api/v1/stacks}
+      DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      ATTACHMENT_SCANNER_ENABLED: ${ATTACHMENT_SCANNER_ENABLED:-false}
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-60000}
+      ATTACHMENT_SCAN_INTERVAL_MS: ${ATTACHMENT_SCAN_INTERVAL_MS:-5000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
+      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
+      LOGIC_API_KEY: ${LOGIC_API_KEY:-}
+      LOGIC_API_ENDPOINT: ${LOGIC_API_ENDPOINT:-https://api.openai.com/v1}
+      LOGIC_REASONING_MODEL: ${LOGIC_REASONING_MODEL:-gpt-4o-mini}
+      RYANAI_GITHUB_TOKEN: ${RYANAI_GITHUB_TOKEN:-}
+      RYANAI_GITHUB_REPOSITORY: ${RYANAI_GITHUB_REPOSITORY:-RyanAI-Automated/RYANAI-Automous-Reasioning-Plat}
+      RYANAI_GITHUB_BASE_BRANCH: ${RYANAI_GITHUB_BASE_BRANCH:-main}
+      JARVIS_BASE_URL: ${JARVIS_BASE_URL:-}
+      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+      JARVIS_SYNC_ENABLED: ${JARVIS_SYNC_ENABLED:-false}
+      JARVIS_ALLOW_PRODUCTION_SYNC: ${JARVIS_ALLOW_PRODUCTION_SYNC:-false}
+      JARVIS_PATCH_INGRESS_ENABLED: ${JARVIS_PATCH_INGRESS_ENABLED:-false}
+      JARVIS_INGRESS_TOKEN: ${JARVIS_INGRESS_TOKEN:-}
+      JARVIS_HEALTH_PATH: ${JARVIS_HEALTH_PATH:-/health}
+      JARVIS_PATCH_PATH: ${JARVIS_PATCH_PATH:-/api/v1/patches}
+      JARVIS_STACK_PATH: ${JARVIS_STACK_PATH:-/api/v1/stacks}
     networks: [ryanai-net]
     depends_on:
       postgres:
@@ -155,14 +155,14 @@ services:
       RYANAI_API_HEALTH_URL: http://api:3000/health
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8765
-      MCP_AUTH_TOKEN: \${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
-      MCP_ALLOWED_HOSTS: \${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
-      NVIDIA_API_KEY: \${NVIDIA_API_KEY:-}
-      NVIDIA_API_ENDPOINT: \${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: \${NVIDIA_MODEL:-nvidia/nemotron-3-ultra}
-      QWEN_API_KEY: \${QWEN_API_KEY:-}
-      QWEN_API_ENDPOINT: \${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
-      QWEN_MODEL: \${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
+      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
     networks: [ryanai-net]
     depends_on:
       api:
@@ -188,10 +188,10 @@ services:
       dockerfile: Dockerfile
       target: web
       args:
-        VITE_API_BASE_URL: \${VITE_API_BASE_URL:-}
-        VITE_SUPABASE_URL: \${VITE_SUPABASE_URL:-}
-        VITE_SUPABASE_ANON_KEY: \${VITE_SUPABASE_ANON_KEY:-}
-        VITE_SUPABASE_PUBLISHABLE_KEY: \${VITE_SUPABASE_PUBLISHABLE_KEY:-}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
     container_name: ryanai-web
     environment:
       PORT: 80
