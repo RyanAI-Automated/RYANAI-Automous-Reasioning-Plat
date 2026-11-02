@@ -39,7 +39,7 @@ The existing direct Jarvis REST bridge is separate from MCPJungle: RyanAI uses i
 
 ## Start the optional MCPJungle enterprise gateway
 
-MCPJungle is a separate open-source service (MPL-2.0), pinned here to release `0.4.7`. The Compose profile is off by default and uses a dedicated PostgreSQL database; it does not reuse RyanAI's application database.
+MCPJungle is a separate open-source service (MPL-2.0), pinned here to the published release `0.4.6`. The Compose profile is off by default and uses a dedicated PostgreSQL database; it does not reuse RyanAI's application database.
 
 1. Generate a unique URL-safe database password and set it as `MCPJUNGLE_DB_PASSWORD` in the server-side `.env` file. Do not reuse RyanAI's `DB_PASSWORD`.
 2. Start only the optional gateway services:
@@ -49,11 +49,12 @@ MCPJungle is a separate open-source service (MPL-2.0), pinned here to release `0
    ```
 
 3. Verify the local-only gateway health endpoint at `http://127.0.0.1:8080/health`.
-4. Install the matching `mcpjungle` 0.4.7 CLI on a trusted operator workstation. Initialize the enterprise server and register RyanAI's MCP endpoint:
+4. Install the matching `mcpjungle` 0.4.6 CLI on a trusted operator workstation. Initialize the enterprise server and register RyanAI's MCP endpoint:
 
    ```sh
-   mcpjungle init-server
-   mcpjungle register --name ryanai --url http://mcp-server:8765/mcp --bearer-token "$MCP_AUTH_TOKEN"
+   mcpjungle --registry http://127.0.0.1:8080 init-server
+   export MCP_AUTH_TOKEN="$(grep '^MCP_AUTH_TOKEN=' .env | cut -d= -f2-)"
+   mcpjungle --registry http://127.0.0.1:8080 register --name ryanai --url http://mcp-server:8765/mcp --bearer-token "$MCP_AUTH_TOKEN"
    ```
 
    Run these commands against the local gateway configured at `http://127.0.0.1:8080`. The registered upstream hostname `mcp-server` resolves inside the shared Docker network; the operator workstation does not need to resolve it.
@@ -61,16 +62,16 @@ MCPJungle is a separate open-source service (MPL-2.0), pinned here to release `0
 5. Create a dedicated Jarvis MCP client with only the RyanAI upstream allowed:
 
    ```sh
-   mcpjungle create mcp-client jarvis --allow "ryanai"
+   mcpjungle --registry http://127.0.0.1:8080 create mcp-client jarvis --allow "ryanai"
    ```
 
    Store the generated client token in Jarvis's secret manager. Do not reuse the gateway admin token or RyanAI's upstream token. For a remote Jarvis service, expose MCPJungle only through an authenticated HTTPS reverse proxy and configure its public origin and host-header protections correctly.
 
-The gateway listens on a loopback-only host port by default. Do not change that binding to a public interface without TLS, authentication, and an explicit access review. MCPJungle's enterprise mode requires server initialization and per-client allow-lists; development mode grants every connected client access to all registered servers and is not appropriate for shared Jarvis use.
+The MCPJungle CLI defaults to registry port 8000, so the examples explicitly pass `--registry http://127.0.0.1:8080` for this Compose mapping. The standard MCPJungle image is sufficient because RyanAI is registered as a Streamable HTTP server; no stdio tools are included. The gateway listens on a loopback-only host port by default. Do not change that binding to a public interface without TLS, authentication, and an explicit access review. MCPJungle's enterprise mode requires server initialization and per-client allow-lists; development mode grants every connected client access to all registered servers and is not appropriate for shared Jarvis use.
 
 ### Suggested Jarvis tool group
 
-After registering RyanAI, inspect canonical tool names with `mcpjungle list tools`, then create a Jarvis-specific group. Example structure (replace names with the exact discovered names):
+After registering RyanAI, inspect canonical tool names with `mcpjungle --registry http://127.0.0.1:8080 list tools`, then create a Jarvis-specific group. MCPJungle tool groups expose only the selected tools through a group-specific MCP endpoint. Save this example as `jarvis-tools-group.json` after confirming each name against the registry:
 
 ```json
 {
@@ -86,7 +87,14 @@ After registering RyanAI, inspect canonical tool names with `mcpjungle list tool
 }
 ```
 
-Keep `run_project_checks` disabled until Jarvis is authorized to execute repository validation in the connected workspace. Keep patch application on the separately authenticated REST ingress route; do not expose self-patching as a general-purpose MCP tool. MCPJungle tool groups currently do not expose prompts/resources, so keep any required prompt/resource workflows on a separate endpoint.
+Create the group and use its endpoint for Jarvis:
+
+```sh
+mcpjungle --registry http://127.0.0.1:8080 create group -c ./jarvis-tools-group.json
+mcpjungle --registry http://127.0.0.1:8080 create mcp-client jarvis --allow "ryanai"
+```
+
+Configure Jarvis to connect to `http://127.0.0.1:8080/v0/groups/jarvis-ryanai/mcp` with the generated Jarvis client bearer token. MCPJungle currently does not support prompts inside tool groups; connect to the main gateway separately if Jarvis needs upstream prompts. Keep `run_project_checks` disabled until Jarvis is authorized to execute repository validation in the connected workspace. Keep patch application on the separately authenticated REST ingress route; do not expose self-patching as a general-purpose MCP tool.
 
 ## Enable the Jarvis REST handshake in staging
 
@@ -115,7 +123,7 @@ TORCHTPU_MODEL=your-served-model-id
 TORCHTPU_API_KEY=your-serving-bearer-key
 ```
 
-For a local endpoint, the loopback default is `http://127.0.0.1:8000/v1`; a model ID is mandatory. Remote endpoints require HTTPS and a bearer key. The optional TorchTPU route does not change the NVIDIA/Qwen/Logic three-brain orchestration or claim that TPU hardware exists. It is an additional model-serving target for explicit MCP calls.
+For a local endpoint, the loopback default is `http://127.0.0.1:8000/v1`; a model ID is mandatory. Note that inside the RyanAI MCP Docker container, `127.0.0.1` refers to that container, not the Docker host. If the serving runtime runs on another host or container, configure its reachable HTTPS endpoint and bearer key; do not point the container at its own loopback address. Remote endpoints require HTTPS and a bearer key. The optional TorchTPU route does not change the NVIDIA/Qwen/Logic three-brain orchestration or claim that TPU hardware exists. It is an additional model-serving target for explicit MCP calls.
 
 The InfoQ article reports TorchTPU's eager and compiled execution modes and Google-reported performance figures on specific TPU workloads. Its DeferAndFuse performance comparison is not a RyanAI benchmark. Dynamic shapes, compilation latency, operator coverage and quantization remain active maturity areas; verify the exact model/runtime/TPU generation before workload migration.
 
@@ -133,5 +141,5 @@ The InfoQ article reports TorchTPU's eager and compiled execution modes and Goog
 - MCPJungle enterprise deployment: https://docs.mcpjungle.com/deployment/production
 - MCPJungle client access control: https://docs.mcpjungle.com/governance/access-control
 - MCPJungle tool groups: https://docs.mcpjungle.com/guides/tool-groups
-- TorchTPU InfoQ: https://www.infoq.com/news/2026/11/torchtpu-native-pythorch-tpu/
+- TorchTPU InfoQ: https://www.infoq.com/news/2026/10/google-meta-torchtpu/
 - Google TorchTPU announcement: https://cloud.google.com/blog/topics/ai-infrastructure/torchtpu-is-now-open-source-run-native-pytorch-on-tpus
