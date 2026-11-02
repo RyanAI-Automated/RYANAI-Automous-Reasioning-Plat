@@ -28,7 +28,7 @@ CREATE TABLE "sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "messages" (
+CREATE TABLE "session_messages" (
     "id" TEXT NOT NULL,
     "session_id" TEXT NOT NULL,
     "role" "Role" NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE "messages" (
     "metadata" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "messages_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "session_messages_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -116,7 +116,7 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE INDEX "sessions_user_id_idx" ON "sessions"("user_id");
 
 -- CreateIndex
-CREATE INDEX "messages_session_id_idx" ON "messages"("session_id");
+CREATE INDEX "session_messages_session_id_idx" ON "session_messages"("session_id");
 
 -- CreateIndex
 CREATE INDEX "agent_sessions_created_at_idx" ON "agent_sessions"("created_at");
@@ -137,7 +137,7 @@ CREATE INDEX "memory_vault_user_id_idx" ON "memory_vault"("user_id");
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "messages" ADD CONSTRAINT "messages_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "session_messages" ADD CONSTRAINT "session_messages_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "agent_sessions" ADD CONSTRAINT "agent_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

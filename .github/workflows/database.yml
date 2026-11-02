@@ -6,6 +6,8 @@ on:
     paths:
       - 'prisma/**'
       - 'src/db/**'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
       - '.github/workflows/database.yml'
   pull_request:
     branches: [main, master]
@@ -62,5 +64,26 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema=prisma/schema.prisma
 
-      - name: Apply schema to ephemeral PostgreSQL
-        run: npx prisma db push --schema=prisma/schema.prisma --skip-generate
+      - name: Apply committed migrations to ephemeral PostgreSQL
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: Create a second disposable database for the migration image
+        env:
+          PGPASSWORD: ci_password
+        run: |
+          docker run --rm --network host -e PGPASSWORD postgres:16-alpine \
+            createdb -h 127.0.0.1 -U ryanai ryanai_migration_container
+
+      - name: Build and run the one-shot migration image twice
+        env:
+          MIGRATION_DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_migration_container
+        run: |
+          set -euo pipefail
+          docker build --target migrate -t ryanai-migrate:ci .
+          docker run --rm --network host --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
+          # A second invocation must be a no-op, proving safe restart behavior.
+          docker run --rm --network host --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
+          npx prisma migrate diff --from-url "$MIGRATION_DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Verify migrations match the Prisma data model
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code

@@ -88,7 +88,7 @@
     "frontend:validate": "npm run workflow:validate && npm run frontend:agent",
     "workflow:agent": "node scripts/github-workflow-agent.mjs --audit",
     "workflow:agent:fix": "node scripts/github-workflow-agent.mjs --fix",
-    "workflow:validate": "node scripts/validate-github-workflows.mjs",
+    "workflow:validate": "node scripts/validate-github-workflows.mjs && npm run provider-verification:validate",
     "stack:validate": "node scripts/validate-stack-manifest.mjs",
     "jarvis:status": "node --import tsx/esm scripts/jarvis-sync.ts status",
     "jarvis:publish-stack": "node --import tsx/esm scripts/jarvis-sync.ts publish-stack",
@@ -104,7 +104,8 @@
     "audit:deployments": "node scripts/audit-deployment-readiness.mjs",
     "audit:agents": "node scripts/audit-agent-readiness.mjs",
     "test:readiness-audits": "node --test scripts/readiness-audits.node-test.mjs",
-    "test:agent-operations": "vitest run src/agent/operationsCore.test.ts"
+    "test:agent-operations": "vitest run src/agent/operationsCore.test.ts",
+    "provider-verification:validate": "node scripts/validate-provider-verification.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

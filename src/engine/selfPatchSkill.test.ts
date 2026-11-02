@@ -92,6 +92,44 @@ describe('production self-patch proposal', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    'export const TWILIO_AUTH_TOKEN = "twilio-secret-value-12345";',
+    'SUPABASE_SERVICE_ROLE_KEY: "service-role-secret-value-12345"',
+    'SMTP_PASS=mail-password-value-12345',
+    'AWS_SECRET_ACCESS_KEY = "aws-secret-access-key-value-12345";',
+    'RYANAI_GITHUB_TOKEN = "github-private-token-value-12345";',
+    'const databaseUrl = "postgresql://admin:password123@db.example.test:5432/app";',
+  ])('rejects literal sensitive configuration assignments before contacting GitHub', async (patchContent) => {
+    const result = await SelfPatchSkill.proposePullRequest({
+      filePath: 'src/agent/example.ts',
+      patchContent,
+    });
+    expect(result.status).toBe('rejected');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows environment references and explicit placeholders without embedding secret values', async () => {
+    fetchMock
+      .mockResolvedValueOnce(githubResponse({ object: { sha: 'base-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ tree: { sha: 'base-tree-sha' } }))
+      .mockResolvedValueOnce(githubResponse({ truncated: false, tree: [{ path: 'src/agent/example.ts', mode: '100644', type: 'blob', sha: 'existing-file-sha' }] }))
+      .mockResolvedValueOnce(githubResponse({ sha: 'blob-sha' }))
+      .mockResolvedValueOnce(githubResponse({ sha: 'new-tree-sha' }))
+      .mockResolvedValueOnce(githubResponse({ sha: 'candidate-commit-sha' }))
+      .mockResolvedValueOnce(githubResponse({ ref: 'refs/heads/self-patch/test' }))
+      .mockResolvedValueOnce(githubResponse({ html_url: 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat/pull/901' }));
+
+    const result = await SelfPatchSkill.proposePullRequest({
+      filePath: 'src/agent/example.ts',
+      patchContent: [
+        'const twilioToken = process.env.TWILIO_AUTH_TOKEN;',
+        'const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;',
+        'const placeholder = "YOUR_TWILIO_AUTH_TOKEN";',
+      ].join('\\n'),
+    });
+    expect(result.status).toBe('proposed');
+  });
+
   it('fails closed when the scoped GitHub token or repository is missing', async () => {
     vi.stubEnv('RYANAI_GITHUB_TOKEN', '');
     const result = await SelfPatchSkill.proposePullRequest({

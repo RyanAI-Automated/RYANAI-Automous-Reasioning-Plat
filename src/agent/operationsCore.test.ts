@@ -16,6 +16,29 @@ describe('executeThreeBrainPlan', () => {
     expect(result.handoffs).toHaveLength(4);
     expect(result.verification.verified).toBe(true);
   });
+  it('aborts both in-flight specialist calls on lease loss and never starts synthesis', async () => {
+    const controller = new AbortController();
+    const signals: AbortSignal[] = [];
+    const calls: BrainId[] = [];
+    let resolveStarted!: () => void;
+    const bothStarted = new Promise<void>((resolve) => { resolveStarted = resolve; });
+    const pending = executeThreeBrainPlan('test lease cancellation', (brain, _prompt, signal) => {
+      calls.push(brain);
+      if (signal) signals.push(signal);
+      if (calls.length === 2) resolveStarted();
+      return new Promise<{ brain: BrainId; output: string; latencyMs: number }>((_, reject) => {
+        if (signal?.aborted) reject(signal.reason);
+        else signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    }, controller.signal);
+    await bothStarted;
+    controller.abort(new Error('worker lease lost'));
+    await expect(pending).rejects.toThrow('worker lease lost');
+    expect(calls.sort()).toEqual(['primary', 'secondary']);
+    expect(signals).toHaveLength(2);
+    expect(signals.every((signal) => signal === controller.signal && signal.aborted)).toBe(true);
+    expect(calls).not.toContain('logic');
+  });
   it('fails visibly when a specialist fails', async () => {
     await expect(executeThreeBrainPlan('test', async (brain) => {
       if (brain === 'secondary') throw new Error('provider unavailable');

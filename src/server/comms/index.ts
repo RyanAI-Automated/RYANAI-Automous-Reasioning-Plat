@@ -6,6 +6,7 @@ import rawBody from 'fastify-raw-body';
 import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication, updateCommunicationStatus } from './history.js';
+import { addressOwnerMessage, communicationSystemInstruction, getOwnerGreeting } from './personalization.js';
 import { addressOwnerResponse, getTimeGreeting, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
@@ -43,6 +44,15 @@ function webhookAuth(urlEnv: string) {
 }
 function twimlSay(text: string, gather = true): string {
   const action = process.env.TWILIO_VOICE_ACTION_URL?.trim();
+  const voice = process.env.TWILIO_VOICE_NAME?.trim();
+  const voiceAttribute = voice ? ` voice="${escapeXml(voice)}"` : '';
+  const say = `<Say language="en-ZA"${voiceAttribute}>${safe}</Say>`;
+  if (!action || !gather) return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Hangup/></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Gather input="speech" language="en-ZA" action="${escapeXml(action)}" method="POST" speechTimeout="auto" timeout="5"><Say language="en-ZA"${voiceAttribute}>Please speak after the tone.</Say></Gather><Say language="en-ZA"${voiceAttribute}>I did not hear a response. Goodbye.</Say><Hangup/></Response>`;
+}
+async function askRyanAI(text: string, threadId: string): Promise<string> {
+  const result = await humanInTheLoopAgent.invoke(
+    { messages: [{ role: 'system', content: communicationSystemInstruction() }, { role: 'user', content: text }] },
   const voice = escapeXml(process.env.RYANAI_TWILIO_VOICE?.trim() || 'Polly.Ayanda-Neural');
   const say = (value: string) => `<Say language="${RYANAI_LOCALE}" voice="${voice}">${escapeXml(value)}</Say>`;
   if (!action || !gather) return `<?xml version="1.0" encoding="UTF-8"?><Response>${say(text)}<Hangup/></Response>`;
@@ -85,6 +95,10 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     const { channel, recipient, message, subject, contentSid, contentVariables } = request.body ?? {};
     const target = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
     const messageBody = message?.trim() ?? '';
+    const isOwnerRecipient = channel === 'email'
+      ? target?.trim().toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase()
+      : Boolean(target && process.env.RYANAI_OWNER_PHONE && normalizePhone(target) === normalizePhone(process.env.RYANAI_OWNER_PHONE));
+    const deliveryBody = isOwnerRecipient ? addressOwnerMessage(messageBody) : messageBody;
     const approvedTemplateSid = contentSid?.trim() || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
     if (!channel || !target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) {
       return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
@@ -99,6 +113,11 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       try {
         const outgoingText = target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase() ? addressOwnerResponse(messageBody) : messageBody;
         const sent = await smtp.transporter.sendMail({
+          from: smtp.from, to: target, subject: subject || 'RyanAI notification', text: deliveryBody,
+        });
+        await recordCommunication(fastify.prisma, {
+          channel, externalAddress: target.toLowerCase(), direction: 'outbound',
+          body: deliveryBody, providerMessageId: sent.messageId, status: 'accepted',
           from: smtp.from, to: target, subject: subject || 'RyanAI notification', text: outgoingText,
         });
         await recordCommunication(fastify.prisma, {
@@ -131,6 +150,11 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
                 contentSid: approvedTemplateSid,
                 ...(contentVariables ? { contentVariables } : {}),
               }
+            : { body: deliveryBody }),
+          ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
+        });
+        await recordCommunication(fastify.prisma, {
+          channel, externalAddress: target, direction: 'outbound', body: deliveryBody || '[WhatsApp approved template]',
             : { body: outgoingText }),
           ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
@@ -146,6 +170,11 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       }
       const outgoingText = target === process.env.RYANAI_OWNER_PHONE?.trim() ? addressOwnerResponse(messageBody) : messageBody;
       const call = await client.calls.create({
+        to: target, from, twiml: twimlSay(deliveryBody),
+        ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
+      });
+      await recordCommunication(fastify.prisma, {
+        channel, externalAddress: target, direction: 'outbound', body: deliveryBody,
         to: target, from, twiml: twimlSay(outgoingText),
         ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
       });
@@ -183,6 +212,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress',
     });
     reply.type('text/xml');
+    return twimlSay(getOwnerGreeting());
     return twimlSay(addressOwnerResponse(`${getTimeGreeting()}. I'm RyanAI. How can I help you today?`));
   });
 

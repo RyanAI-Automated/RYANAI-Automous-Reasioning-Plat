@@ -6,6 +6,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { evaluateGenXSecurityEvent } from "../security/genxPolicy.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -55,6 +56,19 @@ export class SystemMcpServer {
       const { name, arguments: args } = request.params;
 
       if (name === "get_container_logs") {
+        const policy = evaluateGenXSecurityEvent({
+          agentId: "external-mcp-client",
+          principal: "mcp-client",
+          toolName: "get_container_logs",
+          action: "READ",
+          target: String((args as { container?: string } | undefined)?.container ?? "ryanai-runtime"),
+        });
+        if (policy.decision !== "ALLOW") {
+          return {
+            content: [{ type: "text", text: `Gen-X blocked log access [${policy.ruleId}]: logs may contain credentials or personal data and require an authenticated approval path.` }],
+            isError: true,
+          };
+        }
         const containerArgs = args as { container?: string };
         const container = containerArgs?.container || "ryanai-runtime";
 

@@ -77,6 +77,9 @@ describe('Twilio conversational voice webhooks', () => {
     const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
+    expect(response.body).toContain('This is RyanAI. How may I assist you?');
+    expect(response.body).toContain('language="en-ZA"');
+    expect(response.body).toContain('<Gather input="speech" language="en-ZA"');
     expect(response.body).toMatch(/Certainly, Sir G\. Good (morning|afternoon|evening)\./);
     expect(response.body).toContain('I&apos;m RyanAI. How can I help you today?');
     expect(response.body).toContain('language="en-ZA" voice="Polly.Ayanda-Neural"');
@@ -92,6 +95,7 @@ describe('Twilio conversational voice webhooks', () => {
     expect(response.body).toContain('Certainly, Sir G. RyanAI says hello &amp; welcome');
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      { messages: [{ role: 'system', content: expect.stringContaining('English - South Africa') }, { role: 'user', content: 'Please check my system' }] },
       { messages: [
         { role: 'system', content: ownerCommunicationInstruction() },
         { role: 'user', content: 'Please check my system' },
@@ -107,6 +111,7 @@ describe('Twilio conversational voice webhooks', () => {
     expect(response.body).toContain('Certainly, Sir G. RyanAI says hello &amp; welcome');
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      { messages: [{ role: 'system', content: expect.stringContaining('English - South Africa') }, { role: 'user', content: 'What is the system status?' }] },
       { messages: [
         { role: 'system', content: ownerCommunicationInstruction() },
         { role: 'user', content: 'What is the system status?' },

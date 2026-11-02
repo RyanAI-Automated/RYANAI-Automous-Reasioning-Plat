@@ -3,11 +3,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
-const WORKSPACE_ROOT = "C:\\Users\\General\\Downloads\\RYANAI Autonomous Reasoning Plat";
+const WORKSPACE_ROOT = process.env.RYANAI_WORKSPACE_ROOT ?? process.cwd();
+const SENSITIVE_FILE = /(^|[\\\\/])(\\.env(?:\\.|$)|id_rsa|id_ed25519|.*\\.(?:pem|key|p12|pfx)|secrets?)([\\\\/]|$)/i;
 
 /**
  * Read UTF-8 file contents under the configured workspace path.
@@ -16,9 +13,17 @@ const WORKSPACE_ROOT = "C:\\Users\\General\\Downloads\\RYANAI Autonomous Reasoni
 export const readFileTool = tool(
   async ({ filePath }) => {
     try {
-      const safePath = path.resolve(WORKSPACE_ROOT, filePath);
-      if (!safePath.startsWith(WORKSPACE_ROOT)) {
+      if (!filePath || path.isAbsolute(filePath) || SENSITIVE_FILE.test(filePath)) {
+        return "Access denied: Absolute paths and sensitive credential files are not readable by agents.";
+      }
+      const root = await fs.realpath(WORKSPACE_ROOT);
+      const safePath = await fs.realpath(path.resolve(root, filePath));
+      const relative = path.relative(root, safePath);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
         return "Access denied: Path is outside the RyanAI workspace boundary.";
+      }
+      if (SENSITIVE_FILE.test(relative)) {
+        return "Access denied: Sensitive credential files are not readable by agents.";
       }
       const content = await fs.readFile(safePath, 'utf-8');
       return `File Content (${filePath}):\n${content}`;
@@ -36,28 +41,16 @@ export const readFileTool = tool(
 );
 
 /**
- * Run a shell command in the configured workspace and return its output.
- * Block the literal patterns rm -rf / and Format-Volume; other commands run without
- * sandbox isolation. Caught execution failures become failure messages.
+ * Gen-X hardening: arbitrary shell execution is disabled. Agent workflows must use
+ * narrowly scoped, purpose-built tools with their own authorization and sandboxing.
  */
 export const executeShellTool = tool(
-  async ({ command }) => {
-    try {
-      // Restrict dangerous commands
-      if (command.includes("rm -rf /") || command.includes("Format-Volume")) {
-        return "Execution blocked: Unsafe command pattern detected.";
-      }
-      const { stdout, stderr } = await execAsync(command, { cwd: WORKSPACE_ROOT });
-      return `Command Output:\n${stdout}\n${stderr ? `Errors/Warnings:\n${stderr}` : ''}`;
-    } catch (error: unknown) {
-      return `Command execution failed: ${(error instanceof Error ? error.message : String(error))}`;
-    }
-  },
+  async () => "Execution blocked by Gen-X: arbitrary shell and command execution are disabled for agents.",
   {
     name: "execute_shell_command",
-    description: "Executes a terminal command within the RyanAI workspace directory.",
+    description: "Disabled by Gen-X zero-trust security policy. Use approved purpose-built tools instead.",
     schema: z.object({
-      command: z.string().describe("The shell command to execute."),
+      command: z.string().max(1).optional().describe("No shell command is accepted."),
     }),
   }
 );

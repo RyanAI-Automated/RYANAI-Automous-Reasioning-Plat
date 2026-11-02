@@ -35,7 +35,7 @@ export function resolveBrainProviderConfig(
     };
   }
 
-  const endpoint = env.LOGIC_API_ENDPOINT || env.LM_STUDIO_URL || env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  const endpoint = env.LOGIC_API_ENDPOINT || env.OPENAI_BASE_URL || env.LM_STUDIO_URL || 'https://api.openai.com/v1';
   const sharedLocalCredential = Boolean(env.LM_STUDIO_URL) && endpoint === env.LM_STUDIO_URL && Boolean(env.LM_STUDIO_API_KEY);
   return {
     model: env.LOGIC_REASONING_MODEL || env.LM_STUDIO_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini',

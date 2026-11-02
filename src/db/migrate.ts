@@ -1,35 +1,30 @@
 /**
- * src/db/migrate.ts - Database migration runner
+ * Apply committed Prisma migrations explicitly.
+ *
+ * Application startup must only verify schema readiness; it must never use
+ * prisma db push or run schema DDL implicitly.
  */
-import { createLogger } from '../shared/logger.js';
 import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
 
-const logger = createLogger('db-migrate');
+const prismaCli = resolve(
+  process.cwd(),
+  'node_modules',
+  'prisma',
+  'build',
+  'index.js',
+);
 
-async function runMigrations() {
-  logger.info('📡 Running database migrations...');
+const child = spawn(process.execPath, [prismaCli, 'migrate', 'deploy'], {
+  stdio: 'inherit',
+  shell: false,
+});
 
-  return new Promise((resolve, reject) => {
-    const proc = spawn('prisma', ['db', 'push'], {
-      stdio: 'inherit',
-      shell: true,
-    });
+child.on('error', (error) => {
+  console.error('Failed to start Prisma migration deployment:', error.message);
+  process.exitCode = 1;
+});
 
-    proc.on('close', (code) => {
-      if (code === 0) {
-        logger.info('✓ Migrations complete');
-        resolve(0);
-      } else {
-        logger.error('✗ Migration failed');
-        reject(new Error(`Prisma exited with code ${code}`));
-      }
-    });
-  });
-}
-
-runMigrations()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    logger.error(err);
-    process.exit(1);
-  });
+child.on('close', (code) => {
+  process.exitCode = code ?? 1;
+});

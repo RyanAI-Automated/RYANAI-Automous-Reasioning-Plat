@@ -38,14 +38,17 @@ describe('Redis initial readiness', () => {
   it.each(['reject', 'throw'])(
     'disconnects and sanitizes a connection failure (%s)',
     async (failure) => {
-      const error = new Error('redis://fixture:private-password@fixture:6379');
+      const error = Object.assign(
+        new Error('redis://fixture:private-password@fixture:6379'),
+        { code: 'WRONGPASS' },
+      );
       if (failure === 'reject') redis.connect.mockRejectedValue(error);
       else
         redis.connect.mockImplementation(() => {
           throw error;
         });
       const result = connectRedis('redis://fixture:6379');
-      await expect(result).rejects.toThrow('Redis is unavailable');
+      await expect(result).rejects.toThrow('Redis is unavailable (WRONGPASS)');
       await expect(result).rejects.not.toThrow('private-password');
       expect(redis.disconnect).toHaveBeenCalledOnce();
       expect(vi.getTimerCount()).toBe(0);
@@ -70,6 +73,28 @@ describe('Redis initial readiness', () => {
       lazyConnect: true,
       connectTimeout: 250,
     });
+    expect(redis.disconnect).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('reports a sanitized asynchronous socket error when readiness later times out', async () => {
+    redis.connect.mockReturnValue(new Promise(() => {}));
+    const connection = connectRedis('redis://fixture:private-password@fixture:6379', 250);
+    const errorHandler = redis.on.mock.calls.find(([event]) => event === 'error')?.[1] as
+      | ((error: unknown) => void)
+      | undefined;
+    expect(errorHandler).toBeTypeOf('function');
+    errorHandler?.(
+      Object.assign(
+        new Error('connect ECONNREFUSED redis://fixture:private-password@fixture:6379'),
+        { code: 'ECONNREFUSED' },
+      ),
+    );
+
+    const outcome = connection.catch((error: Error) => error.message);
+    await vi.advanceTimersByTimeAsync(250);
+    await expect(outcome).resolves.toContain('Redis is unavailable (ECONNREFUSED)');
+    await expect(outcome).resolves.not.toContain('private-password');
     expect(redis.disconnect).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });

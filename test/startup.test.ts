@@ -113,7 +113,9 @@ describe('Redis startup', () => {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Missing TCP address');
     try {
-      await expect(connectRedis(`redis://127.0.0.1:${address.port}`, 100)).rejects.toThrow('Check REDIS_URL in .env');
+      await expect(connectRedis(`redis://127.0.0.1:${address.port}`, 100)).rejects.toThrow(
+        'Redis is unavailable (initial connection exceeded 100ms)',
+      );
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Redis socket was not disconnected')), 1000);
         server.close(() => { clearTimeout(timeout); resolve(); });

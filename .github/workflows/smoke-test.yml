@@ -1,18 +1,19 @@
 name: Production and Preview Smoke Tests
 
+# Smoke tests are deliberately manual: scheduled runs previously defaulted to
+# production and failed when production endpoint secrets were not configured.
+# An operator must explicitly choose the target environment before any request.
 on:
   workflow_dispatch:
     inputs:
       target_env:
         description: Environment to verify
         required: true
-        default: production
+        default: preview
         type: choice
         options:
-          - production
           - preview
-  schedule:
-    - cron: "0 */6 * * *"
+          - production
 
 permissions:
   contents: read
@@ -23,14 +24,14 @@ concurrency:
 
 jobs:
   smoke-test:
-    name: Verify configured frontend and API endpoints
+    name: Verify explicitly selected frontend and API endpoints
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
       - name: Check configured frontend and API endpoints
         env:
-          TARGET_ENV: ${{ inputs.target_env || 'production' }}
+          TARGET_ENV: ${{ inputs.target_env }}
           PROD_API_URL: ${{ secrets.PROD_GATEWAY_URL }}
           PROD_FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL }}
           PREVIEW_API_URL: ${{ secrets.PREVIEW_GATEWAY_URL }}
@@ -41,13 +42,16 @@ jobs:
           if [[ "$TARGET_ENV" == "production" ]]; then
             api_url="$PROD_API_URL"
             frontend_url="$PROD_FRONTEND_URL"
-          else
+          elif [[ "$TARGET_ENV" == "preview" ]]; then
             api_url="$PREVIEW_API_URL"
             frontend_url="$PREVIEW_FRONTEND_URL"
+          else
+            echo "::error::Unsupported target environment."
+            exit 1
           fi
           [[ -n "$api_url" ]] || { echo "::error::Configure the API URL secret for $TARGET_ENV."; exit 1; }
           [[ -n "$frontend_url" ]] || { echo "::error::Configure the frontend URL secret for $TARGET_ENV."; exit 1; }
-          echo "Checking frontend endpoint."
+          echo "Checking selected frontend endpoint."
           curl --fail --silent --show-error --location --max-time 20 "$frontend_url" --output /dev/null
-          echo "Checking API health endpoint."
+          echo "Checking selected API health endpoint."
           curl --fail --silent --show-error --location --max-time 20 "$api_url" --output /dev/null
