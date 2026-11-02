@@ -54,12 +54,13 @@ export function createMcpServer() {
     },
     {
       name: 'reasoning_route',
-      description: 'Send a prompt to the configured Nemotron or Qwen provider. Requires that provider API key; this tool does not claim an unavailable local fallback.',
+      description: 'Send a prompt to the configured Nemotron, Qwen, or optional DeepSeek OpenAI-compatible endpoint. DeepSeek permits unauthenticated requests only to loopback; remote endpoints require DEEPSEEK_API_KEY.',
       inputSchema: {
         type: 'object',
         properties: {
           prompt: { type: 'string', description: 'Prompt to process, up to 20,000 characters.' },
-          brain: { type: 'string', enum: ['nemotron', 'qwen'], description: 'Provider brain; defaults to nemotron.' },
+          brain: { type: 'string', enum: ['nemotron', 'qwen', 'deepseek'], description: 'Provider brain; defaults to nemotron. DeepSeek defaults to http://127.0.0.1:8888/v1.' },
+          response_format: { type: 'string', enum: ['text', 'json_object'], description: 'Request plain text (default) or validated JSON object output.' },
         },
         required: ['prompt'],
       },
@@ -106,8 +107,9 @@ export function createMcpServer() {
         const brain = typeof args.brain === 'string' ? args.brain : 'nemotron';
         if (!prompt) throw new Error('prompt is required.');
         if (prompt.length > 20_000) throw new Error('prompt must be 20,000 characters or fewer.');
-        if (!['nemotron', 'qwen'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
-        const result = await routeReasoning(prompt, brain);
+        if (!['nemotron', 'qwen', 'deepseek'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
+        const responseFormat = typeof args.response_format === 'string' ? args.response_format : 'text';
+        const result = await routeReasoning(prompt, brain, { responseFormat });
         return textResult(JSON.stringify(result, null, 2));
       }
 
