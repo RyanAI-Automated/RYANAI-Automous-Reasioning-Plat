@@ -5,7 +5,8 @@
 FROM node:24-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat \
+    && apk upgrade --no-cache
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
@@ -42,6 +43,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
+    && apk upgrade --no-cache \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /app/logs \
@@ -83,6 +85,8 @@ RUN npm run build
 
 # nginx serves the SPA and proxies API/WebSocket requests to the API service.
 FROM nginx:alpine AS web
+# Pull patched packages from the current Alpine repository before shipping nginx.
+RUN apk upgrade --no-cache
 ENV PORT=80 \
     API_HOST=api \
     API_PORT=3000
