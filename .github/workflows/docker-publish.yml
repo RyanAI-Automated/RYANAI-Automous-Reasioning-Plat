@@ -2,13 +2,19 @@ name: Publish RyanAI API Image (Manual)
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_api_image:
+        description: 'Explicitly authorize publishing the API image to GHCR'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: inputs.publish_api_image == true && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     permissions:
       contents: read
       packages: write
