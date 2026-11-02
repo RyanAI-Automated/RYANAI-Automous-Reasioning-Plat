@@ -8,26 +8,50 @@ const PROVIDER_DEFAULTS = {
 export function resolveBrain(name = 'nemotron', env = process.env) {
   const defaults = PROVIDER_DEFAULTS[name];
   if (!defaults) throw new Error('Unknown reasoning provider: ' + name);
-  return { id: env[defaults.modelEnv] || defaults.id, endpoint: env[defaults.endpointEnv] || defaults.endpoint, key: env[defaults.keyEnv] || '' };
+  return {
+    id: env[defaults.modelEnv] || defaults.id,
+    endpoint: env[defaults.endpointEnv] || defaults.endpoint,
+    key: env[defaults.keyEnv] || '',
+  };
 }
 
 export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
   const brain = resolveBrain(name, options.env || process.env);
-  let endpoint;
+  if (!brain.id.trim()) {
+    throw new Error('The configured ' + name + ' provider requires its model id to be set.');
+  }
+
+  let baseUrl;
   try {
-    endpoint = new URL('chat/completions', brain.endpoint.replace(/\/+$/, '') + '/');
+    baseUrl = new URL(brain.endpoint);
   } catch {
     throw new Error('The configured ' + name + ' API endpoint is not a valid URL.');
   }
-  if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+  if (
+    !['http:', 'https:'].includes(baseUrl.protocol) ||
+    !baseUrl.hostname ||
+    baseUrl.username ||
+    baseUrl.password ||
+    baseUrl.search ||
+    baseUrl.hash
+  ) {
     throw new Error('The configured ' + name + ' API endpoint must be a clean HTTP or HTTPS URL without credentials, query strings, or fragments.');
   }
-  const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(baseUrl.hostname.toLowerCase());
-  if (!isLoopback && baseUrl.protocol !== 'https:') throw new Error('Remote ' + name + ' API endpoints must use HTTPS.');
-  if (!brain.key && !isLoopback) throw new Error('No API key is configured for ' + name + '; unauthenticated requests are allowed only to a loopback endpoint.');
 
+  const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(baseUrl.hostname.toLowerCase());
+  if (!isLoopback && baseUrl.protocol !== 'https:') {
+    throw new Error('Remote ' + name + ' API endpoints must use HTTPS.');
+  }
+  if (!brain.key && !isLoopback) {
+    throw new Error('No API key is configured for ' + name + '; unauthenticated requests are allowed only to a loopback endpoint.');
+  }
+
+  const endpoint = new URL('chat/completions', baseUrl.toString().replace(/\\/+$/, '') + '/');
   const responseFormat = options.responseFormat || 'text';
-  if (!['text', 'json_object'].includes(responseFormat)) throw new Error('responseFormat must be text or json_object.');
+  if (!['text', 'json_object'].includes(responseFormat)) {
+    throw new Error('responseFormat must be text or json_object.');
+  }
+
   const headers = { 'content-type': 'application/json' };
   if (brain.key) headers.authorization = 'Bearer ' + brain.key;
   const response = await (options.fetch || fetch)(endpoint, {
@@ -41,19 +65,27 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
     }),
     signal: AbortSignal.timeout(60_000),
   });
+
   if (!response.ok) {
     const details = (await response.text()).slice(0, 500);
     throw new Error(brain.id + ' provider returned HTTP ' + response.status + ': ' + details);
   }
+
   const payload = await response.json();
   const message = payload.choices?.[0]?.message;
   const content = message?.content;
   if (typeof content !== 'string' || !content.trim()) {
-    if (Array.isArray(message?.tool_calls) && message.tool_calls.length) throw new Error(brain.id + ' returned tool calls without text; this route does not execute provider tool calls.');
+    if (Array.isArray(message?.tool_calls) && message.tool_calls.length) {
+      throw new Error(brain.id + ' returned tool calls without text; this route does not execute provider tool calls.');
+    }
     throw new Error(brain.id + ' provider returned no text response.');
   }
   if (responseFormat === 'json_object') {
-    try { JSON.parse(content); } catch { throw new Error(brain.id + ' did not return valid JSON while JSON response mode was requested.'); }
+    try {
+      JSON.parse(content);
+    } catch {
+      throw new Error(brain.id + ' did not return valid JSON while JSON response mode was requested.');
+    }
   }
   return { mode: 'provider', brain: brain.id, response: content, responseFormat };
 }
