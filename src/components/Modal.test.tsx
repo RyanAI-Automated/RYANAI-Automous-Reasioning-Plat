@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('framer-motion', () => import('../test/mocks/framerMotion'));
+
 import Modal from './Modal';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -37,6 +39,7 @@ describe('accessible modal dialog', () => {
   it('moves focus into the dialog, traps Tab, closes on Escape, and restores focus', async () => {
     await act(async () => root.render(<ModalHarness />));
     const opener = container.querySelector('button') as HTMLButtonElement;
+    opener.focus();
 
     await act(async () => opener.click());
 
