@@ -11,6 +11,7 @@ on:
           - primary
           - secondary
           - logic
+          - all
 
 permissions:
   contents: read
@@ -21,9 +22,13 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify ${{ inputs.provider }} provider
+    name: Verify ${{ matrix.provider }} provider
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: ${{ inputs.provider == 'all' && fromJSON('["primary","secondary","logic"]') || fromJSON(format('["{0}"]', inputs.provider)) }}
     environment: ryanai-provider-verification
     services:
       postgres:
@@ -42,8 +47,8 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://ryanai_probe:disposable_ci_password@127.0.0.1:5432/ryanai_probe
-      RYANAI_PROBE_BRAIN: ${{ inputs.provider }}
-      PROVIDER_API_KEY: ${{ (inputs.provider == 'primary' && secrets.NVIDIA_API_KEY) || (inputs.provider == 'secondary' && secrets.QWEN_API_KEY) || (inputs.provider == 'logic' && (secrets.LOGIC_API_KEY || secrets.OPENAI_API_KEY)) || '' }}
+      RYANAI_PROBE_BRAIN: ${{ matrix.provider }}
+      PROVIDER_API_KEY: ${{ (matrix.provider == 'primary' && secrets.NVIDIA_API_KEY) || (matrix.provider == 'secondary' && secrets.QWEN_API_KEY) || (matrix.provider == 'logic' && (secrets.LOGIC_API_KEY || secrets.OPENAI_API_KEY)) || '' }}
       NVIDIA_API_ENDPOINT: ${{ vars.NVIDIA_API_ENDPOINT }}
       QWEN_API_ENDPOINT: ${{ vars.QWEN_API_ENDPOINT }}
       LOGIC_API_ENDPOINT: ${{ vars.LOGIC_API_ENDPOINT }}
