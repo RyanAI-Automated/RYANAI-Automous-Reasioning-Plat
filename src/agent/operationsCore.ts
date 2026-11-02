@@ -38,8 +38,8 @@ export async function executeThreeBrainPlan(
   });
 
   const logicPrompt = outputs.length
-    ? ['Synthesize only the available specialist analysis. Explicitly identify missing specialists, uncertainty, agreement, disagreement, and unresolved risks. Do not imply missing brains responded or claim external actions.', 'OBJECTIVE:', objective, ...outputs.map((item) => item.brain.toUpperCase() + ': ' + item.output)].join('\\n')
-    : ['Standalone fallback: both specialist brains are unavailable. Analyze independently and state that no specialist verification or consensus was available. Do not claim external actions.', 'OBJECTIVE:', objective].join('\\n');
+    ? ['Synthesize only the available specialist analysis. Explicitly identify missing specialists, uncertainty, agreement, disagreement, and unresolved risks. Do not imply missing brains responded or claim external actions.', 'OBJECTIVE:', objective, ...outputs.map((item) => item.brain.toUpperCase() + ': ' + item.output)].join('\n')
+    : ['Standalone fallback: both specialist brains are unavailable. Analyze independently and state that no specialist verification or consensus was available. Do not claim external actions.', 'OBJECTIVE:', objective].join('\n');
 
   let logic: BrainOutput | undefined;
   try {
@@ -59,8 +59,8 @@ export async function executeThreeBrainPlan(
   const specialists = outputs.filter((item) => item.brain !== 'logic');
   const verified = outputs.length === 3 && Boolean(logic) && verifyThreeBrainResult(outputs, logic.output).verified;
   const synthesis = logic
-    ? (specialists.length ? logic.output : 'DEGRADED MODE — standalone Logic response; no specialist analyses or three-brain verification were available.\\n\\n' + logic.output)
-    : 'DEGRADED MODE — Logic synthesis unavailable; no consensus was produced.\\n\\n' + specialists.map((item) => item.brain.toUpperCase() + ':\\n' + item.output).join('\\n\\n');
+    ? (specialists.length ? logic.output : 'DEGRADED MODE — standalone Logic response; no specialist analyses or three-brain verification were available.\n\n' + logic.output)
+    : 'DEGRADED MODE — Logic synthesis unavailable; no consensus was produced.\n\n' + specialists.map((item) => item.brain.toUpperCase() + ':\n' + item.output).join('\n\n');
 
   const handoffs = specialists.map((item) => ({ fromAgent: 'supervisor', toAgent: item.brain, input: objective, output: item.output }));
   if (logic) specialists.forEach((item) => handoffs.push({ fromAgent: item.brain, toAgent: 'logic', input: item.output, output: logic!.output }));
