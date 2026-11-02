@@ -56,6 +56,7 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
+  vi.stubEnv('RYANAI_OWNER_TITLE', 'Sir G');
   vi.stubEnv('RYANAI_OWNER_LANGUAGE', 've-ZA');
   invoke.mockResolvedValue({ messages: [{ content: 'RyanAI says hello & welcome' }] });
 });
@@ -81,7 +82,7 @@ describe('Twilio conversational voice webhooks', () => {
     expect(response.body).toContain('language="en-ZA"');
     expect(response.body).toContain('<Gather input="speech" language="en-ZA"');
     expect(response.body).toMatch(/Certainly, Sir G\. Good (morning|afternoon|evening)\./);
-    expect(response.body).toContain('I&apos;m RyanAI. How can I help you today?');
+    expect(response.body).toContain('Please speak after the tone.');
     expect(response.body).toContain('language="en-ZA" voice="Polly.Ayanda-Neural"');
     expect(response.body).toContain('<Gather input="speech"');
     expect(response.body).toContain(actionUrl);
@@ -95,11 +96,12 @@ describe('Twilio conversational voice webhooks', () => {
     expect(response.body).toContain('Certainly, Sir G. RyanAI says hello &amp; welcome');
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      { messages: [{ role: 'system', content: expect.stringContaining('English - South Africa') }, { role: 'user', content: 'Please check my system' }] },
-      { messages: [
-        { role: 'system', content: ownerCommunicationInstruction() },
-        { role: 'user', content: 'Please check my system' },
-      ] },
+      {
+        messages: [
+          { role: 'system', content: ownerCommunicationInstruction() },
+          { role: 'user', content: 'Please check my system' },
+        ],
+      },
       { configurable: { thread_id: 'voice_CA123' } },
     );
   });
@@ -111,11 +113,12 @@ describe('Twilio conversational voice webhooks', () => {
     expect(response.body).toContain('Certainly, Sir G. RyanAI says hello &amp; welcome');
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      { messages: [{ role: 'system', content: expect.stringContaining('English - South Africa') }, { role: 'user', content: 'What is the system status?' }] },
-      { messages: [
-        { role: 'system', content: ownerCommunicationInstruction() },
-        { role: 'user', content: 'What is the system status?' },
-      ] },
+      {
+        messages: [
+          { role: 'system', content: ownerCommunicationInstruction() },
+          { role: 'user', content: 'What is the system status?' },
+        ],
+      },
       { configurable: { thread_id: 'voice_CAOUT123' } },
     );
   });
