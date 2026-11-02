@@ -14,6 +14,7 @@ import { summarizeProviderError } from './providerErrors.js';
 import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE, BRAIN_PROBE_ORDER } from './brainProbe.js';
 import { buildAgentRunExecutionPrompt, planQueuedAgentRun } from './agentRunExecution.js';
 import type { ExecutionChange } from './executionPlanner.js';
+import { recordRunEvidence } from './engineeringEvidence.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -175,6 +176,9 @@ interface ClaimedAgentRun {
   max_attempts: number;
   worker_id: string;
   execution_scope: unknown;
+  approval_status: string;
+  steering_notes: string | null;
+  cancel_requested_at: Date | null;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
@@ -187,14 +191,15 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
         "worker_id" = NULL,
         "locked_at" = NULL
     WHERE "status" = 'running'
+      AND "approval_status" = 'approved'
       AND "locked_at" < NOW() - INTERVAL '3 minutes'
       AND "attempts" >= "max_attempts"
   `;
   const rows = await prisma.$queryRawUnsafe<ClaimedAgentRun[]>(
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
-    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE ("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW()) ' +
+    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "approval_status" = \'approved\' AND ("plan_snapshot" IS NULL OR ("approved_plan_hash" = "plan_hash" AND "approved_commit_sha" = "base_commit_sha" AND "approved_diff_hash" = "proposed_diff_hash")) AND "cancel_requested_at" IS NULL AND (("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW())) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope", "approval_status", "steering_notes", "cancel_requested_at"',
     workerId,
   );
   return rows[0] ?? null;
@@ -213,9 +218,10 @@ async function processAgentRun(run: ClaimedAgentRun) {
     },
   );
   try {
+    await recordRunEvidence({ runId: run.id, eventType: 'execution.started', payload: { workerId: run.worker_id, attempt: run.attempts, approvalStatus: run.approval_status } });
     const knowledge = await buildBrainKnowledgeContext();
     const executionPlan = planQueuedAgentRun(run.execution_scope);
-    const plannedObjective = buildAgentRunExecutionPrompt(run.objective, executionPlan);
+    const plannedObjective = buildAgentRunExecutionPrompt(run.objective + (run.steering_notes ? '\n\nHuman steering instructions (guidance only; not permission):\n' + run.steering_notes : ''), executionPlan);
     const sharedObjective = knowledge
       ? knowledge + '\n\n' + plannedObjective
       : plannedObjective;
