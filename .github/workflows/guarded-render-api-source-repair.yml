@@ -86,9 +86,10 @@ jobs:
             --output render-service-update.json
           jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off"' render-service-update.json
 
-      - name: Deploy the validated API commit
+      - name: Deploy the exact validated API commit
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          TARGET_SHA: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
@@ -97,9 +98,54 @@ jobs:
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --header "content-type: application/json" \
-            --data '{"clearCache":false}' \
+            --data "$(jq -n --arg sha "$TARGET_SHA" '{clearCache:false,commitId:$sha}')" \
             --output render-deploy.json
+          DEPLOY_ID="$(jq -er '.id' render-deploy.json)"
+          echo "RENDER_DEPLOY_ID=$DEPLOY_ID" >> "$GITHUB_ENV"
           jq '{id,status,commit}' render-deploy.json
+
+      - name: Wait for deployment to become live
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            curl --fail-with-body --silent --show-error \
+              --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0/deploys/$RENDER_DEPLOY_ID" \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
+              --header "accept: application/json" \
+              --output render-deploy-final.json
+            STATUS="$(jq -r '.status // empty' render-deploy-final.json)"
+            DEPLOY_SHA="$(jq -r '.commit.id // .commitId // empty' render-deploy-final.json)"
+            echo "Render deployment status: $STATUS"
+            [[ -z "$DEPLOY_SHA" || "$DEPLOY_SHA" == "$TARGET_SHA" ]] || { echo "::error::Render deployed an unexpected commit: $DEPLOY_SHA"; exit 1; }
+            [[ "$STATUS" != "build_failed" && "$STATUS" != "update_failed" && "$STATUS" != "canceled" ]] || { echo "::error::Render deployment failed"; jq . render-deploy-final.json; exit 1; }
+            [[ "$STATUS" == "live" ]] && break
+            sleep 15
+          done
+          [[ "$(jq -r '.status' render-deploy-final.json)" == "live" ]] || { echo "::error::Timed out waiting for Render deployment"; exit 1; }
+          [[ "$(jq -r '.commit.id // .commitId // empty' render-deploy-final.json)" == "$TARGET_SHA" ]] || { echo "::error::Live Render deployment does not identify the requested commit"; exit 1; }
+
+      - name: Verify API health endpoint
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 10 \
+              --output health-response.json \
+              --write-out '%{http_code}' \
+              "https://ryanai-api.onrender.com/health" > health-status.txt; then
+              if [[ "$(cat health-status.txt)" == "200" ]]; then
+                echo "API /health returned HTTP 200"
+                cat health-response.json
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::API /health did not return HTTP 200 after deployment"
+          [[ -f health-response.json ]] && cat health-response.json || true
+          exit 1
 
       - name: Verify source connection after update
         env:
