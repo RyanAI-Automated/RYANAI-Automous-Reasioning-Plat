@@ -50,7 +50,7 @@ describe('claimInboundCommunication', () => {
     });
     expect(findUnique).toHaveBeenCalledWith({
       where: { providerMessageId: 'SM-provider-event-1' },
-      select: { status: true, metadata: true },
+      select: { id: true, status: true, metadata: true, createdAt: true },
     });
   });
 
