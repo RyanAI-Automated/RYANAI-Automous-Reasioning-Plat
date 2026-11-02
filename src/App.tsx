@@ -117,6 +117,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen min-h-[480px] flex-col overflow-hidden bg-slate-950 text-slate-100">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="z-20 flex min-h-14 items-center justify-between border-b border-cyan-400/15 bg-slate-950/95 px-4 sm:px-8">
         <a
           href="#/"
@@ -130,7 +131,11 @@ export default function App() {
           className="flex items-center gap-1 overflow-x-auto"
         >
           {destinations
-            .filter(({ id }) => !user || (id !== 'signin' && id !== 'signup'))
+            .filter(({ id }) =>
+              user
+                ? id !== 'signin' && id !== 'signup'
+                : id === 'landing' || id === 'signin' || id === 'signup',
+            )
             .map(({ id, path, label, icon: Icon }) => (
               <a
                 key={id}
@@ -166,8 +171,10 @@ export default function App() {
 
       <Suspense fallback={<p role="status" className="p-8 text-slate-300">Loading RyanAI workspace…</p>}>
       <main
+        id="main-content"
         key={user?.id ?? 'signed-out'}
-        className="min-h-0 flex-1 overflow-y-auto"
+        tabIndex={-1}
+        className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
       >
         {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
         {error && (
@@ -202,7 +209,7 @@ export default function App() {
               </>
             )}
             {(route === 'workspace' || isAuthRoute) && (
-              <div className="h-full min-h-[calc(100vh-3.5rem)]">
+              <div className="min-h-0">
                 <CommandCenter
                   onSignOut={() => void handleSignOut()}
                   userId={user.id}

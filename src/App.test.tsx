@@ -99,6 +99,21 @@ describe('application authentication boundary', () => {
     await expectContent('Public landing');
     expect(container.querySelector('a[href="#/signup"]')).not.toBeNull();
   });
+  it('keeps protected destinations out of anonymous navigation', async () => {
+    await mount('/');
+    expect(container.querySelector('nav a[href="#/dashboard"]')).toBeNull();
+    expect(container.querySelector('nav a[href="#/cockpit"]')).toBeNull();
+    expect(container.querySelector('nav a[href="#/workspace"]')).toBeNull();
+    expect(container.querySelector('a.skip-link[href="#main-content"]')).not.toBeNull();
+  });
+  it('shows protected destinations after an authenticated session is restored', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/dashboard');
+    await expectContent('Private dashboard');
+    expect(container.querySelector('nav a[href="#/dashboard"]')).not.toBeNull();
+    expect(container.querySelector('nav a[href="#/cockpit"]')).not.toBeNull();
+    expect(container.querySelector('nav a[href="#/workspace"]')).not.toBeNull();
+  });
   it('does not mount protected content before restoration completes', async () => {
     let restore!: (value: unknown) => void;
     auth.getSession.mockReturnValue(
