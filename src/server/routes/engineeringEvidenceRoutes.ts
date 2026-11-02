@@ -26,6 +26,10 @@ interface ReceiptBody {
 
 const isSha = (value: string) => /^[a-f0-9]{40}$/i.test(value);
 const isDigest = (value: string) => /^[a-f0-9]{64}$/i.test(value);
+const containsSecretMaterial = (value: string) =>
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i.test(value)
+  || /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{20,}|nvapi-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{20,})\b/.test(value)
+  || /^\+\s*(?:export\s+)?(?:DATABASE_URL|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|OPENAI_API_KEY|NVIDIA_API_KEY|QWEN_API_KEY|LOGIC_API_KEY|REDIS_URL)\s*=\s*\S+/im.test(value);
 
 export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireAdmin);
@@ -56,6 +60,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     } },
   }, async (request, reply) => {
     const { objective, plan, baseCommitSha, proposedDiff } = request.body;
+    if (containsSecretMaterial(proposedDiff) || containsSecretMaterial(JSON.stringify(plan))) return reply.code(400).send({ error: 'Potential credential material detected. Remove secrets before submitting an evidence snapshot.' });
     const planHash = sha256(JSON.stringify({ plan, steeringNotes: null }));
     const proposedDiffHash = createHash('sha256').update(proposedDiff, 'utf8').digest('hex');
     const run = await prisma.$transaction(async (tx) => {
@@ -278,6 +283,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     } } },
   }, async (request, reply) => {
     const instruction = request.body.instruction.trim();
+    if (containsSecretMaterial(request.body.proposedDiff) || containsSecretMaterial(JSON.stringify(request.body.plan))) return reply.code(400).send({ error: 'Potential credential material detected. Remove secrets before submitting an evidence snapshot.' });
     const proposedDiffHash = sha256(request.body.proposedDiff);
     const result = await prisma.$transaction(async (tx) => {
       const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
