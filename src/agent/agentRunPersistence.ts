@@ -52,7 +52,7 @@ export async function persistAgentRunCompletion(
     data: {
       userId: run.user_id,
       title: 'Autonomous task ' + run.id,
-      content: 'Objective:\\n' + run.objective + '\\n\\nResult:\\n' + plan.synthesis,
+      content: 'Objective:\n' + run.objective + '\n\nResult:\n' + plan.synthesis,
       category: 'agent-task',
       tags: ['agent-run', 'autonomous', ...(plan.degraded ? ['degraded'] : [])],
     },
