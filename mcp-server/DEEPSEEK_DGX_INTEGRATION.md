@@ -12,7 +12,7 @@ DEEPSEEK_MODEL=DeepSeek-V4.1-Flash-1017
 DEEPSEEK_API_KEY=
 ```
 
-Loopback endpoints may be used without an API key. Any non-loopback endpoint must use HTTPS or HTTP on a trusted private network with `DEEPSEEK_API_KEY` configured; the adapter sends it as a Bearer token. Do not expose an unauthenticated inference endpoint to a LAN or the public internet.
+Loopback endpoints may be used without an API key. Any non-loopback endpoint must use HTTPS with `DEEPSEEK_API_KEY` configured; the adapter sends it as a Bearer token. Do not expose an unauthenticated inference endpoint to a LAN or the public internet.
 
 In Docker Compose, `127.0.0.1` refers to the MCP container itself. Set `DEEPSEEK_API_ENDPOINT` to the reachable DGX host/service address and configure authentication at that endpoint plus `DEEPSEEK_API_KEY`. Do not add broad host networking or disable authentication as a shortcut.
 
