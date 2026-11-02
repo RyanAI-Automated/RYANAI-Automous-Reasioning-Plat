@@ -19,7 +19,7 @@ export function resolveBrainProviderConfig(
     const endpoint = env.NVIDIA_API_ENDPOINT || env.LM_STUDIO_URL || env.OLLAMA_URL || 'https://integrate.api.nvidia.com/v1';
     const sharedLocalCredential = !env.NVIDIA_API_ENDPOINT && Boolean(env.LM_STUDIO_URL || env.OLLAMA_URL) && Boolean(env.LM_STUDIO_API_KEY);
     return {
-      model: env.PRIMARY_REASONING_MODEL || env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra',
+      model: env.PRIMARY_REASONING_MODEL || env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b',
       endpoint,
       credential: Boolean(env.NVIDIA_API_KEY) || sharedLocalCredential,
     };
@@ -29,7 +29,7 @@ export function resolveBrainProviderConfig(
     const endpoint = env.QWEN_API_ENDPOINT || env.LM_STUDIO_URL || 'https://api.together.xyz/v1';
     const sharedLocalCredential = !env.QWEN_API_ENDPOINT && Boolean(env.LM_STUDIO_URL) && Boolean(env.LM_STUDIO_API_KEY);
     return {
-      model: env.SECONDARY_REASONING_MODEL || env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507',
+      model: env.SECONDARY_REASONING_MODEL || env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
       endpoint,
       credential: Boolean(env.QWEN_API_KEY) || sharedLocalCredential,
     };
