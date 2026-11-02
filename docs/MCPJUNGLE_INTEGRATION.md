@@ -39,7 +39,7 @@ The RyanAI upstream registration file is `mcpjungle/ryanai-server.json.example`.
 
 ```sh
 export RYANAI_MCP_AUTH_TOKEN="$MCP_AUTH_TOKEN"
-mcpjungle --registry http://127.0.0.1:8080 register --conf mcpjungle/ryanai-server.json.example
+mcpjungle --registry http://127.0.0.1:8080 register -c mcpjungle/ryanai-server.json.example
 ```
 
 The registered upstream URL is `http://mcp-server:8765/mcp`; it is resolved inside the shared Docker network, not from the host. The RyanAI MCP server allowlists that internal hostname and requires its own bearer token.
@@ -56,7 +56,7 @@ These read-only tools are enabled by the default `RYANAI_MCP_ENABLED_TOOLS` sett
 Create the group as an enterprise administrator:
 
 ```sh
-mcpjungle --registry http://127.0.0.1:8080 create group --conf mcpjungle/jarvis-tools-group.json.example
+mcpjungle --registry http://127.0.0.1:8080 create group -c mcpjungle/jarvis-tools-group.json.example
 ```
 
 Create a dedicated Jarvis client and allow only the RyanAI upstream:
