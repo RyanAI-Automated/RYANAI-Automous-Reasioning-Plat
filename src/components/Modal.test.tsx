@@ -42,7 +42,6 @@ describe('accessible modal dialog', () => {
 
     const dialog = container.querySelector('[role="dialog"]');
     const closeButton = container.querySelector('button[aria-label="Close dialog"]') as HTMLButtonElement;
-    const firstAction = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'First action') as HTMLButtonElement;
     const lastAction = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Last action') as HTMLButtonElement;
 
     expect(dialog).not.toBeNull();
