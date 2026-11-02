@@ -86,11 +86,35 @@ test('provider errors remain request-scoped and a subsequent request can succeed
   assert.equal(result.response, 'second request succeeded');
 });
 
-test('provider endpoints reject embedded credentials and query strings', async () => {
-  for (const endpoint of ['http://user:pass@127.0.0.1:8888/v1', 'http://127.0.0.1:8888/v1?token=secret']) {
+test('provider endpoints reject embedded credentials, query strings, and fragments before fetch', async () => {
+  for (const endpoint of ['http://user:pass@127.0.0.1:8888/v1', 'http://127.0.0.1:8888/v1?token=secret', 'http://127.0.0.1:8888/v1#fragment']) {
     await assert.rejects(routeReasoning('Hello', 'deepseek', {
       env: { DEEPSEEK_API_ENDPOINT: endpoint },
       fetch: async () => { throw new Error('fetch must not be called'); },
     }), /clean HTTP or HTTPS URL/);
   }
+});
+
+test('TorchTPU routes through a separately operated OpenAI-compatible serving endpoint', async () => {
+  let request;
+  const result = await routeReasoning('Summarize this workload.', 'torch_tpu', {
+    env: {
+      TORCHTPU_API_ENDPOINT: 'http://127.0.0.1:8000/v1',
+      TORCHTPU_MODEL: 'qwen3-8b-tpu',
+    },
+    fetch: async (url, init) => {
+      request = { url: String(url), body: JSON.parse(init.body) };
+      return providerResponse({ role: 'assistant', content: 'TPU-backed endpoint response' });
+    },
+  });
+  assert.equal(request.url, 'http://127.0.0.1:8000/v1/chat/completions');
+  assert.equal(request.body.model, 'qwen3-8b-tpu');
+  assert.equal(result.response, 'TPU-backed endpoint response');
+});
+
+test('TorchTPU requires an explicit model id and never claims hardware is present', async () => {
+  await assert.rejects(routeReasoning('Hello', 'torch_tpu', {
+    env: { TORCHTPU_API_ENDPOINT: 'http://127.0.0.1:8000/v1' },
+    fetch: async () => { throw new Error('fetch must not be called'); },
+  }), /requires its model id to be set/);
 });

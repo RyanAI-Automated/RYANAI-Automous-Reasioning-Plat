@@ -1,76 +1,137 @@
-# Jarvis ↔ RyanAI integration
+# Jarvis, MCPJungle, and accelerator integration
 
-RyanAI now exposes a configurable bridge for submitting candidate patches and publishing its stack manifest to a Jarvis service. The connector is **off by default**. A patch submission queues a review package in Jarvis; it never edits the RyanAI workspace, merges a GitHub pull request, or deploys a stack.
+This document joins the existing Jarvis bridge, RyanAI MCP manager, optional MCPJungle gateway, DeepSeek Flash adapter, and optional TorchTPU-backed model-serving endpoint into one operator-controlled workflow.
 
-The repository connection available for this change only exposes the RyanAI repository. The Jarvis-side implementation must accept the REST contract below or adapt the endpoint paths to its existing API.
+## What is already implemented in RyanAI
 
-## REST contract
+- **Jarvis outbound bridge:** administrator-only API routes expose status, patch proposal submission, and non-secret stack-manifest publication. Outbound requests require `JARVIS_BASE_URL`, `JARVIS_API_TOKEN`, and `JARVIS_SYNC_ENABLED=true`.
+- **Jarvis inbound patch bridge:** `POST /api/jarvis/patches/apply` is disabled unless `JARVIS_PATCH_INGRESS_ENABLED=true` and a separate `JARVIS_INGRESS_TOKEN` are configured. Accepted candidates pass through RyanAI's sandboxed patch verification pipeline; this does not automatically create a Git commit, PR, merge, or deployment.
+- **RyanAI MCP manager:** `/mcp` offers health, repository status, stack manifest, reasoning, project-check, and tool-registry capabilities. Action tools are controlled by `RYANAI_MCP_ENABLED_TOOLS`; the registry is always read-only and discoverable.
+- **DeepSeek Flash:** optional OpenAI-compatible MCP reasoning route, with JSON validation and no implicit execution of model tool calls.
+- **Durable agent orchestration:** queue/worker, leases, recovery and handoff telemetry are in the main application; their live operational state still needs to pass the current CI and staging checks.
 
-Configure an HTTP(S) origin for Jarvis. The connector sends a bearer token and JSON:
+## End-to-end topology
 
-| Purpose | Default endpoint | Method | Payload schema |
-|---|---|---|---|
-| Health check | `/health` | GET | Jarvis health response |
-| Submit patch for review | `/api/v1/patches` | POST | `ryanai.jarvis.patch/v1` |
-| Publish stack metadata | `/api/v1/stacks` | POST | `ryanai.jarvis.stack/v1` |
+```text
+Jarvis agent (client identity + allow-list)
+        |
+        | Streamable HTTP /mcp + client bearer token
+        v
+MCPJungle (enterprise mode, per-client ACLs, tool groups)
+        |
+        | internal Docker network; upstream bearer token
+        v
+RyanAI MCP manager (MCP_AUTH_TOKEN)
+        |
+        +--> health / repository / stack manifest / reasoning / project checks
 
-Override paths with `JARVIS_HEALTH_PATH`, `JARVIS_PATCH_PATH`, and `JARVIS_STACK_PATH` if Jarvis uses different routes. A successful POST should return HTTP 2xx and preferably a JSON response with `id` (or `patchId` / `stackId`) and `status`.
-
-Patch submissions contain a title, safe relative target path, proposed full file content, source branch, base branch, optional GitHub pull-request URL, submitter ID, and timestamp. Stack submissions contain the versioned service manifest from `stacks/ryanai.stack.json`, the environment, branch/commit metadata, and timestamp. Secrets are never included in the stack manifest.
-
-## Environment
-
-Set these on the RyanAI API service and on any host running the CLI:
-
-- `JARVIS_BASE_URL`: Jarvis origin, for example `https://jarvis.example`.
-- `JARVIS_API_TOKEN`: server-side bearer token; keep it in a secret store.
-- `JARVIS_SYNC_ENABLED=true`: explicit opt-in required before network sync is allowed.
-- `JARVIS_HEALTH_PATH`, `JARVIS_PATCH_PATH`, `JARVIS_STACK_PATH`: optional endpoint overrides.
-- `JARVIS_ALLOW_PRODUCTION_SYNC=true`: extra opt-in for production stack metadata publication. It is intentionally not enabled in the checked-in configuration.
-
-Keep the token out of `.env.frontend`, Vite variables, manifests, workflow logs, and Git. Local development may use a loopback HTTP endpoint; hosted integrations should use HTTPS.
-
-## API routes
-
-The RyanAI API provides administrator-only routes:
-
-- `GET /api/jarvis/status`
-- `POST /api/jarvis/patches`
-- `POST /api/jarvis/stacks/publish`
-
-These routes use the existing verified administrator auth guard. If the connector is not configured, status returns a disabled state and writes return HTTP 503 rather than silently pretending to sync.
-
-Jarvis can also submit a reviewed candidate to RyanAI's sandboxed patch engine:
-
-- `POST /api/jarvis/patches/apply` — accepts `filePath`, `patchContent`, and an optional `testScript`.
-- Set `JARVIS_PATCH_INGRESS_ENABLED=true` to expose this machine-to-machine route.
-- Set `JARVIS_INGRESS_TOKEN` to a dedicated secret and send it as `Authorization: Bearer <token>`. Do **not** reuse `JARVIS_API_TOKEN` for inbound requests.
-- This route bypasses the interactive Supabase auth hook only for this exact URL, then validates the separate ingress token with a timing-safe comparison. It returns 404 while disabled, 503 if enabled without a token, and 401 for invalid credentials.
-- Accepted candidates go through RyanAI's workspace patch transaction and isolated verification pipeline before promotion. A successful response means the patch was verified and applied to the configured workspace, **not** that a Git commit, pull request, or deployment was created.
-
-Keep ingress disabled unless Jarvis is on a trusted network and the token is stored in the host's secret manager.
-
-## CLI scripts
-
-Run from the RyanAI repository after installing dependencies:
-
-```sh
-npm run jarvis:status
-npm run jarvis:publish-stack -- staging
-npm run jarvis:publish-stack -- production main <commit-sha>
-npm run jarvis:submit-patch -- ./patch-proposal.json
+Jarvis patch service
+        |
+        | HTTPS + separate JARVIS_INGRESS_TOKEN
+        v
+RyanAI API /api/jarvis/patches/apply
+        |
+        v
+Sandboxed patch verification --> human-reviewed Git PR --> required CI/review
 ```
 
-A patch proposal JSON file has `title`, `targetPath`, `patchContent`, `branch`, and `baseBranch` fields, plus optional `pullRequestUrl` and `requestedBy`.
+The existing direct Jarvis REST bridge is separate from MCPJungle: RyanAI uses its outbound Jarvis token for health, patch proposals and stack metadata. MCPJungle centralizes MCP server access; it is not a replacement for Jarvis's patch REST contract.
 
-## MCP connection from Jarvis
+## Start the optional MCPJungle enterprise gateway
 
-For a Jarvis deployment that supports MCP Streamable HTTP, register RyanAI's MCP manager at `/mcp` and use the `MCP_AUTH_TOKEN` as a bearer token. The endpoint host must be listed in `MCP_ALLOWED_HOSTS`; if Jarvis sends an Origin header, that origin host must also be allow-listed. Expose the MCP listener only on a trusted network or behind an authenticated TLS ingress. The MCP manager provides platform health, provider-routed reasoning, project checks, and repository status where Git metadata is present.
+MCPJungle is a separate open-source service (MPL-2.0), pinned here to release `0.4.7`. The Compose profile is off by default and uses a dedicated PostgreSQL database; it does not reuse RyanAI's application database.
 
-## Staging smoke test
+1. Generate a unique URL-safe database password and set it as `MCPJUNGLE_DB_PASSWORD` in the server-side `.env` file. Do not reuse RyanAI's `DB_PASSWORD`.
+2. Start only the optional gateway services:
 
-For required GitHub Actions secrets, staging-only configuration, expected HTTP outcomes, and safe manual execution, see [`JARVIS_STAGING_RUNBOOK.md`](./JARVIS_STAGING_RUNBOOK.md). The workflow is manual and never enables production sync.
+   ```sh
+   docker compose --profile mcp-gateway up -d mcpjungle-db mcpjungle
+   ```
 
-## Stack deployment
+3. Verify the local-only gateway health endpoint at `http://127.0.0.1:8080/health`.
+4. Install the matching `mcpjungle` 0.4.7 CLI on a trusted operator workstation. Initialize the enterprise server and register RyanAI's MCP endpoint:
 
-The manifest describes the services in `docker-compose.yml`, the Kubernetes files under `k8s/`, Render, and the Vercel workflow. It is descriptive metadata; publishing it to Jarvis does not deploy the stack. Production deployment remains subject to the configured CI gates and deployment credentials.
+   ```sh
+   mcpjungle init-server
+   mcpjungle register --name ryanai --url http://mcp-server:8765/mcp --bearer-token "$MCP_AUTH_TOKEN"
+   ```
+
+   Run these commands against the local gateway configured at `http://127.0.0.1:8080`. The registered upstream hostname `mcp-server` resolves inside the shared Docker network; the operator workstation does not need to resolve it.
+
+5. Create a dedicated Jarvis MCP client with only the RyanAI upstream allowed:
+
+   ```sh
+   mcpjungle create mcp-client jarvis --allow "ryanai"
+   ```
+
+   Store the generated client token in Jarvis's secret manager. Do not reuse the gateway admin token or RyanAI's upstream token. For a remote Jarvis service, expose MCPJungle only through an authenticated HTTPS reverse proxy and configure its public origin and host-header protections correctly.
+
+The gateway listens on a loopback-only host port by default. Do not change that binding to a public interface without TLS, authentication, and an explicit access review. MCPJungle's enterprise mode requires server initialization and per-client allow-lists; development mode grants every connected client access to all registered servers and is not appropriate for shared Jarvis use.
+
+### Suggested Jarvis tool group
+
+After registering RyanAI, inspect canonical tool names with `mcpjungle list tools`, then create a Jarvis-specific group. Example structure (replace names with the exact discovered names):
+
+```json
+{
+  "name": "jarvis-ryanai",
+  "description": "RyanAI read, diagnostics, and reasoning tools for Jarvis",
+  "included_tools": [
+    "ryanai__tool_registry",
+    "ryanai__platform_health",
+    "ryanai__repository_status",
+    "ryanai__ryanai_stack_manifest",
+    "ryanai__reasoning_route"
+  ]
+}
+```
+
+Keep `run_project_checks` disabled until Jarvis is authorized to execute repository validation in the connected workspace. Keep patch application on the separately authenticated REST ingress route; do not expose self-patching as a general-purpose MCP tool. MCPJungle tool groups currently do not expose prompts/resources, so keep any required prompt/resource workflows on a separate endpoint.
+
+## Enable the Jarvis REST handshake in staging
+
+The code is deliberately fail-closed until the real Jarvis service and four staging credentials are supplied through GitHub Actions/environment secret stores:
+
+| Setting | Purpose |
+|---|---|
+| `JARVIS_STAGING_BASE_URL` | HTTPS Jarvis staging origin |
+| `JARVIS_STAGING_API_TOKEN` | RyanAI outbound bearer token for Jarvis |
+| `RYANAI_STAGING_API_BASE_URL` | HTTPS RyanAI staging API origin |
+| `JARVIS_STAGING_INGRESS_TOKEN` | Separate bearer token Jarvis uses for RyanAI patch ingress |
+
+On RyanAI staging only, configure `JARVIS_PATCH_INGRESS_ENABLED=true` and `JARVIS_INGRESS_TOKEN` to the same dedicated ingress secret. Keep production sync disabled. Run the repository's manual **Jarvis Staging Bridge Smoke** workflow first with optional patch and stack submissions disabled. Only enable the harmless staging candidate and staging manifest steps after the authenticated baseline succeeds. Do not copy secrets into chat, commits, workflow output, or PR comments.
+
+A local contract test is not a live Jarvis handshake. The integration remains **configured-but-unverified** until the workflow returns a successful authenticated round trip to the actual Jarvis and RyanAI staging services.
+
+## TorchTPU and model serving
+
+TorchTPU is a native PyTorch backend for Google TPU hardware. It is not a model, a standalone HTTP server, or a drop-in replacement for NVIDIA GPUs. To use it from RyanAI, deploy a compatible serving runtime (for example a supported vLLM/SGLang TorchTPU build) that exposes an OpenAI-compatible `/v1/chat/completions` endpoint. RyanAI's MCP manager can then route a request to that separately managed endpoint using `brain: "torch_tpu"`.
+
+Configure server-side only:
+
+```dotenv
+TORCHTPU_API_ENDPOINT=https://your-tpu-serving.example/v1
+TORCHTPU_MODEL=your-served-model-id
+TORCHTPU_API_KEY=your-serving-bearer-key
+```
+
+For a local endpoint, the loopback default is `http://127.0.0.1:8000/v1`; a model ID is mandatory. Remote endpoints require HTTPS and a bearer key. The optional TorchTPU route does not change the NVIDIA/Qwen/Logic three-brain orchestration or claim that TPU hardware exists. It is an additional model-serving target for explicit MCP calls.
+
+The InfoQ article reports TorchTPU's eager and compiled execution modes and Google-reported performance figures on specific TPU workloads. Its DeferAndFuse performance comparison is not a RyanAI benchmark. Dynamic shapes, compilation latency, operator coverage and quantization remain active maturity areas; verify the exact model/runtime/TPU generation before workload migration.
+
+## Operational boundaries
+
+- No cloud deployment, public gateway exposure, production sync, production patch ingress, production stack publication, container publication, database migration, secret rotation, paid upgrade, or release is performed by this integration.
+- Jarvis patch ingress must stay disabled until the actual staging endpoints and separate ingress token are configured.
+- MCPJungle is an optional local profile, not a requirement for RyanAI startup.
+- Use a dedicated MCPJungle client identity for Jarvis and an explicit upstream allow-list. Never use wildcard server access for the Jarvis client.
+- Require human review and passing CI/security checks before any patch is merged.
+
+## References
+
+- MCPJungle repository and MPL-2.0 license: https://github.com/mcpjungle/MCPJungle
+- MCPJungle enterprise deployment: https://docs.mcpjungle.com/deployment/production
+- MCPJungle client access control: https://docs.mcpjungle.com/governance/access-control
+- MCPJungle tool groups: https://docs.mcpjungle.com/guides/tool-groups
+- TorchTPU InfoQ: https://www.infoq.com/news/2026/11/torchtpu-native-pythorch-tpu/
+- Google TorchTPU announcement: https://cloud.google.com/blog/topics/ai-infrastructure/torchtpu-is-now-open-source-run-native-pytorch-on-tpus
