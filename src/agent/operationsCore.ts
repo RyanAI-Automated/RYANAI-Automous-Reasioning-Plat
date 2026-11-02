@@ -57,7 +57,7 @@ export async function executeThreeBrainPlan(
   }
 
   const specialists = outputs.filter((item) => item.brain !== 'logic');
-  const verified = outputs.length === 3 && Boolean(logic) && verifyThreeBrainResult(outputs, logic.output).verified;
+  const verified = outputs.length === 3 && logic !== undefined && verifyThreeBrainResult(outputs, logic.output).verified;
   const synthesis = logic
     ? (specialists.length ? logic.output : 'DEGRADED MODE — standalone Logic response; no specialist analyses or three-brain verification were available.\n\n' + logic.output)
     : 'DEGRADED MODE — Logic synthesis unavailable; no consensus was produced.\n\n' + specialists.map((item) => item.brain.toUpperCase() + ':\n' + item.output).join('\n\n');
