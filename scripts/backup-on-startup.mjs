@@ -16,11 +16,9 @@ const warn = (message) => console.error("[startup-backup] WARNING: " + message);
 
 function pgDump(file) {
   return new Promise((resolve, reject) => {
-    const child = spawn("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file, process.env.DATABASE_URL], { stdio: ["ignore", "ignore", "pipe"] });
-    let stderr = "";
-    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    const child = spawn("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", file], { stdio: ["ignore", "ignore", "ignore"], env: { ...process.env, PGDATABASE: process.env.DATABASE_URL } });
     child.once("error", reject);
-    child.once("close", (code) => code === 0 ? resolve() : reject(new Error("pg_dump exited " + code + ": " + stderr.slice(-1000))));
+    child.once("close", (code) => code === 0 ? resolve() : reject(new Error("pg_dump exited with status " + code)));
   });
 }
 
