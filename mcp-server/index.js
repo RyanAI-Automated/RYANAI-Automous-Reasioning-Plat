@@ -60,7 +60,7 @@ export function createMcpServer() {
     },
     {
       name: 'reasoning_route',
-      description: 'Send a prompt to Nemotron, Qwen, optional DeepSeek Flash, or a separately hosted TorchTPU-backed OpenAI-compatible serving endpoint. Remote endpoints require HTTPS and a bearer key.'
+      description: 'Send a prompt to Nemotron, Qwen, optional DeepSeek Flash, or a separately hosted TorchTPU-backed OpenAI-compatible serving endpoint. Remote endpoints require HTTPS and a bearer key.',
       inputSchema: {
         type: 'object',
         properties: {
