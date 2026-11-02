@@ -144,8 +144,8 @@ export default function RyanAICockpit() {
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
           <Network className="h-4 w-4 text-cyan-300" />
-          <span>Brain-to-brain handoff events are not currently exposed by the live cockpit API.</span>
-          <span className="text-slate-500">No synthetic connections are displayed.</span>
+          <span>Handoff states below are read from persisted PostgreSQL execution records.</span>
+          <span className="text-slate-500">No connection is shown unless the worker records it.</span>
         </div>
       </section>
 
@@ -164,7 +164,7 @@ export default function RyanAICockpit() {
         <aside className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><Activity className="h-4 w-4 text-cyan-300" /> Live operation</div>
           <div className="mt-4 flex items-start gap-3"><span className={'mt-1 inline-flex h-2.5 w-2.5 rounded-full ' + (sending ? 'animate-pulse bg-cyan-300' : answer ? 'bg-emerald-400' : requestError ? 'bg-rose-400' : 'bg-slate-600')} /><p aria-live="polite" className="text-sm leading-6 text-slate-300">{activity}</p></div>
-          <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500">The current stream reports orchestrator-level progress only. Per-brain stages, region activation and live capacity require backend telemetry that is not yet available.</p>
+          <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500">Brain activity and handoff states reflect persisted worker transitions. Six-region activation and live capacity metrics remain unavailable until the backend reports them.</p>
           <div className="mt-4 border-t border-white/10 pt-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Persisted brain handoffs</p>
             {handoffs.length ? <ul className="mt-2 space-y-2">{handoffs.map((handoff, index) => <li key={handoff.fromAgent + '-' + handoff.toAgent + '-' + index} className="flex items-center justify-between gap-3 text-xs"><span className="text-slate-300">{agentLabel(handoff.fromAgent)} → {agentLabel(handoff.toAgent)}</span><span className={handoff.status === 'completed' ? 'text-emerald-300' : handoff.status === 'failed' ? 'text-rose-300' : handoff.status === 'running' ? 'text-cyan-300' : 'text-slate-500'}>{handoff.status}</span></li>)}</ul> : <p className="mt-2 text-xs text-slate-500">No handoff transitions reported for this request.</p>}
