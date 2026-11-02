@@ -10,7 +10,7 @@ const retry = {
 const allowedModels = new Set(
   (process.env.OPENAI_ALLOWED_MODELS || process.env.OPENAI_MODEL || 'gpt-4o,gpt-4o-mini')
     .split(',')
-    .map((model) => model.trim())
+    .map((model: string) => model.trim())
     .filter(Boolean),
 );
 
