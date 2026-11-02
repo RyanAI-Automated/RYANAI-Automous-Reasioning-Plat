@@ -1,0 +1,11 @@
+{
+  "name": "jarvis-diagnostics",
+  "description": "Explicitly approved diagnostics and validation tools for Jarvis",
+  "included_tools": [
+    "ryanai__tool_registry",
+    "ryanai__repository_status",
+    "ryanai__platform_health",
+    "ryanai__ryanai_stack_manifest",
+    "ryanai__run_project_checks"
+  ]
+}
