@@ -63,7 +63,7 @@ function safeProviderFailureDiagnostic(error) {
 }
 
 const brain = process.env.RYANAI_PROBE_BRAIN;
-if (!['primary', 'secondary', 'logic'].includes(brain)) {
+if (brain !== 'primary' && brain !== 'secondary' && brain !== 'logic') {
   throw new Error('RYANAI_PROBE_BRAIN must be primary, secondary, or logic.');
 }
 const { apiKey, model, endpoint } = resolveProviderProbeConfig(brain);
