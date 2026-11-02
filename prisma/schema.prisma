@@ -247,6 +247,7 @@ model AgentRun {
   userId String @map("user_id")
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   objective String @db.Text
+  executionScope Json @default("{}") @map("execution_scope")
   status String @default("queued")
   result Json?
   error String? @db.Text
