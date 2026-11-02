@@ -79,7 +79,7 @@ jobs:
 
       - name: Verify Supabase Auth identity bridge insert, update, and delete
         run: |
-          docker run --rm --network host \
+          docker run --rm --network host -e PGPASSWORD=ci_password \
             -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bridge-smoke.sql:/tmp/supabase-auth-ci-bridge-smoke.sql:ro" \
             postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_db \
               -v ON_ERROR_STOP=1 -f /tmp/supabase-auth-ci-bridge-smoke.sql
