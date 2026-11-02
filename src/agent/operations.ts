@@ -272,20 +272,58 @@ export async function dispatchAutonomousTask(userId: string, objective: string) 
 }
 
 /** Wait for a queued run's durable result; callers may disconnect and read history later. */
-export async function waitForAutonomousTask(runId: string, userId: string, timeoutMs = 120_000) {
+export interface AgentRunProgressEvent {
+  runId: string;
+  status: string;
+  handoffs: Array<{
+    fromAgent: string;
+    toAgent: string;
+    status: string;
+    startedAt: Date;
+    completedAt: Date | null;
+    error: string | null;
+  }>;
+}
+
+/** Wait for a user-owned durable run and emit only persisted state transitions. */
+export async function waitForAutonomousTask(
+  runId: string,
+  userId: string,
+  timeoutMs = 120_000,
+  onProgress?: (event: AgentRunProgressEvent) => void,
+) {
   const deadline = Date.now() + timeoutMs;
+  let lastProgressKey = '';
   while (Date.now() < deadline) {
     const run = await prisma.agentRun.findFirst({
       where: { id: runId, userId },
       include: { handoffs: { orderBy: { startedAt: 'asc' } } },
     });
     if (!run) throw new Error('Autonomous task was not found for this user.');
+    const handoffs = run.handoffs.map((handoff) => ({
+      fromAgent: handoff.fromAgent,
+      toAgent: handoff.toAgent,
+      status: handoff.status,
+      startedAt: handoff.startedAt,
+      completedAt: handoff.completedAt,
+      error: handoff.error,
+    }));
+    const progressKey = JSON.stringify({
+      status: run.status,
+      handoffs: handoffs.map(({ fromAgent, toAgent, status, startedAt, completedAt, error }) => ({
+        fromAgent, toAgent, status, startedAt, completedAt, error,
+      })),
+    });
+    if (progressKey !== lastProgressKey) {
+      lastProgressKey = progressKey;
+      onProgress?.({ runId, status: run.status, handoffs });
+    }
     if (run.status === 'failed') throw new Error(run.error || 'Autonomous task failed.');
     if (run.status === 'completed') {
       const result = run.result as { synthesis?: string } | null;
       return { ...run, result: result?.synthesis ?? '', handoffs: run.handoffs };
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error('Autonomous task is still queued or running. Retrieve its status from task history.');
 }
