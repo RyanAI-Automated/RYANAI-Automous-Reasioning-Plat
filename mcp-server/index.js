@@ -7,6 +7,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { routeReasoning } from './provider-router.js';
 import { resolveHealthUrl } from './health-url.js';
+import { resolveToolRegistry } from './tool-registry.js';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = path.resolve(process.env.RYANAI_PROJECT_ROOT || path.join(import.meta.dirname, '..'));
@@ -23,6 +24,11 @@ export function createMcpServer() {
   );
 
   const tools = [
+    {
+      name: 'tool_registry',
+      description: 'List RyanAI MCP tools, ownership, risk classification, and explicit enablement state.',
+      inputSchema: { type: 'object', properties: {} },
+    },
     ...(hasProjectManifest ? [
     {
       name: 'run_project_checks',
@@ -66,12 +72,22 @@ export function createMcpServer() {
     },
   ];
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+  const { tools: exposedTools, registry } = resolveToolRegistry(tools);
+  const exposedToolNames = new Set(exposedTools.map((tool) => tool.name));
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: exposedTools }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
+    if (!exposedToolNames.has(request.params.name)) {
+      return textResult('MCP tool is not enabled by the operator allowlist.', true);
+    }
 
     try {
+      if (request.params.name === 'tool_registry') {
+        return textResult(JSON.stringify(registry, null, 2));
+      }
+
       if (request.params.name === 'run_project_checks') {
         const results = [];
         results.push(await run('npm', ['run', 'validate']));
