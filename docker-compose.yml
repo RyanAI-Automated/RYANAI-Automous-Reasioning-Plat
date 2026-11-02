@@ -163,6 +163,9 @@ services:
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
       QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507-tput}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_ENDPOINT: ${DEEPSEEK_API_ENDPOINT:-http://127.0.0.1:8888/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-DeepSeek-V4.1-Flash-1017}
     networks: [ryanai-net]
     depends_on:
       api:
