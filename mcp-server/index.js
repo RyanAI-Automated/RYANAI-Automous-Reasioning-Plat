@@ -60,12 +60,12 @@ export function createMcpServer() {
     },
     {
       name: 'reasoning_route',
-      description: 'Send a prompt to the configured Nemotron, Qwen, or optional DeepSeek OpenAI-compatible endpoint. DeepSeek permits unauthenticated requests only to loopback; remote endpoints require DEEPSEEK_API_KEY.',
+      description: 'Send a prompt to the configured Nemotron, Qwen, or optional DeepSeek or TorchTPU-hosted OpenAI-compatible endpoint. Remote endpoints require HTTPS and their configured API key.',
       inputSchema: {
         type: 'object',
         properties: {
           prompt: { type: 'string', description: 'Prompt to process, up to 20,000 characters.' },
-          brain: { type: 'string', enum: ['nemotron', 'qwen', 'deepseek'], description: 'Provider brain; defaults to nemotron. DeepSeek defaults to http://127.0.0.1:8888/v1.' },
+          brain: { type: 'string', enum: ['nemotron', 'qwen', 'deepseek', 'torchtpu'], description: 'Provider brain; defaults to nemotron. DeepSeek and TorchTPU endpoints are optional.' },
           response_format: { type: 'string', enum: ['text', 'json_object'], description: 'Request plain text (default) or validated JSON object output.' },
         },
         required: ['prompt'],
@@ -123,7 +123,7 @@ export function createMcpServer() {
         const brain = typeof args.brain === 'string' ? args.brain : 'nemotron';
         if (!prompt) throw new Error('prompt is required.');
         if (prompt.length > 20_000) throw new Error('prompt must be 20,000 characters or fewer.');
-        if (!['nemotron', 'qwen', 'deepseek'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
+        if (!['nemotron', 'qwen', 'deepseek', 'torchtpu'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
         const responseFormat = typeof args.response_format === 'string' ? args.response_format : 'text';
         const result = await routeReasoning(prompt, brain, { responseFormat });
         return textResult(JSON.stringify(result, null, 2));
