@@ -1,6 +1,25 @@
 services:
   # Static frontend: API requests must target the separate Render API service.
   # If the service names/domains change, update this origin and the API CORS list.
+# Exported from Render on 2026-11-02T08:10:03Z
+version: "1"
+projects:
+- name: RyanAI Autonomus
+  environments:
+  - name: Production
+    services:
+    - type: web
+      name: RYANAI-Automous-Reasioning-Plat
+      runtime: docker
+      repo: https://github.com/rmnganyane-dev/RYANAI-Automous-Reasioning-Plat
+      plan: free
+      region: virginia
+      dockerCommand: ./
+      dockerContext: ./
+      dockerfilePath: ./Dockerfile
+      autoDeployTrigger: "off"
+      rootDir: ./
+      
   - type: web
     name: ryanai-web
     runtime: static
