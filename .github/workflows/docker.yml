@@ -28,6 +28,12 @@ on:
       - 'scripts/copy-server-assets.mjs'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
+    inputs:
+      publish_images:
+        description: 'Explicitly authorize publishing API, web, and MCP images to GHCR'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -106,16 +112,12 @@ jobs:
 
   publish:
     name: Build and publish ${{ matrix.image }}
+    # Publishing is opt-in only. Pushes, tags, and PRs must never publish images.
     if: >-
       ${{
-        (
-          github.event_name == 'push' &&
-          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
-        ) ||
-        (
-          github.event_name == 'workflow_dispatch' &&
-          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
-        )
+        github.event_name == 'workflow_dispatch' &&
+        inputs.publish_images == true &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
       }}
     needs: validate
     runs-on: ubuntu-latest
