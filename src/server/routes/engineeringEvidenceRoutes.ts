@@ -218,7 +218,13 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     return { success: true, recorded: request.body.checks.length, trust: 'human-reported; not independently fetched from CI' };
   });
 
-  fastify.post<{ Params: { jobId: string }; Body: ReceiptBody }>('/api/engineering/jobs/:jobId/evaluations', async (request, reply) => {
+  fastify.post<{ Params: { jobId: string }; Body: ReceiptBody }>('/api/engineering/jobs/:jobId/evaluations', {
+    schema: { body: { type: 'object', required: ['outcome', 'summary'], additionalProperties: false, properties: {
+      outcome: { type: 'string', enum: ['pass', 'fail', 'inconclusive'] },
+      summary: { type: 'string', minLength: 1, maxLength: 8000 },
+      evidenceRefs: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 2000 } },
+    } } },
+  }, async (request, reply) => {
     const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
     if (!job) return reply.code(404).send({ error: 'Job not found.' });
     if (job.userId === request.authUser!.id) return reply.code(403).send({ error: 'The job author cannot issue the independent evaluation receipt.' });
@@ -231,7 +237,13 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     return { success: true, receipt: 'evaluation.receipt' };
   });
 
-  fastify.post<{ Params: { jobId: string }; Body: ReceiptBody }>('/api/engineering/jobs/:jobId/assurance', async (request, reply) => {
+  fastify.post<{ Params: { jobId: string }; Body: ReceiptBody }>('/api/engineering/jobs/:jobId/assurance', {
+    schema: { body: { type: 'object', required: ['outcome', 'summary'], additionalProperties: false, properties: {
+      outcome: { type: 'string', enum: ['pass', 'fail', 'inconclusive'] },
+      summary: { type: 'string', minLength: 1, maxLength: 8000 },
+      evidenceRefs: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 2000 } },
+    } } },
+  }, async (request, reply) => {
     const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
     if (!job) return reply.code(404).send({ error: 'Job not found.' });
     if (job.userId === request.authUser!.id) return reply.code(403).send({ error: 'The job author cannot issue the independent assurance receipt.' });
