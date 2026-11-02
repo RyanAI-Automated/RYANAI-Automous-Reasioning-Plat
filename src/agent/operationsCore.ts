@@ -63,7 +63,10 @@ export async function executeThreeBrainPlan(
     : 'DEGRADED MODE — Logic synthesis unavailable; no consensus was produced.\n\n' + specialists.map((item) => item.brain.toUpperCase() + ':\n' + item.output).join('\n\n');
 
   const handoffs = specialists.map((item) => ({ fromAgent: 'supervisor', toAgent: item.brain, input: objective, output: item.output }));
-  if (logic) specialists.forEach((item) => handoffs.push({ fromAgent: item.brain, toAgent: 'logic', input: item.output, output: logic!.output }));
+  if (logic) {
+    const logicOutput = logic.output;
+    specialists.forEach((item) => handoffs.push({ fromAgent: item.brain, toAgent: 'logic', input: item.output, output: logicOutput }));
+  }
 
   return {
     outputs, synthesis, degraded: !verified, failures,
