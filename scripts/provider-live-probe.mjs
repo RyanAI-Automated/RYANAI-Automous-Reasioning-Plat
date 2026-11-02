@@ -2,7 +2,7 @@ import { appendFileSync } from 'node:fs';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { PrismaClient } from '@prisma/client';
-import { resolveBrainProviderConfig } from '../src/agent/providerConfig.ts';
+import { resolveProviderProbeConfig } from '../src/agent/providerProbeConfig.ts';
 import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE } from '../src/agent/brainProbe.ts';
 
 function safeProviderFailureDiagnostic(error) {
@@ -62,25 +62,17 @@ function safeProviderFailureDiagnostic(error) {
   return `Provider call failed (${safeName || 'unknown SDK error'}) before a classifiable HTTP response. Raw details withheld to protect credentials.`;
 }
 
-const providers = {
-  primary: { key: 'NVIDIA_API_KEY', endpoint: 'NVIDIA_API_ENDPOINT', model: 'PRIMARY_REASONING_MODEL' },
-  secondary: { key: 'QWEN_API_KEY', endpoint: 'QWEN_API_ENDPOINT', model: 'SECONDARY_REASONING_MODEL' },
-  logic: { key: 'LOGIC_API_KEY', endpoint: 'LOGIC_API_ENDPOINT', model: 'LOGIC_REASONING_MODEL' },
-};
 const brain = process.env.RYANAI_PROBE_BRAIN;
-if (!Object.hasOwn(providers, brain)) throw new Error('RYANAI_PROBE_BRAIN must be primary, secondary, or logic.');
-
-const provider = providers[brain];
-const apiKey = process.env.PROVIDER_API_KEY;
-const config = resolveBrainProviderConfig(brain, { ...process.env, [provider.key]: apiKey });
-const model = process.env[provider.model] || config.model;
-const endpoint = process.env[provider.endpoint] || config.endpoint;
+if (brain !== 'primary' && brain !== 'secondary' && brain !== 'logic') {
+  throw new Error('RYANAI_PROBE_BRAIN must be primary, secondary, or logic.');
+}
+const { apiKey, model, endpoint } = resolveProviderProbeConfig(brain);
 const prisma = new PrismaClient();
 const started = Date.now();
 let record;
 
 try {
-  if (!apiKey || !config.credential) {
+  if (!apiKey) {
     throw new Error('Provider credential is not configured.');
   }
 

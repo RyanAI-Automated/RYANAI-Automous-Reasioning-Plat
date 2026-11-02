@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveBrainProviderConfig } from './providerConfig.js';
+import { resolveProviderProbeConfig } from './providerProbeConfig.js';
 
 describe('independent brain provider credentials', () => {
   it('does not report cloud providers as configured without their own credentials', () => {
@@ -62,3 +63,29 @@ describe('independent brain provider credentials', () => {
     }
   });
 });
+
+describe('isolated provider probe credential resolution', () => {
+  it.each([
+    ['primary', 'NVIDIA_API_KEY'],
+    ['secondary', 'QWEN_API_KEY'],
+    ['logic', 'LOGIC_API_KEY'],
+  ] as const)('maps the selected workflow credential for %s', (brain, secretName) => {
+    const config = resolveProviderProbeConfig(brain, {
+      PROVIDER_API_KEY: ' selected-test-credential ',
+      [secretName]: undefined,
+    });
+    expect(config.apiKey).toBe('selected-test-credential');
+    expect(config.endpoint).toMatch(/^https:\/\//);
+    expect(config.model).toBeTruthy();
+  });
+
+  it('does not fall back to a different cloud provider credential', () => {
+    expect(resolveProviderProbeConfig('primary', { QWEN_API_KEY: 'qwen-only' }).apiKey).toBe('');
+    expect(resolveProviderProbeConfig('secondary', { NVIDIA_API_KEY: 'nvidia-only' }).apiKey).toBe('');
+  });
+
+  it('supports the documented OpenAI key fallback for the Logic brain', () => {
+    expect(resolveProviderProbeConfig('logic', { OPENAI_API_KEY: 'openai-test' }).apiKey).toBe('openai-test');
+  });
+});
+
