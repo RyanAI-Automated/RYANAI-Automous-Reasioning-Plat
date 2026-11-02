@@ -1,3 +1,4 @@
+import type { ExecutionPlan } from './executionPlanner.js';
 import type { Prisma } from '@prisma/client';
 import type { BrainOutput } from './operationsCore.js';
 
@@ -21,6 +22,7 @@ export async function persistAgentRunCompletion(
   run: PersistableAgentRun,
   handoffs: PersistableHandoff[],
   plan: { outputs: BrainOutput[]; synthesis: string; degraded: boolean },
+  executionPlan: ExecutionPlan,
 ): Promise<void> {
   const outputByBrain = new Map(plan.outputs.map((item) => [item.brain, item]));
   for (const row of handoffs) {
@@ -52,7 +54,7 @@ export async function persistAgentRunCompletion(
     data: {
       userId: run.user_id,
       title: 'Autonomous task ' + run.id,
-      content: 'Objective:\n' + run.objective + '\n\nResult:\n' + plan.synthesis,
+      content: 'Objective:\n' + run.objective + '\n\nExecution plan:\n' + JSON.stringify(executionPlan) + '\n\nResult:\n' + plan.synthesis,
       category: 'agent-task',
       tags: ['agent-run', 'autonomous', ...(plan.degraded ? ['degraded'] : [])],
     },
@@ -61,7 +63,7 @@ export async function persistAgentRunCompletion(
     where: { id: run.id, status: 'running', workerId: run.worker_id, attempts: run.attempts },
     data: {
       status: 'completed',
-      result: { synthesis: plan.synthesis, degraded: plan.degraded, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
+      result: { synthesis: plan.synthesis, degraded: plan.degraded, executionPlan, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
       completedAt: new Date(),
       lockedAt: null,
       workerId: null,
