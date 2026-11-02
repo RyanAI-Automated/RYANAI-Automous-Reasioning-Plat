@@ -14,7 +14,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/jarvis/internal/health', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
     try {
-      await prisma.$queryRaw\`SELECT 1\`;
+      await prisma.$queryRaw`SELECT 1`;
       return { service: 'ryanai-internal-jarvis', status: 'ready', persistence: 'connected', externalJarvisRequired: false };
     } catch {
       return reply.code(503).send({ service: 'ryanai-internal-jarvis', status: 'degraded', persistence: 'unavailable', externalJarvisRequired: false });
@@ -35,10 +35,10 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     const objective = request.body.objective.trim();
     try {
       const task = await dispatchAutonomousTask(request.authUser.id, objective);
-      await prisma.$executeRaw\`
+      await prisma.$executeRaw`
         INSERT INTO "jarvis_audit_events" ("id", "actor_id", "event_type", "resource_id", "details", "created_at")
         VALUES (gen_random_uuid(), ${request.authUser.id}, 'task.queued', ${task.id}, ${JSON.stringify({ objectiveLength: objective.length, status: task.status })}::jsonb, NOW())
-      \`;
+      `;
       return reply.code(202).send({ success: true, taskId: task.id, status: task.status, createdAt: task.createdAt, approvalRequiredForPrivilegedActions: true });
     } catch (error) {
       request.log.error({ err: error }, 'Internal Jarvis task enqueue or audit failed');
@@ -63,7 +63,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/jarvis/internal/audit', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
     if (!isAdmin(request)) return reply.code(403).send({ error: 'Administrator access is required.' });
-    const events = await prisma.$queryRaw\`SELECT id, actor_id AS "actorId", event_type AS "eventType", resource_id AS "resourceId", details, created_at AS "createdAt" FROM "jarvis_audit_events" ORDER BY created_at DESC LIMIT 100\`;
+    const events = await prisma.$queryRaw`SELECT id, actor_id AS "actorId", event_type AS "eventType", resource_id AS "resourceId", details, created_at AS "createdAt" FROM "jarvis_audit_events" ORDER BY created_at DESC LIMIT 100`;
     return { events };
   });
 };
