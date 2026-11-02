@@ -38,7 +38,7 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          exit-code: '0'
+          exit-code: '1'
           skip-dirs: node_modules,**/node_modules,.cache,src-tauri/target
           scanners: vuln
 
