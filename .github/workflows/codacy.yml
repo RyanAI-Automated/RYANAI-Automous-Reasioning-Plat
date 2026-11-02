@@ -67,8 +67,14 @@ jobs:
             throw new Error('Codacy produced no SARIF runs');
           }
 
-          fs.mkdirSync('sarif-output', { recursive: true });
-          report.runs.forEach((run, index) => {
+          const batchSize = 25;
+          const batchCount = Math.ceil(report.runs.length / batchSize);
+          if (batchCount > 2) {
+            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 50 so uploads can stay within GitHub's 25-item request limit.`);
+          }
+
+          for (let index = 0; index < report.runs.length; index += 1) {
+            const run = report.runs[index];
             const tool = (run.tool?.driver?.name ?? 'tool')
               .toLowerCase()
               .replace(/[^a-z0-9-]+/g, '-')
@@ -77,13 +83,22 @@ jobs:
               ...(run.runAutomationDetails ?? {}),
               id: `codacy-${tool}-${index}/analysis`,
             };
-            const filename = `sarif-output/${String(index).padStart(3, '0')}-${tool}.sarif`;
+            const batch = Math.floor(index / batchSize) + 1;
+            const directory = `sarif-output/batch-${batch}`;
+            fs.mkdirSync(directory, { recursive: true });
+            const filename = `${directory}/${String(index).padStart(3, '0')}-${tool}.sarif`;
             fs.writeFileSync(filename, JSON.stringify({ ...report, runs: [run] }));
-          });
+          }
           NODE
 
-      # Directory uploads use each file's unique automationDetails.id category.
-      - name: Upload SARIF results files
+      # GitHub accepts at most 25 SARIF files in one upload request.
+      - name: Upload Codacy SARIF batch 1
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: sarif-output/
+          sarif_file: sarif-output/batch-1/
+
+      - name: Upload Codacy SARIF batch 2
+        if: hashFiles('sarif-output/batch-2/*.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-output/batch-2/
