@@ -185,6 +185,17 @@ describe('application authentication boundary', () => {
     await expectContent('Sign out failed');
     await expectContent('Private workspace');
   });
+
+  it('preserves the OAuth consent request path while requiring a signed-in user', async () => {
+    window.history.replaceState({}, '', '/oauth/consent?authorization_id=authorization-123');
+    await act(async () => root.render(<App />));
+    await expectContent('Sign in to RYANAI');
+    expect(container.textContent).not.toContain('Approve access');
+    expect(container.textContent).not.toContain('Private workspace');
+    expect(window.location.pathname).toBe('/oauth/consent');
+    expect(window.location.search).toContain('authorization_id=authorization-123');
+  });
+
   it('fails closed on restoration errors', async () => {
     auth.getSession.mockRejectedValue(new Error('offline'));
     await mount('/workspace');
