@@ -60,7 +60,7 @@ export function createMcpServer() {
     },
     {
       name: 'reasoning_route',
-      description: 'Send a prompt to the configured Nemotron, Qwen, or optional DeepSeek OpenAI-compatible endpoint. DeepSeek permits unauthenticated requests only to loopback; remote endpoints require DEEPSEEK_API_KEY.',
+      description: 'Send a prompt to Nemotron, Qwen, optional DeepSeek Flash, or a separately hosted TorchTPU-backed OpenAI-compatible serving endpoint. Remote endpoints require HTTPS and a bearer key.'
       inputSchema: {
         type: 'object',
         properties: {
