@@ -102,10 +102,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
-      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
+      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507-tput}
       LOGIC_API_KEY: ${LOGIC_API_KEY:-}
       LOGIC_API_ENDPOINT: ${LOGIC_API_ENDPOINT:-https://api.openai.com/v1}
       LOGIC_REASONING_MODEL: ${LOGIC_REASONING_MODEL:-gpt-4o-mini}
@@ -159,10 +159,10 @@ services:
       MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
-      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507}
+      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507-tput}
     networks: [ryanai-net]
     depends_on:
       api:
