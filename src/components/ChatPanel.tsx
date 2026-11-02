@@ -368,7 +368,7 @@ export default function ChatPanel(props: ChatPanelProps) {
                     return (
                     <a
                       key={attachment.id}
-                      href={attachment.url}
+                      href={previewUrl}
                       target="_blank"
                       rel="noreferrer"
                       onPointerEnter={() => { void getFreshAttachmentUrl(attachment).catch(() => undefined); }}
