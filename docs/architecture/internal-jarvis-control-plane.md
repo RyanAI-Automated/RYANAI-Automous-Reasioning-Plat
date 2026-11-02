@@ -11,7 +11,7 @@ RyanAI hosts Jarvis internally. The internal API does not require `JARVIS_BASE_U
 - `GET /api/jarvis/internal/policy/:agentId/:capability`: administrator-only policy decision.
 - `GET /api/jarvis/internal/audit`: administrator-only audit history.
 
-Every submitted engineering task is recorded in the Jarvis audit table. Privileged capabilities (secret access, production changes and deployments) are denied by the registry, including when a caller merely asserts approval. A future privileged executor must independently verify an approval record and enforce a separate execution boundary.
+Internal Jarvis task creation, initial handoff creation and the `task.queued` audit event commit in one PostgreSQL transaction; queue notification is emitted only after commit. If notification fails, the durable task remains recoverable by the worker's polling sweep. Privileged capabilities (secret access, production changes and deployments) are denied by the registry, including when a caller merely asserts approval. A future privileged executor must independently verify an approval record and enforce a separate execution boundary.
 
 ## MCPJungle
 

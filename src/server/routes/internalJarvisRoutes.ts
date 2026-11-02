@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { dispatchAutonomousTask, listAgentRuns } from '../../agent/operations.js';
+import { dispatchJarvisTask, listAgentRuns } from '../../agent/operations.js';
 import { authorizeJarvisCapability, getJarvisAgentRegistry, type JarvisCapability } from '../../agent/jarvisRegistry.js';
 import { prisma } from '../../lib/prisma.js';
 
@@ -34,15 +34,11 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     if (!isAdmin(request)) return reply.code(403).send({ error: 'Administrator access is required to submit engineering tasks.' });
     const objective = request.body.objective.trim();
     try {
-      const task = await dispatchAutonomousTask(request.authUser.id, objective);
-      await prisma.$executeRaw`
-        INSERT INTO "jarvis_audit_events" ("id", "actor_id", "event_type", "resource_id", "details", "created_at")
-        VALUES (gen_random_uuid(), ${request.authUser.id}, 'task.queued', ${task.id}, ${JSON.stringify({ objectiveLength: objective.length, status: task.status })}::jsonb, NOW())
-      `;
+      const task = await dispatchJarvisTask(request.authUser.id, objective);
       return reply.code(202).send({ success: true, taskId: task.id, status: task.status, createdAt: task.createdAt, approvalRequiredForPrivilegedActions: true });
     } catch (error) {
       request.log.error({ err: error }, 'Internal Jarvis task enqueue or audit failed');
-      return reply.code(503).send({ success: false, error: 'Jarvis could not durably enqueue and audit this task.' });
+      return reply.code(503).send({ success: false, error: 'Jarvis could not atomically persist and audit this task.' });
     }
   });
 
