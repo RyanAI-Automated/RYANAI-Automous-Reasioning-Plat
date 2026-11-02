@@ -9,8 +9,10 @@
     "dev": "tsx src/main.ts"
   },
   "dependencies": {
-    "@renderinc/sdk": "1.0.0",
+    "@renderinc/sdk": "1.6.0",
     "dotenv": "^16.4.7",
+    "openai": "^7.45.1"
+    "dotenv": "^18.0.9",
     "openai": "^4.77.0"
   },
   "devDependencies": {

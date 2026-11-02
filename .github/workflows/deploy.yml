@@ -22,6 +22,7 @@ jobs:
   deploy:
     name: Build and deploy Vite frontend
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 20
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
