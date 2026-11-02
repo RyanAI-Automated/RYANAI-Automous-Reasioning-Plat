@@ -76,13 +76,13 @@ projects:
               - key: NVIDIA_API_ENDPOINT
                 value: https://integrate.api.nvidia.com/v1
               - key: NVIDIA_MODEL
-                value: nvidia/nemotron-3-ultra
+                value: nvidia/nemotron-3-ultra-550b-a55b
               - key: QWEN_API_KEY
                 sync: false
               - key: QWEN_API_ENDPOINT
                 value: https://api.together.xyz/v1
               - key: QWEN_MODEL
-                value: Qwen/Qwen3-235B-A22B-Instruct-2507
+                value: Qwen/Qwen3-235B-A22B-Instruct-2507-tput
               - key: LOGIC_API_KEY
                 sync: false
               - key: LOGIC_API_ENDPOINT
