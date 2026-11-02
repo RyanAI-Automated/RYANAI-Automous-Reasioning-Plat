@@ -301,6 +301,12 @@ export async function dispatchAutonomousTask(userId: string, objective: string, 
       { runId: created.id, fromAgent: 'primary', toAgent: 'logic', input: 'Awaiting primary analysis', status: 'pending' },
       { runId: created.id, fromAgent: 'secondary', toAgent: 'logic', input: 'Awaiting secondary analysis', status: 'pending' },
     ] });
+    await appendRunEvidence(tx, {
+      runId: created.id,
+      eventType: 'job.queued',
+      actorId: userId,
+      payload: { objectiveLength: objective.length, queue: 'agent_runs' },
+    });
     return created;
   });
   const notified = await publishAgentTaskNotification(run.id, async (id) => {
@@ -334,6 +340,12 @@ export async function dispatchJarvisTask(actorId: string, objective: string, exe
         resourceId: created.id,
         details: { objectiveLength: objective.length, status: created.status },
       },
+    });
+    await appendRunEvidence(tx, {
+      runId: created.id,
+      eventType: 'job.queued',
+      actorId,
+      payload: { objectiveLength: objective.length, queue: 'agent_runs', source: 'jarvis' },
     });
     return created;
   });
