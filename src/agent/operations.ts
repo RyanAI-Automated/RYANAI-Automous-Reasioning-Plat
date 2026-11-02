@@ -12,6 +12,8 @@ import { publishAgentTaskNotification } from './queueNotifications.js';
 import { agentRunLeaseFilter, startAgentRunLeaseHeartbeat } from './agentRunLease.js';
 import { summarizeProviderError } from './providerErrors.js';
 import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE, BRAIN_PROBE_ORDER } from './brainProbe.js';
+import { buildAgentRunExecutionPrompt, planQueuedAgentRun } from './agentRunExecution.js';
+import type { ExecutionChange } from './executionPlanner.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -172,6 +174,7 @@ interface ClaimedAgentRun {
   attempts: number;
   max_attempts: number;
   worker_id: string;
+  execution_scope: unknown;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
@@ -191,7 +194,7 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
     'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE ("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW()) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope"',
     workerId,
   );
   return rows[0] ?? null;
@@ -211,9 +214,11 @@ async function processAgentRun(run: ClaimedAgentRun) {
   );
   try {
     const knowledge = await buildBrainKnowledgeContext();
+    const executionPlan = planQueuedAgentRun(run.execution_scope);
+    const plannedObjective = buildAgentRunExecutionPrompt(run.objective, executionPlan);
     const sharedObjective = knowledge
-      ? knowledge + '\n\nUser task objective:\n' + run.objective
-      : run.objective;
+      ? knowledge + '\n\n' + plannedObjective
+      : plannedObjective;
     const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => invokeWithRecovery(brain, prompt, signal, run), cancellation.signal);
     if (plan.outputs.length === 0 || plan.outputs.some((item) => !item.output.trim()) || !plan.synthesis.trim()) {
       throw new Error('No usable reasoning brain result was produced.');
@@ -223,7 +228,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
       where: { runId: run.id },
       orderBy: { startedAt: 'asc' },
     });
-    await prisma.$transaction((tx) => persistAgentRunCompletion(tx, run, rows, plan));
+    await prisma.$transaction((tx) => persistAgentRunCompletion(tx, run, rows, plan, executionPlan));
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
@@ -255,10 +260,10 @@ async function processAgentRun(run: ClaimedAgentRun) {
 }
 
 /** Persist a task before notifying workers. API requests no longer own model execution. */
-export async function dispatchAutonomousTask(userId: string, objective: string) {
+export async function dispatchAutonomousTask(userId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId, objective, status: 'queued' },
+      data: { userId, objective, executionScope, status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
@@ -281,10 +286,10 @@ export async function dispatchAutonomousTask(userId: string, objective: string) 
 }
 
 /** Queue an internal Jarvis task and its audit record in one database transaction. Notification is emitted only after both records commit. */
-export async function dispatchJarvisTask(actorId: string, objective: string) {
+export async function dispatchJarvisTask(actorId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId: actorId, objective, status: 'queued' },
+      data: { userId: actorId, objective, executionScope, status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
