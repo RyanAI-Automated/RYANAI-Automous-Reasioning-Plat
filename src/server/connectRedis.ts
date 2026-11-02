@@ -44,7 +44,7 @@ export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis
     // Do not attach the caught Redis error: client errors can embed REDIS_URL credentials.
     // Its safe code is retained above; preserving the raw cause would risk leaking secrets.
     throw new Error(
-      `Redis is unavailable${detail}. Verify that REDIS_URL uses the Render internal connection URL, ` +
+      `Redis is unavailable${detail}. Check REDIS_URL in .env and verify it uses the Render internal connection URL, ` +
       'that the API and Key Value instance share a workspace and region, and that internal authentication matches. ' +
       'The raw connection URL and server error are intentionally omitted to protect credentials.',
       {
