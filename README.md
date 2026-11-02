@@ -16,6 +16,8 @@ This README describes the current repository implementation and its intended loc
 
 ## Contents
 
+- [Current implementation status](#current-implementation-status)
+
 - [Capabilities and architecture](#capabilities-and-architecture)
 - [Repository layout](#repository-layout)
 - [Requirements](#requirements)
@@ -33,6 +35,53 @@ This README describes the current repository implementation and its intended loc
 - [Security and secret handling](#security-and-secret-handling)
 - [Contribution and pull-request workflow](#contribution-and-pull-request-workflow)
 - [Known operational limits](#known-operational-limits)
+
+## Current implementation status
+
+**Checkpoint: 2 November 2026.** RyanAI is actively being developed. This section separates code that exists from capabilities that are still planned or awaiting end-to-end evidence.
+
+### Available foundations
+
+- React/Vite web application and TypeScript/Node.js API.
+- PostgreSQL persistence and Prisma schema/migration tooling.
+- Redis integration points and agent-run/handoff/checkpoint code.
+- Three configured reasoning-client slots: NVIDIA, Qwen, and Logic.
+- Separate MCP service and workflow package.
+- Repository worker-role metadata and permission-boundary tests.
+- GitHub pull-request proposal flow for reviewed code changes.
+
+The presence of a client, route, schema, worker profile, or configuration entry does not by itself prove that the corresponding external service is connected or operational. Provider authentication, queue execution, recovery, and hosted-service health must be tested independently.
+
+### Worker execution status
+
+The specialist worker roster is a set of role definitions, not proof that ten independent worker processes are running. A production-grade execution layer still needs verified durable assignment and claim behavior, worker heartbeats, lease expiry and recovery, bounded concurrency, idempotent completion, and authenticated progress reporting. Do not interpret a queued task or a profile entry as an active worker.
+
+### RyanAI Studio coding workspace
+
+The intended first Studio milestone is a real TypeScript/JavaScript and Python development workflow. It is not complete merely because the application has a workspace page or file-management APIs.
+
+The acceptance target is an integrated, authenticated experience that can:
+
+1. Create and open TypeScript/JavaScript and Python projects.
+2. Browse, read, edit, and review workspace files and proposed patches.
+3. Execute real commands in isolated, resource-bounded workspaces.
+4. Run builds and tests and display actual output, diagnostics, exit codes, and failures.
+5. Connect visible worker activity to durable assignment records and real execution events.
+6. Require human approval before applying agent-generated changes or opening a pull request.
+
+**Live terminal status:** a fully interactive terminal is not yet established by the current implementation checkpoint. Do not describe the terminal as live or functional until authenticated persistent sessions, interactive command input, streamed stdout/stderr, resize, interrupt/cancel, reconnect behavior, and real TypeScript/Python command execution have been implemented and tested.
+
+Until these end-to-end acceptance tests pass, treat Studio as work in progress. Do not show simulated terminal output, fabricated worker progress, or success states that are not backed by real execution results.
+
+### Security boundaries for coding workers
+
+Coding workers must run in isolated disposable environments with explicit CPU, memory, disk, process, and time limits. They must not inherit production credentials, mount a developer's home directory or production data, or receive unrestricted network access. Validate paths and commands at the execution boundary, redact secrets from logs, and keep code changes on reviewable branches. Human review and required CI/security checks remain mandatory; workers must not merge or deploy their own changes.
+
+### Release and verification status
+
+This README is not a production-readiness certificate. Before calling a capability operational, record evidence against the same commit: completed test results, real provider responses where applicable, actual worker/queue execution, security scan outcomes, and a verified runtime health check. Queued, skipped, cancelled, mocked, or incomplete checks are not passes.
+
+No deployment, release, production data change, secret rotation, or paid infrastructure upgrade is implied by this documentation update.
 
 ## Capabilities and architecture
 
