@@ -54,16 +54,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 DO $$
 BEGIN
     IF to_regclass('public.rooms') IS NOT NULL THEN
-        GRANT SELECT, INSERT, UPDATE ON TABLE public.rooms TO authenticated;
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE ON TABLE public.rooms TO authenticated';
     END IF;
     IF to_regclass('public.room_members') IS NOT NULL THEN
-        GRANT SELECT, INSERT ON TABLE public.room_members TO authenticated;
+        EXECUTE 'GRANT SELECT, INSERT ON TABLE public.room_members TO authenticated';
     END IF;
     IF to_regclass('public.room_messages') IS NOT NULL THEN
-        GRANT SELECT, INSERT ON TABLE public.room_messages TO authenticated;
+        EXECUTE 'GRANT SELECT, INSERT ON TABLE public.room_messages TO authenticated';
     END IF;
     IF to_regclass('public.ryanai_attachment_scans') IS NOT NULL THEN
-        GRANT SELECT ON TABLE public.ryanai_attachment_scans TO authenticated;
+        EXECUTE 'GRANT SELECT ON TABLE public.ryanai_attachment_scans TO authenticated';
     END IF;
 END;
 $$;
@@ -71,27 +71,25 @@ $$;
 -- Trigger/event-trigger entry points are not browser RPCs. Room helper
 -- functions remain callable only by authenticated users because RLS policies
 -- use them to evaluate the caller's membership and ownership.
-REVOKE ALL PRIVILEGES ON FUNCTION public.handle_new_user()
-    FROM PUBLIC, anon, authenticated;
-REVOKE ALL PRIVILEGES ON FUNCTION public.rls_auto_enable()
-    FROM PUBLIC, anon, authenticated;
-
-DO $$
+DO $
 BEGIN
+    IF to_regprocedure('public.handle_new_user()') IS NOT NULL THEN
+        EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated';
+    END IF;
+    IF to_regprocedure('public.rls_auto_enable()') IS NOT NULL THEN
+        EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated';
+    END IF;
     IF to_regprocedure('public.is_room_member(uuid)') IS NOT NULL THEN
-        REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_member(uuid)
-            FROM PUBLIC, anon;
-        GRANT EXECUTE ON FUNCTION public.is_room_member(uuid) TO authenticated;
+        EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_member(uuid) FROM PUBLIC, anon';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_room_member(uuid) TO authenticated';
     END IF;
     IF to_regprocedure('public.is_room_member_topic(text)') IS NOT NULL THEN
-        REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_member_topic(text)
-            FROM PUBLIC, anon;
-        GRANT EXECUTE ON FUNCTION public.is_room_member_topic(text) TO authenticated;
+        EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_member_topic(text) FROM PUBLIC, anon';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_room_member_topic(text) TO authenticated';
     END IF;
     IF to_regprocedure('public.is_room_owner(uuid)') IS NOT NULL THEN
-        REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_owner(uuid)
-            FROM PUBLIC, anon;
-        GRANT EXECUTE ON FUNCTION public.is_room_owner(uuid) TO authenticated;
+        EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_owner(uuid) FROM PUBLIC, anon';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_room_owner(uuid) TO authenticated';
     END IF;
 END;
-$$;
+$;
