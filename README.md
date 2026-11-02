@@ -773,3 +773,8 @@ The repository's branch/ruleset configuration must enforce the intended merge po
 Check the repository's license and notices before redistributing or deploying the software. If no license file is present, do not assume that the code is licensed for unrestricted reuse.
 
 For bugs and feature proposals, open a GitHub issue with a concise reproduction, expected behavior, actual behavior, and redacted logs. Never attach credentials, populated environment files, private customer data, or production database dumps.
+
+
+## Supabase OAuth 2.1 Server
+
+RyanAI provides an explicit Supabase OAuth consent UI at `/oauth/consent`. The hosted Supabase project must have OAuth Server enabled and its authorization path set to `/oauth/consent`; client registration and the remaining setup steps are documented in [Supabase OAuth Server setup](docs/SUPABASE_OAUTH_SERVER.md). Dynamic registration remains disabled by default.

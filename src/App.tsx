@@ -20,6 +20,7 @@ const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
+const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
 import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
 import Greeting from '@/components/Greeting';
@@ -64,6 +65,8 @@ export default function App() {
   const [verifiedIdentity, setVerifiedIdentity] = useState<{ userId: string; isOwner: boolean; displayName?: string } | null>(null);
   const { session, loading, error, signingOut, signOut } = useAuth();
   const isAuthRoute = route === 'signin' || route === 'signup';
+  // Supabase redirects OAuth authorization requests to this real path (not a hash route).
+  const isOAuthConsentRoute = window.location.pathname.replace(/\/+$/, '') === '/oauth/consent';
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
   const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
@@ -182,7 +185,15 @@ export default function App() {
             {error}
           </p>
         )}
-        {route === 'landing' ? (
+        {isOAuthConsentRoute ? (
+          loading ? (
+            <p role="status" className="p-8 text-slate-300">Restoring your session before authorization…</p>
+          ) : user ? (
+            <OAuthConsentPage key={user.id} userId={user.id} />
+          ) : (
+            <AuthPage key="oauth-signin" mode="signin" />
+          )
+        ) : route === 'landing' ? (
           <LandingPage />
         ) : loading ? (
           <p role="status" className="p-8 text-slate-300">
