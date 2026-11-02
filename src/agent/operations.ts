@@ -280,6 +280,40 @@ export async function dispatchAutonomousTask(userId: string, objective: string) 
   return run;
 }
 
+/** Queue an internal Jarvis task and its audit record in one database transaction. Notification is emitted only after both records commit. */
+export async function dispatchJarvisTask(actorId: string, objective: string) {
+  const run = await prisma.$transaction(async (tx) => {
+    const created = await tx.agentRun.create({
+      data: { userId: actorId, objective, status: 'queued' },
+      select: { id: true, userId: true, objective: true, status: true, createdAt: true },
+    });
+    await tx.agentHandoff.createMany({ data: [
+      { runId: created.id, fromAgent: 'supervisor', toAgent: 'primary', input: objective, status: 'pending' },
+      { runId: created.id, fromAgent: 'supervisor', toAgent: 'secondary', input: objective, status: 'pending' },
+      { runId: created.id, fromAgent: 'primary', toAgent: 'logic', input: 'Awaiting primary analysis', status: 'pending' },
+      { runId: created.id, fromAgent: 'secondary', toAgent: 'logic', input: 'Awaiting secondary analysis', status: 'pending' },
+    ] });
+    await tx.jarvisAuditEvent.create({
+      data: {
+        actorId,
+        eventType: 'task.queued',
+        resourceId: created.id,
+        details: { objectiveLength: objective.length, status: created.status },
+      },
+    });
+    return created;
+  });
+
+  const notified = await publishAgentTaskNotification(run.id, async (id) => {
+    await prisma.$queryRaw`SELECT pg_notify('agent_task_queue', ${id})`;
+  });
+  if (!notified) {
+    // The task and audit are committed; the worker's recovery sweep will find it.
+    console.warn('[jarvis] Queue notification failed; committed task remains queued for recovery polling.');
+  }
+  return run;
+}
+
 /** Wait for a queued run's durable result; callers may disconnect and read history later. */
 export interface AgentRunProgressEvent {
   runId: string;
