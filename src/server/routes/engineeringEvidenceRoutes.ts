@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import { requireAdmin } from './auth.js';
 import { publishAgentTaskNotification } from '../../agent/queueNotifications.js';
-import { appendRunEvidence, buildEvidenceBundle, sha256 } from '../../agent/engineeringEvidence.js';
+import { appendRunEvidence, buildEvidenceBundle, sha256, verifyEvidenceChain } from '../../agent/engineeringEvidence.js';
 
 interface CreateJobBody {
   objective: string;
@@ -92,10 +92,12 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       },
     });
     if (!job) return reply.code(404).send({ error: 'Engineering job not found.' });
-    const { verifyEvidenceChain } = await import('../../agent/engineeringEvidence.js');
+    const bundle = await buildEvidenceBundle(job.id);
     return {
       job,
       evidenceIntegrity: verifyEvidenceChain(job.evidence),
+      verificationChecks: bundle?.bundle.verificationChecks ?? [{ name: 'CI / automated verification', status: 'unverified', source: 'No verification receipt recorded' }],
+      acceptance: bundle?.bundle.acceptance ?? { accepted: false, status: 'not_accepted' },
     };
   });
 
