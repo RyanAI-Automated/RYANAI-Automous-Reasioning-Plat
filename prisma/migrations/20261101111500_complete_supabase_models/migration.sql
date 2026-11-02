@@ -3,39 +3,10 @@
 -- The current Prisma model maps it to "session_messages", while ChatSqlMessage
 -- owns the "messages" table. Preserve existing session rows by renaming the
 -- original table before creating the chat message table.
-DO $$
-BEGIN
-  IF to_regclass('public.session_messages') IS NULL
-     AND to_regclass('public.messages') IS NOT NULL THEN
-    ALTER TABLE "messages" RENAME TO "session_messages";
-  END IF;
-
-  IF to_regclass('public.session_messages') IS NOT NULL THEN
-    IF EXISTS (
-      SELECT 1 FROM pg_constraint
-      WHERE conrelid = to_regclass('public.session_messages')
-        AND conname = 'messages_pkey'
-    ) THEN
-      ALTER TABLE "session_messages"
-        RENAME CONSTRAINT "messages_pkey" TO "session_messages_pkey";
-    END IF;
-
-    IF EXISTS (
-      SELECT 1 FROM pg_constraint
-      WHERE conrelid = to_regclass('public.session_messages')
-        AND conname = 'messages_session_id_fkey'
-    ) THEN
-      ALTER TABLE "session_messages"
-        RENAME CONSTRAINT "messages_session_id_fkey" TO "session_messages_session_id_fkey";
-    END IF;
-
-    IF to_regclass('public.messages_session_id_idx') IS NOT NULL
-       AND to_regclass('public.session_messages_session_id_idx') IS NULL THEN
-      ALTER INDEX "messages_session_id_idx"
-        RENAME TO "session_messages_session_id_idx";
-    END IF;
-  END IF;
-END $$;
+-- Preserve the existing Supabase chat table public.messages in place.
+-- The initial Prisma migration creates the distinct legacy table as
+-- public.session_messages. Never rename public.messages: its columns, RLS
+-- policies, Storage policies, and Data API contract belong to Supabase Auth.
 
 CREATE TABLE IF NOT EXISTS "profiles" (
   "id" UUID NOT NULL,
