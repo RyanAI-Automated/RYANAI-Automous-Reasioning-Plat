@@ -12,6 +12,10 @@ export interface ReasoningHandoff {
   toAgent: string;
   input: string;
   output: string;
+  status?: string;
+  startedAt?: Date | string;
+  completedAt?: Date | string | null;
+  error?: string | null;
 }
 
 /** Authenticated reasoning is queued durably, then read back from persisted execution history. */
