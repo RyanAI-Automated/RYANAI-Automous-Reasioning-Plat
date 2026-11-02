@@ -8,7 +8,7 @@ This repository adopts the composable workflow model from [Matt Pocock's Skills 
 - **Model-invoked disciplines** are applied automatically when relevant (TDD, diagnosis, architecture, prototype, code review, research, domain modelling).
 - The agent conducts one focused alignment interview for a feature. It does not repeatedly interrupt during routine execution. It checks back only for newly discovered material decisions, scope changes, or high-risk actions.
 
-## Skill inventory (27 upstream skills)
+## Skill inventory (27 upstream skills plus RyanAI reliability discipline)
 
 ### Engineering — user-invoked
 1. ask-matt
@@ -44,6 +44,7 @@ This repository adopts the composable workflow model from [Matt Pocock's Skills 
 ### Productivity — model-invoked
 26. grilling
 27. writing-for-agents
+28. targeted-execution-reliability (RyanAI cross-cutting discipline)
 
 Upstream skill source and updates: https://github.com/mattpocock/skills. The 27 upstream workflow names are represented by RyanAI-authored, project-local skill guides under `.agents/skills/`. These are RyanAI adaptations, not verbatim copies of the upstream `SKILL.md` contents; use the canonical upstream repository for the original wording and future updates. Do not silently install duplicate copies into multiple agent-specific directories; keep one canonical project-level skill source and add thin adapters for Codex/Claude/Copilot only when required.
 
