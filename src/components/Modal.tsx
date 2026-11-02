@@ -71,7 +71,15 @@ export default function Modal({ open, onClose, title, children, icon }: ModalPro
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+
+      // Defer restoration until React has committed the dialog's removal.
+      // Restoring synchronously during effect cleanup can be overwritten by
+      // the browser when the focused dialog subtree is detached.
+      if (previouslyFocused?.isConnected) {
+        queueMicrotask(() => {
+          if (previouslyFocused.isConnected) previouslyFocused.focus();
+        });
+      }
     };
   }, [open]);
 
