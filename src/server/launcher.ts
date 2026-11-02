@@ -490,17 +490,32 @@ async function registerPlugins() {
 
 async function start() {
   try {
-    console.log('\n🔧 Registering Plugins...\n');
-    await registerPlugins();
-
-    console.log('\n📡 Connecting Services...\n');
+    // Probe PostgreSQL before Redis/plugin registration. A Redis failure must
+    // never prevent us from independently verifying and reporting the database.
+    console.log('\n📡 Verifying PostgreSQL before plugin registration...\n');
     const databaseReady = await initializeDatabase();
-    const redisReady = await verifyRedis();
+
+    console.log('\n🔧 Registering Plugins and verifying Redis...\n');
+    let redisReady = false;
+    try {
+      await registerPlugins();
+      redisReady = await verifyRedis();
+    } catch {
+      // Redis URLs and client errors can contain credentials. connectRedis
+      // already emits a sanitized diagnostic; do not log a raw plugin error.
+      fastify.log.error(
+        'Redis/plugin initialization failed. Raw connection details are omitted to protect credentials.',
+      );
+    }
+
     assertProductionDependencies(config.nodeEnv, {
       database: databaseReady,
       redis: redisReady,
       agentCheckpointer: serviceStatus.agentCheckpointer,
     });
+    if (!redisReady) {
+      throw new Error('Startup blocked: Redis did not pass its live connectivity check.');
+    }
 
     console.log(`\n🚀 Starting Fastify Server...\n`);
     await fastify.listen({ port: config.port, host: config.host });
