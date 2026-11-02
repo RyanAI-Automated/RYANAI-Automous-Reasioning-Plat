@@ -16,7 +16,8 @@ interface ApprovalBody {
   baseCommitSha: string;
   proposedDiffHash: string;
 }
-interface SteeringBody { instruction: string; }
+interface SteeringBody { instruction: string; plan: Record<string, unknown>; baseCommitSha: string; proposedDiff: string; }
+interface ChecksBody { checks: Array<{ name: string; status: 'pass' | 'fail' | 'skipped' | 'pending' | 'unverified'; source: string; runUrl?: string }>; }
 interface ReceiptBody {
   outcome: 'pass' | 'fail' | 'inconclusive';
   summary: string;
@@ -41,7 +42,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     } },
   }, async (request, reply) => {
     const { objective, plan, baseCommitSha, proposedDiff } = request.body;
-    const planHash = sha256(JSON.stringify(plan));
+    const planHash = sha256(JSON.stringify({ plan, steeringNotes: null }));
     const proposedDiffHash = createHash('sha256').update(proposedDiff, 'utf8').digest('hex');
     const run = await prisma.$transaction(async (tx) => {
       const created = await tx.agentRun.create({
@@ -140,22 +141,120 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
   });
 
   fastify.post<{ Params: { jobId: string }; Body: SteeringBody }>('/api/engineering/jobs/:jobId/steer', {
-    schema: { body: { type: 'object', required: ['instruction'], additionalProperties: false, properties: { instruction: { type: 'string', minLength: 1, maxLength: 8000 } } } },
-  }, async (request, reply) => {
+    schema: { body: { type: 'object', required: ['instruction', 'plan', 'baseCommitSha', 'proposedDiff'], additionalProperties: false, properties: {
+      instruction: { type: 'string', minLength: 1, maxLength: 8000 },
+      plan: { type: 'object', minProperties: 1 },
+      baseCommitSha: { type: 'string', pattern: '^[a-fA-F0-9]{40}
+
+  fastify.post<{ Params: { jobId: string }; Body: { reason: string } }>('/api/engineering/jobs/:jobId/reject', async (request, reply) => {
     const result = await prisma.$transaction(async (tx) => {
       const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
       if (!job) return 'missing';
       if (job.status !== 'queued' || job.approvalStatus !== 'pending') return 'not_pending';
+      await tx.agentRun.update({ where: { id: job.id }, data: { status: 'rejected', approvalStatus: 'rejected', completedAt: new Date() } });
+      await appendRunEvidence(tx, { runId: job.id, eventType: 'plan.rejected', actorId: request.authUser!.id, payload: { reason: request.body.reason } });
+      return 'rejected';
+    });
+    if (result !== 'rejected') return reply.code(result === 'missing' ? 404 : 409).send({ error: 'Job is not awaiting approval.' });
+    return { success: true, status: 'rejected' };
+  });
+
+  fastify.post<{ Params: { jobId: string }; Body: { reason?: string } }>('/api/engineering/jobs/:jobId/cancel', async (request, reply) => {
+    const result = await prisma.$transaction(async (tx) => {
+      const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
+      if (!job) return 'missing';
+      if (['completed', 'failed', 'cancelled', 'rejected'].includes(job.status)) return 'terminal';
+      const queued = job.status === 'queued';
+      await tx.agentRun.update({ where: { id: job.id }, data: queued
+        ? { status: 'cancelled', approvalStatus: 'cancelled', completedAt: new Date() }
+        : { cancelRequestedAt: new Date() } });
+      await appendRunEvidence(tx, { runId: job.id, eventType: queued ? 'job.cancelled' : 'job.cancellation_requested', actorId: request.authUser!.id, payload: { reason: request.body.reason ?? null } });
+      return queued ? 'cancelled' : 'requested';
+    });
+    if (result === 'missing') return reply.code(404).send({ error: 'Job not found.' });
+    if (result === 'terminal') return reply.code(409).send({ error: 'Job is already terminal.' });
+    return { success: true, status: result };
+  });
+
+  fastify.post<{ Params: { jobId: string }; Body: ChecksBody }>('/api/engineering/jobs/:jobId/checks', {
+    schema: { body: { type: 'object', required: ['checks'], additionalProperties: false, properties: {
+      checks: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'object', required: ['name', 'status', 'source'], additionalProperties: false, properties: {
+        name: { type: 'string', minLength: 1, maxLength: 200 },
+        status: { type: 'string', enum: ['pass', 'fail', 'skipped', 'pending', 'unverified'] },
+        source: { type: 'string', minLength: 1, maxLength: 300 },
+        runUrl: { type: 'string', maxLength: 2000 },
+      } } },
+    } } },
+  }, async (request, reply) => {
+    const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId }, select: { id: true } });
+    if (!job) return reply.code(404).send({ error: 'Job not found.' });
+    await prisma.$transaction(async (tx) => {
+      for (const check of request.body.checks) {
+        await appendRunEvidence(tx, { runId: job.id, eventType: 'verification.check', actorId: request.authUser!.id, payload: check });
+      }
+    });
+    return { success: true, recorded: request.body.checks.length, trust: 'human-reported; not independently fetched from CI' };
+  });
+
+  fastify.post<{ Params: { jobId: string }; Body: ReceiptBody }>('/api/engineering/jobs/:jobId/evaluations', async (request, reply) => {
+    const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
+    if (!job) return reply.code(404).send({ error: 'Job not found.' });
+    if (job.userId === request.authUser!.id) return reply.code(403).send({ error: 'The job author cannot issue the independent evaluation receipt.' });
+    await prisma.$transaction((tx) => appendRunEvidence(tx, {
+      runId: job.id, eventType: 'evaluation.receipt', actorId: request.authUser!.id,
+      payload: { outcome: request.body.outcome, summary: request.body.summary, evidenceRefs: request.body.evidenceRefs ?? [] },
+    }));
+    return { success: true, receipt: 'evaluation.receipt' };
+  });
+
+  fastify.post<{ Params: { jobId: string }; Body: ReceiptBody }>('/api/engineering/jobs/:jobId/assurance', async (request, reply) => {
+    const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
+    if (!job) return reply.code(404).send({ error: 'Job not found.' });
+    if (job.userId === request.authUser!.id) return reply.code(403).send({ error: 'The job author cannot issue the independent assurance receipt.' });
+    await prisma.$transaction((tx) => appendRunEvidence(tx, {
+      runId: job.id, eventType: 'assurance.receipt', actorId: request.authUser!.id,
+      payload: { outcome: request.body.outcome, summary: request.body.summary, evidenceRefs: request.body.evidenceRefs ?? [] },
+    }));
+    return { success: true, receipt: 'assurance.receipt' };
+  });
+
+  fastify.get<{ Params: { jobId: string } }>('/api/engineering/jobs/:jobId/evidence-bundle', async (request, reply) => {
+    const result = await buildEvidenceBundle(request.params.jobId);
+    if (!result) return reply.code(404).send({ error: 'Job not found.' });
+    const body = JSON.stringify(result.bundle, null, 2);
+    reply.header('content-type', 'application/json; charset=utf-8');
+    reply.header('content-disposition', 'attachment; filename="ryanai-evidence-' + request.params.jobId + '.json"');
+    reply.header('x-evidence-sha256', sha256(body));
+    reply.header('x-evidence-chain-valid', String(result.integrity.valid));
+    return reply.send(body);
+  });
+};
+ },
+      proposedDiff: { type: 'string', minLength: 1, maxLength: 1000000 },
+    } } },
+  }, async (request, reply) => {
+    const instruction = request.body.instruction.trim();
+    const proposedDiffHash = sha256(request.body.proposedDiff);
+    const result = await prisma.$transaction(async (tx) => {
+      const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
+      if (!job) return 'missing';
+      if (job.status !== 'queued' || job.approvalStatus !== 'pending') return 'not_pending';
+      const steeringNotes = [job.steeringNotes, instruction].filter(Boolean).join('\n\n');
+      const planHash = sha256(JSON.stringify({ plan: request.body.plan, steeringNotes }));
       await tx.agentRun.update({ where: { id: job.id }, data: {
-        steeringNotes: [job.steeringNotes, request.body.instruction.trim()].filter(Boolean).join('\n\n'),
+        steeringNotes, planSnapshot: request.body.plan, planHash,
+        baseCommitSha: request.body.baseCommitSha.toLowerCase(), proposedDiffHash,
         approvalStatus: 'pending',
         approvedBy: null, approvedAt: null, approvedPlanHash: null, approvedCommitSha: null, approvedDiffHash: null,
       } });
-      await appendRunEvidence(tx, { runId: job.id, eventType: 'plan.steered', actorId: request.authUser!.id, payload: { instruction: request.body.instruction.trim(), previousPlanHash: job.planHash } });
-      return 'steered';
+      await appendRunEvidence(tx, { runId: job.id, eventType: 'plan.steered', actorId: request.authUser!.id, payload: {
+        instruction, plan: request.body.plan, planHash, baseCommitSha: request.body.baseCommitSha.toLowerCase(),
+        proposedDiff: request.body.proposedDiff, proposedDiffHash,
+      } });
+      return { status: 'steered', planHash, proposedDiffHash };
     });
-    if (result !== 'steered') return reply.code(result === 'missing' ? 404 : 409).send({ error: 'Job is not awaiting approval.' });
-    return { success: true, approvalStatus: 'pending', message: 'Steering recorded. The plan and diff must be resubmitted and approved before execution.' };
+    if (result === 'missing' || result === 'not_pending') return reply.code(result === 'missing' ? 404 : 409).send({ error: 'Job is not awaiting approval.' });
+    return { success: true, approvalStatus: 'pending', ...result, message: 'Steering and revised plan/diff recorded. A separate administrator must approve the new exact snapshot.' };
   });
 
   fastify.post<{ Params: { jobId: string }; Body: { reason: string } }>('/api/engineering/jobs/:jobId/reject', async (request, reply) => {
