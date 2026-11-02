@@ -36,7 +36,7 @@ jobs:
           npm run typecheck
           npm run build
       - name: Run read-only Inspector & Audit Agent
-        run: npm run audit:inspector -- --write
+        run: npm run audit:inspector
       - name: Upload audit report
         if: always()
         uses: actions/upload-artifact@v4
