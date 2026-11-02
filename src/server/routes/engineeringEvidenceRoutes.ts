@@ -213,8 +213,8 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       if (job.status !== 'queued' || job.approvalStatus !== 'pending') return { status: 'not_pending' as const };
       const steeringNotes = [job.steeringNotes, instruction].filter(Boolean).join('\n\n');
       const planHash = sha256(JSON.stringify({ plan: request.body.plan, steeringNotes }));
-      await tx.agentRun.update({
-        where: { id: job.id },
+      const updated = await tx.agentRun.updateMany({
+        where: { id: job.id, status: 'queued', approvalStatus: 'pending', planHash: job.planHash, proposedDiffHash: job.proposedDiffHash },
         data: {
           steeringNotes,
           planSnapshot: request.body.plan,
@@ -229,6 +229,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
           approvedDiffHash: null,
         },
       });
+      if (updated.count !== 1) return { status: 'race' as const };
       await appendRunEvidence(tx, {
         runId: job.id,
         eventType: 'plan.steered',
@@ -245,7 +246,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       return { status: 'steered' as const, planHash, proposedDiffHash };
     });
     if (result.status !== 'steered') {
-      return reply.code(result.status === 'missing' ? 404 : 409).send({ error: 'Job is not awaiting approval.' });
+      return reply.code(result.status === 'missing' ? 404 : 409).send({ error: result.status === 'race' ? 'Job changed while steering was submitted; refresh and review the current snapshot.' : 'Job is not awaiting approval.' });
     }
     return {
       success: true,
@@ -263,14 +264,18 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
       if (!job) return 'missing' as const;
       if (job.status !== 'queued' || job.approvalStatus !== 'pending') return 'not_pending' as const;
-      await tx.agentRun.update({ where: { id: job.id }, data: { status: 'rejected', approvalStatus: 'rejected', completedAt: new Date() } });
+      const updated = await tx.agentRun.updateMany({
+        where: { id: job.id, status: 'queued', approvalStatus: 'pending' },
+        data: { status: 'rejected', approvalStatus: 'rejected', completedAt: new Date() },
+      });
+      if (updated.count !== 1) return 'race' as const;
       await appendRunEvidence(tx, {
         runId: job.id, eventType: 'plan.rejected', actorId: request.authUser!.id,
         payload: { reason: request.body.reason },
       });
       return 'rejected' as const;
     });
-    if (result !== 'rejected') return reply.code(result === 'missing' ? 404 : 409).send({ error: 'Job is not awaiting approval.' });
+    if (result !== 'rejected') return reply.code(result === 'missing' ? 404 : 409).send({ error: result === 'race' ? 'Job changed before rejection could be committed.' : 'Job is not awaiting approval.' });
     return { success: true, status: 'rejected' };
   });
 
@@ -281,13 +286,15 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
       if (!job) return 'missing' as const;
       if (['completed', 'failed', 'cancelled', 'rejected'].includes(job.status)) return 'terminal' as const;
+      if (job.status !== 'queued' && job.status !== 'running') return 'terminal' as const;
       const queued = job.status === 'queued';
-      await tx.agentRun.update({
-        where: { id: job.id },
+      const updated = await tx.agentRun.updateMany({
+        where: { id: job.id, status: job.status },
         data: queued
           ? { status: 'cancelled', approvalStatus: 'cancelled', completedAt: new Date() }
           : { cancelRequestedAt: new Date() },
       });
+      if (updated.count !== 1) return 'race' as const;
       await appendRunEvidence(tx, {
         runId: job.id,
         eventType: queued ? 'job.cancelled' : 'job.cancellation_requested',
@@ -298,6 +305,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     });
     if (result === 'missing') return reply.code(404).send({ error: 'Job not found.' });
     if (result === 'terminal') return reply.code(409).send({ error: 'Job is already terminal.' });
+    if (result === 'race') return reply.code(409).send({ error: 'Job state changed before cancellation could be committed.' });
     return { success: true, status: result };
   });
 
