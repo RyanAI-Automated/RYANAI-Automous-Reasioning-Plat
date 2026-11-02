@@ -192,7 +192,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     if (!job) return reply.code(404).send({ error: 'Job not found.' });
     await prisma.$transaction(async (tx) => {
       for (const check of request.body.checks) {
-        await appendRunEvidence(tx, { runId: job.id, eventType: 'verification.check', actorId: request.authUser!.id, payload: check });
+        await appendRunEvidence(tx, { runId: job.id, eventType: 'verification.check', actorId: request.authUser!.id, payload: { ...check, trust: 'human-reported' } });
       }
     });
     return { success: true, recorded: request.body.checks.length, trust: 'human-reported; not independently fetched from CI' };
