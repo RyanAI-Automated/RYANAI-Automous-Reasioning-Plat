@@ -73,11 +73,15 @@ export function createMcpServer() {
   ];
 
   const { tools: exposedTools, registry } = resolveToolRegistry(tools);
+  const exposedToolNames = new Set(exposedTools.map((tool) => tool.name));
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: exposedTools }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
+    if (!exposedToolNames.has(request.params.name)) {
+      return textResult('MCP tool is not enabled by the operator allowlist.', true);
+    }
 
     try {
       if (request.params.name === 'tool_registry') {
