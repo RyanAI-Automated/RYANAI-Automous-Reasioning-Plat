@@ -28,6 +28,15 @@ interface ChatPanelProps {
   onVoiceCommand?: (command: string, args: string) => void;
 }
 
+function getPreferredLanguage(): string {
+  try {
+    const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
+    return isRyanLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+  } catch {
+    return DEFAULT_LANGUAGE;
+  }
+}
+
 export default function ChatPanel(props: ChatPanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -56,8 +65,7 @@ export default function ChatPanel(props: ChatPanelProps) {
 
   const readAloud = useCallback((message: Message) => {
     if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return;
-    const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
-    const language = isRyanLanguage(stored) ? stored : DEFAULT_LANGUAGE;
+    const language = getPreferredLanguage();
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message.content);
     utterance.lang = language;
@@ -91,7 +99,9 @@ export default function ChatPanel(props: ChatPanelProps) {
     };
   }, [props.messages, props.sending, readAloud]);
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  useEffect(() => () => {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
 
   const handleSend = async () => {
     if (props.sending || submitting) return;
@@ -181,6 +191,11 @@ export default function ChatPanel(props: ChatPanelProps) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            aria-label={`Choose reasoning model. Current model: ${props.model}`}
+            aria-haspopup="true"
+            aria-expanded={showModelMenu}
+            aria-controls="chat-model-options"
             onClick={() => setShowModelMenu(!showModelMenu)}
             className="px-2 py-1 text-xs font-mono bg-cyan-500/10 rounded border border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20 transition-colors"
           >
@@ -210,13 +225,18 @@ export default function ChatPanel(props: ChatPanelProps) {
       {/* Model Selector */}
       {showModelMenu && (
         <motion.div
+          id="chat-model-options"
+          role="group"
+          aria-label="Choose a reasoning model"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="px-3 flex gap-2 border-b border-cyan-500/10 pb-2"
+          className="flex flex-wrap gap-2 border-b border-cyan-500/10 px-3 pb-2"
         >
           {models.map((m) => (
             <button
               key={m}
+              type="button"
+              aria-pressed={props.model === m}
               onClick={() => {
                 props.onModelChange(m);
                 setShowModelMenu(false);
@@ -234,7 +254,7 @@ export default function ChatPanel(props: ChatPanelProps) {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-3 p-4">
+      <div role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions" aria-busy={props.sending} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {props.messages.length === 0 && !props.liveText && (
           <div className="h-full flex items-center justify-center text-center">
             <div className="text-ink-600 text-sm">
@@ -244,9 +264,9 @@ export default function ChatPanel(props: ChatPanelProps) {
           </div>
         )}
 
-        {props.messages.map((msg, idx) => (
+        {props.messages.map((msg) => (
           <motion.div
-            key={idx}
+            key={msg.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -258,7 +278,7 @@ export default function ChatPanel(props: ChatPanelProps) {
                   : 'bg-ink-800/50 border border-cyan-500/10 text-ink-200'
               }`}
             >
-              {msg.content}
+              <p className="whitespace-pre-wrap break-words">{msg.content}</p>
               {msg.attachments?.length ? (
                 <div className="mt-2 flex flex-col gap-2">
                   {msg.attachments.map((attachment) => (
@@ -280,7 +300,7 @@ export default function ChatPanel(props: ChatPanelProps) {
                 </div>
               ) : null}
               {msg.role === 'assistant' && (
-                <button type="button" onClick={() => readAloud(msg)} className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-100" aria-label={`Read RyanAI response aloud in ${getLanguageName(window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE)}`}>
+                <button type="button" onClick={() => readAloud(msg)} className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-100" aria-label={`Read RyanAI response aloud in ${getLanguageName(getPreferredLanguage())}`}>
                   {speakingMessageId === msg.id ? 'Speaking…' : 'Read aloud'}
                 </button>
               )}
@@ -363,14 +383,14 @@ export default function ChatPanel(props: ChatPanelProps) {
                   </button>
                 )}
               </div>
-              <div className="h-1.5 overflow-hidden rounded bg-ink-800" aria-label={'Attachment upload progress ' + percent + ' percent'}>
+              <div role="progressbar" aria-label="Attachment upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-1.5 overflow-hidden rounded bg-ink-800">
                 <div className="h-full bg-cyan-400 transition-all" style={{ width: percent + '%' }} />
               </div>
             </div>
           );
         })()}
                 {importing && <p role="status" className="text-xs text-cyan-300">Validating archive and importing conversation…</p>}
-        {attachmentError && <p role="alert" className="text-xs text-rose-300">{attachmentError}</p>}
+        {attachmentError && <p id="chat-attachment-error" role="alert" className="text-xs text-rose-300">{attachmentError}</p>}
         {!props.attachmentsEnabled && <p className="text-[10px] text-ink-500">Cloud attachments are unavailable until private storage is configured.</p>}
         <input
           ref={attachmentInputRef}
@@ -395,6 +415,8 @@ export default function ChatPanel(props: ChatPanelProps) {
           <textarea
             ref={inputRef}
             value={inputValue}
+            aria-label="Message RyanAI"
+            aria-describedby={attachmentError ? 'chat-attachment-error' : undefined}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Message RyanAI..."
@@ -404,8 +426,11 @@ export default function ChatPanel(props: ChatPanelProps) {
           />
           {props.voiceSupported && (
             <button
+              type="button"
               onClick={props.onVoiceToggle}
-              className={`p-2 rounded transition-colors ${
+              aria-label={props.voiceState === 'listening' ? 'Stop voice input' : 'Start voice input'}
+              aria-pressed={props.voiceState === 'listening'}
+              className={`rounded p-2 transition-colors ${
                 props.voiceState === 'listening'
                   ? 'bg-amber-500/30 text-amber-300'
                   : 'hover:bg-cyan-500/10 text-cyan-400'
@@ -420,7 +445,9 @@ export default function ChatPanel(props: ChatPanelProps) {
             </button>
           )}
           <button
+            type="button"
             onClick={handleSend}
+            aria-label="Send message"
             disabled={props.sending || submitting || !inputValue.trim()}
             className="p-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed text-cyan-300 transition-colors"
             title="Send"
