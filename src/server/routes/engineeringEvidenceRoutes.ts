@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import { requireAdmin } from './auth.js';
@@ -73,6 +74,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     if (containsSecretMaterial(proposedDiff) || containsSecretMaterial(JSON.stringify(plan))) {
       return reply.code(400).send({ error: 'Potential credential material detected. Remove secrets before submitting an evidence snapshot.' });
     }
+    const planSnapshot = JSON.parse(JSON.stringify(plan)) as Prisma.InputJsonValue;
     const planHash = sha256(JSON.stringify({ plan, steeringNotes: null }));
     const proposedDiffHash = createHash('sha256').update(proposedDiff, 'utf8').digest('hex');
     const run = await prisma.$transaction(async (tx) => {
@@ -82,7 +84,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
           objective: objective.trim(),
           status: 'queued',
           approvalStatus: 'pending',
-          planSnapshot: plan,
+          planSnapshot,
           planHash,
           baseCommitSha: baseCommitSha.toLowerCase(),
           proposedDiffHash,
@@ -207,6 +209,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       return reply.code(400).send({ error: 'Potential credential material detected. Remove secrets before submitting an evidence snapshot.' });
     }
     const proposedDiffHash = sha256(request.body.proposedDiff);
+    const planSnapshot = JSON.parse(JSON.stringify(request.body.plan)) as Prisma.InputJsonValue;
     const result = await prisma.$transaction(async (tx) => {
       const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
       if (!job) return { status: 'missing' as const };
@@ -217,7 +220,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
         where: { id: job.id, status: 'queued', approvalStatus: 'pending', planHash: job.planHash, proposedDiffHash: job.proposedDiffHash },
         data: {
           steeringNotes,
-          planSnapshot: request.body.plan,
+          planSnapshot,
           planHash,
           baseCommitSha: request.body.baseCommitSha.toLowerCase(),
           proposedDiffHash,
