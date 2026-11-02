@@ -31,7 +31,7 @@ jobs:
 
       - name: Update existing main-protection ruleset
         env:
-          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
           jq -n '{
@@ -80,7 +80,7 @@ jobs:
 
       - name: Verify required protections are active
         env:
-          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/rulesets/26360956" > ruleset-final.json
