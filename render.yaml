@@ -2,6 +2,103 @@
 # Dedicated static frontend and API; credentials remain outside source control.
 version: "1"
 
+  - type: web
+    name: ryanai-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: CORS_ORIGINS
+        value: https://ryanai-web.onrender.com,https://ryanai-automous-reasioning-plat-uss1632.vercel.app
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_API_ENDPOINT
+        value: https://integrate.api.nvidia.com/v1
+      - key: NVIDIA_MODEL
+        value: nvidia/nemotron-3-ultra
+      - key: QWEN_API_KEY
+        sync: false
+      - key: QWEN_API_ENDPOINT
+        value: https://api.together.xyz/v1
+      - key: QWEN_MODEL
+        value: Qwen/Qwen3-235B-A22B-Instruct-2507
+      - key: LOGIC_API_KEY
+        sync: false
+      - key: LOGIC_API_ENDPOINT
+        value: https://api.openai.com/v1
+      - key: LOGIC_REASONING_MODEL
+        value: gpt-4o-mini
+      - key: RYANAI_GITHUB_TOKEN
+        sync: false
+      - key: RYANAI_GITHUB_REPOSITORY
+        value: RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+      - key: RYANAI_GITHUB_BASE_BRANCH
+        value: main
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+      - key: TWILIO_WHATSAPP_CONTENT_SID
+        sync: false
+      - key: TWILIO_WHATSAPP_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_SMS_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_VOICE_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_VOICE_ACTION_URL
+        sync: false
+      - key: TWILIO_STATUS_WEBHOOK_URL
+        sync: false
+      - key: TWILIO_STATUS_CALLBACK_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: RYANAI_OWNER_TITLE
+        value: Sir
+      - key: TWILIO_VOICE_NAME
+        sync: false
+      - key: RYANAI_OWNER_PHONE
+        sync: false
+      - key: RYANAI_OWNER_EMAIL
+        sync: false
 projects:
   - name: RyanAI Autonomous
     environments:
