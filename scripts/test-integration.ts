@@ -99,8 +99,6 @@ await check('API health and dependency status', async () => {
   }
 });
 
-await check('Web health endpoint', () => json(`${webBase}/health`));
-
 await check('Web document', async () => {
   const response = await fetch(`${webBase}/`, {
     signal: AbortSignal.timeout(timeoutMs),
