@@ -236,7 +236,9 @@ async function processAgentRun(run: ClaimedAgentRun) {
     await recordRunEvidence({ runId: run.id, eventType: run.attempts > 1 ? 'execution.recovered' : 'execution.started', payload: { workerId: run.worker_id, attempt: run.attempts, approvalStatus: run.approval_status, planHash: run.approved_plan_hash, baseCommitSha: run.approved_commit_sha, proposedDiffHash: run.approved_diff_hash } });
     const knowledge = await buildBrainKnowledgeContext();
     const executionPlan = planQueuedAgentRun(run.execution_scope);
-    const approvedPlan = run.plan_snapshot ? '\n\nAPPROVED PLAN SNAPSHOT:\n' + JSON.stringify(run.plan_snapshot) : '';\n    const approvedBinding = run.approved_commit_sha ? '\n\nAPPROVED SOURCE BINDING:\nbaseCommit=' + run.approved_commit_sha + '\nproposedDiffSha256=' + run.approved_diff_hash + '\nplanSha256=' + run.approved_plan_hash : '';\n    const plannedObjective = buildAgentRunExecutionPrompt(run.objective + approvedPlan + approvedBinding + (run.steering_notes ? '\n\nHuman steering instructions (guidance only; not permission):\n' + run.steering_notes : ''), executionPlan);
+    const approvedPlan = run.plan_snapshot ? '\\n\\nAPPROVED PLAN SNAPSHOT:\\n' + JSON.stringify(run.plan_snapshot) : '';
+    const approvedBinding = run.approved_commit_sha ? '\\n\\nAPPROVED SOURCE BINDING:\\nbaseCommit=' + run.approved_commit_sha + '\\nproposedDiffSha256=' + run.approved_diff_hash + '\\nplanSha256=' + run.approved_plan_hash : '';
+    const plannedObjective = buildAgentRunExecutionPrompt(run.objective + approvedPlan + approvedBinding + (run.steering_notes ? '\\n\\nHuman steering instructions (guidance only; not permission):\\n' + run.steering_notes : ''), executionPlan);
     const sharedObjective = knowledge
       ? knowledge + '\n\n' + plannedObjective
       : plannedObjective;
