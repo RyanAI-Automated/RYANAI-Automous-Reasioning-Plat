@@ -21,6 +21,8 @@ concurrency:
 jobs:
   release:
     name: Create GitHub release
+    # Release publication is disabled unless an owner explicitly opts in.
+    if: vars.RYANAI_RELEASES_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
