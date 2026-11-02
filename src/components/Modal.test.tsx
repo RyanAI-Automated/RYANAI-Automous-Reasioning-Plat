@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('framer-motion', () => import('../test/mocks/framerMotion'));
 
 import Modal from './Modal';
