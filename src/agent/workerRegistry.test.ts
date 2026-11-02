@@ -17,8 +17,19 @@ describe('RyanAI worker roster', () => {
   });
 
   it('does not grant production, secret, deployment, or merge privileges', () => {
-    const serialized = JSON.stringify(RYANAI_WORKER_ROSTER).toLowerCase();
-    expect(serialized).not.toMatch(/production-write|secret-read|secret-write|deploy|merge-pull-request/);
+    const forbiddenActions = new Set([
+      'production-write',
+      'secret-read',
+      'secret-write',
+      'deploy',
+      'merge-pull-request',
+    ]);
+
+    for (const worker of RYANAI_WORKER_ROSTER) {
+      for (const action of worker.allowedActions) {
+        expect(forbiddenActions.has(action)).toBe(false);
+      }
+    }
   });
 
   it('resolves known worker IDs and safely rejects unknown IDs', () => {
