@@ -134,3 +134,16 @@ test('local LM Studio credentials are shared only by brains routed to that local
   });
   assert.equal(explicitCloudByRole.brains[0].credentialPresent, false);
 });
+
+
+test('provider verification supports one brain or all three isolated brains in parallel', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const workflow = await readFile(new URL('../.github/workflows/provider-verification.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /- all\\n/);
+  assert.match(workflow, /fail-fast: false/);
+  assert.match(workflow, /provider: \\$\\{\\{ inputs\\.provider == 'all'/);
+  assert.match(workflow, /RYANAI_PROBE_BRAIN: \\$\\{\\{ matrix\\.provider \\}\\}/);
+  assert.match(workflow, /matrix\\.provider == 'primary'.*NVIDIA_API_KEY/s);
+  assert.match(workflow, /matrix\\.provider == 'secondary'.*QWEN_API_KEY/s);
+  assert.match(workflow, /matrix\\.provider == 'logic'.*secrets\\.OPENAI_API_KEY/s);
+});
