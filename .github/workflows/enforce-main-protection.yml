@@ -1,0 +1,94 @@
+name: Enforce main branch protection
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type ENFORCE-MAIN-PROTECTION to update the main ruleset
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enforce-main-protection
+  cancel-in-progress: false
+
+jobs:
+  enforce:
+    name: Apply and verify main protection ruleset
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation and administrator credential
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$CONFIRMATION" == "ENFORCE-MAIN-PROTECTION" ]] || { echo "::error::Confirmation string did not match"; exit 1; }
+          [[ -n "$GH_ADMIN_TOKEN" ]] || { echo "::error::GH_ADMIN_TOKEN secret is missing; ruleset was not changed"; exit 1; }
+
+      - name: Update existing main-protection ruleset
+        env:
+          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          jq -n '{
+            name: "main-protection",
+            target: "branch",
+            enforcement: "active",
+            conditions: { ref_name: { include: ["~DEFAULT_BRANCH", "refs/heads/main"], exclude: [] } },
+            bypass_actors: [],
+            rules: [
+              { type: "pull_request", parameters: {
+                required_approving_review_count: 1,
+                dismiss_stale_reviews_on_push: true,
+                require_code_owner_review: false,
+                require_last_push_approval: false,
+                required_review_thread_resolution: true,
+                allowed_merge_methods: ["squash", "merge"]
+              }},
+              { type: "required_status_checks", parameters: {
+                strict_required_status_checks_policy: true,
+                do_not_enforce_on_create: false,
+                required_status_checks: [
+                  { context: "Validate (typecheck, lint, test, build)" },
+                  { context: "MCP server and workflow worker" },
+                  { context: "Issue 435 migrations and attachment security" },
+                  { context: "Test agent API contracts" },
+                  { context: "Dependency audit" },
+                  { context: "Trivy filesystem scan" },
+                  { context: "Analyze (javascript-typescript)" },
+                  { context: "Analyze (python)" },
+                  { context: "TruffleHog secret audit" },
+                  { context: "Codacy Security Scan" }
+                ]
+              }},
+              { type: "non_fast_forward" },
+              { type: "deletion" },
+              { type: "copilot_code_review", parameters: {
+                review_on_push: true,
+                review_draft_pull_requests: true
+              }}
+            ]
+          }' > ruleset.json
+          gh api --method PUT \
+            "repos/${GITHUB_REPOSITORY}/rulesets/26360956" \
+            --input ruleset.json > ruleset-updated.json
+          jq '{id,name,enforcement,rules,bypass_actors}' ruleset-updated.json
+
+      - name: Verify required protections are active
+        env:
+          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/rulesets/26360956" > ruleset-final.json
+          jq -e '
+            .enforcement == "active"
+            and ([.rules[].type] | index("pull_request") != null)
+            and ([.rules[].type] | index("required_status_checks") != null)
+            and ([.rules[].type] | index("non_fast_forward") != null)
+            and ([.rules[].type] | index("deletion") != null)
+            and ([.bypass_actors // []] | length == 0)
+          ' ruleset-final.json
