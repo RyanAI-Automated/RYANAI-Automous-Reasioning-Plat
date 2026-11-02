@@ -35,7 +35,7 @@ class RouteDecision(BaseModel):
 # ==========================================
 
 # Mapped to local Nvidia Nemotron/vLLM or OpenAI endpoint
-llm = ChatOpenAI(model="nvidia/nemotron-3-ultra", base_url="http://localhost:8000/v1", temperature=0.1)
+llm = ChatOpenAI(model="nvidia/nemotron-3-ultra-550b-a55b", base_url="http://localhost:8000/v1", temperature=0.1)
 
 # ==========================================
 # 3. SUPERVISOR & OPERATIONAL NODES

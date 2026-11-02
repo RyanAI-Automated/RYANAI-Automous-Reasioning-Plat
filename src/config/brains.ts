@@ -35,7 +35,7 @@ function createBrain(
  * Defaults to Nvidia Nemotron or local Ollama / LM Studio runtime endpoints.
  */
 export const primaryBrain = createBrain(
-  getEnv('PRIMARY_REASONING_MODEL') || getEnv('NVIDIA_MODEL') || 'nvidia/nemotron-3-ultra',
+  getEnv('PRIMARY_REASONING_MODEL') || getEnv('NVIDIA_MODEL') || 'nvidia/nemotron-3-ultra-550b-a55b',
   0.2,
   getEnv('NVIDIA_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || getEnv('OLLAMA_URL') || 'https://integrate.api.nvidia.com/v1',
   getEnv('NVIDIA_API_KEY') || ((!getEnv('NVIDIA_API_ENDPOINT') && (getEnv('LM_STUDIO_URL') || getEnv('OLLAMA_URL'))) ? getEnv('LM_STUDIO_API_KEY') : ''),
@@ -46,7 +46,7 @@ export const primaryBrain = createBrain(
  * Tuned for deep analysis and Qwen multi-turn reasoning workflows.
  */
 export const secondaryBrain = createBrain(
-  getEnv('SECONDARY_REASONING_MODEL') || getEnv('QWEN_MODEL') || 'Qwen/Qwen3-235B-A22B-Instruct-2507',
+  getEnv('SECONDARY_REASONING_MODEL') || getEnv('QWEN_MODEL') || 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
   0.4,
   getEnv('QWEN_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || 'https://api.together.xyz/v1',
   getEnv('QWEN_API_KEY') || ((!getEnv('QWEN_API_ENDPOINT') && getEnv('LM_STUDIO_URL')) ? getEnv('LM_STUDIO_API_KEY') : ''),

@@ -39,6 +39,17 @@ describe('independent brain provider credentials', () => {
     });
   });
 
+  it('uses current hosted model identifiers for the default cloud endpoints', () => {
+    expect(resolveBrainProviderConfig('primary', {})).toMatchObject({
+      endpoint: 'https://integrate.api.nvidia.com/v1',
+      model: 'nvidia/nemotron-3-ultra-550b-a55b',
+    });
+    expect(resolveBrainProviderConfig('secondary', {})).toMatchObject({
+      endpoint: 'https://api.together.xyz/v1',
+      model: 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
+    });
+  });
+
   it('accepts each cloud provider credential independently', () => {
     expect(resolveBrainProviderConfig('primary', { NVIDIA_API_KEY: 'nvidia-test' }).credential).toBe(true);
     expect(resolveBrainProviderConfig('secondary', { QWEN_API_KEY: 'qwen-test' }).credential).toBe(true);

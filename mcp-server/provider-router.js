@@ -1,11 +1,11 @@
 const brains = {
   nemotron: {
-    id: process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra',
+    id: process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b',
     endpoint: process.env.NVIDIA_API_ENDPOINT || 'https://integrate.api.nvidia.com/v1',
     key: process.env.NVIDIA_API_KEY,
   },
   qwen: {
-    id: process.env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507',
+    id: process.env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
     endpoint: process.env.QWEN_API_ENDPOINT || 'https://api.together.xyz/v1',
     key: process.env.QWEN_API_KEY,
   },
