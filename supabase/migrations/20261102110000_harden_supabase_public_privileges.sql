@@ -1,0 +1,97 @@
+-- Harden the Supabase Data API grants for the existing RyanAI schema.
+-- RLS policies remain the row-level boundary; SQL privileges must also be
+-- least-privilege because operations such as TRUNCATE are not filtered by RLS.
+--
+-- The project currently has both postgres and supabase_admin default ACLs.
+-- Restrict both migration-owner paths so newly-created public objects do not
+-- silently regain broad browser-role access after this migration.
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    GRANT ALL PRIVILEGES ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
+    REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
+    GRANT ALL PRIVILEGES ON TABLES TO service_role;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
+    REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
+
+-- Restrict every current public table before granting the exact browser
+-- operations below. Keep server-side service_role access intact.
+DO $$
+DECLARE
+    item RECORD;
+BEGIN
+    FOR item IN
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+    LOOP
+        EXECUTE format(
+            'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, anon, authenticated',
+            item.tablename
+        );
+        EXECUTE format(
+            'GRANT ALL PRIVILEGES ON TABLE public.%I TO service_role',
+            item.tablename
+        );
+    END LOOP;
+END;
+$$;
+
+-- Exact authenticated privileges match the current RLS policy verbs.
+GRANT SELECT, INSERT, UPDATE
+    ON TABLE public.profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON TABLE public.conversations, public.messages, public.memory_entries
+    TO authenticated;
+
+-- Shared-room APIs only support read, creation, and sending under their
+-- existing member/owner policies. They do not need client-side DELETE/TRUNCATE.
+DO $$
+BEGIN
+    IF to_regclass('public.rooms') IS NOT NULL THEN
+        GRANT SELECT, INSERT, UPDATE ON TABLE public.rooms TO authenticated;
+    END IF;
+    IF to_regclass('public.room_members') IS NOT NULL THEN
+        GRANT SELECT, INSERT ON TABLE public.room_members TO authenticated;
+    END IF;
+    IF to_regclass('public.room_messages') IS NOT NULL THEN
+        GRANT SELECT, INSERT ON TABLE public.room_messages TO authenticated;
+    END IF;
+    IF to_regclass('public.ryanai_attachment_scans') IS NOT NULL THEN
+        GRANT SELECT ON TABLE public.ryanai_attachment_scans TO authenticated;
+    END IF;
+END;
+$$;
+
+-- Trigger/event-trigger entry points are not browser RPCs. Room helper
+-- functions remain callable only by authenticated users because RLS policies
+-- use them to evaluate the caller's membership and ownership.
+REVOKE ALL PRIVILEGES ON FUNCTION public.handle_new_user()
+    FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON FUNCTION public.rls_auto_enable()
+    FROM PUBLIC, anon, authenticated;
+
+DO $$
+BEGIN
+    IF to_regprocedure('public.is_room_member(uuid)') IS NOT NULL THEN
+        REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_member(uuid)
+            FROM PUBLIC, anon;
+        GRANT EXECUTE ON FUNCTION public.is_room_member(uuid) TO authenticated;
+    END IF;
+    IF to_regprocedure('public.is_room_member_topic(text)') IS NOT NULL THEN
+        REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_member_topic(text)
+            FROM PUBLIC, anon;
+        GRANT EXECUTE ON FUNCTION public.is_room_member_topic(text) TO authenticated;
+    END IF;
+    IF to_regprocedure('public.is_room_owner(uuid)') IS NOT NULL THEN
+        REVOKE ALL PRIVILEGES ON FUNCTION public.is_room_owner(uuid)
+            FROM PUBLIC, anon;
+        GRANT EXECUTE ON FUNCTION public.is_room_owner(uuid) TO authenticated;
+    END IF;
+END;
+$$;
