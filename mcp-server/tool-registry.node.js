@@ -48,3 +48,12 @@ test('registry metadata describes tool risk and explicit enablement', () => {
   assert.equal(checks.enablement, 'explicit-operator-allowlist');
   assert.equal(checks.enabled, true);
 });
+
+test('configured tools missing from this runtime fail closed', () => {
+  assert.throws(
+    () => resolveToolRegistry([{ name: 'tool_registry' }], {
+      RYANAI_MCP_ENABLED_TOOLS: 'repository_status',
+    }),
+    /Configured MCP tool.*not available in this runtime/,
+  );
+});
