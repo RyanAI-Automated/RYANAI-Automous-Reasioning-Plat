@@ -17,23 +17,57 @@ export function verifyThreeBrainResult(outputs: BrainOutput[], synthesis: string
   return { verified: true, reason: null };
 }
 
-export async function executeThreeBrainPlan(objective: string, invoke: (brain: BrainId, prompt: string, signal?: AbortSignal) => Promise<BrainOutput>, cancellationSignal?: AbortSignal) {
-  const [primary, secondary] = await Promise.all([invoke('primary', objective, cancellationSignal), invoke('secondary', objective, cancellationSignal)]);
-  const prompt = [
-    'Synthesize both specialist analyses. Identify agreement, disagreement, assumptions, and unresolved risks. Do not claim external actions were taken.',
-    'OBJECTIVE:', objective, 'PRIMARY:', primary.output, 'SECONDARY:', secondary.output,
-  ].join('\n');
-  const logic = await invoke('logic', prompt, cancellationSignal);
-  const outputs = [primary, secondary, logic];
-  const verification = verifyThreeBrainResult(outputs, logic.output);
-  if (!verification.verified) throw new Error('Three-brain result verification failed: ' + verification.reason);
+export async function executeThreeBrainPlan(
+  objective: string,
+  invoke: (brain: BrainId, prompt: string, signal?: AbortSignal) => Promise<BrainOutput>,
+  cancellationSignal?: AbortSignal,
+) {
+  const specialistIds: BrainId[] = ['primary', 'secondary'];
+  const specialistResults = await Promise.allSettled(
+    specialistIds.map((brain) => invoke(brain, objective, cancellationSignal)),
+  );
+  if (cancellationSignal?.aborted) {
+    throw cancellationSignal.reason instanceof Error ? cancellationSignal.reason : new Error('Agent run cancelled after worker lease loss.');
+  }
+
+  const outputs: BrainOutput[] = [];
+  const failures: Array<{ brain: BrainId; reason: string }> = [];
+  specialistResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') outputs.push(result.value);
+    else failures.push({ brain: specialistIds[index], reason: result.reason instanceof Error ? result.reason.message.slice(0, 300) : 'Provider request failed.' });
+  });
+
+  const logicPrompt = outputs.length
+    ? ['Synthesize only the available specialist analysis. Explicitly identify missing specialists, uncertainty, agreement, disagreement, and unresolved risks. Do not imply missing brains responded or claim external actions.', 'OBJECTIVE:', objective, ...outputs.map((item) => item.brain.toUpperCase() + ': ' + item.output)].join('\n')
+    : ['Standalone fallback: both specialist brains are unavailable. Analyze independently and state that no specialist verification or consensus was available. Do not claim external actions.', 'OBJECTIVE:', objective].join('\n');
+
+  let logic: BrainOutput | undefined;
+  try {
+    logic = await invoke('logic', logicPrompt, cancellationSignal);
+    outputs.push(logic);
+  } catch (error) {
+    if (cancellationSignal?.aborted) {
+      throw cancellationSignal.reason instanceof Error ? cancellationSignal.reason : new Error('Agent run cancelled after worker lease loss.');
+    }
+    failures.push({ brain: 'logic', reason: error instanceof Error ? error.message.slice(0, 300) : 'Provider request failed.' });
+  }
+
+  if (outputs.length === 0) {
+    throw new Error('All reasoning brains are unavailable. ' + failures.map((item) => item.brain + ': ' + item.reason).join(' | '));
+  }
+
+  const specialists = outputs.filter((item) => item.brain !== 'logic');
+  const verified = outputs.length === 3 && Boolean(logic) && verifyThreeBrainResult(outputs, logic.output).verified;
+  const synthesis = logic
+    ? (specialists.length ? logic.output : 'DEGRADED MODE — standalone Logic response; no specialist analyses or three-brain verification were available.\n\n' + logic.output)
+    : 'DEGRADED MODE — Logic synthesis unavailable; no consensus was produced.\n\n' + specialists.map((item) => item.brain.toUpperCase() + ':\n' + item.output).join('\n\n');
+
+  const handoffs = specialists.map((item) => ({ fromAgent: 'supervisor', toAgent: item.brain, input: objective, output: item.output }));
+  if (logic) specialists.forEach((item) => handoffs.push({ fromAgent: item.brain, toAgent: 'logic', input: item.output, output: logic!.output }));
+
   return {
-    outputs, synthesis: logic.output, verification,
-    handoffs: [
-      { fromAgent: 'supervisor', toAgent: 'primary', input: objective, output: primary.output },
-      { fromAgent: 'supervisor', toAgent: 'secondary', input: objective, output: secondary.output },
-      { fromAgent: 'primary', toAgent: 'logic', input: primary.output, output: logic.output },
-      { fromAgent: 'secondary', toAgent: 'logic', input: secondary.output, output: logic.output },
-    ],
+    outputs, synthesis, degraded: !verified, failures,
+    verification: verified ? verifyThreeBrainResult(outputs, synthesis) : { verified: false, reason: 'Degraded execution: one or more reasoning brains did not return a verified result.' },
+    handoffs,
   };
 }
