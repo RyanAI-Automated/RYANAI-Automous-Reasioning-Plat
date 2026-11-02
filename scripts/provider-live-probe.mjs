@@ -77,11 +77,11 @@ try {
   }
 
   const client = new ChatOpenAI({
-    modelName: model,
+    model,
+    apiKey,
     temperature: 0,
     timeout: 20000,
     maxRetries: 0,
-    openAIApiKey: apiKey,
     configuration: { baseURL: endpoint },
   });
   const response = await client.invoke([
