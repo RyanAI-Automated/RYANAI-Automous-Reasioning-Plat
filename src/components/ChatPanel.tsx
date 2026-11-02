@@ -87,7 +87,6 @@ export default function ChatPanel(props: ChatPanelProps) {
     utterance.onstart = () => setSpeakingMessageId(message.id);
     utterance.onend = () => setSpeakingMessageId(null);
     utterance.onerror = () => setSpeakingMessageId(null);
-    setSpeakingMessageId(message.id);
     window.speechSynthesis.speak(utterance);
   }, []);
 
