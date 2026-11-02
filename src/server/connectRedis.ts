@@ -41,6 +41,9 @@ export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis
         ? ` (initial connection exceeded ${timeoutMs}ms)`
         : '';
 
+    // Do not attach the caught Redis error: client errors can embed REDIS_URL credentials.
+    // Its safe code is retained above; preserving the raw cause would risk leaking secrets.
+    // eslint-disable-next-line preserve-caught-error
     throw new Error(
       `Redis is unavailable${detail}. Verify that REDIS_URL uses the Render internal connection URL, ` +
       'that the API and Key Value instance share a workspace and region, and that internal authentication matches. ' +
