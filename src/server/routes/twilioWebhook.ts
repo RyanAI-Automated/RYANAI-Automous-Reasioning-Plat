@@ -3,7 +3,6 @@ import twilio from 'twilio';
 import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication } from '../comms/history.js';
-import { addressOwnerMessage, communicationSystemInstruction } from '../comms/personalization.js';
 import { addressOwnerResponse, ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
 
 const extractContent = (content: unknown): string =>
@@ -76,19 +75,18 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
       });
 
       const result = await humanInTheLoopAgent.invoke(
-        { messages: [{ role: 'system', content: communicationSystemInstruction() }, { role: 'user', content: incomingText }] },
+        {
+          messages: [
+            { role: 'system', content: ownerCommunicationInstruction() },
+            { role: 'user', content: incomingText },
+          ],
+        },
         { configurable: { thread_id: threadId } },
       );
       const messages = (result as { messages?: Array<{ content?: unknown }> }).messages ?? [];
-      const agentReply = addressOwnerMessage(extractContent(messages.at(-1)?.content) || 'I could not prepare a response.');
-        { messages: [
-          { role: 'system', content: ownerCommunicationInstruction() },
-          { role: 'user', content: incomingText },
-        ] },
-        { configurable: { thread_id: threadId } },
+      const agentReply = addressOwnerResponse(
+        extractContent(messages.at(-1)?.content) || 'I could not prepare a response.',
       );
-      const messages = (result as { messages?: Array<{ content?: unknown }> }).messages ?? [];
-      const agentReply = addressOwnerResponse(extractContent(messages.at(-1)?.content) || 'I could not prepare a response.');
       await fastify.prisma.communicationMessage.update({
         where: { providerMessageId: body.MessageSid },
         data: { status: 'replied', metadata: { reply: agentReply } },
