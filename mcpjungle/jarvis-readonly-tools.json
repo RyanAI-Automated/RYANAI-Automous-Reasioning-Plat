@@ -1,0 +1,10 @@
+{
+  "name": "jarvis-readonly",
+  "description": "Read-only RyanAI tools exposed to the internal Jarvis supervisor",
+  "included_tools": [
+    "ryanai__tool_registry",
+    "ryanai__repository_status",
+    "ryanai__platform_health",
+    "ryanai__ryanai_stack_manifest"
+  ]
+}
