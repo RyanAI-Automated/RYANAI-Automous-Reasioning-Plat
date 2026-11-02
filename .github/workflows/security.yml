@@ -49,6 +49,14 @@ jobs:
           sarif_file: trivy-results.sarif
           category: trivy-fs
 
+      - name: Preserve Trivy filesystem SARIF for remediation
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-filesystem-sarif
+          path: trivy-results.sarif
+          retention-days: 7
+
   dependencies:
     name: Dependency audit
     runs-on: ubuntu-latest
