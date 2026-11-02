@@ -27,12 +27,19 @@ export function resolveToolRegistry(tools, env = process.env) {
     throw new Error(`Unknown or non-configurable MCP tool name(s) in ${ENABLED_TOOLS_ENV}: ${unknown.join(', ')}`);
   }
 
+  const availableNames = new Set(tools.map((tool) => tool.name));
+  const unavailable = requested.filter((name) => !availableNames.has(name));
+  if (unavailable.length) {
+    throw new Error(`Configured MCP tool(s) are not available in this runtime: ${unavailable.join(', ')}`);
+  }
+
   const registry = Object.entries(TOOL_POLICY).map(([name, policy]) => ({
     name,
+    available: name === REGISTRY_TOOL || availableNames.has(name),
     owner: policy.owner,
     risk: policy.risk,
     description: policy.description,
-    enabled: name === REGISTRY_TOOL || enabled.has(name),
+    enabled: name === REGISTRY_TOOL || (availableNames.has(name) && enabled.has(name)),
     enablement: name === REGISTRY_TOOL ? 'always-on-read-only' : 'explicit-operator-allowlist',
   }));
 
