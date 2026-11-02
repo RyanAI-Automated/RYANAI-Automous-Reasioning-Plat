@@ -248,6 +248,18 @@ model AgentRun {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   objective String @db.Text
   executionScope Json @default("{}") @map("execution_scope")
+  approvalStatus String @default("approved") @map("approval_status")
+  planSnapshot Json? @map("plan_snapshot")
+  planHash String? @map("plan_hash")
+  baseCommitSha String? @map("base_commit_sha")
+  proposedDiffHash String? @map("proposed_diff_hash")
+  approvedPlanHash String? @map("approved_plan_hash")
+  approvedCommitSha String? @map("approved_commit_sha")
+  approvedDiffHash String? @map("approved_diff_hash")
+  approvedBy String? @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  steeringNotes String? @db.Text @map("steering_notes")
+  cancelRequestedAt DateTime? @map("cancel_requested_at")
   status String @default("queued")
   result Json?
   error String? @db.Text
@@ -260,11 +272,27 @@ model AgentRun {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
   handoffs AgentHandoff[]
+  evidence AgentRunEvidence[]
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([status, lockedAt])
   @@index([status, nextAttemptAt])
   @@map("agent_runs")
+}
+model AgentRunEvidence {
+  id String @id @default(uuid())
+  runId String @map("run_id")
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sequence Int
+  eventType String @map("event_type")
+  actorId String? @map("actor_id")
+  payload Json
+  previousHash String? @map("previous_hash")
+  hash String @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([runId, sequence])
+  @@index([runId, sequence])
+  @@map("agent_run_evidence")
 }
 model AgentHandoff {
   id String @id @default(uuid())
