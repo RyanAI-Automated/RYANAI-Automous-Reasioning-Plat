@@ -194,6 +194,7 @@ describe('application authentication boundary', () => {
     expect(container.textContent).not.toContain('Private workspace');
     expect(window.location.pathname).toBe('/oauth/consent');
     expect(window.location.search).toContain('authorization_id=authorization-123');
+    window.history.replaceState({}, '', '/');
   });
 
   it('fails closed on restoration errors', async () => {
