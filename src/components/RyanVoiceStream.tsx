@@ -286,17 +286,8 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     }
   }, [language, releaseResources, stop]);
 
-  const previousLanguage = useRef(language);
-  useEffect(() => {
-    if (previousLanguage.current === language) return;
-    previousLanguage.current = language;
-
-    if (status === 'listening' || status === 'connecting') {
-      stop();
-      void start();
-    }
-  }, [language, status, start, stop]);
-
+  // The selected language is applied on the next explicit voice-session start.
+  // Avoid synchronously stopping and restarting media from an effect.
   const toggleVoiceLink = () => {
     if (status === 'connecting' || status === 'listening') {
       stop();
