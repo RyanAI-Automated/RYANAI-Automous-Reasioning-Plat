@@ -7,10 +7,12 @@ const migration = readFileSync(
 );
 
 describe('Supabase Data API least-privilege migration', () => {
-  it('restricts default table and function grants for both migration owners', () => {
-    for (const owner of ['postgres', 'supabase_admin']) {
-      expect(migration).toContain(`ALTER DEFAULT PRIVILEGES FOR ROLE ${owner} IN SCHEMA public`);
-    }
+  it('hardens the active migration owner and only changes supabase_admin defaults when permitted', () => {
+    expect(migration).toContain('ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public');
+    expect(migration).toContain('IF current_user = \'supabase_admin\'');
+    expect(migration).toContain(`pg_has_role(current_user, 'supabase_admin', 'MEMBER')`);
+    expect(migration).toContain('ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public');
+    expect(migration).toContain('Skipping supabase_admin default ACL adjustment');
     expect(migration).toContain('REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated');
     expect(migration).toContain('REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated');
     expect(migration).toContain('GRANT ALL PRIVILEGES ON TABLES TO service_role');
