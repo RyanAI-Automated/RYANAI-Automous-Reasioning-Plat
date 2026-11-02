@@ -156,7 +156,7 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8765
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
-      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1]}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1],mcp-server}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
       NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
@@ -166,6 +166,10 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_API_ENDPOINT: ${DEEPSEEK_API_ENDPOINT:-http://127.0.0.1:8888/v1}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-DeepSeek-V4.1-Flash-1017}
+      TORCHTPU_API_KEY: ${TORCHTPU_API_KEY:-}
+      TORCHTPU_API_ENDPOINT: ${TORCHTPU_API_ENDPOINT:-http://127.0.0.1:8000/v1}
+      TORCHTPU_MODEL: ${TORCHTPU_MODEL:-tpu-model}
+      RYANAI_MCP_ENABLED_TOOLS: ${RYANAI_MCP_ENABLED_TOOLS:-platform_health,ryanai_stack_manifest}
     networks: [ryanai-net]
     depends_on:
       api:
@@ -184,6 +188,48 @@ services:
       start_period: 10s
     restart: unless-stopped
     stop_grace_period: 30s
+
+
+  # Optional MCP gateway. Start explicitly with --profile mcp-gateway.
+  # Enterprise mode is mandatory: development mode grants every client access
+  # to every registered upstream server.
+  mcpjungle-db:
+    image: postgres:17
+    container_name: ryanai-mcpjungle-db
+    profiles: [mcp-gateway]
+    environment:
+      POSTGRES_USER: mcpjungle
+      POSTGRES_PASSWORD: ${MCPJUNGLE_DB_PASSWORD:-}
+      POSTGRES_DB: mcpjungle
+    networks: [ryanai-net]
+    volumes:
+      - mcpjungle_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcpjungle -d mcpjungle"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mcpjungle:
+    image: ghcr.io/mcpjungle/mcpjungle:${MCPJUNGLE_IMAGE_TAG:-0.4.6}
+    container_name: ryanai-mcpjungle
+    profiles: [mcp-gateway]
+    environment:
+      DATABASE_URL: postgres://mcpjungle:${MCPJUNGLE_DB_PASSWORD:-}@mcpjungle-db:5432/mcpjungle
+      SERVER_MODE: enterprise
+      MCPJUNGLE_BIND_HOST: 0.0.0.0
+      OTEL_ENABLED: "false"
+      MCP_SERVER_INIT_REQ_TIMEOUT_SEC: "10"
+    networks: [ryanai-net]
+    depends_on:
+      mcpjungle-db:
+        condition: service_healthy
+      mcp-server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
 
   web:
     build:
@@ -222,3 +268,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  mcpjungle_data:
