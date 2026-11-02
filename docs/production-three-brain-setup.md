@@ -8,8 +8,8 @@ The three-brain implementation is server-side. `src/agent/providerConfig.ts` res
 
 | Brain | Required server-side key | Default provider/model |
 | --- | --- | --- |
-| Primary | `NVIDIA_API_KEY` | NVIDIA API / `nvidia/nemotron-3-ultra` |
-| Secondary | `QWEN_API_KEY` | Together-compatible Qwen endpoint / `Qwen/Qwen3-235B-A22B-Instruct-2507` |
+| Primary | `NVIDIA_API_KEY` | NVIDIA API / `nvidia/nemotron-3-ultra-550b-a55b` |
+| Secondary | `QWEN_API_KEY` | Together-compatible Qwen endpoint / `Qwen/Qwen3-235B-A22B-Instruct-2507-tput` |
 | Logic | `LOGIC_API_KEY` **or** `OPENAI_API_KEY` | OpenAI-compatible endpoint / `gpt-4o-mini` |
 
 The corresponding endpoint and model overrides are `NVIDIA_API_ENDPOINT`/`NVIDIA_MODEL`, `QWEN_API_ENDPOINT`/`QWEN_MODEL`, and `LOGIC_API_ENDPOINT`/`LOGIC_REASONING_MODEL`. The defaults are documented in `.env.example` and declared as unsynchronized secrets in `render.yaml`.
