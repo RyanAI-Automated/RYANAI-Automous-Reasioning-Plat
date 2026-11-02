@@ -105,7 +105,7 @@ await check('Web document and built assets', async () => {
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const html = await response.text();
-  const assetPaths = [...html.matchAll(/(?:src|href)=\"([^\"]+\\.(?:js|css))(?:\\?[^\"]*)?\"/g)]
+  const assetPaths = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))(?:\?[^"]*)?"/g)]
     .map((match) => match[1])
     .filter((path) => path.startsWith('/'));
   if (assetPaths.length === 0) throw new Error('No built JavaScript or CSS assets were referenced by the web document');
