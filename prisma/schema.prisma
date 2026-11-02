@@ -33,7 +33,7 @@ enum AgentStatus {
 model User {
   id            String          @id @default(uuid())
   email         String          @unique
-  passwordHash  String          @map("password_hash")
+  passwordHash  String?         @map("password_hash")
   name          String?         @map("name")
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
@@ -254,13 +254,15 @@ model AgentRun {
   maxAttempts Int @default(3) @map("max_attempts")
   workerId String? @map("worker_id")
   lockedAt DateTime? @map("locked_at")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
   handoffs AgentHandoff[]
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([status, lockedAt])
+  @@index([status, nextAttemptAt])
   @@map("agent_runs")
 }
 model AgentHandoff {
@@ -283,7 +285,7 @@ model AgentBrainHealth {
   brain String @unique
   model String
   status String
-  latencyMs Int?
+  latencyMs Int? @map("latency_ms")
   lastSuccessAt DateTime? @map("last_success_at")
   lastError String? @db.Text @map("last_error")
   checkedAt DateTime @default(now()) @map("checked_at")
@@ -317,12 +319,12 @@ model CommunicationConversation {
   id              String                   @id @default(uuid())
   channel         String
   externalAddress String                   @map("external_address")
-  createdAt       DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  createdAt       DateTime                 @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime                 @default(now()) @updatedAt @db.Timestamptz(6) @map("updated_at")
   messages        CommunicationMessage[]
 
-  @@unique([channel, externalAddress])
-  @@index([channel, updatedAt])
+  @@unique([channel, externalAddress], map: "communication_conversations_channel_address_key")
+  @@index([channel, updatedAt], map: "communication_conversations_channel_updated_idx")
   @@map("communication_conversations")
 }
 
@@ -335,9 +337,58 @@ model CommunicationMessage {
   providerMessageId String?                   @unique @map("provider_message_id")
   status            String                    @default("received")
   metadata          Json?
-  createdAt         DateTime                  @default(now()) @map("created_at")
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  @@index([conversationId, createdAt])
-  @@index([status, createdAt])
+  @@index([conversationId, createdAt], map: "communication_messages_conversation_created_idx")
+  @@index([status, createdAt], map: "communication_messages_status_created_idx")
   @@map("communication_messages")
+}
+
+// LangGraph's PostgresSaver owns these tables and their versioned DDL. They are
+// represented here so Prisma's schema-drift check includes the full public
+// schema without attempting to create or mutate them from application code.
+model LangGraphCheckpointMigration {
+  v Int @id
+
+  @@map("checkpoint_migrations")
+}
+
+model LangGraphCheckpoint {
+  threadId String @map("thread_id")
+  checkpointNs String @default("") @map("checkpoint_ns")
+  checkpointId String @map("checkpoint_id")
+  parentCheckpointId String? @map("parent_checkpoint_id")
+  type String?
+  checkpoint Json
+  metadata Json @default("{}")
+
+  @@id([threadId, checkpointNs, checkpointId])
+  @@map("checkpoints")
+}
+
+model LangGraphCheckpointBlob {
+  threadId String @map("thread_id")
+  checkpointNs String @default("") @map("checkpoint_ns")
+  channel String
+  version String
+  type String
+  blob Bytes?
+
+  @@id([threadId, checkpointNs, channel, version])
+  @@map("checkpoint_blobs")
+}
+
+model LangGraphCheckpointWrite {
+  threadId String @map("thread_id")
+  checkpointNs String @default("") @map("checkpoint_ns")
+  checkpointId String @map("checkpoint_id")
+  taskId String @map("task_id")
+  idx Int
+  channel String
+  type String?
+  blob Bytes
+  taskPath String @default("") @map("task_path")
+
+  @@id([threadId, checkpointNs, checkpointId, taskId, idx])
+  @@map("checkpoint_writes")
 }

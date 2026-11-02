@@ -34,9 +34,9 @@ const brainDefinitions = [
     keyNames: ['LOGIC_API_KEY', 'OPENAI_API_KEY'],
     credentialFlags: ['RYANAI_LOGIC_KEY_CONFIGURED', 'RYANAI_OPENAI_KEY_CONFIGURED'],
     defaultEndpoint: 'https://api.openai.com/v1',
-    usesLocalCredential: (env) => env.RYANAI_LOGIC_USES_LM_STUDIO === 'true'
-      || (!firstConfigured(env, ['LOGIC_API_ENDPOINT']) && firstConfigured(env, ['LM_STUDIO_URL']) && !firstConfigured(env, ['LOGIC_API_ENDPOINT'])
-        && env.RYANAI_LM_STUDIO_URL_CONFIGURED !== 'false'),
+    usesLocalCredential: (env) => !firstConfigured(env, ['LOGIC_API_ENDPOINT', 'OPENAI_BASE_URL'])
+      && (env.RYANAI_LOGIC_USES_LM_STUDIO === 'true'
+        || (firstConfigured(env, ['LM_STUDIO_URL']) && env.RYANAI_LM_STUDIO_URL_CONFIGURED !== 'false')),
   },
 ];
 const agentDefinitions = [
@@ -44,6 +44,7 @@ const agentDefinitions = [
   { id: 'compliance', label: 'Compliance sub-agent', file: 'src/agent/subAgents.ts', marker: 'complianceSubAgent', kind: 'tool-agent' },
   { id: 'enterprise-supervisor', label: 'Enterprise supervisor', file: 'src/agent/supervisorGraph.ts', marker: 'enterpriseMultiAgent', kind: 'supervisor' },
   { id: 'security-sentinel', label: 'Security Sentinel', file: 'src/engine/agentWorkers.ts', marker: 'runSecurityAuditor', kind: 'specialist' },
+  { id: 'genx-hardcore-security', label: 'Gen-X Hard Core Security Agent', file: 'src/engine/agentWorkers.ts', marker: 'runGenXHardCoreSecurityAgent', kind: 'deterministic-policy-ai-triage' },
   { id: 'performance-profiler', label: 'Performance Profiler', file: 'src/engine/agentWorkers.ts', marker: 'runPerformanceProfiler', kind: 'specialist' },
   { id: 'reasoning-agent-factory', label: 'Model-backed reasoning agent factory', file: 'src/agent/engine.ts', marker: 'getReasoningAgent', kind: 'dynamic-factory' },
   { id: 'tool-using-agent-graph', label: 'Tool-using self-patch agent graph', file: 'src/engine/agentGraph.ts', marker: 'ryanAgentApp', kind: 'tool-agent' },
@@ -92,7 +93,8 @@ export function auditAgentReadiness({ env = process.env, sourceRoot = root } = {
     brains,
     agents,
     summary: {
-      configuredBrainRoles: brains.length,
+      brainRolesAudited: brains.length,
+      configuredBrainRoles: brains.filter((brain) => brain.endpointPresent && brain.credentialPresent).length,
       credentialConfiguredBrains: brains.filter((brain) => brain.credentialPresent).length,
       codeDefinedAgents: agents.filter((agent) => agent.implemented).length,
       liveAgentsVerified: agents.filter((agent) => agent.executionVerified).length,

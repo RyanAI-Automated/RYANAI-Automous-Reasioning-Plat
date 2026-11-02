@@ -6,6 +6,7 @@ import type {
   ModelId,
   ToolStep,
   SystemStatus,
+  Message,
   MessageAttachment,
 } from '@/lib/types';
 import { DEFAULT_MODEL, modelMeta, MODELS } from '@/lib/models';
@@ -20,7 +21,9 @@ import {
 import { streamReasoning } from '@/lib/reasoning';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
-import { removeConversationAttachments, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_MESSAGE, MAX_MESSAGE_ATTACHMENT_BYTES, removeConversationAttachments, safeAttachmentName, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import type { AttachmentUploadOptions } from '@/lib/attachments';
+import { createTarArchive, MAX_CONVERSATION_ARCHIVE_BYTES, readTarArchive } from '@/lib/conversationArchive';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import TelemetryPanel from '@/components/TelemetryPanel';
@@ -72,6 +75,76 @@ export default function CommandCenter({
   const [githubOpen, setGithubOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
+  const leftDrawerRef = useRef<HTMLDivElement>(null);
+  const rightDrawerRef = useRef<HTMLDivElement>(null);
+  const leftDrawerCloseRef = useRef<HTMLButtonElement>(null);
+  const rightDrawerCloseRef = useRef<HTMLButtonElement>(null);
+  const leftDrawerTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const rightDrawerTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!leftOpen && !rightOpen) return;
+
+    const activeSide = leftOpen ? 'left' : 'right';
+    const dialog = activeSide === 'left' ? leftDrawerRef.current : rightDrawerRef.current;
+    const closeButton = activeSide === 'left' ? leftDrawerCloseRef.current : rightDrawerCloseRef.current;
+    const trigger = activeSide === 'left' ? leftDrawerTriggerRef.current : rightDrawerTriggerRef.current;
+    const previouslyFocused =
+      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+
+    closeButton?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setLeftOpen(false);
+        setRightOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getAttribute('aria-hidden') !== 'true');
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [leftOpen, rightOpen]);
+
+  useEffect(() => {
+    if (!leftOpen && !rightOpen) return;
+    const closeDrawersOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setLeftOpen(false);
+        setRightOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeDrawersOnEscape);
+    return () => window.removeEventListener('keydown', closeDrawersOnEscape);
+  }, [leftOpen, rightOpen]);
   const [status, setStatus] = useState<SystemStatus>({
     cpu: null,
     memory: null,
@@ -336,7 +409,7 @@ export default function CommandCenter({
    * Errors thrown by awaited persistence before streaming propagate.
    */
   const sendMessage = useCallback(
-    async (text: string, files: File[] = []) => {
+    async (text: string, files: File[] = [], uploadOptions: AttachmentUploadOptions = {}) => {
       const prompt = text.trim();
       if (!prompt) throw new Error('Add a message before sending attachments.');
       let convId = activeId;
@@ -347,24 +420,43 @@ export default function CommandCenter({
 
       if (!mountedRef.current) return;
       const userMsg = createMessage('user', prompt);
+      // Cloud message IDs are also the third UUID segment in private Storage paths.
+      if (supabase) userMsg.id = crypto.randomUUID();
       let attachments: MessageAttachment[] = [];
+      let persistedMessage = false;
       try {
-        if (files.length) {
-          if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
-          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files);
-        }
         if (supabase) {
+          // Persist the exact client-generated UUID before uploading: Storage paths
+          // are guarded by a database trigger that requires this message to exist.
           const { error } = await supabase.from('messages').insert({
+            id: userMsg.id,
             conversation_id: convId,
             role: 'user',
             content: prompt,
-            metadata: attachments.length ? { attachments } : null,
+            metadata: null,
           });
           if (error) throw new Error(error.message || 'Unable to save your message.');
+          persistedMessage = true;
+        }
+        if (files.length) {
+          if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
+          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files, uploadOptions);
+          const { error } = await supabase.from('messages')
+            .update({ metadata: { attachments } })
+            .eq('id', userMsg.id)
+            .eq('conversation_id', convId);
+          if (error) throw new Error(error.message || 'Unable to attach uploaded files to your message.');
         }
       } catch (error) {
         if (supabase && attachments.length) {
           try { await removeConversationAttachments(supabase, attachments); } catch { /* cleanup can be retried by storage retention tooling */ }
+        }
+        if (supabase && persistedMessage) {
+          const { error: rollbackError } = await supabase.from('messages')
+            .delete()
+            .eq('id', userMsg.id)
+            .eq('conversation_id', convId);
+          if (rollbackError) console.error('Unable to roll back failed attachment message:', rollbackError.message);
         }
         throw error;
       }
@@ -562,34 +654,276 @@ export default function CommandCenter({
     [activeId, userId],
   );
 
-  /** Download the active thread and tool traces as Markdown; ignore empty or missing threads. */
-  const exportThread = useCallback(() => {
+  /** Export a portable TAR bundle containing the transcript, manifest, and original attachment bytes. */
+  const exportThread = useCallback(async () => {
     const conv = conversations.find((c) => c.id === activeId);
     if (!conv || conv.messages.length === 0) return;
     const title = conv.title || 'RyanAI thread';
-    let md = `# ${title}\n\n> Exported from RyanAI · Autonomous Reasoning Engine\n> Model: ${modelMeta(conv.model).label}\n\n`;
-    conv.messages.forEach((m) => {
-      md += `## ${m.role === 'user' ? 'Operator' : `RyanAI (${modelMeta(m.model).label})`}\n\n${m.content}\n\n`;
-      if (m.steps?.length) {
-        md += `<details><summary>Tool trace (${m.steps.length})</summary>\n\n`;
-        m.steps.forEach((s) => {
-          md += `- \`${s.type}\` **${s.name}** → ${s.result || JSON.stringify(s.args)}\n`;
+    let md = '# ' + title + '\n\n> Exported from RyanAI · Autonomous Reasoning Engine\n> Model: ' + modelMeta(conv.model).label + '\n\n';
+    const manifestMessages: Array<Record<string, unknown>> = [];
+    const archiveEntries: Array<{ path: string; data: Uint8Array }> = [];
+
+    for (const message of conv.messages) {
+      md += '## ' + (message.role === 'user' ? 'Operator' : 'RyanAI (' + modelMeta(message.model).label + ')') + '\n\n' + message.content + '\n\n';
+      if (message.steps?.length) {
+        md += '<details><summary>Tool trace (' + message.steps.length + ')</summary>\n\n';
+        message.steps.forEach((step) => {
+          md += '- **' + step.type + '** **' + step.name + '** → ' + (step.result || JSON.stringify(step.args)) + '\n';
         });
-        md += `\n</details>\n\n`;
+        md += '\n</details>\n\n';
       }
-      md += `---\n\n`;
-    });
-    const blob = new Blob([md], { type: 'text/markdown' });
+      md += '---\n\n';
+
+      const exportedAttachments: Array<Record<string, unknown>> = [];
+      for (const attachment of message.attachments ?? []) {
+        if (!supabase) throw new Error('Cloud storage must be configured to export original attachment files.');
+        const signed = await signConversationAttachment(supabase, userId, conv.id, attachment);
+        if (!signed.url) throw new Error('Unable to create a download link for ' + attachment.name + '.');
+        const response = await fetch(signed.url);
+        if (!response.ok) throw new Error('Unable to download ' + attachment.name + ' (HTTP ' + response.status + ').');
+        const data = new Uint8Array(await response.arrayBuffer());
+        if (data.byteLength !== attachment.size) {
+          throw new Error('Attachment size verification failed for ' + attachment.name + '.');
+        }
+        const archivePath = 'attachments/' + attachment.id + '-' + safeAttachmentName(attachment.name).slice(0, 32);
+        archiveEntries.push({ path: archivePath, data });
+        exportedAttachments.push({
+          id: attachment.id,
+          name: attachment.name,
+          mimeType: attachment.mimeType,
+          size: attachment.size,
+          archivePath,
+        });
+      }
+      manifestMessages.push({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        model: message.model ?? null,
+        timestamp: message.timestamp,
+        steps: message.steps ?? [],
+        attachments: exportedAttachments,
+      });
+    }
+
+    archiveEntries.unshift(
+      { path: 'conversation.md', data: new TextEncoder().encode(md) },
+      {
+        path: 'manifest.json',
+        data: new TextEncoder().encode(JSON.stringify({
+          format: 'ryanai-conversation-archive',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          conversation: { id: conv.id, title, model: conv.model },
+          messages: manifestMessages,
+        }, null, 2)),
+      },
+    );
+
+    const blob = createTarArchive(archiveEntries);
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title
-      .replace(/[^a-z0-9]+/gi, '-')
-      .toLowerCase()
-      .slice(0, 40)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [activeId, conversations]);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = (title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40) || 'ryanai-thread') + '.tar';
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [activeId, conversations, userId]);
+
+  /** Validate and import a RyanAI TAR bundle into a new, account-owned conversation. */
+  const importThread = useCallback(async (file: File) => {
+    const client = supabase;
+    if (!client) throw new Error('Private cloud storage must be configured before importing conversations.');
+    if (file.size <= 0 || file.size > MAX_CONVERSATION_ARCHIVE_BYTES) {
+      throw new Error('Choose a non-empty TAR archive no larger than 250 MB.');
+    }
+    if (!file.name.toLowerCase().endsWith('.tar')) throw new Error('Choose a RyanAI .tar conversation archive.');
+
+    const archiveEntries = await readTarArchive(file);
+    const entriesByPath = new Map(archiveEntries.map((entry) => [entry.path, entry]));
+    const manifestEntry = entriesByPath.get('manifest.json');
+    if (!manifestEntry) throw new Error('This archive is missing manifest.json.');
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestEntry.data));
+    } catch {
+      throw new Error('The conversation manifest is not valid UTF-8 JSON.');
+    }
+    if (!manifest || typeof manifest !== 'object') throw new Error('The conversation manifest is invalid.');
+    const data = manifest as Record<string, unknown>;
+    if (data.format !== 'ryanai-conversation-archive' || data.version !== 1) {
+      throw new Error('This RyanAI archive format or version is not supported.');
+    }
+    const conversationData = data.conversation;
+    if (!conversationData || typeof conversationData !== 'object') throw new Error('The archive has no conversation metadata.');
+    const rawConversation = conversationData as Record<string, unknown>;
+    const title = typeof rawConversation.title === 'string' && rawConversation.title.trim()
+      ? rawConversation.title.trim().slice(0, 80)
+      : 'Imported RyanAI conversation';
+    const requestedModel = typeof rawConversation.model === 'string' ? rawConversation.model as ModelId : DEFAULT_MODEL;
+    const importedModel = Object.prototype.hasOwnProperty.call(MODELS, requestedModel) ? requestedModel : DEFAULT_MODEL;
+    if (!Array.isArray(data.messages) || data.messages.length === 0 || data.messages.length > 5000) {
+      throw new Error('The archive must contain between 1 and 5,000 messages.');
+    }
+
+    const referencedPaths = new Set<string>();
+    const preparedMessages = data.messages.map((rawMessage, index) => {
+      if (!rawMessage || typeof rawMessage !== 'object') throw new Error('Message ' + (index + 1) + ' is invalid.');
+      const message = rawMessage as Record<string, unknown>;
+      if (message.role !== 'user' && message.role !== 'assistant') throw new Error('Message ' + (index + 1) + ' has an unsupported role.');
+      if (typeof message.content !== 'string' || message.content.length > 2_000_000) {
+        throw new Error('Message ' + (index + 1) + ' has invalid or oversized content.');
+      }
+      const attachments = message.attachments === undefined ? [] : message.attachments;
+      if (!Array.isArray(attachments) || attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+        throw new Error('Message ' + (index + 1) + ' exceeds the attachment count limit.');
+      }
+      let totalBytes = 0;
+      const files = attachments.map((rawAttachment) => {
+        if (!rawAttachment || typeof rawAttachment !== 'object') throw new Error('An attachment manifest entry is invalid.');
+        const attachment = rawAttachment as Record<string, unknown>;
+        if (
+          typeof attachment.archivePath !== 'string' ||
+          !attachment.archivePath.startsWith('attachments/') ||
+          typeof attachment.name !== 'string' ||
+          typeof attachment.mimeType !== 'string' ||
+          !Number.isSafeInteger(attachment.size) ||
+          (attachment.size as number) <= 0 ||
+          (attachment.size as number) > MAX_ATTACHMENT_BYTES
+        ) {
+          throw new Error('An attachment has invalid metadata or an unsupported size.');
+        }
+        if (referencedPaths.has(attachment.archivePath)) throw new Error('An archive attachment is referenced more than once.');
+        referencedPaths.add(attachment.archivePath);
+        const entry = entriesByPath.get(attachment.archivePath);
+        if (!entry || entry.data.byteLength !== attachment.size) {
+          throw new Error('An attachment is missing or its byte count does not match the manifest.');
+        }
+        totalBytes += entry.data.byteLength;
+        return new File([entry.data.slice().buffer as ArrayBuffer], safeAttachmentName(attachment.name), { type: attachment.mimeType });
+      });
+      if (totalBytes > MAX_MESSAGE_ATTACHMENT_BYTES) {
+        throw new Error('A message exceeds the combined 40 MB attachment limit.');
+      }
+      const timestamp = typeof message.timestamp === 'number' &&
+        Number.isFinite(message.timestamp) &&
+        Math.abs(message.timestamp) <= 8.64e15
+        ? message.timestamp
+        : Date.now();
+      const messageModel = typeof message.model === 'string' && Object.prototype.hasOwnProperty.call(MODELS, message.model)
+        ? message.model as ModelId
+        : undefined;
+      const steps = Array.isArray(message.steps)
+        ? message.steps.slice(0, 500).flatMap((rawStep): ToolStep[] => {
+            if (!rawStep || typeof rawStep !== 'object') return [];
+            const step = rawStep as Record<string, unknown>;
+            if (typeof step.type !== 'string' || typeof step.name !== 'string') return [];
+            return [{
+              type: step.type.slice(0, 100),
+              name: step.name.slice(0, 200),
+              result: typeof step.result === 'string' ? step.result.slice(0, 20_000) : undefined,
+              args: step.args && typeof step.args === 'object' && !Array.isArray(step.args)
+                ? step.args as Record<string, unknown>
+                : undefined,
+            }];
+          })
+        : [];
+      return {
+        role: message.role as 'user' | 'assistant',
+        content: message.content,
+        timestamp,
+        model: messageModel,
+        steps,
+        files,
+      };
+    });
+    const allowedArchivePaths = new Set(['manifest.json', 'conversation.md']);
+    archiveEntries.forEach((entry) => {
+      if (!allowedArchivePaths.has(entry.path) && !entry.path.startsWith('attachments/')) {
+        throw new Error('The archive contains an unsupported extra file: ' + entry.path);
+      }
+    });
+    const archiveAttachmentPaths = archiveEntries.filter((entry) => entry.path.startsWith('attachments/'));
+    if (archiveAttachmentPaths.some((entry) => !referencedPaths.has(entry.path))) {
+      throw new Error('The archive contains unreferenced attachment files.');
+    }
+
+    const { data: created, error: createError } = await client
+      .from('conversations')
+      .insert({ title, model: importedModel, user_id: userId })
+      .select()
+      .single();
+    if (createError || !created) throw new Error(createError?.message || 'Unable to create the imported conversation.');
+
+    const uploaded: MessageAttachment[] = [];
+    const importedMessages: Message[] = [];
+    try {
+      for (const item of preparedMessages) {
+        const messageId = crypto.randomUUID();
+        const attachments = item.files.length
+          ? await uploadConversationAttachments(client, userId, created.id, messageId, item.files)
+          : [];
+        uploaded.push(...attachments);
+        const { error: messageError } = await client.from('messages').insert({
+          id: messageId,
+          conversation_id: created.id,
+          role: item.role,
+          content: item.content,
+          model: item.model ?? null,
+          steps: item.steps.length ? item.steps : null,
+          metadata: attachments.length ? { attachments } : null,
+          created_at: new Date(item.timestamp).toISOString(),
+        });
+        if (messageError) throw new Error(messageError.message || 'Unable to save an imported message.');
+        const displayAttachments = await Promise.all(attachments.map((attachment) =>
+          signConversationAttachment(client, userId, created.id, attachment),
+        ));
+        importedMessages.push({
+          id: messageId,
+          role: item.role,
+          content: item.content,
+          model: item.model,
+          steps: item.steps,
+          attachments: displayAttachments,
+          timestamp: item.timestamp,
+        });
+      }
+
+      const updatedAt = Math.max(Date.now(), ...importedMessages.map((message) => message.timestamp));
+      const { error: updateError } = await client
+        .from('conversations')
+        .update({ updated_at: new Date(updatedAt).toISOString() })
+        .eq('id', created.id)
+        .eq('user_id', userId);
+      if (updateError) throw new Error(updateError.message || 'Unable to finalize the imported conversation.');
+
+      const importedConversation: Conversation = {
+        id: created.id,
+        title,
+        model: importedModel,
+        messages: importedMessages,
+        createdAt: new Date(created.created_at).getTime(),
+        updatedAt,
+      };
+      setConversations((previous) => [importedConversation, ...previous]);
+      setActiveId(created.id);
+      setModel(importedModel);
+      setLiveText('');
+      setLiveSteps([]);
+      setLeftOpen(false);
+    } catch (error) {
+      if (uploaded.length) {
+        try { await removeConversationAttachments(client, uploaded); } catch (cleanupError) {
+          console.error('Imported attachment cleanup needs retry:', cleanupError);
+        }
+      }
+      try {
+        await client.from('conversations').delete().eq('id', created.id).eq('user_id', userId);
+      } catch (cleanupError) {
+        console.error('Failed to roll back the incomplete imported conversation:', cleanupError);
+      }
+      throw error;
+    }
+  }, [userId]);
 
   // Voice command handler
   /** Dispatch recognized voice command names to workspace actions; args and unknown names are ignored. */
@@ -680,6 +1014,15 @@ export default function CommandCenter({
   );
 
   // Updated chatPanelProps utilizing explicit union type casting
+  const refreshAttachmentUrl = useCallback(async (attachment: MessageAttachment) => {
+    if (!supabase || !activeId) {
+      throw new Error('Private cloud storage is unavailable for this conversation.');
+    }
+    const refreshed = await signConversationAttachment(supabase, userId, activeId, attachment);
+    if (!refreshed.url) throw new Error('A secure attachment link could not be created.');
+    return refreshed.url;
+  }, [activeId, userId]);
+
   const chatPanelProps = {
     messages: activeMessages,
     model,
@@ -690,6 +1033,8 @@ export default function CommandCenter({
     onSend: sendMessage,
     attachmentsEnabled: Boolean(supabase),
     onExport: exportThread,
+    onImport: importThread,
+    onRefreshAttachment: refreshAttachmentUrl,
     activeTitle: activeConversation?.title,
     onOpenLeft: () => setLeftOpen(true),
     onOpenRight: () => setRightOpen(true),
@@ -701,7 +1046,7 @@ export default function CommandCenter({
   };
 
   return (
-    <div className="h-screen hud-radial hud-grid hud-scanlines overflow-hidden relative">
+    <div className="h-[calc(100dvh-10rem)] min-h-[26rem] hud-radial hud-grid hud-scanlines relative overflow-hidden">
       <CodeRain />
       <RyanVoiceStream language={voiceLanguage} />
 
@@ -737,8 +1082,11 @@ export default function CommandCenter({
       <div className="h-full lg:hidden flex flex-col relative z-10">
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-cyan-500/15 glass">
           <button
-            onClick={() => setLeftOpen(true)}
-            className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-ink-400"
+            type="button"
+            onClick={(event) => { leftDrawerTriggerRef.current = event.currentTarget; setLeftOpen(true); }}
+            aria-label="Open conversation history"
+            aria-expanded={leftOpen}
+            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
           >
             <Menu size={18} />
           </button>
@@ -759,15 +1107,20 @@ export default function CommandCenter({
               </span>
             )}
             <button
+              type="button"
               onClick={onSignOut}
-              className="p-1.5 rounded-lg hover:bg-rose-500/10 text-ink-400 hover:text-rose-400 transition-colors"
+              aria-label="Sign out"
+              className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-rose-500/10 hover:text-rose-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
             >
               <LogOut size={16} />
             </button>
           </div>
           <button
-            onClick={() => setRightOpen(true)}
-            className="p-1.5 rounded-lg hover:bg-cyan-500/10 text-ink-400"
+            type="button"
+            onClick={(event) => { rightDrawerTriggerRef.current = event.currentTarget; setRightOpen(true); }}
+            aria-label="Open live telemetry"
+            aria-expanded={rightOpen}
+            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
           >
             <Menu size={18} className="rotate-180" />
           </button>
@@ -784,18 +1137,31 @@ export default function CommandCenter({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="presentation"
             className="fixed inset-0 z-40 lg:hidden"
             onClick={() => setLeftOpen(false)}
           >
             <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-sm" />
             <motion.div
+              ref={leftDrawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Conversation history"
+              tabIndex={-1}
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'tween', duration: 0.25 }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute left-0 top-0 bottom-0 w-[280px] p-3"
+              className="absolute bottom-0 left-0 top-0 w-[min(88vw,20rem)] p-3"
             >
+              <button
+                type="button"
+                onClick={() => setLeftOpen(false)}
+                ref={leftDrawerCloseRef}
+                aria-label="Close conversation history"
+                className="absolute right-5 top-5 z-30 rounded-lg bg-slate-950/90 px-2.5 py-1.5 text-xs text-cyan-100 shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+              >Close</button>
               {sidebar}
             </motion.div>
           </motion.div>
@@ -805,18 +1171,31 @@ export default function CommandCenter({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="presentation"
             className="fixed inset-0 z-40 lg:hidden"
             onClick={() => setRightOpen(false)}
           >
             <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-sm" />
             <motion.div
+              ref={rightDrawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Live telemetry"
+              tabIndex={-1}
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.25 }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-0 bottom-0 w-[300px] p-3"
+              className="absolute bottom-0 right-0 top-0 w-[min(88vw,20rem)] p-3"
             >
+              <button
+                type="button"
+                onClick={() => setRightOpen(false)}
+                ref={rightDrawerCloseRef}
+                aria-label="Close live telemetry"
+                className="absolute right-5 top-5 z-30 rounded-lg bg-slate-950/90 px-2.5 py-1.5 text-xs text-cyan-100 shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+              >Close</button>
               {telemetry}
             </motion.div>
           </motion.div>

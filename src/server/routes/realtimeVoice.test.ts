@@ -67,6 +67,7 @@ describe('authenticated realtime voice gateway', () => {
     expect(redis.set).toHaveBeenCalledWith(
       `ryanai:realtime-voice:${response.json().ticket}`,
       expect.any(String),
+      JSON.stringify({ userId: 'user-123', isOwner: true, language: 've-ZA' }),
       'EX',
       30,
       'NX',
@@ -84,7 +85,7 @@ describe('authenticated realtime voice gateway', () => {
     await expect(app.injectWS('/api/v1/realtime/voice')).rejects.toThrow(
       'Unexpected server response: 401',
     );
-    tickets.set('ryanai:realtime-voice:one-use', JSON.stringify({ userId: '', isOwner: true }));
+    tickets.set('ryanai:realtime-voice:one-use', JSON.stringify({ userId: '', isOwner: true, language: 've-ZA' }));
     await expect(app.injectWS('/api/v1/realtime/voice?ticket=one-use')).rejects.toThrow(
       'Unexpected server response: 401',
     );
@@ -99,7 +100,7 @@ describe('authenticated realtime voice gateway', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('CORS_ORIGINS', 'https://app.example.test');
     const app = await createApp();
-    tickets.set('ryanai:realtime-voice:origin-check', JSON.stringify({ userId: 'user-123', isOwner: true }));
+    tickets.set('ryanai:realtime-voice:origin-check', JSON.stringify({ userId: 'user-123', isOwner: true, language: 've-ZA' }));
     await expect(app.injectWS('/api/v1/realtime/voice?ticket=origin-check', {
       headers: { origin: 'https://attacker.invalid' },
     })).rejects.toThrow('Unexpected server response: 403');

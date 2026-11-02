@@ -48,6 +48,22 @@ describe('RyanAI dispatcher', () => {
     await expect(RyanAIDispatcher.planObjective('Review')).rejects.toThrow('invalid id, title, payload, or brain');
   });
 
+  it('rejects forged or corrupted plans at execution time before calling any brain', async () => {
+    await expect(RyanAIDispatcher.executeTasks([
+      { id: 'task-1', title: 'Run an invalid brain', targetBrain: 'shell' as never, payload: 'Do something' },
+    ])).rejects.toThrow('invalid id, title, payload, or brain');
+    await expect(RyanAIDispatcher.executeTasks([
+      { id: 'task-1', title: 'First', targetBrain: 'nvidia', payload: 'Analyze.' },
+      { id: 'task-1', title: 'Duplicate', targetBrain: 'qwen', payload: 'Analyze.' },
+    ])).rejects.toThrow('duplicate task identifiers');
+    await expect(RyanAIDispatcher.executeTasks([
+      { id: '../unsafe', title: 'Traversal-like identifier', targetBrain: 'logic', payload: 'Analyze.' },
+    ])).rejects.toThrow('invalid identifier');
+    expect(brains.primary.invoke).not.toHaveBeenCalled();
+    expect(brains.secondary.invoke).not.toHaveBeenCalled();
+    expect(brains.logic.invoke).not.toHaveBeenCalled();
+  });
+
   it('executes only validated tasks and returns traceable outputs', async () => {
     const plan = await RyanAIDispatcher.planObjective('Review the platform');
     const results = await RyanAIDispatcher.executeTasks(plan.tasks);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RyanMCPServer } from "./ryanMcpServer.js";
+import { RyanAISandbox } from "../engine/sandbox.js";
 
 type Handler = (request: {
   params: { name: string; arguments?: Record<string, unknown> };
@@ -44,5 +45,30 @@ describe("MCP privileged action boundary", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.content?.[0]?.text).toContain("Unknown MCP tool requested");
+  });
+
+  it("blocks script execution before the sandbox is invoked", async () => {
+    new RyanMCPServer();
+    const result = await handlers[1]({
+      params: {
+        name: "execute_sandbox_script",
+        arguments: { scriptContent: "return process.env" },
+      },
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain("Gen-X blocked MCP request");
+    expect(RyanAISandbox.executeInSandbox).not.toHaveBeenCalled();
+  });
+
+  it("blocks workspace reads targeting environment and secret files", async () => {
+    new RyanMCPServer();
+    const result = await handlers[1]({
+      params: {
+        name: "read_workspace_file",
+        arguments: { filePath: ".env" },
+      },
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain("GX-SECRETS-001");
   });
 });

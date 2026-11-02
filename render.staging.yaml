@@ -1,0 +1,50 @@
+# Isolated RyanAI runtime verification environment.
+# Apply as a separate Render Blueprint. Never point DATABASE_URL at production.
+version: "1"
+
+projects:
+  - name: RyanAI Runtime Verification
+    environments:
+      - name: Staging
+        services:
+          - type: web
+            name: ryanai-api-staging
+            runtime: docker
+            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
+            plan: free
+            region: oregon
+            dockerContext: .
+            dockerfilePath: ./Dockerfile.api
+            autoDeployTrigger: "off"
+            healthCheckPath: /health
+            envVars:
+              - key: NODE_ENV
+                value: production
+              - key: HOST
+                value: 0.0.0.0
+              - key: DATABASE_URL
+                sync: false
+              - key: REDIS_URL
+                fromService:
+                  name: ryanai-redis-staging
+                  type: keyvalue
+                  property: connectionString
+              - key: JWT_SECRET
+                generateValue: true
+              - key: CORS_ORIGINS
+                sync: false
+              - key: SCHEDULER_ENABLED
+                value: "false"
+              - key: ALERTS_ENABLED
+                value: "false"
+              - key: ATTACHMENT_SCANNER_ENABLED
+                value: "false"
+              - key: ATTACHMENT_ORPHAN_CLEANUP_ENABLED
+                value: "false"
+          - type: keyvalue
+            name: ryanai-redis-staging
+            plan: free
+            region: oregon
+            maxmemoryPolicy: noeviction
+            ipAllowList: []

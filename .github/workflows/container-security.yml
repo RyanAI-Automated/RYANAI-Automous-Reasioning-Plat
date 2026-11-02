@@ -71,6 +71,9 @@ jobs:
           - image: mcp
             file: mcp-server/Dockerfile
             target: ''
+          - image: migrate
+            file: Dockerfile
+            target: migrate
 
     steps:
       - name: Checkout
