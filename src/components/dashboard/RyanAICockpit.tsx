@@ -1,5 +1,5 @@
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useCallback, useEffect, useState } from 'react';
 import { Activity, AlertCircle, Brain, CheckCircle2, CircleDot, Cpu, Database, LoaderCircle, Network, Send, ShieldAlert, Wifi } from 'lucide-react';
 import { usePlatformHealth } from '@/hooks/usePlatformHealth';
 import { API_BASE_URL } from '@/lib/apiBaseUrl';
@@ -133,7 +133,7 @@ export default function RyanAICockpit() {
         </div>
         {brainError && <Alert tone="warning">{brainError}</Alert>}
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} orchestratorRunning={sending} />)}
+          {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} />)}
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
           <Network className="h-4 w-4 text-cyan-300" />
@@ -170,7 +170,7 @@ export default function RyanAICockpit() {
   );
 }
 
-function BrainCard({ id, health, orchestratorRunning }: { id: BrainId; health?: BrainHealth; orchestratorRunning: boolean }) {
+function BrainCard({ id, health }: { id: BrainId; health?: BrainHealth }) {
   const status = health?.status || 'UNKNOWN';
   const healthy = status === 'HEALTHY';
   const failed = status === 'DEGRADED' || status === 'UNCONFIGURED' || status === 'FAILED';
@@ -179,7 +179,7 @@ function BrainCard({ id, health, orchestratorRunning }: { id: BrainId; health?: 
   return (
     <article className={'rounded-xl border ' + border + ' bg-slate-900/80 p-4'}>
       <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 font-semibold text-white"><Brain className={'h-5 w-5 ' + tone} /> {labels[id]}</div><span className={'text-[10px] font-semibold uppercase tracking-wider ' + tone}>{status}</span></div>
-      <div className="my-4 flex items-center justify-center"><div className={'relative flex h-24 w-24 items-center justify-center rounded-full border ' + border + ' bg-slate-950 ' + (orchestratorRunning && healthy ? 'shadow-[0_0_24px_rgba(0,242,254,0.18)]' : '')}><div className={'absolute inset-2 rounded-full border border-dashed ' + (healthy ? 'border-cyan-400/40' : 'border-slate-700') + (orchestratorRunning && healthy ? ' animate-spin' : '')} style={{ animationDuration: '18s' }} /><Brain className={'h-10 w-10 ' + tone} />{orchestratorRunning && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-cyan-300 ring-4 ring-slate-950 animate-pulse" />}</div></div>
+      <div className="my-4 flex items-center justify-center"><div className={'relative flex h-24 w-24 items-center justify-center rounded-full border ' + border + ' bg-slate-950 '}><div className={'absolute inset-2 rounded-full border border-dashed ' + (healthy ? 'border-cyan-400/40' : 'border-slate-700')} style={{ animationDuration: '18s' }} /><Brain className={'h-10 w-10 ' + tone} /></div></div>
       <p className="truncate text-xs text-slate-400" title={health?.model}>{health?.model || 'Model not reported'}</p>
       <div className="mt-2 flex justify-between gap-2 text-xs"><span className="text-slate-500">Last latency</span><span className="text-slate-300">{typeof health?.latencyMs === 'number' ? health.latencyMs + ' ms' : 'Not reported'}</span></div>
       {health?.lastError && <p className="mt-2 text-xs text-rose-300">{health.lastError}</p>}
@@ -189,6 +189,6 @@ function BrainCard({ id, health, orchestratorRunning }: { id: BrainId; health?: 
   );
 }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-slate-950/70 p-2"><div className="text-slate-500">{label}</div><div className="mt-1 font-medium text-slate-300">{value}</div></div>; }
-function Alert({ children, tone }: { children: React.ReactNode; tone: 'error' | 'warning' }) { return <div role="alert" className={'mt-4 flex gap-2 rounded-xl border p-4 text-sm ' + (tone === 'error' ? 'border-rose-400/20 bg-rose-400/5 text-rose-200' : 'border-amber-400/20 bg-amber-400/5 text-amber-200')}><AlertCircle className="h-4 w-4 shrink-0" />{children}</div>; }
+function Alert({ children, tone }: { children: ReactNode; tone: 'error' | 'warning' }) { return <div role="alert" className={'mt-4 flex gap-2 rounded-xl border p-4 text-sm ' + (tone === 'error' ? 'border-rose-400/20 bg-rose-400/5 text-rose-200' : 'border-amber-400/20 bg-amber-400/5 text-amber-200')}><AlertCircle className="h-4 w-4 shrink-0" />{children}</div>; }
 function reported(value: boolean | undefined) { return value === true ? 'Healthy' : value === false ? 'Unavailable' : 'Not reported'; }
-function ServiceValue({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4"><div className="flex items-center gap-2 text-xs text-slate-500">{icon}{label}</div><div className="mt-2 text-sm font-semibold text-slate-100">{value}</div></article>; }
+function ServiceValue({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { return <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4"><div className="flex items-center gap-2 text-xs text-slate-500">{icon}{label}</div><div className="mt-2 text-sm font-semibold text-slate-100">{value}</div></article>; }
