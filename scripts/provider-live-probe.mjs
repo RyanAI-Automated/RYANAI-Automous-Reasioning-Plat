@@ -5,6 +5,46 @@ import { PrismaClient } from '@prisma/client';
 import { resolveBrainProviderConfig } from '../src/agent/providerConfig.ts';
 import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE } from '../src/agent/brainProbe.ts';
 
+function safeProviderFailureDiagnostic(error) {
+  const pending = [error];
+  const seen = new Set();
+  let status;
+  let code;
+
+  for (let visited = 0; pending.length && visited < 12; visited += 1) {
+    const current = pending.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+
+    const value = current;
+    const candidateStatus = value.status ?? value.statusCode ?? value.response?.status;
+    if (status === undefined && Number.isInteger(Number(candidateStatus)) &&
+        Number(candidateStatus) >= 100 && Number(candidateStatus) <= 599) {
+      status = Number(candidateStatus);
+    }
+
+    const candidateCode = value.code;
+    if (code === undefined && typeof candidateCode === 'string' &&
+        /^(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|ERR_INVALID_URL|WRONGPASS|NOAUTH)$/.test(candidateCode)) {
+      code = candidateCode;
+    }
+
+    if (value.cause) pending.push(value.cause);
+    if (value.error && typeof value.error === 'object') pending.push(value.error);
+    if (value.response && typeof value.response === 'object') pending.push(value.response);
+  }
+
+  if (status === 401) return 'Provider rejected the credential (HTTP 401). Check the matching provider secret and rotate it if revoked.';
+  if (status === 403) return 'Provider denied this credential or model access (HTTP 403). Check account permissions and model entitlement.';
+  if (status === 404) return 'Provider endpoint or model was not found (HTTP 404). Check the endpoint and model configuration.';
+  if (status === 429) return 'Provider rate limit or quota reached (HTTP 429). Check provider quota and billing limits.';
+  if (status >= 500) return `Provider returned a server error (HTTP ${status}). Retry after checking provider status.`;
+  if (status >= 400) return `Provider rejected the request (HTTP ${status}). Check request/model compatibility.`;
+  if (code === 'WRONGPASS' || code === 'NOAUTH') return 'Provider-compatible service rejected authentication.';
+  if (code) return `Provider network request failed (${code}). Check outbound connectivity and endpoint DNS/TLS.`;
+  return 'Provider call failed before a classifiable HTTP response. Raw details withheld to protect credentials.';
+}
+
 const providers = {
   primary: { key: 'NVIDIA_API_KEY', endpoint: 'NVIDIA_API_ENDPOINT', model: 'PRIMARY_REASONING_MODEL' },
   secondary: { key: 'QWEN_API_KEY', endpoint: 'QWEN_API_ENDPOINT', model: 'SECONDARY_REASONING_MODEL' },
@@ -48,16 +88,9 @@ try {
     lastSuccessAt: new Date(), lastError: null,
   };
 } catch (error) {
-  const message = error instanceof Error ? error.message : '';
   const safeMessage = !apiKey
     ? 'Credential missing; no provider request made.'
-    : /401|403|auth|unauthor/i.test(message)
-      ? 'Provider authentication or authorization failed.'
-      : /429|rate.?limit/i.test(message)
-        ? 'Provider rate limit reached.'
-        : /timeout|timed out|abort/i.test(message)
-          ? 'Provider request timed out.'
-          : 'Provider request failed or returned an invalid challenge; raw details withheld.';
+    : safeProviderFailureDiagnostic(error);
   record = {
     brain, model, status: apiKey ? 'DEGRADED' : 'UNCONFIGURED',
     latencyMs: Date.now() - started, lastSuccessAt: null, lastError: safeMessage,
