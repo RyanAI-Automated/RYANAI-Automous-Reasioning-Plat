@@ -111,7 +111,7 @@ export async function buildEvidenceBundle(runId: string) {
     : [{ name: 'CI / automated verification', status: 'unverified', source: 'No verification receipt recorded' }];
   const latestEvaluation = evaluationReceipts.at(-1) as { payload?: { outcome?: string } } | undefined;
   const latestAssurance = assuranceReceipts.at(-1) as { payload?: { outcome?: string } } | undefined;
-  const allChecksPassed = verificationChecks.length > 0 && verificationChecks.every((check) => check.status === 'pass');
+  const allChecksPassed = verificationChecks.length > 0 && verificationChecks.every((check) => check.status === 'pass' && check.trust === 'github-actions-verified');
   const accepted = run.status === 'completed' && chain.valid && allChecksPassed
     && latestEvaluation?.payload?.outcome === 'pass'
     && latestAssurance?.payload?.outcome === 'pass';
