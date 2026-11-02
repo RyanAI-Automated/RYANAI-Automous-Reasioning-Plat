@@ -202,6 +202,8 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
     if (!job) return reply.code(404).send({ error: 'Job not found.' });
     if (job.userId === request.authUser!.id) return reply.code(403).send({ error: 'The job author cannot issue the independent evaluation receipt.' });
+    const priorApproval = await prisma.agentRunEvidence.findFirst({ where: { runId: job.id, eventType: 'plan.approved' }, orderBy: { sequence: 'desc' } });
+    if (priorApproval?.actorId === request.authUser!.id) return reply.code(403).send({ error: 'The plan approver cannot issue the independent evaluation receipt.' });
     await prisma.$transaction((tx) => appendRunEvidence(tx, {
       runId: job.id, eventType: 'evaluation.receipt', actorId: request.authUser!.id,
       payload: { outcome: request.body.outcome, summary: request.body.summary, evidenceRefs: request.body.evidenceRefs ?? [] },
@@ -213,6 +215,14 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
     if (!job) return reply.code(404).send({ error: 'Job not found.' });
     if (job.userId === request.authUser!.id) return reply.code(403).send({ error: 'The job author cannot issue the independent assurance receipt.' });
+    const [priorApproval, priorEvaluation] = await Promise.all([
+      prisma.agentRunEvidence.findFirst({ where: { runId: job.id, eventType: 'plan.approved' }, orderBy: { sequence: 'desc' } }),
+      prisma.agentRunEvidence.findFirst({ where: { runId: job.id, eventType: 'evaluation.receipt' }, orderBy: { sequence: 'desc' } }),
+    ]);
+    if (!priorEvaluation) return reply.code(409).send({ error: 'An independent evaluation receipt is required before assurance.' });
+    if (priorApproval?.actorId === request.authUser!.id || priorEvaluation.actorId === request.authUser!.id) {
+      return reply.code(403).send({ error: 'Assurance must be issued by a reviewer independent of the author, approver and evaluator.' });
+    }
     await prisma.$transaction((tx) => appendRunEvidence(tx, {
       runId: job.id, eventType: 'assurance.receipt', actorId: request.authUser!.id,
       payload: { outcome: request.body.outcome, summary: request.body.summary, evidenceRefs: request.body.evidenceRefs ?? [] },
