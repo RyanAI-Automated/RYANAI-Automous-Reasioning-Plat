@@ -43,9 +43,16 @@ export default function RyanAICockpit() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void refreshBrains(controller.signal);
+    // Defer the initial state update until after the effect has committed.
+    const initialRefresh = window.setTimeout(() => {
+      void refreshBrains(controller.signal);
+    }, 0);
     const timer = window.setInterval(() => void refreshBrains(), 20000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    return () => {
+      controller.abort();
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(timer);
+    };
   }, [refreshBrains]);
 
   async function runReasoning(event: FormEvent<HTMLFormElement>) {
