@@ -162,6 +162,7 @@ describe('Redis connection URL inspection', () => {
   it.each([
     'https://redis.example:6379',
     'ftp://redis.example:6379',
+    'REDISS://redis.example:6379',
     'not-a-url',
     'redis:///missing-host',
     'redis://redis.example:70000',
