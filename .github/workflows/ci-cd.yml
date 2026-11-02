@@ -43,7 +43,7 @@ jobs:
       contents: read
       packages: write
     needs: validate
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: vars.RYANAI_CONTAINER_PUBLISH_ENABLED == 'true' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
