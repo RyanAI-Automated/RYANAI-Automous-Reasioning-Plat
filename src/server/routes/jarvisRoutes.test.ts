@@ -78,6 +78,17 @@ describe('POST /api/jarvis/patches/apply', () => {
     expect(patcher.proposePullRequest).not.toHaveBeenCalled();
   });
 
+  it('rejects bearer credentials containing embedded whitespace', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/jarvis/patches/apply',
+      headers: { authorization: 'Bearer fixture-ingress token-32-bytes' },
+      payload,
+    });
+    expect(response.statusCode).toBe(401);
+    expect(patcher.proposePullRequest).not.toHaveBeenCalled();
+  });
+
   it('requires valid machine credentials and creates a reviewable PR proposal, not a live workspace write', async () => {
     patcher.proposePullRequest.mockResolvedValue({
       status: 'proposed',
