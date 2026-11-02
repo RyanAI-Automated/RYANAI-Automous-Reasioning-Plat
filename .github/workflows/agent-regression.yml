@@ -116,8 +116,8 @@ jobs:
 
           cleanup() {
             echo "Shutting down background services..."
-            kill "$api_pid" "$web_pid" 2>/dev/null || true
-            wait "$api_pid" "$web_pid" 2>/dev/null || true
+            kill "$api_pid" "$web_pid" "$mcp_pid" 2>/dev/null || true
+            wait "$api_pid" "$web_pid" "$mcp_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
 
@@ -125,6 +125,15 @@ jobs:
           for i in {1..30}; do
             if curl -s http://localhost:3000/health | grep -q "true" || curl -s http://localhost:3000/health | grep -q "ok"; then
               echo "API is healthy!"
+              break
+            fi
+            sleep 1
+          done
+
+          echo "Waiting for MCP service to become healthy..."
+          for i in {1..15}; do
+            if curl -fsS http://localhost:8765/health | grep -q '"status":"ok"'; then
+              echo "MCP is healthy!"
               break
             fi
             sleep 1
