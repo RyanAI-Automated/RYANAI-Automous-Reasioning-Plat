@@ -72,9 +72,7 @@ if (!Object.hasOwn(providers, brain)) throw new Error('RYANAI_PROBE_BRAIN must b
 
 const provider = providers[brain];
 const apiKey = process.env.PROVIDER_API_KEY;
-if (apiKey) process.env[provider.key] = apiKey;
-
-const config = resolveBrainProviderConfig(brain);
+const config = resolveBrainProviderConfig(brain, { ...process.env, [provider.key]: apiKey });
 const model = process.env[provider.model] || config.model;
 const endpoint = process.env[provider.endpoint] || config.endpoint;
 const prisma = new PrismaClient();
