@@ -43,20 +43,22 @@ export default function Sidebar({
           <div className="text-xs text-ink-600 text-center py-8">No conversations yet</div>
         ) : (
           conversations.map((conv) => (
-            <motion.div
+            <motion.button
               key={conv.id}
+              type="button"
+              aria-pressed={activeId === conv.id}
+              onClick={() => onSelect(conv.id)}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className={`p-2 rounded cursor-pointer text-xs transition-colors ${
+              className={`w-full text-left p-2 rounded text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
                 activeId === conv.id
                   ? 'bg-cyan-500/30 text-cyan-200'
                   : 'bg-ink-800/30 text-ink-400 hover:bg-ink-800/50'
               }`}
-              onClick={() => onSelect(conv.id)}
             >
               <div className="truncate font-semibold">{conv.title}</div>
               <div className="text-[10px] text-ink-600">{conv.messages.length} messages</div>
-            </motion.div>
+            </motion.button>
           ))
         )}
       </div>
