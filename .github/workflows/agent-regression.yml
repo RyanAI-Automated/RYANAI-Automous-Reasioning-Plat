@@ -44,12 +44,13 @@ jobs:
 
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_db
-      REDIS_URL: redis://localhost:6379
+      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_db
+      REDIS_URL: redis://127.0.0.1:6379
       JWT_SECRET: ci_only_secret_at_least_32_characters_long
       OPENAI_API_KEY: ""
-      API_BASE_URL: http://localhost:3000
-      WEB_BASE_URL: http://localhost:9090
+      API_BASE_URL: http://127.0.0.1:3000
+      WEB_BASE_URL: http://127.0.0.1:9090
+      MCP_URL: http://127.0.0.1:8765
 
     steps:
       - name: Checkout
@@ -104,12 +105,15 @@ jobs:
           npm run build:server
           test -s dist/server/server/launcher.js
 
-      - name: Run unit and agent API regression tests
+      - name: Start services and verify readiness and preview proxy
         shell: bash
         run: |
+          set -euo pipefail
           npm run start > api.log 2>&1 &
           api_pid=$!
-          npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
+          # Vite reads this value when preview starts; without it the preview
+          # silently falls back to the local-development API port.
+          VITE_API_BASE_URL=http://127.0.0.1:3000 npm run preview -- --host 127.0.0.1 --port 9090 > web.log 2>&1 &
           web_pid=$!
           MCP_HOST=127.0.0.1 MCP_PORT=8765 npm --prefix mcp-server run start:http > mcp.log 2>&1 &
           mcp_pid=$!
@@ -121,25 +125,23 @@ jobs:
           }
           trap cleanup EXIT
 
-          wait_http() {
-            local name="$1" url="$2" pattern="$3"
-            for attempt in {1..45}; do
-              if body="$(curl --fail --silent "$url" 2>/dev/null)" && grep -Eq "$pattern" <<<"$body"; then
-                echo "$name is ready"
-                return 0
-              fi
-              sleep 1
-            done
-            echo "$name failed readiness: $url"
-            return 1
-          }
-          wait_http "API" "http://127.0.0.1:3000/health" '"status"[[:space:]]*:[[:space:]]*"online"'
-          wait_http "Web preview" "http://127.0.0.1:9090/" '<div'
-          wait_http "MCP" "http://127.0.0.1:8765/health" '"status"[[:space:]]*:[[:space:]]*"ok"'
+          node scripts/wait-for-regression-services.mjs
 
+      - name: Run unit and agent API regression tests
+        run: |
           npm test
           npm run test:integration
           npm run test:e2e
+
+      - name: Print service logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          for name in api web mcp; do
+            echo "::group::${name} service log"
+            if [ -f "${name}.log" ]; then cat "${name}.log"; else echo "${name}.log was not created"; fi
+            echo "::endgroup::"
+          done
 
       - name: Upload service logs on failure
         if: failure()
@@ -151,3 +153,4 @@ jobs:
             web.log
             mcp.log
           if-no-files-found: warn
+          retention-days: 7
