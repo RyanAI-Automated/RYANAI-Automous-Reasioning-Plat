@@ -200,7 +200,7 @@ describe('live smoke script contracts', () => {
       'PASS Authenticated admin WebSocket accepts upgrades',
     );
     expect(result.stdout).toContain(
-      'Integration checks: 5/8 passed',
+      'Integration checks: 5/7 passed',
     );
   });
 
