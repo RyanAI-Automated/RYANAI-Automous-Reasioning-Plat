@@ -14,7 +14,7 @@ const getEnv = (key: string, fallback: string = ''): string => {
   return fallback;
 };
 
-const apiKey = (providerKey?: string) => providerKey || 'not-configured';
+const apiKey = (providerKey?: string) => providerKey || '';
 
 function createBrain(
   modelName: string,
@@ -23,9 +23,9 @@ function createBrain(
   key?: string,
 ) {
   return new ChatOpenAI({
-    modelName,
+    model: modelName,
     temperature,
-    openAIApiKey: apiKey(key),
+    apiKey: apiKey(key),
     configuration: { baseURL },
   });
 }

@@ -22,9 +22,10 @@ describe('createChatModel', () => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key');
     createChatModel('gpt-4o-mini');
     expect(chatOpenAI).toHaveBeenCalledWith({
-      modelName: 'gpt-4o-mini',
+      model: 'gpt-4o-mini',
       temperature: 0,
-      configuration: { baseURL: 'http://localhost:8000/v1', apiKey: 'test-key' },
+      apiKey: 'test-key',
+      configuration: { baseURL: 'http://localhost:8000/v1' },
     });
   });
 
@@ -33,7 +34,7 @@ describe('createChatModel', () => {
     vi.stubEnv('OPENAI_API_KEY', '');
     createChatModel('gpt-4o');
     expect(chatOpenAI).toHaveBeenCalledWith({
-      modelName: 'gpt-4o',
+      model: 'gpt-4o',
       temperature: 0,
       configuration: {},
     });
