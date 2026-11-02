@@ -21,11 +21,38 @@ const brains = {
 const localRuntime = (endpoint: string) => /localhost|127\.0\.0\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL;
 const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? '') ?? '';
 
-async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSignal?: AbortSignal): Promise<BrainOutput> {
+async function updateRunHandoffs(
+  runId: string,
+  brain: BrainId,
+  status: 'running' | 'completed' | 'failed',
+  details: { output?: string; error?: string } = {},
+): Promise<void> {
+  const where = brain === 'logic'
+    ? { runId, toAgent: 'logic' }
+    : { runId, fromAgent: 'supervisor', toAgent: brain };
+  const now = new Date();
+  const updated = await prisma.agentHandoff.updateMany({
+    where,
+    data: {
+      status,
+      startedAt: status === 'running' ? now : undefined,
+      completedAt: status === 'running' ? null : now,
+      output: status === 'running' ? null : details.output ?? null,
+      error: status === 'failed' ? details.error ?? 'Brain execution failed.' : null,
+    },
+  });
+  const expected = brain === 'logic' ? 2 : 1;
+  if (updated.count !== expected) {
+    throw new Error('Live handoff telemetry could not be persisted for ' + brain + ' brain.');
+  }
+}
+
+async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSignal?: AbortSignal, runId?: string): Promise<BrainOutput> {
   const config = brains[brain];
   if (!config.credential && !localRuntime(config.endpoint)) throw new Error(brain + ' brain credential is not configured');
   try {
     return await invokeWithCancellationRetry(async () => {
+    if (runId) await updateRunHandoffs(runId, brain, 'running');
     const started = Date.now();
     const timeoutSignal = AbortSignal.timeout(20_000);
     const invocationSignal = cancellationSignal
@@ -51,6 +78,7 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
       ]);
       const output = asText(response.content);
       if (!output.trim()) throw new Error('Provider returned an empty response');
+      if (runId) await updateRunHandoffs(runId, brain, 'completed', { output });
       return { brain, output, latencyMs: Date.now() - started };
     } finally {
       if (abortHandler) invocationSignal.removeEventListener('abort', abortHandler);
@@ -64,6 +92,10 @@ async function invokeWithRecovery(brain: BrainId, prompt: string, cancellationSi
       throw new Error('Agent run cancelled after lease loss.', { cause: safeCause });
     }
     const safeCause = new Error(summarizeProviderError(error));
+    if (runId) {
+      try { await updateRunHandoffs(runId, brain, 'failed', { error: safeCause.message }); }
+      catch { /* Preserve the sanitized provider failure; missing telemetry remains visible as stale/pending. */ }
+    }
     // eslint-disable-next-line preserve-caught-error -- raw provider errors must never escape this boundary.
     throw new Error(safeCause.message, { cause: safeCause });
   }
@@ -173,7 +205,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
     const sharedObjective = knowledge
       ? knowledge + '\n\nUser task objective:\n' + run.objective
       : run.objective;
-    const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => invokeWithRecovery(brain, prompt, signal), cancellation.signal);
+    const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => invokeWithRecovery(brain, prompt, signal, run.id), cancellation.signal);
     if (plan.outputs.length !== 3 || plan.outputs.some((item) => !item.output.trim()) || !plan.synthesis.trim()) {
       throw new Error('Three-brain result verification failed: every brain must return a non-empty result.');
     }
