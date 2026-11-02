@@ -64,6 +64,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Install locked MCP dependencies
+        run: npm --prefix mcp-server ci
+
       - name: Prepare disposable PostgreSQL with Supabase Auth compatibility
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
@@ -108,23 +111,43 @@ jobs:
           api_pid=$!
           npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
           web_pid=$!
+          MCP_HOST=127.0.0.1 MCP_PORT=8765 npm --prefix mcp-server run start:http > mcp.log 2>&1 &
+          mcp_pid=$!
 
           cleanup() {
             echo "Shutting down background services..."
-            kill "$api_pid" "$web_pid" 2>/dev/null || true
-            wait "$api_pid" "$web_pid" 2>/dev/null || true
+            kill "$api_pid" "$web_pid" "$mcp_pid" 2>/dev/null || true
+            wait "$api_pid" "$web_pid" "$mcp_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
 
-          echo "Waiting for API server to become healthy..."
-          for i in {1..30}; do
-            if curl -s http://localhost:3000/health | grep -q "true" || curl -s http://localhost:3000/health | grep -q "ok"; then
-              echo "API is healthy!"
-              break
-            fi
-            sleep 1
-          done
+          wait_http() {
+            local name="$1" url="$2" pattern="$3"
+            for attempt in {1..45}; do
+              if body="$(curl --fail --silent "$url" 2>/dev/null)" && grep -Eq "$pattern" <<<"$body"; then
+                echo "$name is ready"
+                return 0
+              fi
+              sleep 1
+            done
+            echo "$name failed readiness: $url"
+            return 1
+          }
+          wait_http "API" "http://127.0.0.1:3000/health" '"status"[[:space:]]*:[[:space:]]*"online"'
+          wait_http "Web preview" "http://127.0.0.1:9090/" '<div'
+          wait_http "MCP" "http://127.0.0.1:8765/health" '"status"[[:space:]]*:[[:space:]]*"ok"'
 
           npm test
           npm run test:integration
           npm run test:e2e
+
+      - name: Upload service logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-api-regression-service-logs
+          path: |
+            api.log
+            web.log
+            mcp.log
+          if-no-files-found: warn
