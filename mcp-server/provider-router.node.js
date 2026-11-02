@@ -94,3 +94,40 @@ test('provider endpoints reject embedded credentials and query strings', async (
     }), /clean HTTP or HTTPS URL/);
   }
 });
+
+test('TorchTPU defaults to an optional local OpenAI-compatible serving endpoint', () => {
+  assert.deepEqual(resolveBrain('torchtpu', {}), {
+    id: 'tpu-model', endpoint: 'http://127.0.0.1:8000/v1', key: '',
+  });
+});
+
+test('TorchTPU-hosted OpenAI-compatible endpoints preserve structured JSON', async () => {
+  let request;
+  const result = await routeReasoning('Return a JSON object.', 'torchtpu', {
+    env: {
+      TORCHTPU_API_ENDPOINT: 'https://tpu.example.test/v1',
+      TORCHTPU_MODEL: 'qwen-tpu',
+      TORCHTPU_API_KEY: 'test-only-key',
+    },
+    responseFormat: 'json_object',
+    fetch: async (url, init) => {
+      request = { url: String(url), headers: init.headers, body: JSON.parse(init.body) };
+      return providerResponse({ role: 'assistant', content: '{"device":"tpu"}' });
+    },
+  });
+  assert.equal(request.url, 'https://tpu.example.test/v1/chat/completions');
+  assert.equal(request.headers.authorization, 'Bearer test-only-key');
+  assert.deepEqual(request.body.response_format, { type: 'json_object' });
+  assert.equal(result.response, '{"device":"tpu"}');
+});
+
+test('TorchTPU remote endpoints require HTTPS and an API key', async () => {
+  await assert.rejects(routeReasoning('Hello', 'torchtpu', {
+    env: { TORCHTPU_API_ENDPOINT: 'http://tpu.internal:8000/v1', TORCHTPU_API_KEY: 'test-only-key' },
+    fetch: async () => { throw new Error('fetch must not be called'); },
+  }), /must use HTTPS/);
+  await assert.rejects(routeReasoning('Hello', 'torchtpu', {
+    env: { TORCHTPU_API_ENDPOINT: 'https://tpu.example.test/v1' },
+    fetch: async () => { throw new Error('fetch must not be called'); },
+  }), /unauthenticated requests are allowed only to a loopback endpoint/);
+});
