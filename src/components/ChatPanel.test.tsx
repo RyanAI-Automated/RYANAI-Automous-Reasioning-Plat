@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_MODEL } from '@/lib/models';
@@ -62,7 +62,9 @@ const message: Message = {
   attachments: [imageAttachment, videoAttachment, audioAttachment],
 };
 
-function baseProps(overrides: Record<string, unknown> = {}) {
+type ChatPanelTestProps = ComponentProps<typeof ChatPanel>;
+
+function baseProps(overrides: Partial<ChatPanelTestProps> = {}): ChatPanelTestProps {
   return {
     messages: [message],
     model: DEFAULT_MODEL as ModelId,
@@ -88,7 +90,7 @@ function baseProps(overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function mount(props = baseProps()) {
+async function mount(props: ChatPanelTestProps = baseProps()) {
   await act(async () => {
     root.render(<ChatPanel {...props} />);
   });
