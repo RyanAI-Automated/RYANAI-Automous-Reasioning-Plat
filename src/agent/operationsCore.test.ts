@@ -39,11 +39,14 @@ describe('executeThreeBrainPlan', () => {
     expect(signals.every((signal) => signal === controller.signal && signal.aborted)).toBe(true);
     expect(calls).not.toContain('logic');
   });
-  it('fails visibly when a specialist fails', async () => {
-    await expect(executeThreeBrainPlan('test', async (brain) => {
+  it('continues in explicitly degraded mode when a specialist fails', async () => {
+    const result = await executeThreeBrainPlan('test', async (brain) => {
       if (brain === 'secondary') throw new Error('provider unavailable');
       return { brain, output: 'ok', latencyMs: 1 };
-    })).rejects.toThrow('provider unavailable');
+    });
+    expect(result.degraded).toBe(true);
+    expect(result.verification.verified).toBe(false);
+    expect(result.outputs.map((item) => item.brain)).toEqual(['primary', 'logic']);
   });
 });
 
