@@ -115,7 +115,7 @@ try {
         `| Checked at (UTC) | ${result.checkedAt} |`,
         `| Diagnostic | ${result.diagnostic || 'None'} |`,
         '',
-      ].join('\\n') + '\\n',
+      ].join('\n') + '\n',
     );
   }
 } finally {
