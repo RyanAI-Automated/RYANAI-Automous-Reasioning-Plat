@@ -24,7 +24,7 @@ async function requireJarvisIngressAuth(request: FastifyRequest, reply: FastifyR
     return reply.code(503).send({ success: false, error: 'Jarvis ingress token is not configured.' });
   }
   const authorization = request.headers.authorization || '';
-  const supplied = /^Bearer ([^\\s]+)$/i.exec(authorization)?.[1] || '';
+  const supplied = /^Bearer ([^\s]+)$/i.exec(authorization)?.[1] || '';
   const expectedBytes = Buffer.from(expected);
   const suppliedBytes = Buffer.from(supplied);
   if (suppliedBytes.length !== expectedBytes.length || !timingSafeEqual(suppliedBytes, expectedBytes)) {
