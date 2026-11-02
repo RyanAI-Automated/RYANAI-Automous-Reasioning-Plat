@@ -40,8 +40,8 @@ export async function voiceRealtimeGateway(fastify: FastifyInstance) {
         session: {
           modalities: ['text', 'audio'],
           instructions:
-            'You are RyanAI, an intelligent voice agent engineered by Ntsiyeni Ganyane. Respond clearly, concisely, and execute systems queries accurately.',
-          voice: 'alloy',
+            'You are RyanAI, an intelligent voice agent. Address the configured owner as Sir. Speak naturally in English (South Africa, en-ZA), with clear South African phrasing. Respond clearly, concisely, and execute systems queries accurately.',
+          voice: process.env.RYANAI_REALTIME_VOICE?.trim() || 'alloy',
           input_audio_format: 'pcm16',
           output_audio_format: 'pcm16',
           turn_detection: {

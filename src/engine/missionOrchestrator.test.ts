@@ -7,12 +7,16 @@ const mocks = vi.hoisted(() => ({
   saveCheckpoint: vi.fn(),
   getLatestCheckpoint: vi.fn(),
 }));
-vi.mock('./dispatcher', () => ({
-  RyanAIDispatcher: {
-    planObjective: mocks.planObjective,
-    executeTasks: mocks.executeTasks,
-  },
-}));
+vi.mock('./dispatcher', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./dispatcher')>();
+  return {
+    ...actual,
+    RyanAIDispatcher: {
+      planObjective: mocks.planObjective,
+      executeTasks: mocks.executeTasks,
+    },
+  };
+});
 vi.mock('./agentWorkers', () => ({
   RyanAIAgentWorkers: { runSecurityAuditor: mocks.runSecurityAuditor },
 }));
@@ -87,6 +91,23 @@ describe('RyanAI mission security gate', () => {
     const completed = await new RyanAIMissionOrchestrator().resumeMission('mission-restored', true);
     expect(completed?.status).toBe('COMPLETED');
     expect(mocks.executeTasks).toHaveBeenCalledWith(plan.tasks);
+  });
+
+  it('refuses to resume a checkpoint containing a corrupted task plan', async () => {
+    mocks.getLatestCheckpoint.mockResolvedValue({
+      step: 2,
+      state: {
+        missionId: 'mission-corrupt',
+        objective: 'Analyze the platform',
+        currentPhase: 2,
+        status: 'PAUSED_FOR_APPROVAL',
+        logs: ['Awaiting approval'],
+        tasks: [{ id: '../bad', title: 'Invalid', targetBrain: 'nvidia', payload: 'Analyze.' }],
+      },
+    });
+    const resumed = await new RyanAIMissionOrchestrator().resumeMission('mission-corrupt', true);
+    expect(resumed).toBeNull();
+    expect(mocks.executeTasks).not.toHaveBeenCalled();
   });
 
   it('does not claim completion when execution fails', async () => {

@@ -20,9 +20,12 @@ const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
+const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
 import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
 import RyanWelcome from '@/components/RyanWelcome';
+import Greeting from '@/components/Greeting';
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -60,21 +63,54 @@ const destinations = appManifest.routes.map((route) => ({
 
 export default function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
+  const [verifiedIdentity, setVerifiedIdentity] = useState<{ userId: string; isOwner: boolean; displayName?: string } | null>(null);
   const { session, loading, error, signingOut, signOut } = useAuth();
   const isAuthRoute = route === 'signin' || route === 'signup';
+  // Supabase redirects OAuth authorization requests to this real path (not a hash route).
+  const isOAuthConsentRoute = window.location.pathname.replace(/\/+$/, '') === '/oauth/consent';
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
   const preferredTitle = typeof user?.user_metadata?.preferred_title === 'string'
     ? user.user_metadata.preferred_title
     : isAdmin ? 'Sir' : undefined;
+  const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
-      : user?.email;
+      : user?.email?.split('@')[0];
 
   const handleSignOut = async () => {
     if (await signOut()) window.location.hash = '/signin';
   };
+
+  const authenticatedUserId = user?.id;
+  const authenticatedUserEmail = user?.email;
+  const authenticatedOwnerClaim = user?.app_metadata?.owner === true;
+
+  useEffect(() => {
+    if (!authenticatedUserId) return;
+    let active = true;
+    void authenticatedFetch('/api/auth/verify')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Identity verification unavailable');
+        return response.json() as Promise<{ user?: { isOwner?: boolean; displayName?: string } }>;
+      })
+      .then((result) => {
+        if (active) setVerifiedIdentity({
+          userId: authenticatedUserId,
+          isOwner: result.user?.isOwner === true,
+          displayName: result.user?.displayName,
+        });
+      })
+      .catch(() => {
+        if (active) setVerifiedIdentity({
+          userId: authenticatedUserId,
+          isOwner: authenticatedOwnerClaim,
+          displayName,
+        });
+      });
+    return () => { active = false; };
+  }, [authenticatedUserId, authenticatedUserEmail, authenticatedOwnerClaim, displayName]);
 
   useEffect(() => {
     if (session && isAuthRoute) window.location.hash = '/workspace';
@@ -88,6 +124,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen min-h-[480px] flex-col overflow-hidden bg-slate-950 text-slate-100">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <header className="z-20 flex min-h-14 items-center justify-between border-b border-cyan-400/15 bg-slate-950/95 px-4 sm:px-8">
         <a
           href="#/"
@@ -101,7 +138,11 @@ export default function App() {
           className="flex items-center gap-1 overflow-x-auto"
         >
           {destinations
-            .filter(({ id }) => !user || (id !== 'signin' && id !== 'signup'))
+            .filter(({ id }) =>
+              user
+                ? id !== 'signin' && id !== 'signup'
+                : id === 'landing' || id === 'signin' || id === 'signup',
+            )
             .map(({ id, path, label, icon: Icon }) => (
               <a
                 key={id}
@@ -137,8 +178,10 @@ export default function App() {
 
       <Suspense fallback={<p role="status" className="p-8 text-slate-300">Loading RyanAI workspace…</p>}>
       <main
+        id="main-content"
         key={user?.id ?? 'signed-out'}
-        className="min-h-0 flex-1 overflow-y-auto"
+        tabIndex={-1}
+        className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
       >
         {user && (
           <RyanWelcome
@@ -147,12 +190,21 @@ export default function App() {
             preferredTitle={preferredTitle}
           />
         )}
+        {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
             {error}
           </p>
         )}
-        {route === 'landing' ? (
+        {isOAuthConsentRoute ? (
+          loading ? (
+            <p role="status" className="p-8 text-slate-300">Restoring your session before authorization…</p>
+          ) : user ? (
+            <OAuthConsentPage key={user.id} userId={user.id} />
+          ) : (
+            <AuthPage key="oauth-signin" mode="signin" />
+          )
+        ) : route === 'landing' ? (
           <LandingPage />
         ) : loading ? (
           <p role="status" className="p-8 text-slate-300">
@@ -179,7 +231,7 @@ export default function App() {
               </>
             )}
             {(route === 'workspace' || isAuthRoute) && (
-              <div className="h-full min-h-[calc(100vh-3.5rem)]">
+              <div className="min-h-0">
                 <CommandCenter
                   onSignOut={() => void handleSignOut()}
                   userId={user.id}

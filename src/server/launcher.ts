@@ -14,8 +14,9 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
+import { inspectReadiness } from './readiness.js';
 
 import { API_ROUTES } from '../config/core.js';
 
@@ -34,9 +35,12 @@ import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { registerPatchRoutes } from './routes/patchRoutes.js';
-import { initializeAgentDatabase } from '../agent/approvalEngine.js';
+import { inspectDatabaseSchema } from './databaseSchema.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
+import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { startAgentTaskWorker, startBrainHealthMonitor } from '../agent/operations.js';
+import { startAttachmentScanner } from './attachments/scanner.js';
+import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 
 const { Pool } = pg;
 
@@ -140,14 +144,23 @@ const serviceStatus = {
 
 function registerCoreRoutes() {
   const healthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
-    const healthy =
-      serviceStatus.database && serviceStatus.redis && serviceStatus.api;
-    reply.code(healthy ? 200 : 503);
+    const readiness = await inspectReadiness({
+      database: async () => {
+        if (!dbPool) throw new Error('PostgreSQL pool is unavailable');
+        await dbPool.query('SELECT 1');
+      },
+      redis: async () => {
+        await fastify.redis.ping();
+      },
+      agentCheckpointerInitialized: serviceStatus.agentCheckpointer,
+      apiListening: serviceStatus.api,
+    });
+    reply.code(readiness.ready ? 200 : 503);
     return {
-      status: healthy ? 'online' : 'degraded',
+      status: readiness.ready ? 'online' : 'degraded',
       service: 'ryanai-api-gateway',
       timestamp: new Date().toISOString(),
-      services: serviceStatus,
+      services: readiness.services,
       engine: 'LangGraph ReAct',
       architect: 'RyanAI',
       cudaActive: false,
@@ -155,7 +168,17 @@ function registerCoreRoutes() {
     };
   };
 
-  // Collision-free health check registrations
+  // Liveness is deliberately independent of dependency readiness.
+  fastify.get('/livez', async () => ({
+    status: 'alive',
+    service: 'ryanai-api-gateway',
+    timestamp: new Date().toISOString(),
+  }));
+
+  // Readiness probes live PostgreSQL and Redis connections on every request.
+  fastify.get('/readyz', healthCheck);
+
+  // Collision-free health check registrations; legacy paths remain readiness aliases.
   fastify.get('/health', healthCheck);
   if ((API_ROUTES.healthPath as string) !== '/health') {
     fastify.get(API_ROUTES.healthPath, healthCheck);
@@ -188,8 +211,9 @@ function registerCoreRoutes() {
     prompt: string,
     model?: string,
     user?: FastifyRequest['authUser'],
+    language?: string,
   ) {
-    const result = await invokeReasoningAgent({ prompt, model, user });
+    const result = await invokeReasoningAgent({ prompt, model, user, language });
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
@@ -217,12 +241,13 @@ function registerCoreRoutes() {
         prompt: { type: 'string', minLength: 1, maxLength: 20000 },
         model: { type: 'string', maxLength: 100 },
         sessionId: { type: 'string', maxLength: 200 },
+        language: { type: 'string', maxLength: 16 },
       },
     },
   };
 
   const handleReasoningRequest = async (
-    request: FastifyRequest<{ Body: { prompt?: string; model?: string } }>,
+    request: FastifyRequest<{ Body: { prompt?: string; model?: string; language?: string } }>,
     reply: FastifyReply,
   ) => {
     if (!request.authUser?.id) {
@@ -239,7 +264,7 @@ function registerCoreRoutes() {
     }
 
     try {
-      return await runReasoning(prompt, request.body?.model, request.authUser);
+      return await runReasoning(prompt, request.body?.model, request.authUser, request.body?.language);
     } catch (err) {
       fastify.log.error({ err }, 'Reasoning request failed');
       return reply.code(502).send({
@@ -250,13 +275,13 @@ function registerCoreRoutes() {
   };
 
   // Collision-free reasoning endpoint registrations
-  fastify.post<{ Body: { prompt?: string; model?: string } }>(
+  fastify.post<{ Body: { prompt?: string; model?: string; language?: string } }>(
     API_ROUTES.reasonPath,
     { schema: reasoningBodySchema },
     handleReasoningRequest,
   );
   if (API_ROUTES.reasonPath !== '/api/reason') {
-    fastify.post<{ Body: { prompt?: string; model?: string } }>(
+    fastify.post<{ Body: { prompt?: string; model?: string; language?: string } }>(
       '/api/reason',
       { schema: reasoningBodySchema },
       handleReasoningRequest,
@@ -265,7 +290,7 @@ function registerCoreRoutes() {
 
   // Reasoning stream endpoint
   fastify.post<{
-    Body: { prompt?: string; sessionId?: string; model?: string };
+    Body: { prompt?: string; sessionId?: string; model?: string; language?: string };
   }>(API_ROUTES.streamPath, { schema: reasoningBodySchema }, async (request, reply) => {
     if (!request.authUser?.id) {
       return reply.code(401).send({
@@ -308,7 +333,7 @@ function registerCoreRoutes() {
         status: 'processing',
         message: `Running reasoning for ${sessionId || 'default'}...`,
       });
-      const result = await runReasoning(prompt, request.body?.model, request.authUser);
+      const result = await runReasoning(prompt, request.body?.model, request.authUser, request.body?.language);
       sendEvent({
         status: 'complete',
         result: result.output,
@@ -373,44 +398,21 @@ async function initializeDatabase() {
     });
 
     const result = await dbPool.query('SELECT NOW()');
+    const schema = await inspectDatabaseSchema((sql) => dbPool!.query(sql));
 
-    await dbPool.query(`
-      CREATE TABLE IF NOT EXISTS communication_conversations (
-        id TEXT PRIMARY KEY,
-        channel TEXT NOT NULL,
-        external_address TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT communication_conversations_channel_address_key UNIQUE (channel, external_address)
-      )
-    `);
-    await dbPool.query(`
-      CREATE TABLE IF NOT EXISTS communication_messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL REFERENCES communication_conversations(id) ON DELETE CASCADE,
-        direction TEXT NOT NULL,
-        body TEXT NOT NULL,
-        provider_message_id TEXT UNIQUE,
-        status TEXT NOT NULL DEFAULT 'received',
-        metadata JSONB,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await dbPool.query('CREATE INDEX IF NOT EXISTS communication_messages_conversation_created_idx ON communication_messages (conversation_id, created_at)');
-    await dbPool.query('CREATE INDEX IF NOT EXISTS communication_messages_status_created_idx ON communication_messages (status, created_at)');
-    await dbPool.query('CREATE INDEX IF NOT EXISTS communication_conversations_channel_updated_idx ON communication_conversations (channel, updated_at)');
+    if (!schema.communications) {
+      throw new Error(
+        'Required communication schema is missing. Run npm run db:migrate before starting the API.',
+      );
+    }
 
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
+    serviceStatus.agentCheckpointer = schema.agentCheckpointer;
 
-    try {
-      await initializeAgentDatabase();
-      serviceStatus.agentCheckpointer = true;
-    } catch (agentErr) {
+    if (!schema.agentCheckpointer) {
       console.warn(
-        '⚠️ Agent PostgresSaver checkpointer setup deferred/failed:',
-        databaseFailureDiagnostic(agentErr),
-        agentErr instanceof Error ? agentErr.message : agentErr,
+        '⚠️ Agent checkpointer schema is not prepared. Run npm run db:migrate before enabling agent execution.',
       );
     }
 
@@ -419,7 +421,6 @@ async function initializeDatabase() {
     console.error(
       `✗ Database connection failed:`,
       databaseFailureDiagnostic(err),
-      err instanceof Error ? err.message : err,
     );
     return false;
   }
@@ -432,10 +433,10 @@ async function verifyRedis() {
     console.log(`✓ Redis connected: ${pong}`);
     serviceStatus.redis = true;
     return true;
-  } catch (err) {
+  } catch {
     console.error(
       `✗ Redis connection failed:`,
-      err instanceof Error ? err.message : err,
+      'Redis health probe failed. Raw error details are omitted to protect credentials.',
     );
     return false;
   }
@@ -477,6 +478,7 @@ async function registerPlugins() {
   await fastify.register(metricsRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
+  await fastify.register(realtimeVoiceRoutes);
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
   await fastify.register(registerPatchRoutes);
@@ -488,12 +490,32 @@ async function registerPlugins() {
 
 async function start() {
   try {
-    console.log('\n🔧 Registering Plugins...\n');
-    await registerPlugins();
+    // Probe PostgreSQL before Redis/plugin registration. A Redis failure must
+    // never prevent us from independently verifying and reporting the database.
+    console.log('\n📡 Verifying PostgreSQL before plugin registration...\n');
+    const databaseReady = await initializeDatabase();
 
-    console.log('\n📡 Connecting Services...\n');
-    await initializeDatabase();
-    await verifyRedis();
+    console.log('\n🔧 Registering Plugins and verifying Redis...\n');
+    let redisReady = false;
+    try {
+      await registerPlugins();
+      redisReady = await verifyRedis();
+    } catch {
+      // Redis URLs and client errors can contain credentials. connectRedis
+      // already emits a sanitized diagnostic; do not log a raw plugin error.
+      fastify.log.error(
+        'Redis/plugin initialization failed. Raw connection details are omitted to protect credentials.',
+      );
+    }
+
+    assertProductionDependencies(config.nodeEnv, {
+      database: databaseReady,
+      redis: redisReady,
+      agentCheckpointer: serviceStatus.agentCheckpointer,
+    });
+    if (!redisReady) {
+      throw new Error('Startup blocked: Redis did not pass its live connectivity check.');
+    }
 
     console.log(`\n🚀 Starting Fastify Server...\n`);
     await fastify.listen({ port: config.port, host: config.host });
@@ -510,6 +532,13 @@ async function start() {
     stopBrainMonitor = startBrainHealthMonitor();
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
     else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
+
+    if (process.env.ATTACHMENT_SCANNER_ENABLED === 'true') {
+      stopAttachmentScanner = startAttachmentScanner();
+    }
+    if (process.env.ATTACHMENT_ORPHAN_CLEANUP_ENABLED === 'true') {
+      stopAttachmentOrphanCleanup = startAttachmentOrphanCleanup();
+    }
 
     // Scheduled tasks start AI runs with no person present, and those runs cost
     // money. Turn them on with an explicit setting.
@@ -533,12 +562,16 @@ async function start() {
 let stopScheduler: (() => void) | undefined;
 let stopBrainMonitor: (() => void) | undefined;
 let stopAgentWorker: (() => void) | undefined;
+let stopAttachmentScanner: (() => void) | undefined;
+let stopAttachmentOrphanCleanup: (() => void) | undefined;
 let stopAlerts: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   stopScheduler?.();
   stopBrainMonitor?.();
   stopAgentWorker?.();
+  stopAttachmentScanner?.();
+  stopAttachmentOrphanCleanup?.();
   stopAlerts?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();

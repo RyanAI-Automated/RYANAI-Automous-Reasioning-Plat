@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import twilio from 'twilio';
 import { twilioWebhookPlugin } from './twilioWebhook.js';
+import { ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
 import { installAuthentication } from './auth.js';
 
 const { invoke, prismaMock } = vi.hoisted(() => ({
@@ -51,6 +52,7 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_WHATSAPP_WEBHOOK_URL', webhookUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
+  vi.stubEnv('RYANAI_OWNER_LANGUAGE', 've-ZA');
   invoke.mockResolvedValue({
     messages: [{ content: 'Approved <reply> & ready' }],
   });
@@ -132,6 +134,14 @@ describe('Twilio webhook provider authentication', () => {
     expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       { messages: [{ role: 'system', content: expect.stringContaining('English - South Africa') }, { role: 'user', content: 'Please help' }] },
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Certainly, Sir G. Approved &lt;reply&gt; &amp; ready</Message></Response>',
+    );
+    expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      { messages: [
+        { role: 'system', content: ownerCommunicationInstruction() },
+        { role: 'user', content: 'Please help' },
+      ] },
       { configurable: { thread_id: 'whatsapp_15555550123' } },
     );
   });

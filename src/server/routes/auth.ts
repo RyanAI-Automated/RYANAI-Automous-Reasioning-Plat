@@ -19,6 +19,8 @@ export interface AuthenticatedUser {
   id: string;
   email?: string;
   role: 'user' | 'admin';
+  displayName?: string;
+  isOwner: boolean;
 }
 
 // Augment Fastify types to include custom request properties and Prisma instance
@@ -86,6 +88,8 @@ export async function requireUser(
       id: data.user.id,
       email: data.user.email,
       role: data.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
+      displayName: typeof data.user.user_metadata?.full_name === 'string' ? data.user.user_metadata.full_name : undefined,
+      isOwner: Boolean(data.user.email && process.env.RYANAI_OWNER_EMAIL?.trim() && data.user.email.toLowerCase() === process.env.RYANAI_OWNER_EMAIL.trim().toLowerCase()),
     };
   } catch {
     return reply
@@ -152,11 +156,14 @@ export function installAuthentication(fastify: FastifyInstance) {
 
     if (
       (request.method === 'POST' &&
-        ['/api/reason', '/api/reasoning/stream'].includes(path)) ||
+        ['/api/reason', '/api/reasoning/stream', '/api/v1/realtime/voice-ticket'].includes(path)) ||
       (request.method === 'GET' && path === '/api/auth/verify')
     ) {
       return requireUser(request, reply);
     }
+
+    // WebSocket upgrades consume a short-lived, one-time ticket issued to a verified user.
+    if (request.method === 'GET' && path === '/api/v1/realtime/voice') return;
 
     return requireAdmin(request, reply);
   });

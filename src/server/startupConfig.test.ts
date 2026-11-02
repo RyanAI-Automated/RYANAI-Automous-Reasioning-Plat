@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 
 const expectedLocalDatabaseUrl = () => {
   const url = new URL('postgresql://localhost:5432/ryanai');
@@ -52,5 +52,48 @@ describe('production connection configuration', () => {
     expect(() => resolveConnectionUrls('production', '  ', 'redis://cache')).toThrow(
       'DATABASE_URL',
     );
+  });
+});
+
+
+describe('production startup dependency gate', () => {
+  it('blocks production startup when PostgreSQL is unavailable', () => {
+    expect(() =>
+      assertProductionDependencies('production', { database: false, redis: true, agentCheckpointer: true }),
+    ).toThrow('PostgreSQL');
+  });
+
+  it('blocks production startup when Redis is unavailable', () => {
+    expect(() =>
+      assertProductionDependencies('production', { database: true, redis: false, agentCheckpointer: true }),
+    ).toThrow('Redis');
+  });
+
+  it('allows production startup only when both dependencies are ready', () => {
+    expect(() =>
+      assertProductionDependencies('production', { database: true, redis: true, agentCheckpointer: true }),
+    ).not.toThrow();
+  });
+
+  it('keeps non-production degraded startup behavior unchanged', () => {
+    expect(() =>
+      assertProductionDependencies('development', { database: false, redis: false, agentCheckpointer: false }),
+    ).not.toThrow();
+    expect(() =>
+      assertProductionDependencies('test', { database: false, redis: false, agentCheckpointer: false }),
+    ).not.toThrow();
+  });
+});
+
+
+describe('production agent checkpointer readiness', () => {
+  it('blocks production startup when the agent checkpointer is unavailable', () => {
+    expect(() =>
+      assertProductionDependencies('production', {
+        database: true,
+        redis: true,
+        agentCheckpointer: false,
+      }),
+    ).toThrow('agent checkpointer');
   });
 });

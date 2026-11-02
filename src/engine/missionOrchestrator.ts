@@ -1,5 +1,5 @@
 // src/engine/missionOrchestrator.ts
-import { RyanAIDispatcher, type SubTask, type SubTaskResult } from './dispatcher';
+import { RyanAIDispatcher, validateSubTaskPlan, type SubTask, type SubTaskResult } from './dispatcher';
 import { RyanAIAgentWorkers } from './agentWorkers';
 import { RyanAICheckpointer } from './checkpointer';
 
@@ -102,10 +102,13 @@ export class RyanAIMissionOrchestrator {
         !restored ||
         restored.missionId !== missionId ||
         restored.status !== 'PAUSED_FOR_APPROVAL' ||
-        !Array.isArray(restored.tasks) ||
-        restored.tasks.length < 1 ||
-        restored.tasks.length > 3
+        !Array.isArray(restored.tasks)
       ) return null;
+      try {
+        restored.tasks = validateSubTaskPlan(restored.tasks);
+      } catch {
+        return null;
+      }
       context = restored as MissionContext;
       RyanAIMissionOrchestrator.activeMissions.set(missionId, context);
     }

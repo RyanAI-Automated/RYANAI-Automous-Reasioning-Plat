@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   app: undefined as FastifyInstance | undefined,
   invoke: vi.fn(),
   listen: vi.fn().mockResolvedValue('http://localhost:3000'),
+  events: [] as string[],
 }));
 
 // Exercise the real launcher's routes without external services or a TCP listener.
@@ -24,12 +25,18 @@ vi.mock('fastify', async (importOriginal) => {
 vi.mock('pg', () => ({
   default: {
     Pool: class {
-      query = vi.fn().mockResolvedValue({ rows: [{ now: 'test' }] });
+      query = vi.fn().mockImplementation(async () => {
+        state.events.push('database');
+        return { rows: [{ now: 'test' }] };
+      });
     },
   },
 }));
 vi.mock('./connectRedis.js', () => ({
-  connectRedis: vi.fn().mockResolvedValue({}),
+  connectRedis: vi.fn().mockImplementation(async () => {
+    state.events.push('redis');
+    return {};
+  }),
 }));
 vi.mock('@fastify/redis', async () => {
   const { default: fp } = await import('fastify-plugin');
@@ -67,8 +74,11 @@ vi.mock('./routes/twilioWebhook.js', () => ({
   twilioWebhookPlugin: async () => {},
 }));
 vi.mock('./routes/metrics.js', () => ({ metricsRoutes: async () => {} }));
-vi.mock('../agent/approvalEngine.js', () => ({
-  initializeAgentDatabase: async () => {},
+vi.mock('./databaseSchema.js', () => ({
+  inspectDatabaseSchema: async () => ({
+    communications: true,
+    agentCheckpointer: true,
+  }),
 }));
 vi.mock('../agent/invoke.js', () => ({
   invokeReasoningAgent: state.invoke,
@@ -96,6 +106,13 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
+describe('launcher startup dependency order', () => {
+  it('verifies PostgreSQL independently before attempting Redis plugin registration', () => {
+    expect(state.events[0]).toBe('database');
+    expect(state.events.indexOf('redis')).toBeGreaterThan(state.events.indexOf('database'));
+  });
+});
+
 describe('launcher reasoning routes', () => {
   it('serves cross-origin SSE with the CORS headers intact', async () => {
     state.invoke.mockResolvedValue({ messages: [{ content: 'answer' }], engine: 'RyanAI Three-Brain Orchestrator', runId: 'run-test', handoffs: [] });
@@ -103,12 +120,13 @@ describe('launcher reasoning routes', () => {
       method: 'POST',
       url: '/api/reasoning/stream',
       headers: { origin: 'https://frontend.vercel.app', authorization: 'Bearer test-token' },
-      payload: { prompt: 'hello' },
+      payload: { prompt: 'hello', language: 've-ZA' },
     });
     expect(response.statusCode).toBe(200);
     expect(response.headers['access-control-allow-origin']).toBe('https://frontend.vercel.app');
     expect(response.headers['content-type']).toBe('text/event-stream');
     expect(response.body).toContain('"status":"complete","result":"answer"');
+    expect(state.invoke).toHaveBeenCalledWith(expect.objectContaining({ language: 've-ZA' }));
   });
 
   it('rejects unauthenticated reasoning requests before invoking the orchestrator', async () => {
