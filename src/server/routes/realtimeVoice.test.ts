@@ -67,7 +67,6 @@ describe('authenticated realtime voice gateway', () => {
     expect(redis.set).toHaveBeenCalledWith(
       `ryanai:realtime-voice:${response.json().ticket}`,
       expect.any(String),
-      JSON.stringify({ userId: 'user-123', isOwner: true, language: 've-ZA' }),
       'EX',
       30,
       'NX',
