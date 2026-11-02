@@ -59,26 +59,26 @@ jobs:
           ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
           ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}
           ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
           AZURE_AKS_DEPLOY_ENABLED: ${{ vars.AZURE_AKS_DEPLOY_ENABLED }}
           AZURE_CONTAINER_REGISTRY: ${{ vars.AZURE_CONTAINER_REGISTRY }}
           AZURE_CONTAINER_NAME: ${{ vars.AZURE_CONTAINER_NAME }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_CLUSTER_NAME: ${{ vars.AZURE_CLUSTER_NAME }}
           AZURE_KUSTOMIZE_PATH: ${{ vars.AZURE_KUSTOMIZE_PATH }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID != '' }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID != '' }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID != '' }}
           DATADOG_SYNTHETICS_ENABLED: ${{ vars.DATADOG_SYNTHETICS_ENABLED }}
-          DD_API_KEY: ${{ secrets.DD_API_KEY }}
-          DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+          DD_API_KEY: ${{ secrets.DD_API_KEY != '' }}
+          DD_APP_KEY: ${{ secrets.DD_APP_KEY != '' }}
           RENDER_DEPLOY_ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
           VERCEL_DEPLOY_ENABLED: ${{ vars.VERCEL_DEPLOY_ENABLED }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID != '' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID != '' }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           # Pass only boolean presence indicators; never expose model API keys to audit processes.
           RYANAI_NVIDIA_KEY_CONFIGURED: ${{ secrets.NVIDIA_API_KEY != '' }}
@@ -158,8 +158,8 @@ jobs:
       API_BASE_URL: http://127.0.0.1:3000
       WEB_BASE_URL: http://127.0.0.1:9090
       # Optional live-auth E2E checks run only when dedicated CI test tokens are configured.
-      TEST_USER_ACCESS_TOKEN: ${{ secrets.TEST_USER_ACCESS_TOKEN }}
-      TEST_ADMIN_ACCESS_TOKEN: ${{ secrets.TEST_ADMIN_ACCESS_TOKEN }}
+      TEST_USER_ACCESS_TOKEN: ${{ github.event_name == 'push' && secrets.TEST_USER_ACCESS_TOKEN || '' }}
+      TEST_ADMIN_ACCESS_TOKEN: ${{ github.event_name == 'push' && secrets.TEST_ADMIN_ACCESS_TOKEN || '' }}
 
     steps:
       - name: Checkout
