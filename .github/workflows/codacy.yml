@@ -54,8 +54,36 @@ jobs:
           # This will handover control about PR rejection to the GitHub side
           max-allowed-issues: 2147483647
 
-      # Upload the SARIF file generated in the previous step
-      - name: Upload SARIF results file
-        uses: github/codeql-action/upload-sarif@v3
+      # GitHub requires one SARIF run per category. Codacy can emit multiple
+      # runs in one file, so split them and give each run a stable unique category.
+      - name: Split Codacy SARIF into uniquely categorized runs
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const report = JSON.parse(fs.readFileSync('results.sarif', 'utf8'));
+          if (!Array.isArray(report.runs) || report.runs.length === 0) {
+            throw new Error('Codacy produced no SARIF runs');
+          }
+
+          fs.mkdirSync('sarif-output', { recursive: true });
+          report.runs.forEach((run, index) => {
+            const tool = (run.tool?.driver?.name ?? 'tool')
+              .toLowerCase()
+              .replace(/[^a-z0-9-]+/g, '-')
+              .replace(/^-+|-+$/g, '') || 'tool';
+            run.runAutomationDetails = {
+              ...(run.runAutomationDetails ?? {}),
+              id: `codacy-${tool}-${index}/analysis`,
+            };
+            const filename = `sarif-output/${String(index).padStart(3, '0')}-${tool}.sarif`;
+            fs.writeFileSync(filename, JSON.stringify({ ...report, runs: [run] }));
+          });
+          NODE
+
+      # Directory uploads use each file's unique runAutomationDetails.id category.
+      - name: Upload SARIF results files
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: results.sarif
+          sarif_file: sarif-output/

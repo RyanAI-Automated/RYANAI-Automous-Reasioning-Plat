@@ -181,7 +181,7 @@ jobs:
         run: |
           set -euo pipefail
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
               CREATE ROLE anon NOLOGIN;
@@ -192,7 +192,7 @@ jobs:
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
               CREATE ROLE service_role NOLOGIN BYPASSRLS;
             END IF;
-          END $;
+          END $$;
           CREATE SCHEMA IF NOT EXISTS auth;
           CREATE TABLE IF NOT EXISTS auth.users (
             id uuid PRIMARY KEY,
