@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { PrismaClient } from '@prisma/client';
@@ -82,16 +83,41 @@ try {
     throw new Error('Persisted provider health record did not match the probe result.');
   }
 
-  console.log(JSON.stringify({
+  const result = {
     brain: persisted.brain,
     model: persisted.model,
     status: persisted.status,
     responseValidated: persisted.status === 'HEALTHY',
+    challenge: BRAIN_PROBE_CHALLENGE,
     latencyMs: persisted.latencyMs,
     checkedAt: persisted.checkedAt.toISOString(),
     diagnostic: persisted.lastError,
     persistenceVerified: true,
-  }));
+  };
+  console.log(JSON.stringify(result));
+
+  // Keep a concise, credential-free evidence record in the Actions summary.
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      [
+        '## Provider verification evidence',
+        '',
+        '| Field | Result |',
+        '|---|---|',
+        `| Brain | ${result.brain} |`,
+        `| Model | ${result.model} |`,
+        `| Status | ${result.status} |`,
+        `| Exact challenge | ${result.responseValidated ? 'Validated' : 'Failed'} |`,
+        `| Challenge value | ${result.challenge} |`,
+        `| Database readback | ${result.persistenceVerified ? 'Verified' : 'Failed'} |`,
+        `| Latency (ms) | ${result.latencyMs} |`,
+        `| Checked at (UTC) | ${result.checkedAt} |`,
+        `| Diagnostic | ${result.diagnostic || 'None'} |`,
+        '',
+      ].join('\\n') + '\\n',
+    );
+  }
 } finally {
   await prisma.$disconnect();
 }
