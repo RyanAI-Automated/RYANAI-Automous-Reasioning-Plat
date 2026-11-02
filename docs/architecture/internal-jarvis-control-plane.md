@@ -15,8 +15,8 @@ Every submitted engineering task is recorded in the Jarvis audit table. Privileg
 
 ## MCPJungle
 
-The existing optional `mcp-gateway` Compose profile and MCP tool allowlist remain the gateway foundation. Server registration and gateway credentials must be provisioned explicitly by an administrator; this change does not invent an MCPJungle API contract, token, or external Jarvis endpoint.
+The existing optional `mcp-gateway` Compose profile is paired with explicit server and tool-group manifests under `mcpjungle/`. The registration points to `http://mcp-server:8765/mcp` and resolves the MCP bearer token from an operator-provided environment variable. The read-only group is defined separately from the opt-in diagnostics group. An administrator must initialize enterprise mode, register the server, create groups and provision a dedicated client token using the MCPJungle CLI. No token is generated or committed by this PR.
 
 ## Operational boundary
 
-This first vertical slice reuses RyanAI's persisted AgentRun worker queue. It establishes the internal authenticated API, registry policy and durable audit trail. It does not claim that repository sandboxing, patch application, test evidence, MCPJungle registration, or end-to-end approval execution are complete. Those require separate adapters and acceptance tests before the control plane can be called operational.
+This first vertical slice reuses RyanAI's persisted AgentRun worker queue. It establishes the internal authenticated API, registry policy and durable audit trail. It does not claim that repository sandboxing, patch application, test evidence, MCPJungle registration (operator action still pending), or end-to-end approval execution are complete. Those require separate adapters and acceptance tests before the control plane can be called operational.
