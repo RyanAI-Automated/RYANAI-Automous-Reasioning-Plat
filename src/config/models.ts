@@ -125,7 +125,7 @@ export const PROVIDER_GATEWAYS: Record<ModelProvider, GatewayConfig> = {
 export const AVAILABLE_MODELS: Record<string, ModelDefinition> = {
   // --- NVIDIA Nemotron Series ---
   'nemotron-3-ultra': {
-    id: 'nvidia/nemotron-3-ultra',
+    id: 'nvidia/nemotron-3-ultra-550b-a55b',
     name: 'Nvidia Nemotron 3 Ultra',
     provider: 'nvidia',
     contextWindow: 128000,
