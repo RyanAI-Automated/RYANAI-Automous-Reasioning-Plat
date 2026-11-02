@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Download, Upload, Mic, Square, Paperclip, X, ChevronUp, ChevronDown } from 'lucide-react';
-import type { Message, ModelId } from '@/lib/types';
+import type { Message, MessageAttachment, ModelId } from '@/lib/types';
 import { validateAttachmentBatch } from '@/lib/attachments';
 import type { AttachmentUploadOptions, AttachmentUploadProgress } from '@/lib/attachments';
 import { getAvailableModels, modelMeta } from '@/lib/models';
@@ -18,6 +18,7 @@ interface ChatPanelProps {
   attachmentsEnabled: boolean;
   onExport: () => void;
   onImport: (file: File) => Promise<void>;
+  onRefreshAttachment: (attachment: MessageAttachment) => Promise<string>;
   activeTitle?: string;
   onOpenLeft: () => void;
   onOpenRight: () => void;
@@ -40,6 +41,8 @@ function getPreferredLanguage(): string {
 export default function ChatPanel(props: ChatPanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, { url: string; expiresAt: number }>>({});
   const [submitting, setSubmitting] = useState(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<number, AttachmentUploadProgress>>({});
@@ -132,9 +135,7 @@ export default function ChatPanel(props: ChatPanelProps) {
     }
   };
 
-  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const incoming = Array.from(event.currentTarget.files ?? []);
-    event.currentTarget.value = '';
+  const addSelectedFiles = (incoming: File[]) => {
     if (!incoming.length) return;
     try {
       const next = [...selectedFiles, ...incoming];
@@ -143,6 +144,70 @@ export default function ChatPanel(props: ChatPanelProps) {
       setAttachmentError('');
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : 'These files cannot be attached.');
+    }
+  };
+
+  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const incoming = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    addSelectedFiles(incoming);
+  };
+
+  const isFileDrag = (event: React.DragEvent<HTMLElement>) =>
+    Array.from(event.dataTransfer.types).includes('Files');
+
+  const handleAttachmentDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    setIsDraggingFiles(true);
+  };
+
+  const handleAttachmentDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setIsDraggingFiles(false);
+  };
+
+  const handleAttachmentDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    setIsDraggingFiles(false);
+    addSelectedFiles(Array.from(event.dataTransfer.files));
+  };
+
+  const getFreshAttachmentUrl = async (attachment: MessageAttachment): Promise<string> => {
+    const cached = attachmentUrls[attachment.id];
+    if (cached && cached.expiresAt > Date.now() + 30_000) return cached.url;
+
+    const url = await props.onRefreshAttachment(attachment);
+    if (!url) throw new Error('A secure download link could not be created.');
+    setAttachmentUrls((current) => ({
+      ...current,
+      [attachment.id]: { url, expiresAt: Date.now() + 8 * 60 * 1000 },
+    }));
+    return url;
+  };
+
+  const handleAttachmentOpen = async (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    attachment: MessageAttachment,
+  ) => {
+    event.preventDefault();
+    // Open a tab synchronously within the click gesture, then populate it with
+    // a freshly signed URL. The original 60-second URL is never trusted for a
+    // later download click.
+    const target = window.open('about:blank', '_blank');
+    if (!target) {
+      setAttachmentError('Your browser blocked the secure download window. Allow pop-ups for RyanAI and try again.');
+      return;
+    }
+    target.opener = null;
+    try {
+      const url = await getFreshAttachmentUrl(attachment);
+      target.location.replace(url);
+    } catch (error) {
+      target.close();
+      setAttachmentError(error instanceof Error ? error.message : 'Unable to open this attachment securely.');
     }
   };
 
@@ -253,7 +318,25 @@ export default function ChatPanel(props: ChatPanelProps) {
       )}
 
       {/* Messages */}
-      <div role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions" aria-busy={props.sending} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        role="log"
+        aria-label="Conversation messages"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-busy={props.sending}
+        onDragOver={handleAttachmentDragOver}
+        onDragLeave={handleAttachmentDragLeave}
+        onDrop={handleAttachmentDrop}
+        className="relative min-h-0 flex-1 space-y-3 overflow-y-auto p-4"
+      >
+        {isDraggingFiles && (
+          <div
+            aria-live="polite"
+            className="pointer-events-none absolute inset-2 z-20 grid place-items-center rounded-xl border-2 border-dashed border-cyan-300 bg-slate-950/90 text-center text-sm font-semibold text-cyan-100 shadow-2xl"
+          >
+            <span>Drop files to attach to this message</span>
+          </div>
+        )}
         {props.messages.length === 0 && !props.liveText && (
           <div className="h-full flex items-center justify-center text-center">
             <div className="text-ink-600 text-sm">
@@ -286,14 +369,24 @@ export default function ChatPanel(props: ChatPanelProps) {
                       href={attachment.url}
                       target="_blank"
                       rel="noreferrer"
-                      aria-label={`Open attachment ${attachment.name}`}
+                      onPointerEnter={() => { void getFreshAttachmentUrl(attachment).catch(() => undefined); }}
+                      onFocus={() => { void getFreshAttachmentUrl(attachment).catch(() => undefined); }}
+                      onClick={(event) => void handleAttachmentOpen(event, attachment)}
+                      aria-label={`Open attachment ${attachment.name} in a new tab`}
                       className="flex items-center gap-2 rounded border border-cyan-500/20 bg-ink-950/40 p-2 text-xs text-cyan-200 hover:bg-cyan-500/10"
                     >
-                      {attachment.url && attachment.mimeType.startsWith('image/') ? (
-                        <img src={attachment.url} alt={attachment.name} className="h-12 w-12 rounded object-cover" />
-                      ) : <Paperclip size={14} />}
+                      {attachment.mimeType.startsWith('image/') && attachment.url ? (
+                        <img src={attachment.url} alt={attachment.name} loading="lazy" className="h-12 w-12 rounded object-cover" />
+                      ) : attachment.mimeType.startsWith('video/') && attachment.url ? (
+                        <video src={attachment.url} controls preload="metadata" className="max-h-32 max-w-40 rounded" aria-label={`Preview ${attachment.name}`} />
+                      ) : attachment.mimeType.startsWith('audio/') && attachment.url ? (
+                        <audio src={attachment.url} controls preload="metadata" className="max-w-48" aria-label={`Preview ${attachment.name}`} />
+                      ) : (
+                        <Paperclip size={14} />
+                      )}
                       <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
                       <span className="shrink-0 text-ink-500">{(attachment.size / 1024).toFixed(0)} KB</span>
+                      <span className="shrink-0 text-cyan-300">Open</span>
                     </a>
                   ))}
                 </div>
@@ -352,7 +445,7 @@ export default function ChatPanel(props: ChatPanelProps) {
       />
 
       {/* Input */}
-      <div className="p-3 border-t border-cyan-500/10 space-y-2">
+      <div className="space-y-2 border-t border-cyan-500/10 p-3">
         {selectedFiles.length > 0 && (
           <ul className="flex flex-col gap-1" aria-label="Selected attachments">
             {selectedFiles.map((file, index) => (
@@ -391,6 +484,7 @@ export default function ChatPanel(props: ChatPanelProps) {
                 {importing && <p role="status" className="text-xs text-cyan-300">Validating archive and importing conversation…</p>}
         {attachmentError && <p id="chat-attachment-error" role="alert" className="text-xs text-rose-300">{attachmentError}</p>}
         {!props.attachmentsEnabled && <p className="text-[10px] text-ink-500">Cloud attachments are unavailable until private storage is configured.</p>}
+        {props.attachmentsEnabled && <p className="text-[10px] text-ink-500">Attach up to 8 files (20 MB each, 40 MB combined) by choosing files or dropping them into the conversation.</p>}
         <input
           ref={attachmentInputRef}
           type="file"
