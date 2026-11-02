@@ -86,6 +86,16 @@ describe('Supabase OAuth Server consent UI', () => {
     expect(onRedirect).not.toHaveBeenCalled();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('does not match the registered callback URI');
   });
+  it('rejects a callback on a different port from the registered URI', async () => {
+    oauth.approveAuthorization.mockResolvedValue({
+      data: { redirect_url: 'https://client.example.test:9443/oauth/callback?code=wrong-port' },
+      error: null,
+    });
+    const onRedirect = await mount();
+    await act(async () => buttonContaining('Approve access').click());
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('does not match the registered callback URI');
+  });
   it('automatically follows an already-approved authorization returned by Supabase', async () => {
     oauth.getAuthorizationDetails.mockResolvedValue({ data: { redirect_url: 'https://client.example.test/oauth/callback?code=existing' }, error: null });
     const onRedirect = vi.fn();

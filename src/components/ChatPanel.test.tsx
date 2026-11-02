@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_MODEL } from '@/lib/models';
 import type { Message, MessageAttachment, ModelId } from '@/lib/types';
+vi.mock('framer-motion', () => import('../test/mocks/framerMotion'));
+
 import ChatPanel from './ChatPanel';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

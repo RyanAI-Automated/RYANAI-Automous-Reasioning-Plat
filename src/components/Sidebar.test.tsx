@@ -3,6 +3,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Conversation, ModelId } from '@/lib/types';
+vi.mock('framer-motion', () => import('../test/mocks/framerMotion'));
+
 import Sidebar from './Sidebar';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
