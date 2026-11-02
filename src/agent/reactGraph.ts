@@ -29,15 +29,15 @@ function getReactAgentGraph() {
     }
 
     const llm = new ChatOpenAI({
-      modelName,
+      model: modelName,
       temperature: 0.2,
+      apiKey,
       configuration: {
         ...(process.env.NVIDIA_API_KEY
           ? { baseURL: process.env.NVIDIA_API_ENDPOINT || "https://integrate.api.nvidia.com/v1" }
           : process.env.OPENAI_BASE_URL
             ? { baseURL: process.env.OPENAI_BASE_URL }
             : {}),
-        apiKey,
       },
     });
 
