@@ -2,12 +2,32 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
 import { realtimeVoiceRoutes } from './realtimeVoice.js';
-import { EventEmitter } from 'node:events';
 
-const upstreamState = vi.hoisted(() => ({ latest: undefined as unknown }));
+const { upstreamState, MockEventEmitter } = vi.hoisted(() => {
+  class MockEventEmitter {
+    private listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+
+    on(event: string, listener: (...args: unknown[]) => void) {
+      const listeners = this.listeners.get(event) ?? new Set();
+      listeners.add(listener);
+      this.listeners.set(event, listeners);
+      return this;
+    }
+
+    emit(event: string, ...args: unknown[]) {
+      for (const listener of this.listeners.get(event) ?? []) listener(...args);
+      return this;
+    }
+  }
+
+  return {
+    upstreamState: { latest: undefined as unknown },
+    MockEventEmitter,
+  };
+});
 
 vi.mock('ws', () => {
-  class MockWebSocket extends EventEmitter {
+  class MockWebSocket extends MockEventEmitter {
     static OPEN = 1;
     static CONNECTING = 0;
     readyState = 0;
