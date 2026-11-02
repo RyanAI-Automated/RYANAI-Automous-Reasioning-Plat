@@ -55,7 +55,7 @@ class RyanAIClient {
 
   async getGovernanceErrors(filter?: string) {
     return this.request(
-      `/api/governance/errors${filter ? `?filter=\${filter}` : ''}`,
+      `/api/governance/errors${filter ? `?filter=${encodeURIComponent(filter)}` : ''}`,
     );
   }
 
@@ -65,7 +65,7 @@ class RyanAIClient {
 
   async getRecycledItems(category?: string) {
     return this.request(
-      `/api/recycling/items${category ? `?category=\${category}` : ''}`,
+      `/api/recycling/items${category ? `?category=${encodeURIComponent(category)}` : ''}`,
     );
   }
 
