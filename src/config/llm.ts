@@ -11,14 +11,14 @@ export const defaultModel = process.env.OPENAI_MODEL || modelCatalog.defaultMode
  */
 export function createChatModel(model = defaultModel) {
   return new ChatOpenAI({
-    modelName: model,
+    model,
     temperature: 0,
+    ...(process.env.OPENAI_API_KEY
+      ? { apiKey: process.env.OPENAI_API_KEY }
+      : {}),
     configuration: {
       ...(process.env.OPENAI_BASE_URL
         ? { baseURL: process.env.OPENAI_BASE_URL }
-        : {}),
-      ...(process.env.OPENAI_API_KEY
-        ? { apiKey: process.env.OPENAI_API_KEY }
         : {}),
     },
   });
