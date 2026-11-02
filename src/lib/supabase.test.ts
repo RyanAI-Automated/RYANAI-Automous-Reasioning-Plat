@@ -19,8 +19,6 @@ describe('optional browser Supabase client', () => {
   it.each([
     ['', ''],
     ['https://example.supabase.co', ''],
-    ['', 'sb_publishable_test'],
-    ['   ', 'sb_publishable_test'],
     ['https://example.supabase.co', '   '],
   ])(
     'keeps local mode with incomplete configuration (%s, %s)',
@@ -32,6 +30,16 @@ describe('optional browser Supabase client', () => {
       expect(createClient).not.toHaveBeenCalled();
     },
   );
+
+  it('uses the RyanAI project URL fallback when only a publishable key is configured', async () => {
+    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test');
+    const { supabase } = await import('./supabase');
+    expect(supabase).toBeTruthy();
+    expect(createClient).toHaveBeenCalledExactlyOnceWith(
+      'https://narsvpwymvlrhurqbthu.supabase.co',
+      'sb_publishable_test',
+    );
+  });
 
   it('creates one client with the publishable key, trimming whitespace', async () => {
     vi.stubEnv('VITE_SUPABASE_URL', ' https://example.supabase.co ');
