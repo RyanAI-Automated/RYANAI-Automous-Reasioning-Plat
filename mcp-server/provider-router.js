@@ -45,6 +45,9 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
   }
 
   const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(endpoint.hostname.toLowerCase());
+  if (!isLoopback && endpoint.protocol !== 'https:') {
+    throw new Error('Remote ' + name + ' API endpoints must use HTTPS.');
+  }
   if (!brain.key && !isLoopback) {
     throw new Error('No API key is configured for ' + name + '; unauthenticated requests are allowed only to a loopback endpoint.');
   }
