@@ -22,6 +22,20 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('Redis initial readiness', () => {
+  it('passes rediss URLs unchanged so ioredis enables TLS and retains ACL credentials', async () => {
+    const url = 'rediss://default:encoded%3Asecret@region-kv.render.com:6379/0';
+    await expect(connectRedis(url)).resolves.toBe(redis);
+    expect(redis.construct).toHaveBeenCalledWith(url, {
+      lazyConnect: true,
+      connectTimeout: 5000,
+    });
+  });
+
+  it('rejects unsupported URL schemes before constructing a client', async () => {
+    await expect(connectRedis('https://redis.example:6379')).rejects.toThrow(/REDIS_URL/);
+    expect(redis.construct).not.toHaveBeenCalled();
+  });
+
   it('returns a connected client and clears the initial deadline without disabling reconnection', async () => {
     await expect(connectRedis('redis://fixture:6379')).resolves.toBe(redis);
     expect(redis.construct).toHaveBeenCalledWith('redis://fixture:6379', {
