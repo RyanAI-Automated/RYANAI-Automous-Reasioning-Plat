@@ -118,3 +118,16 @@ test('provider endpoints reject embedded credentials and query parameters', asyn
     );
   }
 });
+
+test('remote provider endpoints require HTTPS even when a key is configured', async () => {
+  await assert.rejects(
+    routeReasoning('Hello', 'deepseek', {
+      env: {
+        DEEPSEEK_API_ENDPOINT: 'http://dgx.example.internal:8888/v1',
+        DEEPSEEK_API_KEY: 'test-only-key',
+      },
+      fetch: async () => { throw new Error('fetch must not be called'); },
+    }),
+    /must use HTTPS/,
+  );
+});
