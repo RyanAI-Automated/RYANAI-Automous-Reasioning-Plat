@@ -22,6 +22,20 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('Redis initial readiness', () => {
+  it('passes rediss URLs unchanged so ioredis enables TLS and retains ACL credentials', async () => {
+    const url = 'rediss://default:encoded%3Asecret@region-kv.render.com:6379/0';
+    await expect(connectRedis(url)).resolves.toBe(redis);
+    expect(redis.construct).toHaveBeenCalledWith(url, {
+      lazyConnect: true,
+      connectTimeout: 5000,
+    });
+  });
+
+  it('rejects unsupported URL schemes before constructing a client', async () => {
+    await expect(connectRedis('https://redis.example:6379')).rejects.toThrow(/REDIS_URL/);
+    expect(redis.construct).not.toHaveBeenCalled();
+  });
+
   it('returns a connected client and clears the initial deadline without disabling reconnection', async () => {
     await expect(connectRedis('redis://fixture:6379')).resolves.toBe(redis);
     expect(redis.construct).toHaveBeenCalledWith('redis://fixture:6379', {
@@ -113,5 +127,54 @@ describe('Redis initial readiness', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(redis.disconnect).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('Redis connection URL inspection', () => {
+  it('recognizes a Render internal unauthenticated URL', async () => {
+    const { inspectRedisConnectionUrl } = await import('./connectRedis.js');
+    expect(inspectRedisConnectionUrl('redis://red-example:6379')).toEqual({
+      protocol: 'redis:', host: 'red-example', port: 6379, database: 0, tls: false, authenticated: false,
+    });
+  });
+
+  it('recognizes authenticated internal URLs without returning credentials', async () => {
+    const { inspectRedisConnectionUrl } = await import('./connectRedis.js');
+    expect(inspectRedisConnectionUrl('redis://default:secret-value@red-example:6379/2')).toEqual({
+      protocol: 'redis:', host: 'red-example', port: 6379, database: 2, tls: false, authenticated: true,
+    });
+  });
+
+  it('recognizes external TLS URLs', async () => {
+    const { inspectRedisConnectionUrl } = await import('./connectRedis.js');
+    expect(inspectRedisConnectionUrl('rediss://default:secret-value@region-kv.render.com:6379/0')).toEqual({
+      protocol: 'rediss:', host: 'region-kv.render.com', port: 6379, database: 0, tls: true, authenticated: true,
+    });
+  });
+
+  it('supports IPv6 hosts and explicit ports', async () => {
+    const { inspectRedisConnectionUrl } = await import('./connectRedis.js');
+    expect(inspectRedisConnectionUrl('redis://[::1]:6380/4')).toMatchObject({
+      host: '[::1]', port: 6380, database: 4,
+    });
+  });
+
+  it.each([
+    'https://redis.example:6379',
+    'ftp://redis.example:6379',
+    'REDISS://redis.example:6379',
+    'not-a-url',
+    'redis:///missing-host',
+    'redis://redis.example:70000',
+    'redis://redis.example/not-a-database',
+  ])('rejects malformed or unsupported URL %s', async (url) => {
+    const { inspectRedisConnectionUrl } = await import('./connectRedis.js');
+    expect(() => inspectRedisConnectionUrl(url)).toThrow(/REDIS_URL/);
+  });
+
+  it('does not include credentials in validation errors', async () => {
+    const { inspectRedisConnectionUrl } = await import('./connectRedis.js');
+    expect(() => inspectRedisConnectionUrl('https://user:super-secret@redis.example:6379'))
+      .toThrow(/REDIS_URL/);
   });
 });

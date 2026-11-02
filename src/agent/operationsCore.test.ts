@@ -39,11 +39,14 @@ describe('executeThreeBrainPlan', () => {
     expect(signals.every((signal) => signal === controller.signal && signal.aborted)).toBe(true);
     expect(calls).not.toContain('logic');
   });
-  it('fails visibly when a specialist fails', async () => {
-    await expect(executeThreeBrainPlan('test', async (brain) => {
+  it('continues in explicitly degraded mode when a specialist fails', async () => {
+    const result = await executeThreeBrainPlan('test', async (brain) => {
       if (brain === 'secondary') throw new Error('provider unavailable');
       return { brain, output: 'ok', latencyMs: 1 };
-    })).rejects.toThrow('provider unavailable');
+    });
+    expect(result.degraded).toBe(true);
+    expect(result.verification.verified).toBe(false);
+    expect(result.outputs.map((item) => item.brain)).toEqual(['primary', 'logic']);
   });
 });
 
@@ -61,5 +64,40 @@ describe('verifyThreeBrainResult', () => {
     expect(verifyThreeBrainResult([complete[0], complete[0], complete[2]], 'synthesis').verified).toBe(false);
     expect(verifyThreeBrainResult(complete.map((item, index) => index === 1 ? { ...item, output: ' ' } : item), 'synthesis').verified).toBe(false);
     expect(verifyThreeBrainResult(complete, ' ').verified).toBe(false);
+  });
+});
+
+describe('degraded brain execution policy', () => {
+  it('returns labelled degraded output when one specialist rejects authentication', async () => {
+    const result = await executeThreeBrainPlan('Recover safely', async (brain) => {
+      if (brain === 'secondary') throw new Error('Provider authentication or authorization failed (HTTP 401).');
+      return { brain, output: brain + ' verified analysis', latencyMs: 4 };
+    });
+    expect(result.degraded).toBe(true);
+    expect(result.verification.verified).toBe(false);
+    expect(result.outputs.map((item) => item.brain)).toEqual(['primary', 'logic']);
+    expect(result.synthesis).toContain('logic');
+    expect(result.failures[0].reason).toContain('HTTP 401');
+    expect(result.handoffs).toHaveLength(2);
+  });
+
+  it('attempts all three brains and fails clearly when primary times out and the other two reject authentication', async () => {
+    const calls: BrainId[] = [];
+    await expect(executeThreeBrainPlan('Recover safely', async (brain) => {
+      calls.push(brain);
+      if (brain === 'primary') throw new Error('Provider request timed out.');
+      throw new Error('Provider authentication or authorization failed (HTTP 401).');
+    })).rejects.toThrow(/All reasoning brains are unavailable.*primary: Provider request timed out.*secondary: Provider authentication.*logic: Provider authentication/);
+    expect(calls.sort()).toEqual(['logic', 'primary', 'secondary']);
+  });
+
+  it('uses a labelled standalone Logic fallback when both specialists fail', async () => {
+    const result = await executeThreeBrainPlan('Recover safely', async (brain) => {
+      if (brain !== 'logic') throw new Error('Provider unavailable');
+      return { brain, output: 'Independent logic response', latencyMs: 4 };
+    });
+    expect(result.degraded).toBe(true);
+    expect(result.synthesis).toContain('standalone Logic response');
+    expect(result.synthesis).toContain('Independent logic response');
   });
 });

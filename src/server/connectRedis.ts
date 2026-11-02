@@ -1,28 +1,86 @@
 import { Redis } from 'ioredis';
 
+export interface RedisConnectionTarget {
+  protocol: 'redis:' | 'rediss:';
+  host: string;
+  port: number;
+  database: number;
+  tls: boolean;
+  authenticated: boolean;
+}
+
+/** Validate Redis URL shape without returning or logging credentials. */
+export function inspectRedisConnectionUrl(url: string): RedisConnectionTarget {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('Invalid REDIS_URL: expected a valid redis:// or rediss:// URL.');
+  }
+  if (!url.startsWith('redis://') && !url.startsWith('rediss://')) {
+    throw new Error('Invalid REDIS_URL scheme: use lowercase redis:// or rediss://.');
+  }
+  if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
+    throw new Error('Invalid REDIS_URL scheme: use redis:// or rediss://.');
+  }
+  if (!parsed.hostname) throw new Error('Invalid REDIS_URL: a Redis hostname is required.');
+  if (parsed.port && (!/^\d+$/.test(parsed.port) || Number(parsed.port) < 1 || Number(parsed.port) > 65535)) {
+    throw new Error('Invalid REDIS_URL: port must be between 1 and 65535.');
+  }
+  const databasePath = parsed.pathname.replace(/^\//, '');
+  if (databasePath && !/^\d+$/.test(databasePath)) {
+    throw new Error('Invalid REDIS_URL: database path must be a numeric index.');
+  }
+  return {
+    protocol: parsed.protocol as RedisConnectionTarget['protocol'],
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 6379,
+    database: databasePath ? Number(databasePath) : 0,
+    tls: parsed.protocol === 'rediss:',
+    authenticated: Boolean(parsed.username || parsed.password),
+  };
+}
+
 function safeRedisErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object') return undefined;
   const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' && /^[A-Z0-9_]{2,64}$/.test(code)
-    ? code
-    : undefined;
+  return typeof code === 'string' && /^[A-Z0-9_]{2,64}$/.test(code) ? code : undefined;
+}
+
+function redisFailureHint(code?: string): string {
+  switch (code) {
+    case 'ECONNREFUSED':
+      return 'The Redis host refused the connection; verify the internal hostname and port.';
+    case 'ENOTFOUND':
+    case 'EAI_AGAIN':
+      return 'The Redis hostname could not be resolved; verify the internal URL and service networking.';
+    case 'ETIMEDOUT':
+      return 'The Redis connection timed out; verify that both Render services share a region and workspace.';
+    case 'ECONNRESET':
+      return 'The Redis connection was reset; verify the URL scheme and TLS requirements.';
+    case 'WRONGPASS':
+    case 'NOAUTH':
+      return 'Redis authentication failed; verify whether internal authentication is enabled and that REDIS_URL contains matching credentials.';
+    case 'CERT_HAS_EXPIRED':
+    case 'ERR_TLS_CERT_ALTNAME_INVALID':
+    case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+      return 'Redis TLS certificate validation failed; verify the rediss:// endpoint and certificate configuration.';
+    default:
+      return 'Verify the Render internal connection URL, shared workspace and region, and any configured internal authentication.';
+  }
 }
 
 /**
  * Bound initial readiness while retaining Redis reconnection after startup.
- * Returns the connected client.
- *
- * The first Redis error is reduced to its protocol/network code only. Raw error
- * messages and connection URLs can contain credentials, so they are never
- * copied into the startup diagnostic.
+ * ioredis interprets rediss:// as TLS and redis:// as plain TCP.
  */
 export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis> {
+  const target = inspectRedisConnectionUrl(url);
   const client = new Redis(url, { lazyConnect: true, connectTimeout: timeoutMs });
   let lastErrorCode: string | undefined;
   client.on('error', (error: unknown) => {
     lastErrorCode ??= safeRedisErrorCode(error);
   });
-
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
@@ -40,22 +98,13 @@ export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis
       : error instanceof Error && error.message === 'Redis readiness timeout'
         ? ` (initial connection exceeded ${timeoutMs}ms)`
         : '';
-
-    // Do not attach the caught Redis error: client errors can embed REDIS_URL credentials.
-    // Its safe code is retained above; preserving the raw cause would risk leaking secrets.
     throw new Error(
-      `Redis is unavailable${detail}. Check REDIS_URL in .env and verify it uses the Render internal connection URL, ` +
-      'that the API and Key Value instance share a workspace and region, and that internal authentication matches. ' +
-      'The raw connection URL and server error are intentionally omitted to protect credentials.',
+      `Redis is unavailable${detail}. ${redisFailureHint(code)} ` +
+      `Endpoint: ${target.protocol}//${target.host}:${target.port}; TLS: ${target.tls ? 'enabled' : 'disabled'}; ` +
+      `authentication: ${target.authenticated ? 'configured' : 'not configured'}. Credentials and raw server errors are omitted.`,
       {
-        // eslint-disable-next-line preserve-caught-error -- The original Redis error may contain REDIS_URL credentials.
-        cause: new Error(
-          code
-            ? `Redis connection failed with code ${code}`
-            : error instanceof Error && error.message === 'Redis readiness timeout'
-              ? `Redis initial connection exceeded ${timeoutMs}ms`
-              : 'Redis connection attempt failed',
-        ),
+        // eslint-disable-next-line preserve-caught-error -- Redis errors may embed REDIS_URL credentials.
+        cause: new Error(code ? `Redis connection failed with code ${code}` : 'Redis connection attempt failed'),
       },
     );
   } finally {
