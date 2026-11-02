@@ -13,7 +13,7 @@ interface StackBody {
   commitSha?: string;
 }
 
-interface PatchApplyBody extends PatchRequest {}
+type PatchApplyBody = PatchRequest;
 
 async function requireJarvisIngressAuth(request: FastifyRequest, reply: FastifyReply) {
   if (process.env.JARVIS_PATCH_INGRESS_ENABLED !== 'true') {
