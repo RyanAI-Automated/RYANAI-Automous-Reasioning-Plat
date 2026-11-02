@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import twilio from 'twilio';
 import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
-import { recordCommunication } from '../comms/history.js';
+import { claimInboundCommunication, recordCommunication } from '../comms/history.js';
 import { addressOwnerResponse, ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
 
 const extractContent = (content: unknown): string =>
@@ -54,25 +54,26 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
 
     const threadId = `whatsapp_${senderPhone.replace(/\D/g, '')}`;
     try {
-      const previous = await fastify.prisma.communicationMessage.findUnique({
-        where: { providerMessageId: body.MessageSid },
-      });
-      const previousReply = previous?.metadata && typeof previous.metadata === 'object'
-        ? (previous.metadata as { reply?: unknown }).reply
-        : undefined;
-      if (typeof previousReply === 'string' && previousReply.length) {
-        reply.type('text/xml');
-        return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(previousReply)}</Message></Response>`;
-      }
-
-      await recordCommunication(fastify.prisma, {
+      const claim = await claimInboundCommunication(fastify.prisma, {
         channel: 'whatsapp',
         externalAddress: senderPhone,
-        direction: 'inbound',
         body: incomingText,
         providerMessageId: body.MessageSid,
         status: 'processing',
       });
+      if (!claim.claimed) {
+        const previousReply = claim.existing?.metadata && typeof claim.existing.metadata === 'object'
+          && !Array.isArray(claim.existing.metadata)
+          ? (claim.existing.metadata as { reply?: unknown }).reply
+          : undefined;
+        reply.type('text/xml');
+        if (typeof previousReply === 'string' && previousReply.length) {
+          return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(previousReply)}</Message></Response>`;
+        }
+        // A concurrent or retried delivery is already being processed. Acknowledge
+        // it without invoking the agent a second time or sending a duplicate reply.
+        return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
+      }
 
       const result = await humanInTheLoopAgent.invoke(
         {

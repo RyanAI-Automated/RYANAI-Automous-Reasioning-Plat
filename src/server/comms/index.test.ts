@@ -25,6 +25,7 @@ const apps: FastifyInstance[] = [];
 const token = 'synthetic-voice-auth-token';
 const voiceUrl = 'https://ryanai.example.test/api/webhooks/twilio/voice';
 const actionUrl = 'https://ryanai.example.test/api/webhooks/twilio/voice/respond';
+const smsUrl = 'https://ryanai.example.test/api/webhooks/twilio/sms';
 
 async function send(path: string, url: string, payload: Record<string, string>, valid = true) {
   const app = Fastify();
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
+  vi.stubEnv('TWILIO_SMS_WEBHOOK_URL', smsUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
   vi.stubEnv('RYANAI_OWNER_TITLE', 'Sir G');
   vi.stubEnv('RYANAI_OWNER_LANGUAGE', 've-ZA');
@@ -65,6 +67,23 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
   vi.unstubAllEnvs();
   vi.resetAllMocks();
+});
+
+describe('Twilio inbound SMS retry handling', () => {
+  it('returns the cached response without invoking RyanAI for a retried provider event', async () => {
+    const payload = { MessageSid: 'SM-duplicate-1', From: '+15555550123', Body: 'Please check my system' };
+    prismaMock.communicationMessage.create.mockRejectedValueOnce({ code: 'P2002' });
+    prismaMock.communicationMessage.findUnique.mockResolvedValueOnce({
+      status: 'replied',
+      metadata: { reply: 'Certainly, Sir G. Already processed.' },
+    });
+
+    const response = await send('/api/webhooks/twilio/sms', smsUrl, payload);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('Already processed.');
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });
 
 describe('Twilio conversational voice webhooks', () => {

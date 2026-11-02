@@ -5,7 +5,7 @@ import formbody from '@fastify/formbody';
 import rawBody from 'fastify-raw-body';
 import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
-import { recordCommunication, updateCommunicationStatus } from './history.js';
+import { claimInboundCommunication, recordCommunication, updateCommunicationStatus } from './history.js';
 import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
@@ -259,10 +259,20 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This assistant is privately configured.' });
     reply.type('text/xml');
     try {
-      await recordCommunication(fastify.prisma, {
-        channel: 'sms', externalAddress: sender, direction: 'inbound',
+      const claim = await claimInboundCommunication(fastify.prisma, {
+        channel: 'sms', externalAddress: sender,
         body: text, providerMessageId: body.MessageSid, status: 'processing',
       });
+      if (!claim.claimed) {
+        const previousReply = claim.existing?.metadata && typeof claim.existing.metadata === 'object'
+          && !Array.isArray(claim.existing.metadata)
+          ? (claim.existing.metadata as { reply?: unknown }).reply
+          : undefined;
+        if (typeof previousReply === 'string' && previousReply.length) {
+          return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(previousReply.slice(0, 1600))}</Message></Response>`;
+        }
+        return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
+      }
       const answer = addressOwnerResponse(await askRyanAI(text, `sms_${sender.replace(/\D/g, '')}`));
       await fastify.prisma.communicationMessage.update({
         where: { providerMessageId: body.MessageSid }, data: { status: 'replied', metadata: { reply: answer } },
@@ -326,15 +336,12 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       }
       const bodyText = (email.text || email.html?.replace(/<[^>]*>/g, ' ') || '').trim().slice(0, MAX_MESSAGE_LENGTH);
       if (!bodyText) return reply.code(400).send({ error: 'Inbound email has no readable text body.' });
-      const existing = await fastify.prisma.communicationMessage.findUnique({
-        where: { providerMessageId: email.id },
-      });
-      if (existing?.status === 'replied') return { received: true, duplicate: true };
-      await recordCommunication(fastify.prisma, {
-        channel: 'email', externalAddress: sender, direction: 'inbound',
+      const claim = await claimInboundCommunication(fastify.prisma, {
+        channel: 'email', externalAddress: sender,
         body: bodyText, providerMessageId: email.id, status: 'processing',
         metadata: { subject: email.subject || '' },
       });
+      if (!claim.claimed) return { received: true, duplicate: true };
       const answer = addressOwnerResponse(await askRyanAI(bodyText, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`));
       const smtp = smtpTransport();
       if (!smtp) {

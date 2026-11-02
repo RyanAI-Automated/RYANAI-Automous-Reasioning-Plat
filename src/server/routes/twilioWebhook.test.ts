@@ -119,6 +119,21 @@ describe('Twilio webhook provider authentication', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it('does not invoke RyanAI again when Twilio retries an already-claimed message', async () => {
+    prismaMock.communicationMessage.create.mockRejectedValueOnce({ code: 'P2002' });
+    prismaMock.communicationMessage.findUnique.mockResolvedValueOnce({
+      status: 'replied',
+      metadata: { reply: 'Certainly, Sir G. This was already handled.' },
+    });
+    const signature = twilio.getExpectedTwilioSignature(token, webhookUrl, body);
+
+    const response = await sendWebhook(signature);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('This was already handled.');
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('accepts an authentic provider request without a user bearer and escapes the reply XML', async () => {
     const signature = twilio.getExpectedTwilioSignature(
       token,
@@ -131,7 +146,7 @@ describe('Twilio webhook provider authentication', () => {
     expect(response.body).toBe(
       '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Certainly, Sir G. Approved &lt;reply&gt; &amp; ready</Message></Response>',
     );
-    expect(prismaMock.communicationMessage.upsert).toHaveBeenCalled();
+    expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       {
         messages: [
