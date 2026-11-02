@@ -73,7 +73,7 @@ jobs:
               .toLowerCase()
               .replace(/[^a-z0-9-]+/g, '-')
               .replace(/^-+|-+$/g, '') || 'tool';
-            run.runAutomationDetails = {
+            run.automationDetails = {
               ...(run.runAutomationDetails ?? {}),
               id: `codacy-${tool}-${index}/analysis`,
             };
@@ -82,7 +82,7 @@ jobs:
           });
           NODE
 
-      # Directory uploads use each file's unique runAutomationDetails.id category.
+      # Directory uploads use each file's unique automationDetails.id category.
       - name: Upload SARIF results files
         uses: github/codeql-action/upload-sarif@v4
         with:
