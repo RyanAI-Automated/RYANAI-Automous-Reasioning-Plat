@@ -75,6 +75,64 @@ export default function CommandCenter({
   const [githubOpen, setGithubOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
+  const leftDrawerRef = useRef<HTMLDivElement>(null);
+  const rightDrawerRef = useRef<HTMLDivElement>(null);
+  const leftDrawerCloseRef = useRef<HTMLButtonElement>(null);
+  const rightDrawerCloseRef = useRef<HTMLButtonElement>(null);
+  const leftDrawerTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const rightDrawerTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!leftOpen && !rightOpen) return;
+
+    const activeSide = leftOpen ? 'left' : 'right';
+    const dialog = activeSide === 'left' ? leftDrawerRef.current : rightDrawerRef.current;
+    const closeButton = activeSide === 'left' ? leftDrawerCloseRef.current : rightDrawerCloseRef.current;
+    const trigger = activeSide === 'left' ? leftDrawerTriggerRef.current : rightDrawerTriggerRef.current;
+    const previouslyFocused =
+      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+
+    closeButton?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setLeftOpen(false);
+        setRightOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getAttribute('aria-hidden') !== 'true');
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [leftOpen, rightOpen]);
 
   useEffect(() => {
     if (!leftOpen && !rightOpen) return;
@@ -978,7 +1036,7 @@ export default function CommandCenter({
   };
 
   return (
-    <div className="h-[calc(100dvh-8rem)] min-h-[26rem] hud-radial hud-grid hud-scanlines relative overflow-hidden">
+    <div className="h-[calc(100dvh-10rem)] min-h-[26rem] hud-radial hud-grid hud-scanlines relative overflow-hidden">
       <CodeRain />
       <RyanVoiceStream language={voiceLanguage} />
 
@@ -1015,7 +1073,7 @@ export default function CommandCenter({
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-cyan-500/15 glass">
           <button
             type="button"
-            onClick={() => setLeftOpen(true)}
+            onClick={(event) => { leftDrawerTriggerRef.current = event.currentTarget; setLeftOpen(true); }}
             aria-label="Open conversation history"
             aria-expanded={leftOpen}
             className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
@@ -1049,7 +1107,7 @@ export default function CommandCenter({
           </div>
           <button
             type="button"
-            onClick={() => setRightOpen(true)}
+            onClick={(event) => { rightDrawerTriggerRef.current = event.currentTarget; setRightOpen(true); }}
             aria-label="Open live telemetry"
             aria-expanded={rightOpen}
             className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
@@ -1075,6 +1133,7 @@ export default function CommandCenter({
           >
             <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-sm" />
             <motion.div
+              ref={leftDrawerRef}
               role="dialog"
               aria-modal="true"
               aria-label="Conversation history"
@@ -1089,6 +1148,7 @@ export default function CommandCenter({
               <button
                 type="button"
                 onClick={() => setLeftOpen(false)}
+                ref={leftDrawerCloseRef}
                 aria-label="Close conversation history"
                 className="absolute right-5 top-5 z-30 rounded-lg bg-slate-950/90 px-2.5 py-1.5 text-xs text-cyan-100 shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
               >Close</button>
@@ -1107,6 +1167,7 @@ export default function CommandCenter({
           >
             <div className="absolute inset-0 bg-ink-950/80 backdrop-blur-sm" />
             <motion.div
+              ref={rightDrawerRef}
               role="dialog"
               aria-modal="true"
               aria-label="Live telemetry"
@@ -1121,6 +1182,7 @@ export default function CommandCenter({
               <button
                 type="button"
                 onClick={() => setRightOpen(false)}
+                ref={rightDrawerCloseRef}
                 aria-label="Close live telemetry"
                 className="absolute right-5 top-5 z-30 rounded-lg bg-slate-950/90 px-2.5 py-1.5 text-xs text-cyan-100 shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
               >Close</button>
