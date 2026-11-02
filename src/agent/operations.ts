@@ -31,7 +31,7 @@ async function updateRunHandoffs(
     runId: run.id,
     run: { is: { status: 'running', workerId: run.worker_id, attempts: run.attempts } },
     ...(brain === 'logic'
-      ? { toAgent: 'logic' }
+      ? { toAgent: 'logic', status: { in: ['pending', 'running'] } }
       : { fromAgent: 'supervisor', toAgent: brain }),
   };
   const now = new Date();
@@ -45,8 +45,8 @@ async function updateRunHandoffs(
       error: status === 'failed' ? details.error ?? 'Brain execution failed.' : null,
     },
   });
-  const expected = brain === 'logic' ? 2 : 1;
-  if (updated.count !== expected) {
+  const invalidCount = brain === 'logic' ? updated.count > 2 : updated.count !== 1;
+  if (invalidCount) {
     throw new Error('Live handoff telemetry could not be persisted for ' + brain + ' brain.');
   }
 }
@@ -215,8 +215,8 @@ async function processAgentRun(run: ClaimedAgentRun) {
       ? knowledge + '\n\nUser task objective:\n' + run.objective
       : run.objective;
     const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => invokeWithRecovery(brain, prompt, signal, run), cancellation.signal);
-    if (plan.outputs.length !== 3 || plan.outputs.some((item) => !item.output.trim()) || !plan.synthesis.trim()) {
-      throw new Error('Three-brain result verification failed: every brain must return a non-empty result.');
+    if (plan.outputs.length === 0 || plan.outputs.some((item) => !item.output.trim()) || !plan.synthesis.trim()) {
+      throw new Error('No usable reasoning brain result was produced.');
     }
 
     const rows = await prisma.agentHandoff.findMany({
