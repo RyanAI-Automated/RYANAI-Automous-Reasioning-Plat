@@ -44,6 +44,7 @@ jobs:
           REDIS_PASSWORD=ci_redis_password_1234567890
           JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
           MCP_AUTH_TOKEN=ci_only_mcp_token_1234567890_abcdefgh
+          MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
           EOF
           docker compose config --quiet
 
