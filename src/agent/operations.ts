@@ -14,7 +14,7 @@ import { summarizeProviderError } from './providerErrors.js';
 import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE, BRAIN_PROBE_ORDER } from './brainProbe.js';
 import { buildAgentRunExecutionPrompt, planQueuedAgentRun } from './agentRunExecution.js';
 import type { ExecutionChange } from './executionPlanner.js';
-import { recordRunEvidence } from './engineeringEvidence.js';
+import { recordRunEvidence, appendRunEvidence } from './engineeringEvidence.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -209,7 +209,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
   const cancellation = new AbortController();
   const stopHeartbeat = startAgentRunLeaseHeartbeat(
     { id: run.id, workerId: run.worker_id, attempts: run.attempts },
-    (where) => prisma.agentRun.updateMany({ where, data: { lockedAt: new Date() } }),
+    (where) => prisma.agentRun.updateMany({ where: { ...where, cancelRequestedAt: null }, data: { lockedAt: new Date() } }),
     (error) => {
       console.error('[agent-worker] Lease ownership/heartbeat lost for run ' + run.id + ': ' + (error instanceof Error ? error.message : String(error)));
       if (!cancellation.signal.aborted) {
@@ -239,13 +239,16 @@ async function processAgentRun(run: ClaimedAgentRun) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
     const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
+    const current = await prisma.agentRun.findUnique({ where: { id: run.id }, select: { cancelRequestedAt: true } });
+    const cancelled = Boolean(current?.cancelRequestedAt);
+    const retry = !cancelled && shouldRetryAgentRun(run.attempts, run.max_attempts);
     await prisma.$transaction(async (tx) => {
       const ownership = await tx.agentRun.updateMany({
         where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
         data: {
-          status: retry ? 'queued' : 'failed',
+          status: cancelled ? 'cancelled' : retry ? 'queued' : 'failed',
           error: message,
-          completedAt: retry ? null : new Date(),
+          completedAt: cancelled || !retry ? new Date() : null,
           nextAttemptAt: retry ? nextAttemptAt : undefined,
           lockedAt: null,
           workerId: null,
@@ -256,10 +259,15 @@ async function processAgentRun(run: ClaimedAgentRun) {
         where: { runId: run.id, status: { in: ['pending', 'running', 'failed'] } },
         data: retry
           ? { status: 'pending', error: null, completedAt: null }
-          : { status: 'failed', error: message, completedAt: new Date() },
+          : { status: cancelled ? 'cancelled' : 'failed', error: message, completedAt: new Date() },
+      });
+      await appendRunEvidence(tx, {
+        runId: run.id,
+        eventType: cancelled ? 'execution.cancelled' : retry ? 'execution.retry_scheduled' : 'execution.failed',
+        payload: { attempt: run.attempts, message, nextAttemptAt: retry ? nextAttemptAt.toISOString() : null },
       });
     });
-    console.error('[agent-worker] Run ' + run.id + (retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
+    console.error('[agent-worker] Run ' + run.id + (cancelled ? ' cancelled' : retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
   } finally {
     stopHeartbeat();
   }
