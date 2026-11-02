@@ -13,7 +13,9 @@ The API communications plugin uses real provider APIs. It never fabricates a del
 
 - WhatsApp and SMS: Twilio Messaging API.
 - Voice: Twilio Programmable Voice with speech Gather callbacks. Inbound calls and outbound calls both enter the RyanAI conversation agent.
-- Email: SMTP via Nodemailer for outbound messages. Inbound email ingestion is not yet enabled.
+- Email: SMTP via Nodemailer for outbound messages. Resend Receiving handles inbound `email.received` webhooks; the handler verifies the webhook signature, retrieves the received email, validates the configured owner sender, persists the inbound message and attempts an SMTP reply.
+
+These are implemented code paths, not proof that deployment configuration, provider connectivity, callback registration or end-to-end delivery has been verified.
 
 ## Required environment
 
@@ -26,13 +28,15 @@ Configure these as deployment secrets/environment variables, never commit creden
 - `TWILIO_VOICE_WEBHOOK_URL`, `TWILIO_VOICE_ACTION_URL`
 - `TWILIO_STATUS_WEBHOOK_URL`, optionally `TWILIO_STATUS_CALLBACK_URL`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-- `RYANAI_OWNER_TITLE` (defaults to `Sir`) and optional `TWILIO_VOICE_NAME` (must be a voice supported by your Twilio account)
+- `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`
+- `RYANAI_OWNER_PHONE`, `RYANAI_OWNER_EMAIL` (deployment-only owner identity; never commit personal values)
+- `RYANAI_OWNER_TITLE` (defaults to `Sir`) and optional `RYANAI_TWILIO_VOICE` (must be a voice supported by your Twilio account)
 
-Owner contact defaults may be configured with `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL`; the API does not hard-code personal destinations. The server resolves the owner identity from `RYANAI_OWNER_EMAIL` after verifying the Supabase session and returns only an `isOwner` flag to the authenticated UI. The owner email is never exposed in the frontend bundle.
+The API resolves owner identity from deployment configuration after authentication and returns only an `isOwner` flag to the authenticated UI. Owner contact values must not be exposed in the frontend bundle.
 
 ## Twilio Console configuration
 
-Configure the WhatsApp sender's inbound message webhook to `/api/webhooks/twilio/whatsapp` (existing handler). Configure the SMS sender to `/api/webhooks/twilio/sms`. Configure the voice number's incoming-call webhook to `/api/webhooks/twilio/voice`. The voice Gather action must be the exact absolute URL `TWILIO_VOICE_ACTION_URL`. Configure delivery callbacks to `/api/webhooks/twilio/status` and set the exact public callback URL in `TWILIO_STATUS_WEBHOOK_URL`.
+Configure the WhatsApp sender's inbound message webhook to `/api/webhooks/twilio/whatsapp`. Configure the SMS sender to `/api/webhooks/twilio/sms`. Configure the voice number's incoming-call webhook to `/api/webhooks/twilio/voice`. The voice Gather action must be the exact absolute URL in `TWILIO_VOICE_ACTION_URL`. Configure delivery callbacks to `/api/webhooks/twilio/status` and set the exact public callback URL in `TWILIO_STATUS_WEBHOOK_URL`.
 
 Every callback URL must exactly match its configured environment value because Twilio request signatures are validated against that URL. Use HTTPS in production.
 
@@ -44,20 +48,20 @@ Administrator-authenticated `POST /api/comms/send` accepts `{ "channel": "whatsa
 
 ## Personalized greetings and South African English
 
-The authenticated UI greets each signed-in user by their chosen title or first name. The owner title defaults to `Sir`; users can select `Sir` or their own name in the welcome panel. Browser speech uses the `en-ZA` locale and offers installed South African English voices where the device provides them. RyanAI chat responses can be read aloud on demand, and new replies are spoken automatically while voice is enabled. Browsers may block automatic playback until the user presses **Play greeting** once; the preference is retained on that device. Twilio voice `<Say>` and speech recognition use `en-ZA`; `TWILIO_VOICE_NAME` optionally selects a Twilio-supported voice. Inbound WhatsApp, SMS, voice and email replies receive the same owner-address and English (South Africa) instruction.
+The authenticated UI greets each signed-in user by their chosen title or first name. The owner title defaults to `Sir`; users can select `Sir` or their own name in the welcome panel. Browser speech uses the `en-ZA` locale and offers installed South African English voices where the device provides them. RyanAI chat responses can be read aloud on demand, and new replies are spoken automatically while voice is enabled. Browsers may block automatic playback until the user presses **Play greeting** once; the preference is retained on that device. Twilio voice <Say> and speech recognition use `en-ZA`; `RYANAI_TWILIO_VOICE` optionally selects a Twilio-supported voice. Inbound WhatsApp, SMS, voice and email replies receive the same owner-address and English (South Africa) instruction.
 
-The browser's selected voice and Twilio's telephony voice are separate provider/device voice inventories; identical sound across devices and calls requires a supported shared TTS provider and its credentials. No custom cloned RyanAI voice or WhatsApp audio-note delivery is claimed by this change.
+The browser's selected voice and Twilio's telephony voice are separate provider/device voice inventories; identical sound across devices and calls requires a supported shared TTS provider and its credentials. No custom cloned RyanAI voice or WhatsApp audio-note delivery is claimed.
 
 ## Operational safeguards
 
-- Keep Twilio credentials and SMTP credentials in deployment secrets.
+- Keep Twilio credentials, Resend credentials and SMTP credentials in deployment secrets.
 - Obtain WhatsApp opt-in and use approved templates where required by WhatsApp policy.
 - Outbound calling/SMS must follow consent, local telecommunications rules, quiet hours and opt-out requests.
-- Voice conversation uses the configured LangGraph checkpointer/thread persistence; do not describe it as live until provider credentials and the webhook URLs are configured and tested.
-- Inbound email, durable unified message history, owner contact enrollment/verification and production provider probes remain follow-up work.
-
+- Voice conversation uses the configured LangGraph checkpointer/thread persistence; do not describe it as live until provider credentials and webhook URLs are configured and tested.
+- Resend inbound and SMTP outbound code paths exist, but provider connectivity, signature validation against live events, successful delivery and durable production history remain unverified until the production checklist passes.
 
 ## Multilingual identity and speech
+
 - RyanAI offers selectable preferences for all 11 South African official languages and additional international languages. The selected language is sent with authenticated reasoning requests and becomes an explicit response/translation instruction for the three-brain mission.
 - The owner default is `ve-ZA` (Tshivenda); `RYANAI_OWNER_LANGUAGE` can be changed in deployment settings. The owner salutation defaults to `Sir G` via `RYANAI_OWNER_TITLE`.
 - Browser speech uses the selected locale and an installed device voice when available. Browser speech voice availability varies by operating system/browser; the UI reports when a matching voice is not installed.

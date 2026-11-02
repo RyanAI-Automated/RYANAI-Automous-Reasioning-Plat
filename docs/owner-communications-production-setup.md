@@ -2,11 +2,9 @@
 
 ## Owner destinations
 
-Set these values only in the API deployment environment; do not commit personal contact data:
-- `RYANAI_OWNER_PHONE=+27718095084`
-- `RYANAI_OWNER_EMAIL=rmnganyane@gmail.com`
+Set `RYANAI_OWNER_PHONE` and `RYANAI_OWNER_EMAIL` only in the API deployment environment. Never commit personal contact data or copy live destination values into repository documentation.
 
-The inbound WhatsApp, SMS, and voice handlers reject senders that do not match the configured owner phone. The inbound email handler accepts only the configured owner email address. Email sender display names are not trusted; compare the normalized address.
+Inbound WhatsApp, SMS, and voice handlers restrict senders to the configured owner phone. Inbound email restricts the sender to the configured owner email address. Email display names are not trusted; the normalized address is compared.
 
 ## Twilio configuration
 
@@ -54,22 +52,22 @@ Inbound email uses Resend Receiving:
 Register a Resend webhook for the `email.received` event at:
 `<API_BASE_URL>/api/webhooks/resend/inbound`
 
-The webhook signature is verified using Resend's SDK and the raw request body. Resend sends metadata first; RyanAI then retrieves the received email body through the Receiving API. Configure a dedicated receiving domain/subdomain or Resend-managed receiving address and route replies there. Do not change the MX records for the user's existing Gmail domain/mailbox unless deliberately migrating that mail service. The owner Gmail address remains the authorized sender identity; it is not itself an inbound Resend mailbox.
+The webhook signature is verified using Resend's SDK and the raw request body. Resend sends metadata first; RyanAI then retrieves the received email body through the Receiving API. Configure a dedicated receiving domain/subdomain or Resend-managed receiving address and route replies there. Do not change the MX records for an existing mail domain/mailbox unless deliberately migrating that mail service. The configured owner email is an authorised sender identity; it is not automatically an inbound Resend mailbox.
 
 ## Durable history
 
 The API provisions `communication_conversations` and `communication_messages` in PostgreSQL during startup. Inbound and outbound messages are stored with channel, direction, provider ID, status, metadata, and timestamps. Provider status callbacks update stored status. Keep PostgreSQL backups enabled and retain data according to the operator's privacy policy.
 
-## Verification and 24/7 availability
+## Verification and activation
 
 `GET /api/comms/status` reports only whether required environment values are present. It does not claim that providers are connected or that messages were delivered.
 
 Before production activation:
-1. Confirm the API deployment is reachable and does not sleep.
-2. Configure the real Twilio/Resend/SMTP values and approved sender identities.
-3. Confirm WhatsApp opt-in and templates.
-4. Send one owner-only test per channel and verify provider callbacks and database history.
-5. Test inbound WhatsApp, SMS, voice, and email from the owner identities.
+1. Confirm the API deployment is reachable and PostgreSQL and Redis readiness checks pass.
+2. Verify Resend inbound independently using a signed `email.received` event; confirm the message is retrieved, owner-sender validation succeeds, and the inbound event and reply outcome are persisted.
+3. Verify SMTP independently with an explicitly authorised test recipient; confirm provider acceptance and persisted outbound history. A successful SMTP submission is not proof of final inbox delivery.
+4. Verify Twilio inbound callbacks and delivery-status callbacks independently, including signature validation and persisted status updates.
+5. Only after those checks pass, run one owner-authorised WhatsApp, SMS, and voice test within an explicitly agreed destination and test window. Verify provider callbacks and database history for each test.
 6. Verify retry/deduplication behavior and provider failure reporting.
 
 Do not use repeated test calls/messages against a live personal number without the owner's explicit test window. No credentials or real provider sends are included in CI.
