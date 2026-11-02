@@ -67,6 +67,12 @@ A patch proposal JSON file has `title`, `targetPath`, `patchContent`, `branch`, 
 
 For a Jarvis deployment that supports MCP Streamable HTTP, register RyanAI's MCP manager at `/mcp` and use the `MCP_AUTH_TOKEN` as a bearer token. The endpoint host must be listed in `MCP_ALLOWED_HOSTS`; if Jarvis sends an Origin header, that origin host must also be allow-listed. Expose the MCP listener only on a trusted network or behind an authenticated TLS ingress. The MCP manager provides platform health, provider-routed reasoning, project checks, and repository status where Git metadata is present.
 
+## MCPJungle gateway client
+
+For a local, least-privilege MCP connection, use the optional enterprise-mode MCPJungle gateway described in [MCPJungle integration](./MCPJUNGLE_INTEGRATION.md). It registers RyanAI's Streamable HTTP MCP service once, then exposes a Jarvis-specific tool group and client token. The default group contains only tool catalogue, API health and non-secret stack-manifest reads. Provider calls and code-execution tools remain disabled unless an operator explicitly enables them. Jarvis must use its own MCPJungle client token; never reuse `MCP_AUTH_TOKEN` or `JARVIS_API_TOKEN`.
+
+MCPJungle does not replace the Jarvis REST bridge documented above. The REST bridge still needs a real `JARVIS_BASE_URL`, `JARVIS_API_TOKEN`, a successful authenticated staging smoke test, and separate ingress credentials before inbound patching can be enabled. Those settings are intentionally not enabled by this PR.
+
 ## Staging smoke test
 
 For required GitHub Actions secrets, staging-only configuration, expected HTTP outcomes, and safe manual execution, see [`JARVIS_STAGING_RUNBOOK.md`](./JARVIS_STAGING_RUNBOOK.md). The workflow is manual and never enables production sync.
