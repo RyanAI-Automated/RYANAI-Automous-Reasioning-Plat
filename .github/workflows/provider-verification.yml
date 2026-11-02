@@ -3,6 +3,7 @@ name: Isolated Provider Verification
 on:
   push:
     branches:
+      - main
       - automation/provider-verification-main-20261102
   workflow_dispatch:
     inputs:
