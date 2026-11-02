@@ -60,6 +60,34 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Prepare disposable PostgreSQL with Supabase Auth compatibility
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN BYPASSRLS;
+            END IF;
+          END $$;
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE TABLE IF NOT EXISTS auth.users (
+            id uuid PRIMARY KEY,
+            email text,
+            raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now()
+          );
+          SQL
+
       - name: Set up Database Schema
         run: npm run db:setup
 
@@ -76,7 +104,7 @@ jobs:
           api_pid=$!
           npm run preview -- --host 0.0.0.0 --port 9090 > web.log 2>&1 &
           web_pid=$!
-          
+
           cleanup() {
             echo "Shutting down background services..."
             kill "$api_pid" "$web_pid" 2>/dev/null || true
