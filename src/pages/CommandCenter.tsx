@@ -1014,6 +1014,15 @@ export default function CommandCenter({
   );
 
   // Updated chatPanelProps utilizing explicit union type casting
+  const refreshAttachmentUrl = useCallback(async (attachment: MessageAttachment) => {
+    if (!supabase || !activeId) {
+      throw new Error('Private cloud storage is unavailable for this conversation.');
+    }
+    const refreshed = await signConversationAttachment(supabase, userId, activeId, attachment);
+    if (!refreshed.url) throw new Error('A secure attachment link could not be created.');
+    return refreshed.url;
+  }, [activeId, userId]);
+
   const chatPanelProps = {
     messages: activeMessages,
     model,
@@ -1025,6 +1034,7 @@ export default function CommandCenter({
     attachmentsEnabled: Boolean(supabase),
     onExport: exportThread,
     onImport: importThread,
+    onRefreshAttachment: refreshAttachmentUrl,
     activeTitle: activeConversation?.title,
     onOpenLeft: () => setLeftOpen(true),
     onOpenRight: () => setRightOpen(true),
