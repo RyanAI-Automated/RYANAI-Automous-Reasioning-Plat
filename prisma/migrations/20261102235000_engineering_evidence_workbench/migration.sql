@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.agent_run_evidence (
   created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT agent_run_evidence_pkey PRIMARY KEY (id),
   CONSTRAINT agent_run_evidence_run_id_fkey
-    FOREIGN KEY (run_id) REFERENCES public.agent_runs(id) ON DELETE RESTRICT ON UPDATE CASCADE
+    FOREIGN KEY (run_id) REFERENCES public.agent_runs(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS agent_run_evidence_run_sequence_key
@@ -41,7 +41,11 @@ CREATE INDEX IF NOT EXISTS agent_run_evidence_run_sequence_idx
 CREATE OR REPLACE FUNCTION public.reject_agent_run_evidence_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  RAISE EXCEPTION 'agent_run_evidence is append-only; append a correction event instead';
+  -- Direct mutation is rejected. Parent-job deletion may cascade for data erasure.
+  IF TG_OP = 'UPDATE' OR pg_trigger_depth() = 1 THEN
+    RAISE EXCEPTION 'agent_run_evidence is append-only; append a correction event instead';
+  END IF;
+  RETURN OLD;
 END;
 $$;
 
