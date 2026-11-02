@@ -42,7 +42,24 @@ function safeProviderFailureDiagnostic(error) {
   if (status >= 400) return `Provider rejected the request (HTTP ${status}). Check request/model compatibility.`;
   if (code === 'WRONGPASS' || code === 'NOAUTH') return 'Provider-compatible service rejected authentication.';
   if (code) return `Provider network request failed (${code}). Check outbound connectivity and endpoint DNS/TLS.`;
-  return 'Provider call failed before a classifiable HTTP response. Raw details withheld to protect credentials.';
+
+  // Classify common SDK/configuration failures without ever emitting raw messages,
+  // request URLs, headers, or provider response bodies.
+  const safeName = typeof error?.name === 'string' ? error.name : '';
+  const safeMessage = typeof error?.message === 'string' ? error.message : '';
+  if (/APIConnectionError|ConnectTimeoutError|FetchError/i.test(safeName)) {
+    return 'Provider transport failed before an HTTP response. Check outbound DNS, TLS, and provider availability.';
+  }
+  if (/model.*(required|empty|undefined)/i.test(safeMessage)) {
+    return 'Provider model configuration is missing or invalid.';
+  }
+  if (/baseURL|base url|endpoint|URL/i.test(safeMessage) && /invalid|malformed|must be/i.test(safeMessage)) {
+    return 'Provider endpoint configuration is invalid.';
+  }
+  if (/API key|apiKey|credential/i.test(safeMessage) && /missing|required|not configured/i.test(safeMessage)) {
+    return 'Provider credential is missing from the selected provider configuration.';
+  }
+  return `Provider call failed (${safeName || 'unknown SDK error'}) before a classifiable HTTP response. Raw details withheld to protect credentials.`;
 }
 
 const providers = {
