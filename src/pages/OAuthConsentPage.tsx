@@ -32,7 +32,12 @@ function redirectToClient(url: string, onRedirect: (url: string) => void, expect
     } catch {
       throw new Error('The registered OAuth callback URI is invalid.');
     }
-    if (parsed.protocol !== expected.protocol || parsed.hostname !== expected.hostname || parsed.pathname !== expected.pathname) {
+    if (
+      parsed.protocol !== expected.protocol ||
+      parsed.hostname !== expected.hostname ||
+      parsed.port !== expected.port ||
+      parsed.pathname !== expected.pathname
+    ) {
       throw new Error('Supabase returned a redirect that does not match the registered callback URI.');
     }
   }
