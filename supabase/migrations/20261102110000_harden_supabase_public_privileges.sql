@@ -71,7 +71,7 @@ $$;
 -- Trigger/event-trigger entry points are not browser RPCs. Room helper
 -- functions remain callable only by authenticated users because RLS policies
 -- use them to evaluate the caller's membership and ownership.
-DO $
+DO $privilege_hardening$
 BEGIN
     IF to_regprocedure('public.handle_new_user()') IS NOT NULL THEN
         EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated';
@@ -92,4 +92,4 @@ BEGIN
         EXECUTE 'GRANT EXECUTE ON FUNCTION public.is_room_owner(uuid) TO authenticated';
     END IF;
 END;
-$;
+$privilege_hardening$;
