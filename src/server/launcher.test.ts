@@ -87,6 +87,14 @@ vi.mock('./databaseSchema.js', () => ({
     agentCheckpointer: true,
   }),
 }));
+// Keep launcher route tests isolated from background workers. The test exercises
+// HTTP startup and routes; starting real workers here opens durable queue consumers
+// and timers that outlive the test server and can fail the Vitest process.
+vi.mock('../agent/operations.js', () => ({
+  startAgentTaskWorker: vi.fn(() => () => {}),
+  startBrainHealthMonitor: vi.fn(() => () => {}),
+}));
+
 vi.mock('../agent/invoke.js', () => ({
   invokeReasoningAgent: state.invoke,
 }));
