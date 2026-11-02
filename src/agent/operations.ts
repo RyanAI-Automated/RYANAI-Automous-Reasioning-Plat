@@ -179,6 +179,13 @@ interface ClaimedAgentRun {
   approval_status: string;
   steering_notes: string | null;
   cancel_requested_at: Date | null;
+  plan_snapshot: unknown;
+  plan_hash: string | null;
+  base_commit_sha: string | null;
+  proposed_diff_hash: string | null;
+  approved_plan_hash: string | null;
+  approved_commit_sha: string | null;
+  approved_diff_hash: string | null;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
@@ -199,7 +206,7 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
     'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "approval_status" = \'approved\' AND ("plan_snapshot" IS NULL OR ("approved_plan_hash" = "plan_hash" AND "approved_commit_sha" = "base_commit_sha" AND "approved_diff_hash" = "proposed_diff_hash")) AND "cancel_requested_at" IS NULL AND (("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW())) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope", "approval_status", "steering_notes", "cancel_requested_at"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope", "approval_status", "steering_notes", "cancel_requested_at", "plan_snapshot", "plan_hash", "base_commit_sha", "proposed_diff_hash", "approved_plan_hash", "approved_commit_sha", "approved_diff_hash"',
     workerId,
   );
   return rows[0] ?? null;
@@ -218,10 +225,10 @@ async function processAgentRun(run: ClaimedAgentRun) {
     },
   );
   try {
-    await recordRunEvidence({ runId: run.id, eventType: 'execution.started', payload: { workerId: run.worker_id, attempt: run.attempts, approvalStatus: run.approval_status } });
+    await recordRunEvidence({ runId: run.id, eventType: run.attempts > 1 ? 'execution.recovered' : 'execution.started', payload: { workerId: run.worker_id, attempt: run.attempts, approvalStatus: run.approval_status, planHash: run.approved_plan_hash, baseCommitSha: run.approved_commit_sha, proposedDiffHash: run.approved_diff_hash } });
     const knowledge = await buildBrainKnowledgeContext();
     const executionPlan = planQueuedAgentRun(run.execution_scope);
-    const plannedObjective = buildAgentRunExecutionPrompt(run.objective + (run.steering_notes ? '\n\nHuman steering instructions (guidance only; not permission):\n' + run.steering_notes : ''), executionPlan);
+    const approvedPlan = run.plan_snapshot ? '\n\nAPPROVED PLAN SNAPSHOT:\n' + JSON.stringify(run.plan_snapshot) : '';\n    const approvedBinding = run.approved_commit_sha ? '\n\nAPPROVED SOURCE BINDING:\nbaseCommit=' + run.approved_commit_sha + '\nproposedDiffSha256=' + run.approved_diff_hash + '\nplanSha256=' + run.approved_plan_hash : '';\n    const plannedObjective = buildAgentRunExecutionPrompt(run.objective + approvedPlan + approvedBinding + (run.steering_notes ? '\n\nHuman steering instructions (guidance only; not permission):\n' + run.steering_notes : ''), executionPlan);
     const sharedObjective = knowledge
       ? knowledge + '\n\n' + plannedObjective
       : plannedObjective;
