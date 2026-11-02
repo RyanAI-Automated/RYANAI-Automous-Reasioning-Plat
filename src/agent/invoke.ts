@@ -1,6 +1,6 @@
 import { languageInstruction, DEFAULT_LANGUAGE, isRyanLanguage } from '../shared/languages.js';
 import { buildMemoryContext } from './memoryContext.js';
-import { dispatchAutonomousTask, waitForAutonomousTask } from './operations.js';
+import { dispatchAutonomousTask, waitForAutonomousTask, type AgentRunProgressEvent } from './operations.js';
 
 export interface AgentUser {
   id: string;
@@ -20,11 +20,13 @@ export async function invokeReasoningAgent({
   model,
   user,
   language,
+  onProgress,
 }: {
   prompt: string;
   model?: string;
   user?: AgentUser | null;
   language?: string;
+  onProgress?: (event: AgentRunProgressEvent) => void;
 }) {
   if (!user?.id) {
     throw new Error('An authenticated user is required for traceable three-brain reasoning.');
@@ -37,7 +39,7 @@ export async function invokeReasoningAgent({
   const languagePolicy = '[RYANAI LANGUAGE POLICY] ' + languageInstruction(responseLanguage);
   const objective = [languagePolicy, memory, 'User request:\n' + prompt].filter(Boolean).join('\n\n');
   const queued = await dispatchAutonomousTask(user.id, objective);
-  const run = await waitForAutonomousTask(queued.id, user.id);
+  const run = await waitForAutonomousTask(queued.id, user.id, 120_000, onProgress);
   const handoffs = run.handoffs as ReasoningHandoff[];
   const specialistMessages = handoffs
     .filter((handoff) => handoff.toAgent === 'primary' || handoff.toAgent === 'secondary')
