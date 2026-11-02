@@ -106,6 +106,7 @@ await check('Web document', async () => {
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!(response.headers.get('content-type') || '').includes('text/html')) throw new Error('Web preview did not return HTML');
 });
 
 await check('MCP health endpoint', async () => {
