@@ -51,7 +51,10 @@ projects:
               - key: DATABASE_URL
                 sync: false
               - key: REDIS_URL
-                sync: false
+                fromService:
+                  name: ryanai-redis
+                  type: keyvalue
+                  property: connectionString
               - key: SUPABASE_URL
                 sync: false
               - key: SUPABASE_PUBLISHABLE_KEY
@@ -138,3 +141,9 @@ projects:
                 sync: false
               - key: RYANAI_OWNER_EMAIL
                 sync: false
+          - type: keyvalue
+            name: ryanai-redis
+            plan: free
+            region: oregon
+            maxmemoryPolicy: noeviction
+            ipAllowList: [] # Internal access only
