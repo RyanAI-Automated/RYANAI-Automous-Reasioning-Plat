@@ -87,7 +87,10 @@ test('provider errors remain request-scoped and a subsequent request can succeed
 });
 
 test('provider endpoints reject embedded credentials, query strings, and fragments before fetch', async () => {
-  for (const endpoint of ['http://user:pass@127.0.0.1:8888/v1', 'http://127.0.0.1:8888/v1?token=secret', 'http://127.0.0.1:8888/v1#fragment']) {
+  const credentialEndpoint = new URL('http://127.0.0.1:8888/v1');
+  credentialEndpoint.username = 'fixture-user';
+  credentialEndpoint.password = 'fixture-password';
+  for (const endpoint of [credentialEndpoint.toString(), 'http://127.0.0.1:8888/v1?token=secret', 'http://127.0.0.1:8888/v1#fragment']) {
     await assert.rejects(routeReasoning('Hello', 'deepseek', {
       env: { DEEPSEEK_API_ENDPOINT: endpoint },
       fetch: async () => { throw new Error('fetch must not be called'); },
