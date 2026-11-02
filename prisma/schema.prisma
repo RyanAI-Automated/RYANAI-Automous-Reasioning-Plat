@@ -33,7 +33,7 @@ enum AgentStatus {
 model User {
   id            String          @id @default(uuid())
   email         String          @unique
-  passwordHash  String          @map("password_hash")
+  passwordHash  String?         @map("password_hash")
   name          String?         @map("name")
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
