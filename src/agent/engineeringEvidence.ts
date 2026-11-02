@@ -109,6 +109,12 @@ export async function buildEvidenceBundle(runId: string) {
   const verificationChecks = latestChecks.size
     ? [...latestChecks.values()]
     : [{ name: 'CI / automated verification', status: 'unverified', source: 'No verification receipt recorded' }];
+  const latestEvaluation = evaluationReceipts.at(-1) as { payload?: { outcome?: string } } | undefined;
+  const latestAssurance = assuranceReceipts.at(-1) as { payload?: { outcome?: string } } | undefined;
+  const allChecksPassed = verificationChecks.length > 0 && verificationChecks.every((check) => check.status === 'pass');
+  const accepted = run.status === 'completed' && chain.valid && allChecksPassed
+    && latestEvaluation?.payload?.outcome === 'pass'
+    && latestAssurance?.payload?.outcome === 'pass';
   const bundle = {
     format: 'ryanai-engineering-evidence/v1',
     generatedAt: new Date().toISOString(),
@@ -136,6 +142,7 @@ export async function buildEvidenceBundle(runId: string) {
     verificationChecks,
     evaluationReceipts,
     assuranceReceipts,
+    acceptance: { accepted, status: accepted ? 'accepted' : 'not_accepted', reason: accepted ? 'Execution, verification, independent evaluation and assurance receipts are all present and valid.' : 'At least one required execution, verification, integrity, independent evaluation or assurance gate is missing or non-passing.' },
     integrity: chain,
   };
   const serialized = JSON.stringify(bundle, null, 2);
