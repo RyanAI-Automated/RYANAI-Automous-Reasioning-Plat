@@ -3,9 +3,9 @@
 # The envsubst allow-list leaves nginx variables such as $host and $scheme intact.
 set -eu
 
-: "\${PORT:=80}"
-: "\${API_HOST:=api}"
-: "\${API_PORT:=3000}"
+: "${PORT:=80}"
+: "${API_HOST:=api}"
+: "${API_PORT:=3000}"
 export PORT API_HOST API_PORT
 
 validate_port() {
@@ -13,12 +13,12 @@ validate_port() {
   value="$2"
   case "$value" in
     ""|*[!0-9]*)
-      echo "Invalid \${name}: expected a numeric TCP port" >&2
+      echo "Invalid ${name}: expected a numeric TCP port" >&2
       exit 64
       ;;
   esac
   if [ "$value" -lt 1 ] || [ "$value" -gt 65535 ]; then
-    echo "Invalid \${name}: port must be between 1 and 65535" >&2
+    echo "Invalid ${name}: port must be between 1 and 65535" >&2
     exit 64
   fi
 }
@@ -45,9 +45,9 @@ if ! command -v envsubst >/dev/null 2>&1; then
 fi
 
 umask 077
-temporary_output="$(mktemp "\${output}.XXXXXX")"
+temporary_output="$(mktemp "${output}.XXXXXX")"
 trap 'rm -f "$temporary_output"' EXIT HUP INT TERM
-envsubst '\${PORT} \${API_HOST} \${API_PORT}' < "$template" > "$temporary_output"
+envsubst '${PORT} ${API_HOST} ${API_PORT}' < "$template" > "$temporary_output"
 mv "$temporary_output" "$output"
 trap - EXIT HUP INT TERM
 
