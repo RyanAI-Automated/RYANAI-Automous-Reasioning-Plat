@@ -7,7 +7,7 @@ function prismaMock(create: ReturnType<typeof vi.fn>, findUnique = vi.fn()) {
     communicationConversation: {
       upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }),
     },
-    communicationMessage: { create, findUnique },
+    communicationMessage: { create, findUnique, updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   } as unknown as PrismaClient;
 }
 
@@ -50,8 +50,44 @@ describe('claimInboundCommunication', () => {
     });
     expect(findUnique).toHaveBeenCalledWith({
       where: { providerMessageId: 'SM-provider-event-1' },
-      select: { status: true, metadata: true },
+      select: { id: true, status: true, metadata: true, createdAt: true },
     });
+  });
+
+  it('reclaims a processing claim whose lease expired after a worker crash', async () => {
+    const stale = new Date(Date.now() - 6 * 60 * 1000);
+    const create = vi.fn().mockRejectedValue({ code: 'P2002' });
+    const findUnique = vi.fn().mockResolvedValue({
+      id: 'message-stale', status: 'processing', metadata: null, createdAt: stale,
+    });
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }) },
+      communicationMessage: { create, findUnique, updateMany },
+    } as unknown as PrismaClient;
+
+    await expect(claimInboundCommunication(prisma, input)).resolves.toEqual({ claimed: true });
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'message-stale', status: 'processing' }),
+      data: expect.objectContaining({ status: 'processing', body: input.body }),
+    }));
+  });
+
+  it('does not reclaim a fresh processing claim while another worker may own it', async () => {
+    const create = vi.fn().mockRejectedValue({ code: 'P2002' });
+    const findUnique = vi.fn().mockResolvedValue({
+      id: 'message-fresh', status: 'processing', metadata: null, createdAt: new Date(),
+    });
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const prisma = {
+      communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }) },
+      communicationMessage: { create, findUnique, updateMany },
+    } as unknown as PrismaClient;
+
+    await expect(claimInboundCommunication(prisma, input)).resolves.toEqual({
+      claimed: false, existing: { status: 'processing', metadata: null },
+    });
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('does not disguise database failures as duplicate deliveries', async () => {

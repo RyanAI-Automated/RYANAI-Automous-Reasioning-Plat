@@ -79,6 +79,8 @@ export async function updateCommunicationStatus(
 }
 
 
+const INBOUND_PROCESSING_LEASE_MS = 5 * 60 * 1000;
+
 export interface InboundCommunicationClaim {
   claimed: boolean;
   existing?: {
@@ -136,9 +138,32 @@ export async function claimInboundCommunication(
 
     const existing = await prisma.communicationMessage.findUnique({
       where: { providerMessageId: input.providerMessageId },
-      select: { status: true, metadata: true },
+      select: { id: true, status: true, metadata: true, createdAt: true },
     });
     if (!existing) throw error;
+
+    // A process can die after claiming a webhook but before completing it.
+    // Permit a provider retry to reclaim only an expired processing lease.
+    // The conditional update is atomic, so concurrent retries still have one winner.
+    const leaseExpired = existing.status === 'processing'
+      && existing.createdAt instanceof Date
+      && Date.now() - existing.createdAt.getTime() >= INBOUND_PROCESSING_LEASE_MS;
+    if (leaseExpired) {
+      const reclaimed = await prisma.communicationMessage.updateMany({
+        where: {
+          id: existing.id,
+          status: 'processing',
+          createdAt: { lte: new Date(Date.now() - INBOUND_PROCESSING_LEASE_MS) },
+        },
+        data: {
+          status: input.status ?? 'processing',
+          body: input.body,
+          ...(input.metadata ? { metadata: input.metadata } : {}),
+        },
+      });
+      if (reclaimed.count === 1) return { claimed: true };
+    }
+
     return {
       claimed: false,
       existing: {
