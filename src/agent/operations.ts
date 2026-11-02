@@ -190,7 +190,7 @@ interface ClaimedAgentRun {
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
 export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | null> {
-  await prisma.$executeRaw`
+  const exhausted = await prisma.$queryRaw<Array<{ id: string }>>`
     UPDATE "agent_runs"
     SET "status" = 'failed',
         "error" = 'Worker lease expired after the maximum number of attempts.',
@@ -201,7 +201,15 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
       AND "approval_status" = 'approved'
       AND "locked_at" < NOW() - INTERVAL '3 minutes'
       AND "attempts" >= "max_attempts"
+    RETURNING "id"
   `;
+  for (const expired of exhausted) {
+    await recordRunEvidence({
+      runId: expired.id,
+      eventType: 'execution.lease_exhausted',
+      payload: { reason: 'Worker lease expired after the maximum number of attempts.' },
+    });
+  }
   const rows = await prisma.$queryRawUnsafe<ClaimedAgentRun[]>(
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
     'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "approval_status" = \'approved\' AND ("plan_snapshot" IS NULL OR ("approved_plan_hash" = "plan_hash" AND "approved_commit_sha" = "base_commit_sha" AND "approved_diff_hash" = "proposed_diff_hash")) AND "cancel_requested_at" IS NULL AND (("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW())) ' +
