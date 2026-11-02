@@ -392,3 +392,16 @@ model LangGraphCheckpointWrite {
   @@id([threadId, checkpointNs, checkpointId, taskId, idx])
   @@map("checkpoint_writes")
 }
+
+model JarvisAuditEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String   @map("actor_id")
+  eventType  String   @map("event_type")
+  resourceId String?  @map("resource_id")
+  details    Json     @default("{}")
+  createdAt  DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@map("jarvis_audit_events")
+}
