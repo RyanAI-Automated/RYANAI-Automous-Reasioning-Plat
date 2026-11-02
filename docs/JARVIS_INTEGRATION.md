@@ -123,7 +123,7 @@ TORCHTPU_MODEL=your-served-model-id
 TORCHTPU_API_KEY=your-serving-bearer-key
 ```
 
-For a local endpoint, the loopback default is `http://127.0.0.1:8000/v1`; a model ID is mandatory. Remote endpoints require HTTPS and a bearer key. The optional TorchTPU route does not change the NVIDIA/Qwen/Logic three-brain orchestration or claim that TPU hardware exists. It is an additional model-serving target for explicit MCP calls.
+For a local endpoint, the loopback default is `http://127.0.0.1:8000/v1`; a model ID is mandatory. Note that inside the RyanAI MCP Docker container, `127.0.0.1` refers to that container, not the Docker host. If the serving runtime runs on another host or container, configure its reachable HTTPS endpoint and bearer key; do not point the container at its own loopback address. Remote endpoints require HTTPS and a bearer key. The optional TorchTPU route does not change the NVIDIA/Qwen/Logic three-brain orchestration or claim that TPU hardware exists. It is an additional model-serving target for explicit MCP calls.
 
 The InfoQ article reports TorchTPU's eager and compiled execution modes and Google-reported performance figures on specific TPU workloads. Its DeferAndFuse performance comparison is not a RyanAI benchmark. Dynamic shapes, compilation latency, operator coverage and quantization remain active maturity areas; verify the exact model/runtime/TPU generation before workload migration.
 
