@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/lib/prisma.ts';
 import { claimNextAgentRun } from '../src/agent/operations.ts';
 import { persistAgentRunCompletion } from '../src/agent/agentRunPersistence.ts';
+import { planQueuedAgentRun } from '../src/agent/agentRunExecution.ts';
+import { recordRunEvidence, verifyEvidenceChain } from '../src/agent/engineeringEvidence.ts';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL must target a disposable PostgreSQL database.');
@@ -33,9 +35,40 @@ try {
   userId = user.id;
 
   const [first, second] = await Promise.all([
-    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture A', status: 'queued' } }),
-    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture B', status: 'queued' } }),
+    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture A', status: 'queued', approvalStatus: 'pending' } }),
+    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture B', status: 'queued', approvalStatus: 'pending' } }),
   ]);
+
+  // New governed jobs remain unclaimable until their exact plan/commit/diff binding is approved.
+  const approvalPending = await prisma.agentRun.create({
+    data: {
+      userId,
+      objective: 'CI approval gate fixture',
+      status: 'queued',
+      approvalStatus: 'pending',
+      planSnapshot: { steps: ['inspect', 'test'] },
+      planHash: 'a'.repeat(64),
+      baseCommitSha: 'b'.repeat(40),
+      proposedDiffHash: 'c'.repeat(64),
+    },
+  });
+  assert.equal(await claimNextAgentRun('ci-worker-before-approval-' + suffix), null,
+    'a job with pending approval must never be claimed');
+  await prisma.agentRun.update({
+    where: { id: approvalPending.id },
+    data: {
+      approvalStatus: 'approved',
+      approvedPlanHash: 'a'.repeat(64),
+      approvedCommitSha: 'b'.repeat(40),
+      approvedDiffHash: 'c'.repeat(64),
+    },
+  });
+  const approvedClaim = await claimNextAgentRun('ci-worker-after-approval-' + suffix);
+  assert.equal(approvedClaim?.id, approvalPending.id, 'an exactly bound approved job becomes claimable');
+  await prisma.agentRun.updateMany({
+    where: { id: { in: [first.id, second.id] } },
+    data: { approvalStatus: 'approved' },
+  });
 
   // Two independent workers must claim different rows under concurrent load.
   const claims = await Promise.all([
@@ -110,6 +143,15 @@ try {
       maxAttempts: 3,
     },
   });
+  await recordRunEvidence({ runId: staleRun.id, eventType: 'ci.fixture', actorId: 'ci', payload: { immutable: true } });
+  const evidenceBeforeMutation = await prisma.agentRunEvidence.findMany({ where: { runId: staleRun.id }, orderBy: { sequence: 'asc' } });
+  assert.equal(verifyEvidenceChain(evidenceBeforeMutation).valid, true, 'new evidence event must verify');
+  await assert.rejects(
+    prisma.agentRunEvidence.update({ where: { id: evidenceBeforeMutation[0].id }, data: { eventType: 'tampered' } }),
+    /append-only/,
+    'direct evidence mutation must be rejected by the database trigger',
+  );
+
   await prisma.agentHandoff.createMany({ data: [
     { runId: staleRun.id, fromAgent: 'supervisor', toAgent: 'primary', input: staleRun.objective, status: 'pending' },
     { runId: staleRun.id, fromAgent: 'supervisor', toAgent: 'secondary', input: staleRun.objective, status: 'pending' },
@@ -140,7 +182,7 @@ try {
       objective: staleRun.objective,
       attempts: 1,
       worker_id: 'worker-a-' + suffix,
-    }, staleHandoffs, stalePlan)),
+    }, staleHandoffs, stalePlan, planQueuedAgentRun({ eventKnown: false, snapshotFresh: false }))),
     /lease was lost before completion/,
   );
   const [afterStaleWrite, afterStaleHandoffs, staleMemoryCount] = await Promise.all([
@@ -154,6 +196,8 @@ try {
     'worker A handoff writes must be rolled back');
   assert.equal(staleMemoryCount, 0, 'worker A memory write must be rolled back');
 
+  console.log('PASS immutable evidence ledger: hash chain verifies and direct mutation is rejected');
+  console.log('PASS exact approval binding: pending jobs blocked; approved digest-matched job claimable');
   console.log('PASS concurrent PostgreSQL claims: distinct rows, no duplicate ownership');
   console.log('PASS expired lease recovery: ownership transferred and attempt incremented');
   console.log('PASS retry policy: exhausted runs fail closed and future backoff is respected');

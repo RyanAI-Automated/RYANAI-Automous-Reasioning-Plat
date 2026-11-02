@@ -14,6 +14,7 @@ import { summarizeProviderError } from './providerErrors.js';
 import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE, BRAIN_PROBE_ORDER } from './brainProbe.js';
 import { buildAgentRunExecutionPrompt, planQueuedAgentRun } from './agentRunExecution.js';
 import type { ExecutionChange } from './executionPlanner.js';
+import { recordRunEvidence, appendRunEvidence } from './engineeringEvidence.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -175,11 +176,21 @@ interface ClaimedAgentRun {
   max_attempts: number;
   worker_id: string;
   execution_scope: unknown;
+  approval_status: string;
+  steering_notes: string | null;
+  cancel_requested_at: Date | null;
+  plan_snapshot: unknown;
+  plan_hash: string | null;
+  base_commit_sha: string | null;
+  proposed_diff_hash: string | null;
+  approved_plan_hash: string | null;
+  approved_commit_sha: string | null;
+  approved_diff_hash: string | null;
 }
 
 /** Atomically claim one queued run; stale leases are recoverable after worker restarts. */
 export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentRun | null> {
-  await prisma.$executeRaw`
+  const exhausted = await prisma.$queryRaw<Array<{ id: string }>>`
     UPDATE "agent_runs"
     SET "status" = 'failed',
         "error" = 'Worker lease expired after the maximum number of attempts.',
@@ -187,14 +198,23 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
         "worker_id" = NULL,
         "locked_at" = NULL
     WHERE "status" = 'running'
+      AND "approval_status" = 'approved'
       AND "locked_at" < NOW() - INTERVAL '3 minutes'
       AND "attempts" >= "max_attempts"
+    RETURNING "id"
   `;
+  for (const expired of exhausted) {
+    await recordRunEvidence({
+      runId: expired.id,
+      eventType: 'execution.lease_exhausted',
+      payload: { reason: 'Worker lease expired after the maximum number of attempts.' },
+    });
+  }
   const rows = await prisma.$queryRawUnsafe<ClaimedAgentRun[]>(
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
-    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE ("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW()) ' +
+    'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "approval_status" = \'approved\' AND ("plan_snapshot" IS NULL OR ("approved_plan_hash" = "plan_hash" AND "approved_commit_sha" = "base_commit_sha" AND "approved_diff_hash" = "proposed_diff_hash")) AND "cancel_requested_at" IS NULL AND (("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW())) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope"',
+    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope", "approval_status", "steering_notes", "cancel_requested_at", "plan_snapshot", "plan_hash", "base_commit_sha", "proposed_diff_hash", "approved_plan_hash", "approved_commit_sha", "approved_diff_hash"',
     workerId,
   );
   return rows[0] ?? null;
@@ -204,7 +224,7 @@ async function processAgentRun(run: ClaimedAgentRun) {
   const cancellation = new AbortController();
   const stopHeartbeat = startAgentRunLeaseHeartbeat(
     { id: run.id, workerId: run.worker_id, attempts: run.attempts },
-    (where) => prisma.agentRun.updateMany({ where, data: { lockedAt: new Date() } }),
+    (where) => prisma.agentRun.updateMany({ where: { ...where, cancelRequestedAt: null }, data: { lockedAt: new Date() } }),
     (error) => {
       console.error('[agent-worker] Lease ownership/heartbeat lost for run ' + run.id + ': ' + (error instanceof Error ? error.message : String(error)));
       if (!cancellation.signal.aborted) {
@@ -213,9 +233,10 @@ async function processAgentRun(run: ClaimedAgentRun) {
     },
   );
   try {
+    await recordRunEvidence({ runId: run.id, eventType: run.attempts > 1 ? 'execution.recovered' : 'execution.started', payload: { workerId: run.worker_id, attempt: run.attempts, approvalStatus: run.approval_status, planHash: run.approved_plan_hash, baseCommitSha: run.approved_commit_sha, proposedDiffHash: run.approved_diff_hash } });
     const knowledge = await buildBrainKnowledgeContext();
     const executionPlan = planQueuedAgentRun(run.execution_scope);
-    const plannedObjective = buildAgentRunExecutionPrompt(run.objective, executionPlan);
+    const approvedPlan = run.plan_snapshot ? '\n\nAPPROVED PLAN SNAPSHOT:\n' + JSON.stringify(run.plan_snapshot) : '';\n    const approvedBinding = run.approved_commit_sha ? '\n\nAPPROVED SOURCE BINDING:\nbaseCommit=' + run.approved_commit_sha + '\nproposedDiffSha256=' + run.approved_diff_hash + '\nplanSha256=' + run.approved_plan_hash : '';\n    const plannedObjective = buildAgentRunExecutionPrompt(run.objective + approvedPlan + approvedBinding + (run.steering_notes ? '\n\nHuman steering instructions (guidance only; not permission):\n' + run.steering_notes : ''), executionPlan);
     const sharedObjective = knowledge
       ? knowledge + '\n\n' + plannedObjective
       : plannedObjective;
@@ -233,13 +254,16 @@ async function processAgentRun(run: ClaimedAgentRun) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
     const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
     const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
+    const current = await prisma.agentRun.findUnique({ where: { id: run.id }, select: { cancelRequestedAt: true } });
+    const cancelled = Boolean(current?.cancelRequestedAt);
+    const retry = !cancelled && shouldRetryAgentRun(run.attempts, run.max_attempts);
     await prisma.$transaction(async (tx) => {
       const ownership = await tx.agentRun.updateMany({
         where: agentRunLeaseFilter({ id: run.id, workerId: run.worker_id, attempts: run.attempts }),
         data: {
-          status: retry ? 'queued' : 'failed',
+          status: cancelled ? 'cancelled' : retry ? 'queued' : 'failed',
           error: message,
-          completedAt: retry ? null : new Date(),
+          completedAt: cancelled || !retry ? new Date() : null,
           nextAttemptAt: retry ? nextAttemptAt : undefined,
           lockedAt: null,
           workerId: null,
@@ -250,10 +274,15 @@ async function processAgentRun(run: ClaimedAgentRun) {
         where: { runId: run.id, status: { in: ['pending', 'running', 'failed'] } },
         data: retry
           ? { status: 'pending', error: null, completedAt: null }
-          : { status: 'failed', error: message, completedAt: new Date() },
+          : { status: cancelled ? 'cancelled' : 'failed', error: message, completedAt: new Date() },
+      });
+      await appendRunEvidence(tx, {
+        runId: run.id,
+        eventType: cancelled ? 'execution.cancelled' : retry ? 'execution.retry_scheduled' : 'execution.failed',
+        payload: { attempt: run.attempts, message, nextAttemptAt: retry ? nextAttemptAt.toISOString() : null },
       });
     });
-    console.error('[agent-worker] Run ' + run.id + (retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
+    console.error('[agent-worker] Run ' + run.id + (cancelled ? ' cancelled' : retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
   } finally {
     stopHeartbeat();
   }
@@ -272,6 +301,12 @@ export async function dispatchAutonomousTask(userId: string, objective: string, 
       { runId: created.id, fromAgent: 'primary', toAgent: 'logic', input: 'Awaiting primary analysis', status: 'pending' },
       { runId: created.id, fromAgent: 'secondary', toAgent: 'logic', input: 'Awaiting secondary analysis', status: 'pending' },
     ] });
+    await appendRunEvidence(tx, {
+      runId: created.id,
+      eventType: 'job.queued',
+      actorId: userId,
+      payload: { objectiveLength: objective.length, queue: 'agent_runs' },
+    });
     return created;
   });
   const notified = await publishAgentTaskNotification(run.id, async (id) => {
@@ -305,6 +340,12 @@ export async function dispatchJarvisTask(actorId: string, objective: string, exe
         resourceId: created.id,
         details: { objectiveLength: objective.length, status: created.status },
       },
+    });
+    await appendRunEvidence(tx, {
+      runId: created.id,
+      eventType: 'job.queued',
+      actorId,
+      payload: { objectiveLength: objective.length, queue: 'agent_runs', source: 'jarvis' },
     });
     return created;
   });

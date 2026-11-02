@@ -28,6 +28,7 @@ import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
+import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js';
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
@@ -491,6 +492,7 @@ async function registerPlugins() {
   await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
+  await fastify.register(engineeringEvidenceRoutes);
   await fastify.register(slackInteractionsPlugin);
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);

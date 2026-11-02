@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import type { ExecutionPlan } from './executionPlanner.js';
+import { appendRunEvidence } from './engineeringEvidence.js';
 import type { Prisma } from '@prisma/client';
 import type { BrainOutput } from './operationsCore.js';
 
@@ -60,7 +62,7 @@ export async function persistAgentRunCompletion(
     },
   });
   const completion = await tx.agentRun.updateMany({
-    where: { id: run.id, status: 'running', workerId: run.worker_id, attempts: run.attempts },
+    where: { id: run.id, status: 'running', workerId: run.worker_id, attempts: run.attempts, cancelRequestedAt: null },
     data: {
       status: 'completed',
       result: { synthesis: plan.synthesis, degraded: plan.degraded, executionPlan, brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })) },
@@ -70,4 +72,16 @@ export async function persistAgentRunCompletion(
     },
   });
   if (completion.count !== 1) throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
+  await appendRunEvidence(tx, {
+    runId: run.id,
+    eventType: 'execution.completed',
+    payload: {
+      attempt: run.attempts,
+      degraded: plan.degraded,
+      executionPlan,
+      brains: plan.outputs.map(({ brain, latencyMs }) => ({ brain, latencyMs })),
+      synthesisSha256: createHash('sha256').update(plan.synthesis, 'utf8').digest('hex'),
+      verificationStatus: 'unverified',
+    },
+  });
 }
