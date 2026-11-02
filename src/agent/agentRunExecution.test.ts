@@ -19,13 +19,19 @@ describe('durable agent-run execution planning', () => {
     expect(plan).toMatchObject({ kind: 'targeted', resourceKeys: ['api', 'web'] });
   });
 
-  it('includes shared metadata and rejects untrusted non-string resource keys', () => {
+  it('includes shared metadata only for fully valid resource keys and escalates malformed scope', () => {
+    expect(planQueuedAgentRun({
+      eventKnown: true,
+      snapshotFresh: true,
+      resourceKeys: ['*.example.test'],
+      requiresSharedMetadata: true,
+    })).toMatchObject({ kind: 'targeted-with-metadata', resourceKeys: ['*.example.test'] });
     expect(planQueuedAgentRun({
       eventKnown: true,
       snapshotFresh: true,
       resourceKeys: ['*.example.test', 12],
       requiresSharedMetadata: true,
-    })).toMatchObject({ kind: 'targeted-with-metadata', resourceKeys: ['*.example.test'] });
+    }).kind).toBe('full');
   });
 
   it('does not let stale or unknown state authorize a purge', () => {
