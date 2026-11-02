@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import websocket from '@fastify/websocket';
 import { realtimeVoiceRoutes } from './realtimeVoice.js';
 
 const apps: FastifyInstance[] = [];
@@ -19,6 +18,7 @@ const redis = {
 };
 
 async function createApp() {
+  const { default: websocket } = await import('@fastify/websocket');
   const app = Fastify();
   apps.push(app);
   app.decorateRequest('authUser', null);
