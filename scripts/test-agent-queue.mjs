@@ -34,8 +34,8 @@ try {
   userId = user.id;
 
   const [first, second] = await Promise.all([
-    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture A', status: 'queued' } }),
-    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture B', status: 'queued' } }),
+    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture A', status: 'queued', approvalStatus: 'pending' } }),
+    prisma.agentRun.create({ data: { userId, objective: 'CI queue claim fixture B', status: 'queued', approvalStatus: 'pending' } }),
   ]);
 
   // New governed jobs remain unclaimable until their exact plan/commit/diff binding is approved.
@@ -64,6 +64,10 @@ try {
   });
   const approvedClaim = await claimNextAgentRun('ci-worker-after-approval-' + suffix);
   assert.equal(approvedClaim?.id, approvalPending.id, 'an exactly bound approved job becomes claimable');
+  await prisma.agentRun.updateMany({
+    where: { id: { in: [first.id, second.id] } },
+    data: { approvalStatus: 'approved' },
+  });
 
   // Two independent workers must claim different rows under concurrent load.
   const claims = await Promise.all([
