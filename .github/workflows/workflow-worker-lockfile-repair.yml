@@ -1,0 +1,52 @@
+name: Workflow worker lockfile repair validation
+
+on:
+  push:
+    branches:
+      - fix/workflow-worker-lockfile
+
+permissions:
+  contents: write
+
+concurrency:
+  group: workflow-worker-lockfile-repair
+  cancel-in-progress: true
+
+jobs:
+  regenerate-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Validate corrected manifest
+        run: node -e "JSON.parse(require('node:fs').readFileSync('workflows-ryanai/package.json','utf8')); console.log('worker manifest valid')"
+      - name: Regenerate worker lockfile
+        run: npm install --prefix workflows-ryanai --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Validate worker lockfile JSON and dependency alignment
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const pkg = JSON.parse(fs.readFileSync('workflows-ryanai/package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('workflows-ryanai/package-lock.json', 'utf8'));
+          const root = lock.packages?.[''];
+          if (!root) throw new Error('Worker lockfile is missing root package metadata');
+          for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+            for (const [name, spec] of Object.entries(pkg[section] ?? {})) {
+              if (root[section]?.[name] !== spec) throw new Error(`${section} mismatch: ${name}`);
+            }
+          }
+          console.log('Worker lockfile valid and aligned');
+          NODE
+      - name: Clean install and compile workflow worker
+        run: npm ci --prefix workflows-ryanai --no-audit --no-fund && npm --prefix workflows-ryanai run build
+      - name: Commit regenerated worker lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add workflows-ryanai/package-lock.json
+          git commit -m "fix: regenerate workflow worker lockfile"
+          git push origin HEAD
