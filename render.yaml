@@ -1,146 +1,140 @@
-services:
-  # Static frontend: API requests must target the separate Render API service.
-  # If the service names/domains change, update this origin and the API CORS list.
-# Exported from Render on 2026-11-02T08:10:03Z
+# RyanAI Production Blueprint
+# Dedicated static frontend and API; credentials remain outside source control.
 version: "1"
-projects:
-- name: RyanAI Autonomus
-  environments:
-  - name: Production
-    services:
-    - type: web
-      name: RYANAI-Automous-Reasioning-Plat
-      runtime: docker
-      repo: https://github.com/rmnganyane-dev/RYANAI-Automous-Reasioning-Plat
-      plan: free
-      region: virginia
-      dockerCommand: ./
-      dockerContext: ./
-      dockerfilePath: ./Dockerfile
-      autoDeployTrigger: "off"
-      rootDir: ./
-      
-  - type: web
-    name: ryanai-web
-    runtime: static
-    buildCommand: npm ci --legacy-peer-deps && npm run build
-    staticPublishPath: ./dist
-    envVars:
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_PUBLISHABLE_KEY
-        sync: false
-      - key: VITE_API_BASE_URL
-        value: https://ryanai-api.onrender.com
-      - key: VITE_APP_ENV
-        value: production
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
 
-  - type: web
-    name: ryanai-api
-    runtime: docker
-    dockerfilePath: ./Dockerfile.api
-    plan: free
-    healthCheckPath: /health
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: HOST
-        value: 0.0.0.0
-      - key: CORS_ORIGINS
-        value: https://ryanai-web.onrender.com,https://ryanai-automous-reasioning-plat-uss1632.vercel.app
-      - key: JWT_SECRET
-        generateValue: true
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_PUBLISHABLE_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: ATTACHMENT_SCANNER_ENABLED
-        value: 'false'
-      - key: CLAMAV_HOST
-        sync: false
-      - key: CLAMAV_PORT
-        value: '3310'
-      - key: CLAMAV_TIMEOUT_MS
-        value: '60000'
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: NVIDIA_API_KEY
-        sync: false
-      - key: NVIDIA_API_ENDPOINT
-        value: https://integrate.api.nvidia.com/v1
-      - key: NVIDIA_MODEL
-        value: nvidia/nemotron-3-ultra
-      - key: QWEN_API_KEY
-        sync: false
-      - key: QWEN_API_ENDPOINT
-        value: https://api.together.xyz/v1
-      - key: QWEN_MODEL
-        value: Qwen/Qwen3-235B-A22B-Instruct-2507
-      - key: LOGIC_API_KEY
-        sync: false
-      - key: LOGIC_API_ENDPOINT
-        value: https://api.openai.com/v1
-      - key: LOGIC_REASONING_MODEL
-        value: gpt-4o-mini
-      - key: RYANAI_GITHUB_TOKEN
-        sync: false
-      - key: RYANAI_GITHUB_REPOSITORY
-        value: RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
-      - key: RYANAI_GITHUB_BASE_BRANCH
-        value: main
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_PHONE_NUMBER
-        sync: false
-      - key: TWILIO_WHATSAPP_NUMBER
-        sync: false
-      - key: TWILIO_WHATSAPP_CONTENT_SID
-        sync: false
-      - key: TWILIO_WHATSAPP_WEBHOOK_URL
-        sync: false
-      - key: TWILIO_SMS_WEBHOOK_URL
-        sync: false
-      - key: TWILIO_VOICE_WEBHOOK_URL
-        sync: false
-      - key: TWILIO_VOICE_ACTION_URL
-        sync: false
-      - key: TWILIO_STATUS_WEBHOOK_URL
-        sync: false
-      - key: TWILIO_STATUS_CALLBACK_URL
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: RESEND_WEBHOOK_SECRET
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_SECURE
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: RYANAI_OWNER_TITLE
-        value: Sir G
-      - key: RYANAI_OWNER_LANGUAGE
-        value: ve-ZA
-      - key: RYANAI_OWNER_PHONE
-        sync: false
-      - key: RYANAI_OWNER_EMAIL
-        sync: false
+projects:
+  - name: RyanAI Autonomous
+    environments:
+      - name: Production
+        services:
+          - type: web
+            name: ryanai-web
+            runtime: static
+            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            plan: free
+            autoDeployTrigger: "off"
+            buildCommand: npm ci --legacy-peer-deps && npm run build
+            staticPublishPath: ./dist
+            envVars:
+              - key: VITE_SUPABASE_URL
+                sync: false
+              - key: VITE_SUPABASE_PUBLISHABLE_KEY
+                sync: false
+              - key: VITE_API_BASE_URL
+                value: https://ryanai-api.onrender.com
+              - key: VITE_APP_ENV
+                value: production
+            routes:
+              - type: rewrite
+                source: /*
+                destination: /index.html
+          - type: web
+            name: ryanai-api
+            runtime: docker
+            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
+            plan: free
+            region: virginia
+            dockerContext: .
+            dockerfilePath: ./Dockerfile.api
+            autoDeployTrigger: "off"
+            healthCheckPath: /health
+            envVars:
+              - key: NODE_ENV
+                value: production
+              - key: HOST
+                value: 0.0.0.0
+              - key: CORS_ORIGINS
+                value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
+              - key: JWT_SECRET
+                generateValue: true
+              - key: DATABASE_URL
+                sync: false
+              - key: REDIS_URL
+                sync: false
+              - key: SUPABASE_URL
+                sync: false
+              - key: SUPABASE_PUBLISHABLE_KEY
+                sync: false
+              - key: SUPABASE_SERVICE_ROLE_KEY
+                sync: false
+              - key: ATTACHMENT_SCANNER_ENABLED
+                value: "false"
+              - key: CLAMAV_HOST
+                sync: false
+              - key: CLAMAV_PORT
+                value: "3310"
+              - key: CLAMAV_TIMEOUT_MS
+                value: "60000"
+              - key: OPENAI_API_KEY
+                sync: false
+              - key: NVIDIA_API_KEY
+                sync: false
+              - key: NVIDIA_API_ENDPOINT
+                value: https://integrate.api.nvidia.com/v1
+              - key: NVIDIA_MODEL
+                value: nvidia/nemotron-3-ultra
+              - key: QWEN_API_KEY
+                sync: false
+              - key: QWEN_API_ENDPOINT
+                value: https://api.together.xyz/v1
+              - key: QWEN_MODEL
+                value: Qwen/Qwen3-235B-A22B-Instruct-2507
+              - key: LOGIC_API_KEY
+                sync: false
+              - key: LOGIC_API_ENDPOINT
+                value: https://api.openai.com/v1
+              - key: LOGIC_REASONING_MODEL
+                value: gpt-4o-mini
+              - key: RYANAI_GITHUB_TOKEN
+                sync: false
+              - key: RYANAI_GITHUB_REPOSITORY
+                value: RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+              - key: RYANAI_GITHUB_BASE_BRANCH
+                value: main
+              - key: TWILIO_ACCOUNT_SID
+                sync: false
+              - key: TWILIO_AUTH_TOKEN
+                sync: false
+              - key: TWILIO_PHONE_NUMBER
+                sync: false
+              - key: TWILIO_WHATSAPP_NUMBER
+                sync: false
+              - key: TWILIO_WHATSAPP_CONTENT_SID
+                sync: false
+              - key: TWILIO_WHATSAPP_WEBHOOK_URL
+                sync: false
+              - key: TWILIO_SMS_WEBHOOK_URL
+                sync: false
+              - key: TWILIO_VOICE_WEBHOOK_URL
+                sync: false
+              - key: TWILIO_VOICE_ACTION_URL
+                sync: false
+              - key: TWILIO_STATUS_WEBHOOK_URL
+                sync: false
+              - key: TWILIO_STATUS_CALLBACK_URL
+                sync: false
+              - key: RESEND_API_KEY
+                sync: false
+              - key: RESEND_WEBHOOK_SECRET
+                sync: false
+              - key: SMTP_HOST
+                sync: false
+              - key: SMTP_PORT
+                sync: false
+              - key: SMTP_SECURE
+                sync: false
+              - key: SMTP_USER
+                sync: false
+              - key: SMTP_PASS
+                sync: false
+              - key: SMTP_FROM
+                sync: false
+              - key: RYANAI_OWNER_TITLE
+                value: Sir G
+              - key: RYANAI_OWNER_LANGUAGE
+                value: ve-ZA
+              - key: RYANAI_OWNER_PHONE
+                sync: false
+              - key: RYANAI_OWNER_EMAIL
+                sync: false
