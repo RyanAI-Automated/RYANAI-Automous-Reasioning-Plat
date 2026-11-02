@@ -99,13 +99,20 @@ await check('API health and dependency status', async () => {
   }
 });
 
-await check('Web health endpoint', () => json(`${webBase}/health`));
-
-await check('Web document', async () => {
+await check('Web document and built assets', async () => {
   const response = await fetch(`${webBase}/`, {
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const html = await response.text();
+  const assetPaths = [...html.matchAll(/(?:src|href)=\"([^\"]+\\.(?:js|css))(?:\\?[^\"]*)?\"/g)]
+    .map((match) => match[1])
+    .filter((path) => path.startsWith('/'));
+  if (assetPaths.length === 0) throw new Error('No built JavaScript or CSS assets were referenced by the web document');
+  for (const assetPath of assetPaths) {
+    const asset = await fetch(new URL(assetPath, webBase), { signal: AbortSignal.timeout(timeoutMs) });
+    if (!asset.ok) throw new Error(`Built asset ${assetPath} returned HTTP ${asset.status}`);
+  }
 });
 
 await check('MCP health endpoint', async () => {
