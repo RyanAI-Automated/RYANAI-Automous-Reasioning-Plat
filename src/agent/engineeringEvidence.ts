@@ -97,6 +97,18 @@ export async function buildEvidenceBundle(runId: string) {
   });
   if (!run) return null;
   const chain = verifyEvidenceChain(run.evidence);
+  const latestChecks = new Map<string, Record<string, unknown>>();
+  const evaluationReceipts: unknown[] = [];
+  const assuranceReceipts: unknown[] = [];
+  for (const event of run.evidence) {
+    const payload = event.payload && typeof event.payload === 'object' ? event.payload as Record<string, unknown> : {};
+    if (event.eventType === 'verification.check' && typeof payload.name === 'string') latestChecks.set(payload.name, payload);
+    if (event.eventType === 'evaluation.receipt') evaluationReceipts.push(event);
+    if (event.eventType === 'assurance.receipt') assuranceReceipts.push(event);
+  }
+  const verificationChecks = latestChecks.size
+    ? [...latestChecks.values()]
+    : [{ name: 'CI / automated verification', status: 'unverified', source: 'No verification receipt recorded' }];
   const bundle = {
     format: 'ryanai-engineering-evidence/v1',
     generatedAt: new Date().toISOString(),
@@ -121,6 +133,9 @@ export async function buildEvidenceBundle(runId: string) {
     },
     handoffs: run.handoffs,
     evidence: run.evidence,
+    verificationChecks,
+    evaluationReceipts,
+    assuranceReceipts,
     integrity: chain,
   };
   const serialized = JSON.stringify(bundle, null, 2);
