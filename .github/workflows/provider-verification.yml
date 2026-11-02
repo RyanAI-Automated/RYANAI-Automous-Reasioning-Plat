@@ -1,9 +1,6 @@
 name: Isolated Provider Verification
 
 on:
-  push:
-    branches:
-      - automation/provider-verification-rerun
   workflow_dispatch:
     inputs:
       provider:
@@ -32,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        provider: ${{ (inputs.provider == 'all' || inputs.provider == '') && fromJSON('["primary","secondary","logic"]') || fromJSON(format('["{0}"]', inputs.provider)) }}
+        provider: ${{ inputs.provider == 'all' && fromJSON('["primary","secondary","logic"]') || fromJSON(format('["{0}"]', inputs.provider)) }}
     environment: ryanai-provider-verification
     services:
       postgres:
