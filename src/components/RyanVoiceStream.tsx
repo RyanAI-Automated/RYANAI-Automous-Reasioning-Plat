@@ -72,6 +72,9 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   const processor = useRef<ScriptProcessorNode | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const playbackTime = useRef(0);
+  const playbackNodes = useRef<Set<AudioBufferSourceNode>>(new Set());
+
+  const stop = useCallback(() => {
   const attemptId = useRef(0);
   const playbackNodes = useRef<Set<AudioBufferSourceNode>>(new Set());
 
@@ -103,6 +106,12 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     audioContext.current = null;
     if (context && context.state !== 'closed') void context.close();
     playbackTime.current = 0;
+    setStatus('idle');
+  }, []);
+
+  useEffect(() => () => stop(), [stop]);
+
+  const start = useCallback(async () => {
   }, []);
 
   const stop = useCallback(() => {
@@ -122,6 +131,11 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
         throw new Error('Microphone access is not available in this browser.');
       }
       const context = new AudioContext({ sampleRate: REALTIME_SAMPLE_RATE });
+      audioContext.current = context;
+      await context.resume();
+      mediaStream.current = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
       pendingContext = context;
       audioContext.current = context;
       await context.resume();
@@ -227,7 +241,73 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
         } catch {
           setError('RyanAI returned audio that could not be decoded.');
         }
+        if (event.type === 'session.started') {
+          const activeContext = audioContext.current;
+          const activeStream = mediaStream.current;
+          if (!activeContext || !activeStream) {
+            stop();
+            return;
+          }
+          const source = activeContext.createMediaStreamSource(activeStream);
+          const node = activeContext.createScriptProcessor(1024, 1, 1);
+          const silentOutput = activeContext.createGain();
+          silentOutput.gain.value = 0;
+          source.connect(node);
+          node.connect(silentOutput);
+          silentOutput.connect(activeContext.destination);
+          node.onaudioprocess = (audioEvent) => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            const audio = encodePcm16(audioEvent.inputBuffer.getChannelData(0));
+            ws.send(JSON.stringify({ type: 'session.input_audio.append', audio }));
+          };
+          mediaSource.current = source;
+          processor.current = node;
+          setStatus('listening');
+          return;
+        }
+        if (event.type === 'session.closed') {
+          stop();
+          return;
+        }
+        if (event.type === 'error') {
+          setError(event.error?.message || 'The realtime voice service returned an error.');
+          stop();
+          setStatus('error');
+          return;
+        }
+        if (event.type !== 'session.output_audio.delta' || !event.delta) return;
+        const activeContext = audioContext.current;
+        if (!activeContext) return;
+        try {
+          const samples = decodePcm16(event.delta);
+          if (samples.length === 0) return;
+          const buffer = activeContext.createBuffer(1, samples.length, REALTIME_SAMPLE_RATE);
+          buffer.copyToChannel(samples, 0);
+          const source = activeContext.createBufferSource();
+          source.buffer = buffer;
+          source.connect(activeContext.destination);
+          const startAt = Math.max(activeContext.currentTime, playbackTime.current);
+          source.start(startAt);
+          playbackTime.current = startAt + buffer.duration;
+          playbackNodes.current.add(source);
+          source.onended = () => {
+            playbackNodes.current.delete(source);
+            source.disconnect();
+          };
+        } catch {
+          setError('RyanAI returned audio that could not be decoded.');
+        }
       };
+
+      ws.onerror = () => {
+        setError('The realtime voice connection failed.');
+        stop();
+        setStatus('error');
+      };
+      ws.onclose = () => {
+        if (socket.current === ws) stop();
+      };
+    } catch (cause) {
 
       ws.onerror = () => {
         setError('The realtime voice connection failed.');
@@ -255,6 +335,10 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
     if (previousLanguage.current === language) return;
     previousLanguage.current = language;
     if (status === 'listening' || status === 'connecting') {
+      stop();
+      void start();
+    }
+  }, [language, status, start, stop]);
       releaseResources();
       queueMicrotask(() => {
         void start();
