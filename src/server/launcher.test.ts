@@ -38,6 +38,13 @@ vi.mock('./connectRedis.js', () => ({
     return {};
   }),
 }));
+
+// Launcher route tests must not start real provider probes or a PostgreSQL worker.
+// Those background services have their own integration tests and can outlive this suite.
+vi.mock('../agent/operations.js', () => ({
+  startBrainHealthMonitor: vi.fn(() => vi.fn()),
+  startAgentTaskWorker: vi.fn(() => vi.fn()),
+}));
 vi.mock('@fastify/redis', async () => {
   const { default: fp } = await import('fastify-plugin');
   return {
