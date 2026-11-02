@@ -9,7 +9,8 @@ import { DEFAULT_MODEL } from '@/lib/models';
 type BrainId = 'primary' | 'secondary' | 'logic';
 interface BrainHealth { brain: BrainId; model?: string; status: string; latencyMs?: number | null; lastError?: string | null; }
 interface BrainHealthResponse { brains?: BrainHealth[]; }
-interface StreamEvent { status?: 'processing' | 'complete'; message?: string; result?: string; error?: string; }
+interface HandoffSnapshot { fromAgent: string; toAgent: string; status: string; startedAt?: string; completedAt?: string | null; error?: string | null; }
+interface StreamEvent { status?: 'processing' | 'complete'; message?: string; result?: string; error?: string; handoffs?: HandoffSnapshot[]; runId?: string; runStatus?: string; }
 const labels: Record<BrainId, string> = { primary: 'NVIDIA', secondary: 'Qwen', logic: 'Logic' };
 const regions = ['Perception', 'Planning', 'Reasoning', 'Memory', 'Verification', 'Execution'] as const;
 
@@ -24,6 +25,7 @@ export default function RyanAICockpit() {
   const [brains, setBrains] = useState<BrainHealth[]>([]);
   const [brainError, setBrainError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const [handoffs, setHandoffs] = useState<HandoffSnapshot[]>([]);
 
   const refreshBrains = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -55,6 +57,7 @@ export default function RyanAICockpit() {
     setSending(true);
     setRequestError(null);
     setAnswer('');
+    setHandoffs([]);
     setActivity('Opening authenticated reasoning stream…');
     try {
       const response = await authenticatedFetch(API_BASE_URL + API_ROUTES.streamPath, {
@@ -74,10 +77,14 @@ export default function RyanAICockpit() {
         const raw = line.slice(5).trim();
         if (!raw) return;
         const message = JSON.parse(raw) as StreamEvent;
-        if (message.status === 'processing') setActivity(message.message || 'Orchestrator is processing.');
+        if (message.status === 'processing') {
+          setActivity(message.message || 'Orchestrator is processing.');
+          if (Array.isArray(message.handoffs)) setHandoffs(message.handoffs);
+        }
         if (message.status === 'complete') {
           if (!message.result) throw new Error('RyanAI completed without returning a response.');
           setAnswer(message.result);
+          if (Array.isArray(message.handoffs)) setHandoffs(message.handoffs);
           setActivity('Reasoning stream completed successfully.');
           completed = true;
         }
@@ -133,12 +140,12 @@ export default function RyanAICockpit() {
         </div>
         {brainError && <Alert tone="warning">{brainError}</Alert>}
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} />)}
+          {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} activity={brainActivity(id, handoffs)} />)}
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
           <Network className="h-4 w-4 text-cyan-300" />
-          <span>Brain-to-brain handoff events are not currently exposed by the live cockpit API.</span>
-          <span className="text-slate-500">No synthetic connections are displayed.</span>
+          <span>Handoff states below are read from persisted PostgreSQL execution records.</span>
+          <span className="text-slate-500">No connection is shown unless the worker records it.</span>
         </div>
       </section>
 
@@ -157,7 +164,11 @@ export default function RyanAICockpit() {
         <aside className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><Activity className="h-4 w-4 text-cyan-300" /> Live operation</div>
           <div className="mt-4 flex items-start gap-3"><span className={'mt-1 inline-flex h-2.5 w-2.5 rounded-full ' + (sending ? 'animate-pulse bg-cyan-300' : answer ? 'bg-emerald-400' : requestError ? 'bg-rose-400' : 'bg-slate-600')} /><p aria-live="polite" className="text-sm leading-6 text-slate-300">{activity}</p></div>
-          <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500">The current stream reports orchestrator-level progress only. Per-brain stages, region activation and live capacity require backend telemetry that is not yet available.</p>
+          <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-slate-500">Brain activity and handoff states reflect persisted worker transitions. Six-region activation and live capacity metrics remain unavailable until the backend reports them.</p>
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Persisted brain handoffs</p>
+            {handoffs.length ? <ul className="mt-2 space-y-2">{handoffs.map((handoff, index) => <li key={handoff.fromAgent + '-' + handoff.toAgent + '-' + index} className="flex items-center justify-between gap-3 text-xs"><span className="text-slate-300">{agentLabel(handoff.fromAgent)} → {agentLabel(handoff.toAgent)}</span><span className={handoff.status === 'completed' ? 'text-emerald-300' : handoff.status === 'failed' ? 'text-rose-300' : handoff.status === 'running' ? 'text-cyan-300' : 'text-slate-500'}>{handoff.status}</span></li>)}</ul> : <p className="mt-2 text-xs text-slate-500">No handoff transitions reported for this request.</p>}
+          </div>
           <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
             <Metric label="CPU / GPU" value="Not reported" /><Metric label="Memory" value="Not reported" /><Metric label="Token rate" value="Not reported" /><Metric label="Queue depth" value="Not reported" />
           </div>
@@ -170,7 +181,7 @@ export default function RyanAICockpit() {
   );
 }
 
-function BrainCard({ id, health }: { id: BrainId; health?: BrainHealth }) {
+function BrainCard({ id, health, activity }: { id: BrainId; health?: BrainHealth; activity: string }) {
   const status = health?.status || 'UNKNOWN';
   const healthy = status === 'HEALTHY';
   const failed = status === 'DEGRADED' || status === 'UNCONFIGURED' || status === 'FAILED';
@@ -181,12 +192,31 @@ function BrainCard({ id, health }: { id: BrainId; health?: BrainHealth }) {
       <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 font-semibold text-white"><Brain className={'h-5 w-5 ' + tone} /> {labels[id]}</div><span className={'text-[10px] font-semibold uppercase tracking-wider ' + tone}>{status}</span></div>
       <div className="my-4 flex items-center justify-center"><div className={'relative flex h-24 w-24 items-center justify-center rounded-full border ' + border + ' bg-slate-950 '}><div className={'absolute inset-2 rounded-full border border-dashed ' + (healthy ? 'border-cyan-400/40' : 'border-slate-700')} style={{ animationDuration: '18s' }} /><Brain className={'h-10 w-10 ' + tone} /></div></div>
       <p className="truncate text-xs text-slate-400" title={health?.model}>{health?.model || 'Model not reported'}</p>
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs"><span className="text-slate-500">Live execution</span><span className={activity === 'Completed' ? 'text-emerald-300' : activity === 'Failed' ? 'text-rose-300' : activity === 'Processing' ? 'text-cyan-300' : 'text-slate-400'}>{activity}</span></div>
       <div className="mt-2 flex justify-between gap-2 text-xs"><span className="text-slate-500">Last latency</span><span className="text-slate-300">{typeof health?.latencyMs === 'number' ? health.latencyMs + ' ms' : 'Not reported'}</span></div>
       {health?.lastError && <p className="mt-2 text-xs text-rose-300">{health.lastError}</p>}
       <div className="mt-4 border-t border-white/10 pt-3"><p className="mb-2 text-[10px] uppercase tracking-wider text-slate-500">Functional regions · live stage telemetry unavailable</p><div className="grid grid-cols-2 gap-1.5">{regions.map((region) => <div key={region} className="flex items-center gap-1.5 rounded-md bg-slate-950/70 px-2 py-1.5 text-[10px] text-slate-500"><CircleDot className="h-3 w-3 shrink-0" />{region}</div>)}</div></div>
       <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-500">{healthy ? <CheckCircle2 className="h-3 w-3 text-emerald-300" /> : <ShieldAlert className="h-3 w-3 text-amber-300" />}{healthy ? 'Provider health verified' : 'Provider requires attention or verification'}</div>
     </article>
   );
+}
+function agentLabel(agent: string): string {
+  if (agent === 'supervisor') return 'Orchestrator';
+  if (agent === 'primary') return 'NVIDIA';
+  if (agent === 'secondary') return 'Qwen';
+  if (agent === 'logic') return 'Logic';
+  return 'Unknown agent';
+}
+function brainActivity(id: BrainId, handoffs: HandoffSnapshot[]): string {
+  const relevant = id === 'logic'
+    ? handoffs.filter((handoff) => handoff.toAgent === 'logic')
+    : handoffs.filter((handoff) => handoff.fromAgent === 'supervisor' && handoff.toAgent === id);
+  if (!relevant.length) return 'Not started';
+  if (relevant.some((handoff) => handoff.status === 'running')) return 'Processing';
+  if (relevant.some((handoff) => handoff.status === 'failed')) return 'Failed';
+  if (relevant.every((handoff) => handoff.status === 'completed')) return 'Completed';
+  if (relevant.every((handoff) => handoff.status === 'pending')) return 'Queued';
+  return 'Waiting';
 }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-slate-950/70 p-2"><div className="text-slate-500">{label}</div><div className="mt-1 font-medium text-slate-300">{value}</div></div>; }
 function Alert({ children, tone }: { children: ReactNode; tone: 'error' | 'warning' }) { return <div role="alert" className={'mt-4 flex gap-2 rounded-xl border p-4 text-sm ' + (tone === 'error' ? 'border-rose-400/20 bg-rose-400/5 text-rose-200' : 'border-amber-400/20 bg-amber-400/5 text-amber-200')}><AlertCircle className="h-4 w-4 shrink-0" />{children}</div>; }

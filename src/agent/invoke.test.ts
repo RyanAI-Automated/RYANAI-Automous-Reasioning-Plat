@@ -34,10 +34,12 @@ describe('invokeReasoningAgent production orchestration', () => {
       ],
     });
 
+    const onProgress = vi.fn();
     const result = await invokeReasoningAgent({
       prompt: 'hello',
       model: 'gpt-4o',
       user: { id: 'user-1', role: 'admin' },
+      onProgress,
     });
 
     expect(state.buildMemoryContext).toHaveBeenCalledWith('user-1');
@@ -52,6 +54,7 @@ describe('invokeReasoningAgent production orchestration', () => {
       '[LOGIC BRAIN SYNTHESIS]\nSynthesized answer',
     ]);
     expect(result.handoffs).toHaveLength(4);
+    expect(state.waitForAutonomousTask).toHaveBeenCalledWith('run-123', 'user-1', 120_000, onProgress);
   });
 
   it('injects saved user context into the orchestrated objective', async () => {

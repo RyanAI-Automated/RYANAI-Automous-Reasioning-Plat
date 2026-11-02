@@ -38,7 +38,7 @@ import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { inspectDatabaseSchema } from './databaseSchema.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
 import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
-import { startAgentTaskWorker, startBrainHealthMonitor } from '../agent/operations.js';
+import { startAgentTaskWorker, startBrainHealthMonitor, type AgentRunProgressEvent } from '../agent/operations.js';
 import { startAttachmentScanner } from './attachments/scanner.js';
 import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 
@@ -212,8 +212,9 @@ function registerCoreRoutes() {
     model?: string,
     user?: FastifyRequest['authUser'],
     language?: string,
+    onProgress?: (event: AgentRunProgressEvent) => void,
   ) {
-    const result = await invokeReasoningAgent({ prompt, model, user, language });
+    const result = await invokeReasoningAgent({ prompt, model, user, language, onProgress });
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
@@ -333,11 +334,27 @@ function registerCoreRoutes() {
         status: 'processing',
         message: `Running reasoning for ${sessionId || 'default'}...`,
       });
-      const result = await runReasoning(prompt, request.body?.model, request.authUser, request.body?.language);
+      const result = await runReasoning(
+        prompt,
+        request.body?.model,
+        request.authUser,
+        request.body?.language,
+        (progress) => sendEvent({
+          status: 'processing',
+          message: 'Persisted brain handoff state changed.',
+          runId: progress.runId,
+          runStatus: progress.status,
+          handoffs: progress.handoffs.map(({ fromAgent, toAgent, status, startedAt, completedAt, error }) => ({
+            fromAgent, toAgent, status, startedAt, completedAt, error,
+          })),
+        }),
+      );
       sendEvent({
         status: 'complete',
         result: result.output,
         reasoningTrace: result.reasoningTrace,
+        runId: result.runId,
+        handoffs: result.handoffs,
       });
     } catch (err: unknown) {
       fastify.log.error({ err }, 'Streaming reasoning request failed');
