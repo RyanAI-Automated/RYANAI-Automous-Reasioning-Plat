@@ -1,0 +1,9 @@
+{
+  "name": "jarvis-readonly",
+  "description": "Least-privilege RyanAI operational tools for the Jarvis assistant",
+  "included_tools": [
+    "ryanai__tool_registry",
+    "ryanai__platform_health",
+    "ryanai__ryanai_stack_manifest"
+  ]
+}
