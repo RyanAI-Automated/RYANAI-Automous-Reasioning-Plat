@@ -45,6 +45,15 @@ export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis
       `Redis is unavailable${detail}. Verify that REDIS_URL uses the Render internal connection URL, ` +
       'that the API and Key Value instance share a workspace and region, and that internal authentication matches. ' +
       'The raw connection URL and server error are intentionally omitted to protect credentials.',
+      {
+        cause: new Error(
+          code
+            ? `Redis connection failed with code ${code}`
+            : error instanceof Error && error.message === 'Redis readiness timeout'
+              ? `Redis initial connection exceeded ${timeoutMs}ms`
+              : 'Redis connection attempt failed',
+        ),
+      },
     );
   } finally {
     clearTimeout(timeout);
