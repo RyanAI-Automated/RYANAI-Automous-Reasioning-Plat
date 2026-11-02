@@ -29,18 +29,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Trivy scan
+      - name: Generate complete Trivy SARIF report
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           format: sarif
           output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '1'
+          # Keep every severity in SARIF; the explicit CLI gate below enforces
+          # the blocking threshold without hiding MEDIUM/LOW findings.
+          exit-code: '0'
           skip-dirs: node_modules,**/node_modules,.cache,src-tauri/target
           scanners: vuln
+
+      - name: Fail only on HIGH or CRITICAL vulnerabilities
+        run: |
+          set -euo pipefail
+          trivy fs \
+            --scanners vuln \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            --skip-dirs node_modules,**/node_modules,.cache,src-tauri/target \
+            .
 
       - name: Upload Trivy results to GitHub Security
         if: always() && hashFiles('trivy-results.sarif') != ''
