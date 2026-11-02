@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) && github.sha || 'shared' }}
+  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
 
 env:
   NODE_OPTIONS: --max-old-space-size=6144
@@ -285,7 +285,7 @@ jobs:
             src/server/attachments/scanner.test.ts
       - name: Set up pinned Supabase CLI
         id: setup_supabase_cli
-        uses: supabase/setup-cli@v3.0.1
+        uses: supabase/setup-cli@v3.1.0
         with:
           version: 2.120.0
       - name: Start isolated local Supabase stack
