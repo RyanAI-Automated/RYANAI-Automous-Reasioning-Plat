@@ -185,7 +185,7 @@ try {
   await expectStartupFailure(
     'Redis unavailable',
     { DATABASE_URL: databaseUrl, REDIS_URL: unreachableRedis.toString() },
-    'Redis is unavailable',
+    'Production startup blocked: required dependency checks failed for Redis',
   );
 
   // Combined outage: both configured dependencies are unreachable in the
@@ -200,7 +200,7 @@ try {
       DATABASE_URL: combinedUnavailableDatabase.toString(),
       REDIS_URL: unreachableRedis.toString(),
     },
-    'Redis is unavailable',
+    'Production startup blocked: required dependency checks failed for Redis',
   );
 
   await expectHealthyRecovery();
