@@ -15,7 +15,7 @@ export interface AgentState {
 
 const modelName = process.env.PRIMARY_REASONING_MODEL ||
   (process.env.NVIDIA_API_KEY
-    ? process.env.NVIDIA_MODEL || "nvidia/nemotron-3-ultra"
+    ? process.env.NVIDIA_MODEL || "nvidia/nemotron-3-ultra-550b-a55b"
     : process.env.OPENAI_MODEL || "gpt-4o");
 let reactAgentGraph: ReturnType<typeof createReactAgent> | undefined;
 
