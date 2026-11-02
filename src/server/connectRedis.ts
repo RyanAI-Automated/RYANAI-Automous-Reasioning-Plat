@@ -24,11 +24,11 @@ export function inspectRedisConnectionUrl(url: string): RedisConnectionTarget {
     throw new Error('Invalid REDIS_URL scheme: use redis:// or rediss://.');
   }
   if (!parsed.hostname) throw new Error('Invalid REDIS_URL: a Redis hostname is required.');
-  if (parsed.port && (!/^\\d+$/.test(parsed.port) || Number(parsed.port) < 1 || Number(parsed.port) > 65535)) {
+  if (parsed.port && (!/^\d+$/.test(parsed.port) || Number(parsed.port) < 1 || Number(parsed.port) > 65535)) {
     throw new Error('Invalid REDIS_URL: port must be between 1 and 65535.');
   }
-  const databasePath = parsed.pathname.replace(/^\\//, '');
-  if (databasePath && !/^\\d+$/.test(databasePath)) {
+  const databasePath = parsed.pathname.replace(/^\//, '');
+  if (databasePath && !/^\d+$/.test(databasePath)) {
     throw new Error('Invalid REDIS_URL: database path must be a numeric index.');
   }
   return {
