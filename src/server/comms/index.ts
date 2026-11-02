@@ -7,7 +7,7 @@ import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { recordCommunication, updateCommunicationStatus } from './history.js';
 import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
-import { addressOwnerResponse, getTimeGreeting, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
+import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
 type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string };
