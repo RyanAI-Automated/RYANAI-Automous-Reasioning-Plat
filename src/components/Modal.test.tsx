@@ -40,8 +40,13 @@ describe('accessible modal dialog', () => {
     await act(async () => root.render(<ModalHarness />));
     const opener = container.querySelector('button') as HTMLButtonElement;
     opener.focus();
+    expect(document.activeElement).toBe(opener);
 
-    await act(async () => opener.click());
+    // Dispatch the user click after explicitly focusing the trigger so the
+    // test exercises the same prior-focus contract as keyboard activation.
+    await act(async () => {
+      opener.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
 
     const dialog = container.querySelector('[role="dialog"]');
     const closeButton = container.querySelector('button[aria-label="Close dialog"]') as HTMLButtonElement;
@@ -62,6 +67,7 @@ describe('accessible modal dialog', () => {
 
     await act(async () => {
       closeButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await Promise.resolve();
     });
     expect(container.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(opener);
