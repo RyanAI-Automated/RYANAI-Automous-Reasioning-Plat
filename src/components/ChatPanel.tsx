@@ -29,6 +29,17 @@ interface ChatPanelProps {
   onVoiceCommand?: (command: string, args: string) => void;
 }
 
+type CachedAttachmentUrl = { url: string; expiresAt: number };
+
+// Read wall-clock time only from event-driven helpers, never during React render.
+function hasFreshAttachmentUrl(cached: CachedAttachmentUrl | undefined): boolean {
+  return Boolean(cached && cached.expiresAt > Date.now() + 30_000);
+}
+
+function getAttachmentUrlExpiry(): number {
+  return Date.now() + 45_000;
+}
+
 function getPreferredLanguage(): string {
   try {
     const stored = window.localStorage.getItem('ryanai:language') ?? DEFAULT_LANGUAGE;
@@ -177,13 +188,13 @@ export default function ChatPanel(props: ChatPanelProps) {
 
   const getFreshAttachmentUrl = async (attachment: MessageAttachment): Promise<string> => {
     const cached = attachmentUrls[attachment.id];
-    if (cached && cached.expiresAt > Date.now() + 30_000) return cached.url;
+    if (hasFreshAttachmentUrl(cached)) return cached!.url;
 
     const url = await props.onRefreshAttachment(attachment);
     if (!url) throw new Error('A secure download link could not be created.');
     setAttachmentUrls((current) => ({
       ...current,
-      [attachment.id]: { url, expiresAt: Date.now() + 45_000 },
+      [attachment.id]: { url, expiresAt: getAttachmentUrlExpiry() },
     }));
     return url;
   };
