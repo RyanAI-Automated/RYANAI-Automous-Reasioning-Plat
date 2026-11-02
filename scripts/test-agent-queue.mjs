@@ -11,6 +11,7 @@ import { prisma } from '../src/lib/prisma.ts';
 import { claimNextAgentRun } from '../src/agent/operations.ts';
 import { persistAgentRunCompletion } from '../src/agent/agentRunPersistence.ts';
 import { planQueuedAgentRun } from '../src/agent/agentRunExecution.ts';
+import { recordRunEvidence, verifyEvidenceChain } from '../src/agent/engineeringEvidence.ts';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL must target a disposable PostgreSQL database.');
@@ -142,6 +143,15 @@ try {
       maxAttempts: 3,
     },
   });
+  await recordRunEvidence({ runId: staleRun.id, eventType: 'ci.fixture', actorId: 'ci', payload: { immutable: true } });
+  const evidenceBeforeMutation = await prisma.agentRunEvidence.findMany({ where: { runId: staleRun.id }, orderBy: { sequence: 'asc' } });
+  assert.equal(verifyEvidenceChain(evidenceBeforeMutation).valid, true, 'new evidence event must verify');
+  await assert.rejects(
+    prisma.agentRunEvidence.update({ where: { id: evidenceBeforeMutation[0].id }, data: { eventType: 'tampered' } }),
+    /append-only/,
+    'direct evidence mutation must be rejected by the database trigger',
+  );
+
   await prisma.agentHandoff.createMany({ data: [
     { runId: staleRun.id, fromAgent: 'supervisor', toAgent: 'primary', input: staleRun.objective, status: 'pending' },
     { runId: staleRun.id, fromAgent: 'supervisor', toAgent: 'secondary', input: staleRun.objective, status: 'pending' },
@@ -186,6 +196,7 @@ try {
     'worker A handoff writes must be rolled back');
   assert.equal(staleMemoryCount, 0, 'worker A memory write must be rolled back');
 
+  console.log('PASS immutable evidence ledger: hash chain verifies and direct mutation is rejected');
   console.log('PASS exact approval binding: pending jobs blocked; approved digest-matched job claimable');
   console.log('PASS concurrent PostgreSQL claims: distinct rows, no duplicate ownership');
   console.log('PASS expired lease recovery: ownership transferred and attempt incremented');
