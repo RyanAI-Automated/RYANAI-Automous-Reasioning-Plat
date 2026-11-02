@@ -12,9 +12,20 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
 DO $supabase_admin_defaults$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin') THEN
-        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated';
-        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO service_role';
-        EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated';
+        -- PostgreSQL only permits changing another role's default ACLs when
+        -- the migration role is a member of that role (or a superuser).
+        -- On managed Supabase, migrations commonly run as postgres without
+        -- supabase_admin membership. Skip this optional owner-specific ACL
+        -- adjustment in that case; the active migration owner's defaults and
+        -- all existing public table/function grants are still hardened below.
+        IF current_user = 'supabase_admin'
+           OR pg_has_role(current_user, 'supabase_admin', 'MEMBER') THEN
+            EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL PRIVILEGES ON TABLES FROM PUBLIC, anon, authenticated';
+            EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO service_role';
+            EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated';
+        ELSE
+            RAISE NOTICE 'Skipping supabase_admin default ACL adjustment: current migration role is not a member of supabase_admin';
+        END IF;
     END IF;
 END;
 $supabase_admin_defaults$;
