@@ -125,7 +125,7 @@ jobs:
           wait_http() {
             local name="$1" url="$2" expected="$3"
             for i in {1..45}; do
-              if body="$(curl --fail --silent "$url" 2>/dev/null)" && grep -q "$expected" <<<"$body"; then
+              if body="$(curl --fail --silent "$url" 2>/dev/null)" && grep -Eq "$expected" <<<"$body"; then
                 echo "$name is ready"
                 return 0
               fi
@@ -134,9 +134,9 @@ jobs:
             echo "$name failed readiness: $url"
             return 1
           }
-          wait_http "API" "http://localhost:3000/health" '"status":"online"'
+          wait_http "API" "http://localhost:3000/health" '"status"[[:space:]]*:[[:space:]]*"online"'
           wait_http "Web preview" "http://localhost:9090/" '<div'
-          wait_http "MCP" "http://localhost:8765/health" '"status":"ok"'
+          wait_http "MCP" "http://localhost:8765/health" '"status"[[:space:]]*:[[:space:]]*"ok"'
 
           npm test
           npm run test:integration
