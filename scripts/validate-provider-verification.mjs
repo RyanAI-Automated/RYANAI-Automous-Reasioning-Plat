@@ -25,6 +25,12 @@ requireCondition(workflow.permissions?.contents === 'read', 'workflow token must
 requireCondition(workflow.jobs?.verify?.environment === 'ryanai-provider-verification', 'provider secrets must remain scoped to the verification environment');
 requireCondition(workflow.jobs?.verify?.strategy?.['fail-fast'] === false, 'one provider failure must not cancel the other provider jobs');
 requireCondition(
+  workflow.jobs?.verify?.concurrency?.group === 'ryanai-provider-verification-${{ matrix.provider }}' &&
+  workflow.jobs?.verify?.concurrency?.['cancel-in-progress'] === false,
+  'each brain must be serialized across all/single dispatches without cancelling in-flight evidence',
+);
+requireCondition(!Object.hasOwn(workflow, 'concurrency'), 'workflow-level input concurrency must not split all-brain and single-brain locks');
+requireCondition(
   workflow.jobs?.verify?.services?.postgres?.image === 'postgres:16-alpine',
   'each provider job must use its own disposable PostgreSQL service',
 );
@@ -56,4 +62,4 @@ if (errors.length) {
   console.error(errors.map((error) => `FAIL ${error}`).join('\n'));
   process.exit(1);
 }
-console.log('PASS provider verification workflow: independent matrix, scoped secrets, exact challenge, and persisted readback');
+console.log('PASS provider verification workflow: per-brain concurrency, scoped secrets, exact challenge, and persisted readback');

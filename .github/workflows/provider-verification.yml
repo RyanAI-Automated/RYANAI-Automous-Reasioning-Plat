@@ -16,15 +16,16 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ryanai-provider-verification-${{ inputs.provider }}
-  cancel-in-progress: false
-
 jobs:
   verify:
     name: Verify ${{ matrix.provider }} provider
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      # Serialize probes per brain, including overlap between "all" and a
+      # single-provider dispatch. Never cancel an in-flight evidence run.
+      group: ryanai-provider-verification-${{ matrix.provider }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:
