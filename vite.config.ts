@@ -133,6 +133,8 @@ export default defineConfig(({ command, mode }) => {
         'src/tests/auth.test.ts',
         // Written for node:test and run by `npm run test:stack-validator`.
         'scripts/validate-stack-manifest.test.mjs',
+        // Written for node:test and run explicitly with `node --test` in CI.
+        'scripts/redis-probe.test.mjs',
       ],
       env: {
         RYAN_PATCH_VERIFIER_IMAGE:
