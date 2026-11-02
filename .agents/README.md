@@ -45,7 +45,7 @@ This repository adopts the composable workflow model from [Matt Pocock's Skills 
 26. grilling
 27. writing-for-agents
 
-Upstream skill source and updates: https://github.com/mattpocock/skills. The initial RyanAI integration implements the core operating contract in `AGENTS.md` and the focused skill guides alongside this catalog. Do not silently install duplicate copies into multiple agent-specific directories; keep one canonical project-level skill source and add thin adapters for Codex/Claude/Copilot only when required.
+Upstream skill source and updates: https://github.com/mattpocock/skills. The 27 upstream workflow names are represented by RyanAI-authored, project-local skill guides under `.agents/skills/`. These are RyanAI adaptations, not verbatim copies of the upstream `SKILL.md` contents; use the canonical upstream repository for the original wording and future updates. Do not silently install duplicate copies into multiple agent-specific directories; keep one canonical project-level skill source and add thin adapters for Codex/Claude/Copilot only when required.
 
 ## RyanAI-specific adaptations
 - Jarvis is the engineering orchestrator; RyanAI controls permissions, execution and approval.
