@@ -46,7 +46,8 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
     throw new Error('No API key is configured for ' + name + '; unauthenticated requests are allowed only to a loopback endpoint.');
   }
 
-  const endpoint = new URL('chat/completions', baseUrl.toString().replace(/\\/+$/, '') + '/');
+  const baseHref = baseUrl.href.endsWith('/') ? baseUrl.href : baseUrl.href + '/';
+  const endpoint = new URL('chat/completions', baseHref);
   const responseFormat = options.responseFormat || 'text';
   if (!['text', 'json_object'].includes(responseFormat)) {
     throw new Error('responseFormat must be text or json_object.');
