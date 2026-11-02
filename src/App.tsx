@@ -209,7 +209,7 @@ export default function App() {
               </>
             )}
             {(route === 'workspace' || isAuthRoute) && (
-              <div className="h-full min-h-[calc(100vh-3.5rem)]">
+              <div className="min-h-0">
                 <CommandCenter
                   onSignOut={() => void handleSignOut()}
                   userId={user.id}
