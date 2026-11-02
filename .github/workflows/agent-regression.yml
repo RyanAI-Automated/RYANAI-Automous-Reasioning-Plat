@@ -63,8 +63,11 @@ jobs:
       - name: Set up Database Schema
         run: npm run db:setup
 
-      - name: Build API and frontend
-        run: npm run build:server && npm run build:client
+      - name: Build frontend and API in safe output order
+        run: |
+          npm run build:client
+          npm run build:server
+          test -s dist/server/server/launcher.js
 
       - name: Run unit and agent API regression tests
         shell: bash
