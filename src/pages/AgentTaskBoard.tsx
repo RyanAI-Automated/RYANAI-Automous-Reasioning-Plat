@@ -165,7 +165,7 @@ export default function AgentTaskBoard() {
       {loading ? (
         <p role="status" className="p-8 text-center text-sm text-slate-400">Loading persisted tasks…</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
           {columns.map((column) => (
             <section key={column.id} aria-labelledby={`column-${column.id}`} className="min-h-64 rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
               <div className="mb-3 flex items-center justify-between gap-2 px-1">
