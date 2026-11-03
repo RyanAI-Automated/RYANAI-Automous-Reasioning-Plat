@@ -4,7 +4,7 @@
 **Audit date:** 2026-11-03  
 **Audited repository:** `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`  
 **Audited base commit:** `a1067a215c53c5d714cfdadff09337d011351a86`  
-**Architecture decision:** Render delivers the web frontend; Vercel hosts only compatible stateless HTTP API handlers; persistent workloads remain on a suitable persistent runtime.
+**Architecture decision:** Render delivers the web frontend; Vercel hosts only compatible stateless HTTP API handlers; Railway is the proposed persistent Docker runtime for selected existing RyanAI images and workloads. This is a target architecture, not a claim that Railway is configured or deployed.
 
 This inventory is an evidence-based migration boundary. It is not a claim that all route implementations, external credentials, provider accounts, or production service settings have been verified. Route ownership below is derived from the current source registration. Any dynamic or indirect registration is explicitly called out for runtime contract tests.
 
@@ -28,7 +28,8 @@ The safe first implementation boundary is:
 | API runtime | `src/server/launcher.ts` | Fastify listener on `HOST:PORT`; production startup requires PostgreSQL, Redis and the agent checkpointer |
 | Frontend build | `vite.config.ts`, `vercel.json` | Vite SPA output to `dist`; `vercel.json` currently describes a Vite frontend build, not a backend API |
 | Render desired config | `render.yaml` | Describes Render static frontend, Docker API and Redis with `noeviction` |
-| MCP runtime | `mcp-server/package.json`, `mcp-server/http.js` | Separate Node process with Streamable HTTP transport and a listener; stdio transport is also present |
+| MCP runtime | `mcp-server/Dockerfile`, `mcp-server/package.json`, `mcp-server/http.js` | Existing standalone Node container image; Streamable HTTP transport and listener; stdio transport is also present |
+| Root Docker targets | `Dockerfile` | Multi-stage `api`, `web`, and one-shot `migrate` targets; reuses root lockfile and build context |
 | Workflow package | `workflows-ryanai/package.json`, `workflows-ryanai/src/main.ts` | Separate Render Workflows SDK task package; durable task orchestration, not a normal request handler |
 
 ### Observed control-plane drift (inspection snapshot, 2026-11-03)
@@ -70,7 +71,28 @@ The following routes are registered by the current Fastify launcher or plugins. 
 
 **Route completeness note:** this is the registered route inventory found in the launcher and route plugins at the audited commit. The extraction PR must add route-contract tests that enumerate Fastify's actual registered routes after plugin registration and fail if a route is omitted from this inventory. It must also resolve any duplicate route registration discovered during app-factory extraction.
 
-## 4. Persistent workloads — do not move in the first API migration
+## 4. Existing Docker images and Railway workload mapping
+
+Railway is an additional target for existing RyanAI container builds, not a second codebase. Build provenance must point to the same official repository commit used by the coordinated release. No Railway project, service, image publication, environment variables, or deployment is configured by this inventory.
+
+| Existing image/build target | Docker source | Runtime contract | Railway assessment |
+|---|---|---|---|
+| API image | `Dockerfile` target `api` and standalone `Dockerfile.api` | Fastify listener on `0.0.0.0:$PORT` (default 3000); `/health` Docker healthcheck; PostgreSQL, Redis, checkpointer and provider integrations; launcher currently starts persistent work | **Primary persistent API candidate for staging.** Do not run it as a second production API alongside Render. After PR #756, validate which worker lifecycles remain coupled to the launcher and whether API and worker processes need separate commands/images. Vercel Function route extraction remains a separate, incremental step. |
+| MCP HTTP image | `mcp-server/Dockerfile` | Node 24 Alpine; `node http.js`; port 8765; authenticated Streamable HTTP; current Compose healthcheck probes `/health`; depends on API/model gateway and provider configuration | **Strong persistent-service candidate for Railway staging.** Verify the image's actual health endpoint, allowed-host policy, auth token, network path to API/gateway and shutdown behavior before deployment. |
+| Web image | `Dockerfile` target `web` | nginx SPA on port 80, proxies API/WebSocket traffic to configured API host | Keep Render as the frontend delivery target in the accepted architecture. Do not also publish the web image on Railway unless a separate, approved fallback test requires it. |
+| Migration image | `Dockerfile` target `migrate` | One-shot Prisma migration command; requires database access and must complete before API readiness | Not an always-on Railway service. If evaluated, use a controlled one-shot staging job with explicit database target, migration review and single-run protection. Never attach it as a continuously running service. |
+| PostgreSQL / Redis / ClamAV | Compose uses upstream images or external services | Stateful data and network dependencies | Do not blindly deploy Compose-local data services as ephemeral Railway containers. Use approved managed/persistent services and validate backups, network policy, TLS and retention independently. |
+
+### Railway staging rules
+
+- Use the official repository `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`; no build, service or deployment may depend on `rmnganyane-dev` fork.
+- Build the existing Dockerfile target/image from a reviewed commit; do not create a duplicate application or invent an image tag. Record immutable image digest and source commit SHA for evidence.
+- Keep one active owner for each API listener, worker queue consumer and scheduler. Never run duplicate workers on Render and Railway against the same queue unless the queue protocol explicitly supports coordinated multi-consumer execution and idempotency.
+- Staging must use isolated credentials/data and explicit service-to-service URLs. Do not copy production secrets into preview or commit them.
+- Verify container startup, `/health` and readiness semantics, restart behavior, graceful shutdown, logs, DB/Redis connectivity, queue ownership, MCP auth and network restrictions.
+- Keep production traffic and DNS unchanged. Railway staging success is not production cutover approval.
+
+## 5. Persistent workloads — do not move in the first API migration
 
 | Workload | Source | Why it needs a persistent/durable execution model | Initial target |
 |---|---|---|---|
@@ -86,7 +108,7 @@ The following routes are registered by the current Fastify launcher or plugins. 
 | Render Workflow tasks | `workflows-ryanai/src/main.ts` | Durable task/retry orchestration via Render Workflows SDK | Keep on its supported workflow runtime until separately evaluated |
 | Native/local inference | `native/`, `src-tauri/`, Python core | Native binaries, local GPU/CPU execution and OS-level dependencies | Desktop/worker runtime; not Vercel Functions |
 
-## 5. Shared dependency and integration map
+## 6. Shared dependency and integration map
 
 | Dependency | Current use | Required migration treatment |
 |---|---|---|
@@ -102,7 +124,7 @@ The following routes are registered by the current Fastify launcher or plugins. 
 | Render Workflows | Separate `@renderinc/sdk/workflows` package | Keep until workflow durability, retry semantics and platform replacement are independently tested |
 | Telemetry | Sentry, OpenTelemetry and Grafana Faro packages | Separate browser and server instrumentation; avoid process-global assumptions in Function cold starts |
 
-## 6. Runtime and data invariants
+## 7. Runtime and data invariants
 
 - PostgreSQL is the durable source of truth for task and application state.
 - Redis is transient coordination/cache infrastructure and must use `noeviction`; memory pressure should reject writes rather than evict keys.
@@ -115,11 +137,13 @@ The following routes are registered by the current Fastify launcher or plugins. 
 - Every async operation returns a durable task/run identifier and truthful queued/accepted status; it must not claim completion before worker evidence exists.
 - Production traffic, DNS, secrets, service plans, database/network configuration and automatic deployment settings are outside this PR.
 
-## 7. Proposed migration sequence and PR boundaries
+## 8. Proposed migration sequence and PR boundaries
 
 ### PR 1 — This inventory (documentation only)
 
-- Record the current runtime, route, workload and dependency map.
+- Record the current runtime, route, workload and dependency map across Render, Vercel and Railway.
+- Identify existing Docker images/targets and classify API, MCP, web and one-shot migration workloads.
+- Establish the official repository as the sole source of PR branches and merge targets; deployment connections must not depend on the user fork.
 - Identify route groups as candidate, conditional or persistent.
 - Make no runtime, platform, environment or deployment changes.
 
@@ -136,7 +160,7 @@ The following routes are registered by the current Fastify launcher or plugins. 
 - Add one minimal Node.js Function adapter using the extracted app/handler boundary.
 - Prove request/response conversion, cookies, auth, error handling, body limits, CORS, database pool reuse and cold-start behavior.
 - Do not add every route at once; migrate one low-risk route group at a time.
-- Keep all persistent workloads on the existing persistent runtime.
+- Keep all persistent workloads on an approved persistent runtime. Evaluate the existing API and MCP Docker images on Railway staging without enabling duplicate production listeners or workers.
 
 ### PR 4+ — Migrate route groups by evidence
 
@@ -147,9 +171,9 @@ The following routes are registered by the current Fastify launcher or plugins. 
 
 ### Final cutover gate
 
-A production cutover requires the same reviewed commit SHA on Render and Vercel, green required CI/security checks, preview end-to-end tests from the Render frontend to the Vercel API, verified auth/CORS/webhook/realtime behavior, health evidence, rollback references, and explicit human approval. A successful build on one platform is not proof of a coordinated release.
+A production cutover requires the same reviewed commit SHA and image digest provenance across the participating Render, Vercel and Railway services; green required CI/security checks; preview end-to-end tests from the Render frontend to the selected API endpoint; verified auth/CORS/webhook/realtime behavior; persistent worker ownership evidence; health evidence; rollback references; and explicit human approval. A successful build on one platform is not proof of a coordinated release.
 
-## 8. Validation status and open evidence
+## 9. Validation status and open evidence
 
 | Check | Status |
 |---|---|
@@ -160,14 +184,21 @@ A production cutover requires the same reviewed commit SHA on Render and Vercel,
 | PostgreSQL/Redis/agent worker architecture inspected | Source inventory; live DB/Redis values not revalidated here |
 | Render dashboard vs Blueprint drift identified | Requires operator reconciliation |
 | Vercel project currently configured as Vite frontend | Confirmed in project configuration |
+| Railway project/service configuration and repository connection | Not configured or verified |
+| Existing API Docker image on Railway staging | Not built or tested in Railway |
+| Existing MCP Docker image on Railway staging | Not built or tested in Railway |
+| Railway health, network, secrets and worker ownership | Not tested |
 | Function compatibility and production limits | Not yet tested |
 | Cross-platform preview integration | Not yet tested |
 | Production migration/cutover | Not performed; approval required |
 
-## 9. Primary source files
+## 10. Primary source files
 
 - `package.json`
+- `Dockerfile`
 - `Dockerfile.api`
+- `docker-compose.yml`
+- `mcp-server/Dockerfile`
 - `render.yaml`
 - `vercel.json`
 - `vite.config.ts`
