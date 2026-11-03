@@ -1,99 +1,130 @@
 import { createServer } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createClient } from 'redis';
 import { WebSocket, WebSocketServer } from 'ws';
+import { canAcknowledgeNext, compareStreamIds, publishUserEvent, userCursorKey, userStreamKey } from './stream-store.mjs';
 
 const required = ['REDIS_URL', 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'];
 for (const key of required) {
-  if (!process.env[key]?.trim()) throw new Error(`Missing required connectivity bridge setting: ${key}`);
+  if (!process.env[key]?.trim()) throw new Error('Missing required connectivity bridge setting: ' + key);
 }
 const port = Number(process.env.BRIDGE_PORT || 8787);
 const ticketTtl = 30;
 const maxPayload = 64 * 1024;
 const streamMaxLength = Number(process.env.BRIDGE_STREAM_MAX_LENGTH || 10000);
+const adapterToken = process.env.BRIDGE_ADAPTER_TOKEN || '';
 const origins = new Set((process.env.CORS_ORIGINS || '').split(',').map((v) => v.trim()).filter(Boolean));
-if (process.env.NODE_ENV !== 'production') {
-  for (const origin of ['http://localhost:1420', 'http://127.0.0.1:1420', 'http://localhost:9090', 'http://127.0.0.1:9090']) origins.add(origin);
-}
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('BRIDGE_PORT must be a valid TCP port.');
+if (!Number.isInteger(streamMaxLength) || streamMaxLength < 100) throw new Error('BRIDGE_STREAM_MAX_LENGTH must be at least 100.');
+if (adapterToken && adapterToken.length < 32) throw new Error('BRIDGE_ADAPTER_TOKEN must contain at least 32 characters.');
 
-const redis = createClient({ url: process.env.REDIS_URL });
-redis.on('error', (error) => console.error('[connectivity-bridge] Redis error', error.message));
+const redis = createClient({
+  url: process.env.REDIS_URL,
+  socket: { reconnectStrategy: (retries) => Math.min(250 * 2 ** Math.min(retries, 6), 10000) },
+});
+redis.on('error', (error) => console.error('[connectivity-bridge] Redis connection degraded:', error.message));
 await redis.connect();
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const safeEqual = (actual, expected) => {
+  if (typeof actual !== 'string' || typeof expected !== 'string') return false;
+  const a = Buffer.from(actual), b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+const getBearer = (request) => /^Bearer ([^\s]+)$/i.exec(request.headers.authorization || '')?.[1] || '';
+const sendJson = (response, status, body) => {
+  const serialized = JSON.stringify(body);
+  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'content-length': Buffer.byteLength(serialized) });
+  response.end(serialized);
+};
+async function readJson(request) {
+  let body = '';
+  for await (const chunk of request) {
+    body += chunk;
+    if (Buffer.byteLength(body) > 256 * 1024) throw new Error('BODY_TOO_LARGE');
+  }
+  try { return body ? JSON.parse(body) : {}; } catch { throw new Error('INVALID_JSON'); }
+}
+async function adapterStatuses() {
+  const statuses = { bridge: 'ready', redis: 'ready', api: 'unavailable', mcp: 'unavailable' };
+  for (const name of ['api', 'mcp']) {
+    const value = await redis.get('ryanai:connectivity:adapter:' + name);
+    if (value) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Date.now() - parsed.checkedAt < 45000) statuses[name] = 'ready';
+      } catch { /* malformed heartbeat remains unavailable */ }
+    }
+  }
+  return statuses;
+}
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://localhost');
   if (url.pathname === '/livez' && request.method === 'GET') {
-    response.writeHead(200, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ status: 'alive', service: 'ryanai-connectivity-bridge' }));
-    return;
+    return sendJson(response, 200, { status: 'alive', service: 'ryanai-connectivity-bridge' });
   }
   if (url.pathname === '/readyz' && request.method === 'GET') {
     try {
       await redis.ping();
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ status: 'ready', redis: 'connected' }));
+      return sendJson(response, 200, { status: 'ready', dependencies: await adapterStatuses() });
     } catch {
-      response.writeHead(503);
-      response.end();
-    }
-    return;
-  }
-  if (url.pathname !== '/v1/ticket' || request.method !== 'POST') {
-    response.writeHead(404);
-    response.end();
-    return;
-  }
-  const origin = request.headers.origin;
-  if (origin && !origins.has(origin)) {
-    response.writeHead(403);
-    response.end(JSON.stringify({ error: 'Origin is not allowed.' }));
-    return;
-  }
-  const bearer = /^Bearer ([^\s]+)$/i.exec(request.headers.authorization || '')?.[1];
-  if (!bearer || bearer.length > 8192) {
-    response.writeHead(401);
-    response.end(JSON.stringify({ error: 'A verified sign-in is required.' }));
-    return;
-  }
-  try {
-    const authResponse = await fetch(`${process.env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/user`, {
-      headers: { apikey: process.env.SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${bearer}` },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!authResponse.ok) {
-      response.writeHead(authResponse.status >= 500 ? 503 : 401);
-      response.end(JSON.stringify({ error: authResponse.status >= 500 ? 'Authentication is temporarily unavailable.' : 'The session is invalid or expired.' }));
-      return;
-    }
-    const user = await authResponse.json();
-    if (!user?.id || user.is_anonymous) {
-      response.writeHead(401);
-      response.end(JSON.stringify({ error: 'A non-anonymous signed-in user is required.' }));
-      return;
-    }
-    const rateKey = `ryanai:connectivity:ticket-rate:${user.id}`;
-    const attempts = await redis.incr(rateKey);
-    if (attempts === 1) await redis.expire(rateKey, 60);
-    if (attempts > 20) {
-      response.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });
-      response.end(JSON.stringify({ error: 'Too many ticket requests. Retry shortly.' }));
-      return;
-    }
-    const ticket = randomBytes(32).toString('base64url');
-    const stored = await redis.set(`ryanai:connectivity:ticket:${ticket}`, JSON.stringify({ userId: user.id }), { EX: ticketTtl, NX: true });
-    if (stored !== 'OK') throw new Error('Could not reserve a one-time connection ticket');
-    response.writeHead(201, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    response.end(JSON.stringify({ ticket, expiresIn: ticketTtl }));
-  } catch (error) {
-    console.error('[connectivity-bridge] Ticket issuance failed', error.message);
-    if (!response.headersSent) {
-      response.writeHead(503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      response.end(JSON.stringify({ error: 'Could not issue a connection ticket. Retry shortly.' }));
+      return sendJson(response, 503, { status: 'degraded', dependencies: { redis: 'unavailable' } });
     }
   }
+  if (url.pathname === '/v1/ticket' && request.method === 'POST') {
+    const origin = request.headers.origin;
+    if (origin && !origins.has(origin)) return sendJson(response, 403, { error: 'Origin is not allowed.' });
+    const bearer = getBearer(request);
+    if (!bearer || bearer.length > 8192) return sendJson(response, 401, { error: 'A verified sign-in is required.' });
+    try {
+      const authResponse = await fetch(process.env.SUPABASE_URL.replace(/\/$/, '') + '/auth/v1/user', {
+        headers: { apikey: process.env.SUPABASE_PUBLISHABLE_KEY, authorization: 'Bearer ' + bearer },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!authResponse.ok) return sendJson(response, authResponse.status >= 500 ? 503 : 401, { error: authResponse.status >= 500 ? 'Authentication is temporarily unavailable.' : 'The session is invalid or expired.' });
+      const user = await authResponse.json();
+      if (!user?.id || user.is_anonymous) return sendJson(response, 401, { error: 'A non-anonymous signed-in user is required.' });
+      const rateKey = 'ryanai:connectivity:ticket-rate:' + user.id;
+      const attempts = await redis.incr(rateKey);
+      if (attempts === 1) await redis.expire(rateKey, 60);
+      if (attempts > 20) return sendJson(response, 429, { error: 'Too many ticket requests. Retry shortly.' });
+      const ticket = randomBytes(32).toString('base64url');
+      const stored = await redis.set('ryanai:connectivity:ticket:' + ticket, JSON.stringify({ userId: user.id }), { EX: ticketTtl, NX: true });
+      if (stored !== 'OK') throw new Error('Could not reserve a single-use ticket.');
+      return sendJson(response, 201, { ticket, expiresIn: ticketTtl });
+    } catch (error) {
+      console.error('[connectivity-bridge] Ticket issuance failed:', error.message);
+      return sendJson(response, 503, { error: 'Could not issue a connection ticket. Retry shortly.' });
+    }
+  }
+  if (url.pathname.startsWith('/internal/') && !adapterToken) return sendJson(response, 503, { error: 'Bridge adapter authentication is not configured.' });
+  if (url.pathname.startsWith('/internal/') && !safeEqual(getBearer(request), adapterToken)) return sendJson(response, 401, { error: 'Unauthorized.' });
+  if (url.pathname === '/internal/events' && request.method === 'POST') {
+    try {
+      const body = await readJson(request);
+      const cursor = await publishUserEvent(redis, {
+        userId: body.userId,
+        idempotencyKey: body.idempotencyKey,
+        payload: body.payload,
+        maxLength: streamMaxLength,
+      });
+      return sendJson(response, 202, { accepted: true, cursor });
+    } catch (error) {
+      const status = error.message === 'BODY_TOO_LARGE' ? 413 : error.message === 'INVALID_JSON' ? 400 : 400;
+      return sendJson(response, status, { error: error.message === 'BODY_TOO_LARGE' ? 'Event payload is too large.' : 'Invalid event request.' });
+    }
+  }
+  if (url.pathname.startsWith('/internal/adapters/') && url.pathname.endsWith('/heartbeat') && request.method === 'POST') {
+    const name = url.pathname.split('/')[3];
+    if (!['api', 'mcp'].includes(name)) return sendJson(response, 400, { error: 'Unknown adapter.' });
+    await redis.set('ryanai:connectivity:adapter:' + name, JSON.stringify({ status: 'ready', checkedAt: Date.now() }), { EX: 45 });
+    return sendJson(response, 200, { accepted: true, adapter: name });
+  }
+  return sendJson(response, 404, { error: 'Not found.' });
 });
 
-const sockets = new WebSocketServer({ noServer: true, maxPayload });
+const sockets = new WebSocketServer({ noServer: true, maxPayload, perMessageDeflate: false });
 server.on('upgrade', async (request, socket, head) => {
   const url = new URL(request.url || '/', 'http://localhost');
   const origin = request.headers.origin;
@@ -109,7 +140,7 @@ server.on('upgrade', async (request, socket, head) => {
     return;
   }
   try {
-    const serialized = await redis.getDel(`ryanai:connectivity:ticket:${ticket}`);
+    const serialized = await redis.getDel('ryanai:connectivity:ticket:' + ticket);
     if (!serialized) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
@@ -130,79 +161,112 @@ server.on('upgrade', async (request, socket, head) => {
 sockets.on('connection', (ws) => {
   let cursor = '0-0';
   let acknowledgedCursor = '0-0';
-  const compareIds = (left, right) => { const a = left.split('-').map(BigInt); const b = right.split('-').map(BigInt); return a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : (a[0] < b[0] ? -1 : 1); };
   let closed = false;
   let reading = false;
-  let requestedCursor = false;
-  const stream = `ryanai:connectivity:events:${ws.userId}`;
-  const cursorKey = `ryanai:connectivity:cursor:${ws.userId}`;
+  let requestedResume = false;
+  let alive = true;
+  const sentOrder = [];
+  const stream = userStreamKey(ws.userId);
+  const cursorKey = userCursorKey(ws.userId);
   const send = (value) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(value)); };
 
   ws.on('message', async (raw) => {
     if (raw.length > maxPayload) return ws.close(1009, 'Message too large');
     let message;
     try { message = JSON.parse(raw.toString()); } catch { return send({ type: 'error', error: 'Invalid JSON' }); }
-    if (message?.type === 'resume' && !requestedCursor) {
-      requestedCursor = true;
-      const saved = await redis.get(cursorKey);
-      cursor = typeof message.cursor === 'string' && /^\d+-\d+$/.test(message.cursor) ? message.cursor : saved || '0-0';
-      send({ type: 'resumed', cursor });
-      pump();
-      return;
-    }
-    if (message?.type === 'ack' && typeof message.id === 'string' && /^\d+-\d+$/.test(message.id)) {
-      const acknowledged = message.id;
-      if (compareIds(acknowledged, acknowledgedCursor) > 0 && compareIds(acknowledged, cursor) <= 0) {
-        acknowledgedCursor = acknowledged;
-        await redis.set(cursorKey, acknowledgedCursor, { EX: 60 * 60 * 24 * 30 });
-        send({ type: 'acknowledged', id: acknowledgedCursor });
+    if (message?.type === 'resume' && !requestedResume) {
+      requestedResume = true;
+      try {
+        const saved = await redis.get(cursorKey);
+        acknowledgedCursor = saved || '0-0';
+        cursor = acknowledgedCursor;
+        const oldest = await redis.xRange(stream, '-', '+', { COUNT: 1 });
+        if (saved && oldest.length && saved !== '0-0' && compareStreamIds(saved, oldest[0].id) < 0) {
+          cursor = '0-0';
+          send({ type: 'replay_gap', requestedCursor: saved, oldestAvailable: oldest[0].id, reconcileRequired: true });
+        }
+        send({ type: 'resumed', cursor: acknowledgedCursor, capabilities: await adapterStatuses() });
+        void pump();
+      } catch (error) {
+        send({ type: 'degraded', dependency: 'redis', retryable: true });
       }
       return;
     }
-    send({ type: 'error', error: 'Unsupported bridge message. This socket is a delivery channel, not a command executor.' });
+    if (message?.type === 'ack' && typeof message.id === 'string' && /^\d+-\d+$/.test(message.id)) {
+      if (!canAcknowledgeNext(sentOrder, message.id)) {
+        send({ type: 'error', error: 'Acknowledgements must follow delivery order.' });
+        return;
+      }
+      try {
+        await redis.set(cursorKey, message.id, { EX: 60 * 60 * 24 * 30 });
+        acknowledgedCursor = message.id;
+        sentOrder.shift();
+        send({ type: 'acknowledged', id: acknowledgedCursor });
+      } catch {
+        send({ type: 'degraded', dependency: 'redis', retryable: true });
+      }
+      return;
+    }
+    if (message?.type === 'heartbeat' && typeof message.nonce === 'string' && message.nonce.length <= 128) {
+      send({ type: 'heartbeat_ack', nonce: message.nonce, at: Date.now() });
+      return;
+    }
+    send({ type: 'error', error: 'Unsupported bridge message.' });
   });
 
   async function pump() {
-    if (reading || closed || ws.readyState !== WebSocket.OPEN) return;
+    if (reading || closed || ws.readyState !== WebSocket.OPEN || !requestedResume) return;
     reading = true;
     try {
       while (!closed && ws.readyState === WebSocket.OPEN) {
-        const rows = await redis.xRead([{ key: stream, id: cursor }], { BLOCK: 5000, COUNT: 50 });
-        if (!rows) continue;
-        for (const row of rows) {
-          for (const entry of row.messages) {
-            cursor = entry.id;
-            let payload;
-            try { payload = JSON.parse(entry.message.payload); } catch { payload = { type: 'bridge.event.invalid_payload' }; }
-            send({ type: 'event', id: entry.id, data: payload });
-          }
+        if (sentOrder.length >= 500) {
+          await delay(250);
+          continue;
+        }
+        const rows = await redis.xRange(stream, '(' + cursor, '+', { COUNT: Math.min(50, 500 - sentOrder.length) });
+        if (!rows.length) {
+          await delay(400);
+          continue;
+        }
+        for (const entry of rows) {
+          if (closed || ws.readyState !== WebSocket.OPEN) break;
+          cursor = entry.id;
+          let payload;
+          try { payload = JSON.parse(entry.message.payload); } catch { payload = { type: 'bridge.event.invalid_payload' }; }
+          sentOrder.push(entry.id);
+          send({ type: 'event', id: entry.id, data: payload });
         }
       }
     } catch (error) {
       if (!closed) {
-        console.error('[connectivity-bridge] Stream reader degraded', error.message);
-        send({ type: 'degraded', retryable: true });
-        setTimeout(() => { reading = false; pump(); }, 1500);
-        return;
+        console.error('[connectivity-bridge] Stream reader degraded:', error.message);
+        cursor = acknowledgedCursor;
+        send({ type: 'degraded', dependency: 'redis', retryable: true });
+        await delay(1000);
+        if (!closed) void pump();
       }
     } finally {
       reading = false;
     }
   }
 
+  ws.on('pong', () => { alive = true; });
   const heartbeat = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) ws.ping();
+    if (!alive) { ws.terminate(); return; }
+    alive = false;
+    ws.ping();
   }, 25000);
   ws.on('close', () => { closed = true; clearInterval(heartbeat); });
   ws.on('error', () => { closed = true; clearInterval(heartbeat); });
 });
 
-server.listen(port, '0.0.0.0', () => console.log(`[connectivity-bridge] listening on ${port}`));
-async function shutdown() {
-  server.close();
-  for (const ws of sockets.clients) ws.close(1001, 'Bridge restarting');
-  await redis.quit();
-  process.exit(0);
+server.listen(port, '0.0.0.0', () => console.log('[connectivity-bridge] listening on ' + port));
+async function shutdown(signal) {
+  console.log('[connectivity-bridge] shutting down:', signal);
+  for (const ws of sockets.clients) ws.close(1012, 'Bridge restarting');
+  sockets.close();
+  await new Promise((resolve) => server.close(resolve));
+  await redis.quit().catch(() => undefined);
 }
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
