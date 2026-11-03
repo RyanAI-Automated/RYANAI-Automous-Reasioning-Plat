@@ -79,7 +79,7 @@ export const adminMcpRoutes: FastifyPluginAsync = async (fastify) => {
         note: 'Live tools discovered from the configured MCP runtime. This endpoint is read-only; allowlist changes remain a separate reviewed operator action.',
       };
     } catch (error) {
-      requestLogError(fastify, error);
+      fastify.log.warn({ err: error instanceof Error ? error.message : 'unknown MCP registry error' }, 'Live MCP registry discovery failed');
       return reply.code(502).send({ available: false, error: 'Live MCP discovery failed. Check server reachability, host allowlist, protocol compatibility and authentication.' });
     }
   });
