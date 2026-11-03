@@ -16,12 +16,13 @@ Cloudflare recommends OAuth for direct MCP clients. Its API MCP can also accept 
 
 ## Gateway compatibility constraint
 
-The currently pinned MCPJungle gateway is configured for Streamable HTTP upstreams and static bearer-token forwarding. Its published documentation states OAuth upstream flows are not supported yet. Therefore:
+MCPJungle distinguishes **upstream** authentication from **downstream client** authentication. Its current support matrix marks registration-time OAuth for upstream HTTP MCP servers as **beta** and gateway-scoped (not per downstream user). Enterprise-mode downstream clients authenticate with static bearer tokens; downstream OAuth, SSO and OIDC are not yet supported. Therefore:
 
-1. Do not assume Cloudflare OAuth can be passed through MCPJungle.
-2. For a unified MCPJungle route, use a dedicated, least-privilege Cloudflare API token only after confirming how the pinned MCPJungle release protects stored upstream credentials and backups.
-3. Until that storage review is accepted, connect to Cloudflare's managed MCP endpoint directly with OAuth from a trusted engineering client for read-only documentation and inspection. Do not route Cloudflare account write access through MCPJungle yet.
-4. Revisit gateway OAuth support before moving to per-user Cloudflare authorization.
+1. Do not describe upstream OAuth as wholly unsupported: it is available as a beta registration-time flow and must be tested against the pinned 0.4.6 release before relying on it.
+2. Do not assume Cloudflare OAuth authorization is passed through per RyanAI user. The upstream OAuth grant is gateway-scoped.
+3. For a unified MCPJungle route, use a dedicated, least-privilege Cloudflare API token only after confirming how the pinned MCPJungle release protects stored upstream credentials and backups, or separately validate its beta upstream OAuth flow.
+4. Until the credential-storage and OAuth tests pass, keep Cloudflare API access out of the gateway. Read-only Cloudflare documentation can be evaluated separately.
+5. Cloudflare Access remains an edge policy; MCPJungle downstream bearer-token authentication and per-client server allow-lists must remain enabled.
 
 ## Domain and hostname
 
