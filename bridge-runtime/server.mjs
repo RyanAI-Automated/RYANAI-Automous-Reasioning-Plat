@@ -22,8 +22,8 @@ const redis = createClient({ url: REDIS_URL, socket: { reconnectStrategy: (n) =>
 redis.on('error', (error) => console.error('bridge.redis.error', { message: error.message }));
 await redis.connect();
 
-const streamKey = (topic) => STREAM_PREFIX + Buffer.from(topic).toString('base64url');
-const cursorKey = (subject, topic) => CURSOR_PREFIX + createHmac('sha256', TICKET_SECRET).update(subject).digest('hex') + ':' + Buffer.from(topic).toString('base64url');
+const streamKey = (subject, topic) => STREAM_PREFIX + Buffer.from(subject).toString('base64url') + ':' + Buffer.from(topic).toString('base64url');
+const cursorKey = (subject, topic, streamSubject = subject) => CURSOR_PREFIX + createHmac('sha256', TICKET_SECRET).update(subject).digest('hex') + ':' + Buffer.from(streamSubject).toString('base64url') + ':' + Buffer.from(topic).toString('base64url');
 const adapterKey = (name) => ADAPTER_PREFIX + name;
 const ticketKey = (jti) => 'ryanai:bridge:ticket:' + jti;
 const validTopic = (topic) => typeof topic === 'string' && /^[a-zA-Z0-9._:-]{1,128}$/.test(topic);
@@ -92,18 +92,19 @@ const httpServer = createServer(async (request, response) => {
     if (!safeEqual(bearer(request), ADAPTER_TOKEN)) return json(response, 401, { error: 'Unauthorized' });
     try {
       const body = await readBody(request);
-      if (!validTopic(body.topic) || typeof body.idempotencyKey !== 'string' || !body.idempotencyKey.length ||
+      if (!validTopic(body.topic) || typeof body.userId !== 'string' || !body.userId.length || body.userId.length > 256 ||
+          (body.userId === 'system' && body.topic !== 'agent.status') || typeof body.idempotencyKey !== 'string' || !body.idempotencyKey.length ||
           body.idempotencyKey.length > 128 || !Object.hasOwn(body, 'payload')) return json(response, 400, { error: 'Invalid event' });
       const payload = JSON.stringify(body.payload);
       if (Buffer.byteLength(payload) > MAX_PAYLOAD_BYTES) return json(response, 413, { error: 'Payload too large' });
-      const dedupeKey = 'ryanai:bridge:dedupe:' + Buffer.from(body.topic).toString('base64url') + ':' + Buffer.from(body.idempotencyKey).toString('base64url');
+      const dedupeKey = 'ryanai:bridge:dedupe:' + Buffer.from(body.userId).toString('base64url') + ':' + Buffer.from(body.topic).toString('base64url') + ':' + Buffer.from(body.idempotencyKey).toString('base64url');
       const script = [
         "if redis.call('EXISTS', KEYS[1]) == 1 then return redis.call('GET', KEYS[1]) end",
         "local id = redis.call('XADD', KEYS[2], 'MAXLEN', '~', ARGV[3], '*', 'eventId', ARGV[1], 'payload', ARGV[2], 'occurredAt', ARGV[4])",
         "redis.call('SET', KEYS[1], id, 'EX', 86400)",
         "return id"
       ].join('\n');
-      const cursor = await redis.eval(script, { keys: [dedupeKey, streamKey(body.topic)], arguments: [body.idempotencyKey, payload, String(STREAM_MAXLEN), String(Date.now())] });
+      const cursor = await redis.eval(script, { keys: [dedupeKey, streamKey(body.userId, body.topic)], arguments: [body.idempotencyKey, payload, String(STREAM_MAXLEN), String(Date.now())] });
       return json(response, 202, { accepted: true, eventId: body.idempotencyKey, cursor });
     } catch (error) {
       console.error('bridge.publish.error', { message: error.message });
@@ -158,15 +159,20 @@ wss.on('connection', (ws) => {
       } else if (type === 'subscribe') {
         if (!Array.isArray(data.topics) || !data.topics.length || data.topics.length > MAX_TOPICS || !data.topics.every((topic) => connection.claims.topics.includes(topic))) throw new Error('SUBSCRIPTION_NOT_ALLOWED');
         for (const topic of data.topics) {
-          const saved = data.after || await redis.get(cursorKey(connection.claims.sub, topic)) || '0-0';
-          connection.subscriptions.set(topic, { scanCursor: saved, ackCursor: saved });
+          const streamSubjects = topic === 'agent.status' ? [connection.claims.sub, 'system'] : [connection.claims.sub];
+          const cursors = new Map();
+          for (const streamSubject of streamSubjects) {
+            const saved = await redis.get(cursorKey(connection.claims.sub, topic, streamSubject)) || '0-0';
+            cursors.set(streamSubject, saved);
+          }
+          connection.subscriptions.set(topic, { streams: cursors });
         }
       } else if (type === 'ack') {
         const delivered = connection.delivered.get(data.eventId);
         if (!delivered || delivered.cursor !== data.cursor) throw new Error('ACK_NOT_DELIVERED');
-        await redis.set(cursorKey(connection.claims.sub, delivered.topic), delivered.cursor);
+        await redis.set(cursorKey(connection.claims.sub, delivered.topic, delivered.streamSubject), delivered.cursor);
         const state = connection.subscriptions.get(delivered.topic);
-        if (state && delivered.cursor > state.ackCursor) state.ackCursor = delivered.cursor;
+        if (state) state.streams.set(delivered.streamSubject, delivered.cursor);
         connection.delivered.delete(data.eventId);
       } else {
         throw new Error('UNSUPPORTED_MESSAGE');
@@ -186,14 +192,16 @@ async function pollConnections() {
     connection.scanBusy = true;
     try {
       for (const [topic, state] of connection.subscriptions) {
-        const rows = await redis.xRange(streamKey(topic), '(' + state.scanCursor, '+', { COUNT: 100 });
-        for (const row of rows) {
-          if (connection.ws.readyState !== WebSocket.OPEN) break;
-          const payload = JSON.parse(row.message.payload);
-          const eventId = row.message.eventId;
-          state.scanCursor = row.id;
-          connection.delivered.set(eventId, { topic, cursor: row.id });
-          connection.ws.send(JSON.stringify(envelope({ type: 'event', data: { eventId, cursor: row.id, topic, payload, occurredAt: Number(row.message.occurredAt) } })));
+        for (const [streamSubject, scanCursor] of state.streams) {
+          const rows = await redis.xRange(streamKey(streamSubject, topic), '(' + scanCursor, '+', { COUNT: 100 });
+          for (const row of rows) {
+            if (connection.ws.readyState !== WebSocket.OPEN) break;
+            const payload = JSON.parse(row.message.payload);
+            const eventId = row.message.eventId;
+            state.streams.set(streamSubject, row.id);
+            connection.delivered.set(eventId, { topic, cursor: row.id, streamSubject });
+            connection.ws.send(JSON.stringify(envelope({ type: 'event', data: { eventId, cursor: row.id, topic, payload, occurredAt: Number(row.message.occurredAt) } })));
+          }
         }
       }
     } catch (error) {
