@@ -1,11 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { dispatchAutonomousTask, listAgentRuns, listBrainHealth, probeAllBrains } from '../../agent/operations.js';
 import { listBrainKnowledge, publishBrainKnowledge } from '../../agent/knowledgeAgent.js';
+import { hasAdminAccess } from './auth.js';
 interface DispatchBody { objective: string; }
 export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/agent/ops/knowledge', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
-    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Administrator access is required.' });
+    if (!hasAdminAccess(request.authUser)) return reply.code(403).send({ error: 'Administrator access is required.' });
     return { knowledge: await listBrainKnowledge() };
   });
   fastify.post<{ Body: { title: string; content: string; source?: string; category?: string; tags?: string[]; confidence?: number; priority?: number; expiresAt?: string } }>('/api/agent/ops/knowledge', {
@@ -26,7 +27,7 @@ export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
-    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Administrator access is required.' });
+    if (!hasAdminAccess(request.authUser)) return reply.code(403).send({ error: 'Administrator access is required.' });
     const { expiresAt, ...input } = request.body;
     try {
       const item = await publishBrainKnowledge({ ...input, expiresAt: expiresAt ? new Date(expiresAt) : null });
@@ -43,7 +44,7 @@ export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
     config: { rateLimit: { max: 1, timeWindow: '5 minutes' } },
   }, async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
-    if (request.authUser.role !== 'admin') return reply.code(403).send({ error: 'Administrator access is required.' });
+    if (!hasAdminAccess(request.authUser)) return reply.code(403).send({ error: 'Administrator access is required.' });
     return { brains: await probeAllBrains() };
   });
   fastify.post<{ Body: DispatchBody }>('/api/agent/ops/tasks', {
