@@ -1,5 +1,5 @@
 # RyanAI Production Blueprint
-# Dedicated static frontend and API; credentials remain outside source control.
+# Vercel serves the frontend; Render hosts persistent API and MCP services.
 version: "1"
 
 projects:
@@ -7,27 +7,6 @@ projects:
     environments:
       - name: Production
         services:
-          - type: web
-            name: ryanai-web
-            runtime: static
-            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
-            plan: free
-            autoDeployTrigger: "off"
-            buildCommand: npm ci --legacy-peer-deps && npm run build
-            staticPublishPath: ./dist
-            envVars:
-              - key: VITE_SUPABASE_URL
-                value: https://narsvpwymvlrhurqbthu.supabase.co
-              - key: VITE_SUPABASE_PUBLISHABLE_KEY
-                sync: false
-              - key: VITE_API_BASE_URL
-                value: https://ryanai-api.onrender.com
-              - key: VITE_APP_ENV
-                value: production
-            routes:
-              - type: rewrite
-                source: /*
-                destination: /index.html
           - type: web
             name: ryanai-api
             runtime: docker
@@ -44,8 +23,10 @@ projects:
                 value: production
               - key: HOST
                 value: 0.0.0.0
+              - key: PORT
+                value: "10000"
               - key: CORS_ORIGINS
-                value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
+                value: https://ryanai-automous-reasoning-plat-uss1632.vercel.app
               - key: JWT_SECRET
                 generateValue: true
               - key: DATABASE_URL
@@ -165,7 +146,7 @@ projects:
               - key: MCP_ALLOWED_HOSTS
                 value: ryanai-mcp.onrender.com
               - key: RYANAI_API_HEALTH_URL
-                value: http://ryanai-api:3000/health
+                value: http://ryanai-api:10000/health
               - key: RYANAI_MCP_ENABLED_TOOLS
                 value: ""
           - type: keyvalue
