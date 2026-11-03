@@ -14,6 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
+import { assertSameDatabaseBackend, resolveDatabaseConnectionUrl } from './databaseConnection.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
@@ -410,6 +411,11 @@ function registerCoreRoutes() {
 async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
+    const checkpointerDatabaseUrl = resolveDatabaseConnectionUrl(
+      config.nodeEnv,
+      process.env.DATABASE_URL,
+    );
+    assertSameDatabaseBackend(config.database.url, checkpointerDatabaseUrl);
     dbPool = new Pool({
       connectionString: config.database.url,
       max: 20,
