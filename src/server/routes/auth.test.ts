@@ -46,6 +46,9 @@ async function createApp(standaloneApprovals = false) {
     await app.register(authPlugin);
     await app.register(async (nested) => {
       nested.get('/health', async () => ({ healthy: true }));
+      nested.get('/api/health', async () => ({ healthy: true }));
+      nested.get('/livez', async () => ({ alive: true }));
+      nested.get('/readyz', async () => ({ ready: true }));
       nested.get('/', async () => ({ healthy: true }));
       nested.post('/api/reason', async (request) => ({
         user: request.authUser,
@@ -278,7 +281,7 @@ describe('Supabase API authentication', () => {
 
   it('keeps health checks and CORS preflights public', async () => {
     const app = await createApp();
-    for (const url of ['/', '/health'])
+    for (const url of ['/', '/health', '/api/health', '/livez', '/readyz'])
       expect((await app.inject({ method: 'GET', url })).statusCode).toBe(200);
     const preflight = await app.inject({
       method: 'OPTIONS',
