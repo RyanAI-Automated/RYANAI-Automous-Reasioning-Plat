@@ -1,6 +1,6 @@
 export class ConnectivityBridgeAdapter {
   private readonly baseUrl = (process.env.BRIDGE_INTERNAL_URL || '').replace(/\/+$/, '');
-  private readonly token = process.env.BRIDGE_ADAPTER_TOKEN || '';
+  private readonly token = process.env.BRIDGE_API_ADAPTER_TOKEN || '';
   get configured(): boolean { return this.baseUrl.length > 0 && this.token.length >= 32; }
 
   async heartbeat(signal?: AbortSignal): Promise<boolean> {
