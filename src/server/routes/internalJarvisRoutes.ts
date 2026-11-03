@@ -5,7 +5,7 @@ import { prisma } from '../../lib/prisma.js';
 
 interface CreateTaskBody { objective: string; }
 
-function isAdmin(request: { authUser?: { id: string; role?: string } }) {
+function isAdmin(request: { authUser?: { id: string; role?: string } | null }) {
   return Boolean(request.authUser && request.authUser.role === 'admin');
 }
 
