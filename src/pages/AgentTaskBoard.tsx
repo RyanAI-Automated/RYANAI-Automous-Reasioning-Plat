@@ -74,9 +74,13 @@ export default function AgentTaskBoard() {
   }, []);
 
   useEffect(() => {
-    void loadTasks();
+    // Defer the first stateful load until after the effect has committed.
+    const initialLoad = window.setTimeout(() => void loadTasks(), 0);
     const interval = window.setInterval(() => void loadTasks(), 8000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+    };
   }, [loadTasks]);
 
   const grouped = useMemo(() => Object.fromEntries(
