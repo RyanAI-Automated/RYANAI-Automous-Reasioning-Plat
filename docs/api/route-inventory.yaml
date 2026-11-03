@@ -1,0 +1,424 @@
+# Generated/verified route inventory for the supported Fastify launcher.
+# Update this file when routes change; scripts/check-api-route-inventory.mjs
+# compares it with the actual TypeScript route declarations.
+contract_version: 1
+runtime:
+  entrypoint: src/server/launcher.ts
+  command: npm start
+  protocol_gateway: mcp-server (Streamable HTTP at /mcp and stdio transport)
+route_sources:
+  - src/server/launcher.ts
+  - src/server/routes/auth.ts
+  - src/api/auth/signin.ts
+  - src/server/comms/index.ts
+  - src/server/routes/approvalRoutes.ts
+  - src/server/routes/engineeringEvidenceRoutes.ts
+  - src/server/routes/slackInteractions.ts
+  - src/server/routes/twilioWebhook.ts
+  - src/server/routes/metrics.ts
+  - src/server/routes/tasks.ts
+  - src/server/routes/agentOperations.ts
+  - src/server/routes/realtimeVoice.ts
+  - src/server/routes/pendingActions.ts
+  - src/server/routes/jarvisRoutes.ts
+  - src/server/routes/internalJarvisRoutes.ts
+  - src/server/routes/internalOpenAi.ts
+  - src/server/routes/patchRoutes.ts
+derived_routes:
+  - method: POST
+    path: /api/reasoning/stream
+    source: src/server/launcher.ts
+    expression: API_ROUTES.streamPath
+  - method: POST
+    path: /api/auth/login
+    source: src/server/routes/auth.ts
+    expression: "for (const path of ['/api/auth/login', '/api/auth/logout'])"
+  - method: POST
+    path: /api/auth/logout
+    source: src/server/routes/auth.ts
+    expression: "for (const path of ['/api/auth/login', '/api/auth/logout'])"
+routes:
+  - method: GET
+    path: "/"
+    access: public
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "Gateway metadata only; use /readyz for dependency readiness."
+  - method: GET
+    path: "/livez"
+    access: public
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "Process liveness; does not assert dependency readiness."
+  - method: GET
+    path: "/readyz"
+    access: public
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "Live PostgreSQL and Redis readiness plus API/checkpointer state."
+  - method: GET
+    path: "/health"
+    access: public
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "Legacy readiness alias."
+  - method: GET
+    path: "/api/health"
+    access: public
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "Legacy readiness alias."
+  - method: POST
+    path: "/api/reason"
+    access: supabase-user
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "Real durable three-brain execution; requires verified Supabase user."
+  - method: POST
+    path: "/api/reasoning/stream"
+    access: supabase-user
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "SSE view of the same durable reasoning execution."
+  - method: GET
+    path: "/api/system"
+    access: admin
+    source: src/server/launcher.ts
+    lifecycle: active
+    note: "System/process diagnostics; global guard requires admin."
+  - method: POST
+    path: "/api/auth/signin"
+    access: legacy-local-password
+    source: src/server/routes/auth.ts
+    lifecycle: legacy
+    note: "Local Prisma/bcrypt sign-in is not compatible with Supabase bearer verification; remove in auth compatibility PR."
+  - method: GET
+    path: "/api/auth/verify"
+    access: supabase-user
+    source: src/server/routes/auth.ts
+    lifecycle: active
+    note: "Returns identity verified against Supabase."
+  - method: POST
+    path: "/api/auth/login"
+    access: public-retired
+    source: src/server/routes/auth.ts
+    lifecycle: retired
+    note: "Returns 410; retained only as a migration response."
+  - method: POST
+    path: "/api/auth/logout"
+    access: public-retired
+    source: src/server/routes/auth.ts
+    lifecycle: retired
+    note: "Returns 410; client-side Supabase sign-out is authoritative."
+  - method: POST
+    path: "/signin"
+    access: legacy-local-password
+    source: src/api/auth/signin.ts
+    lifecycle: legacy
+    note: "Second local Prisma/bcrypt sign-in route; remove in auth compatibility PR."
+  - method: POST
+    path: "/api/comms/send"
+    access: owner-or-admin
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Provider-backed send; owner identity is checked server-side."
+  - method: GET
+    path: "/api/comms/conversations"
+    access: owner-or-admin
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Persisted owner communication history."
+  - method: GET
+    path: "/api/comms/status"
+    access: owner-or-admin
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Configuration snapshot, not proof of provider connectivity."
+  - method: POST
+    path: "/api/webhooks/twilio/voice"
+    access: twilio-signature
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Twilio request signature verified."
+  - method: POST
+    path: "/api/webhooks/twilio/voice/respond"
+    access: twilio-signature
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Twilio request signature verified."
+  - method: POST
+    path: "/api/webhooks/twilio/sms"
+    access: twilio-signature
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Twilio request signature verified."
+  - method: POST
+    path: "/api/webhooks/twilio/status"
+    access: twilio-signature
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Twilio request signature verified."
+  - method: POST
+    path: "/api/webhooks/resend/inbound"
+    access: resend-signature
+    source: src/server/comms/index.ts
+    lifecycle: active
+    note: "Resend webhook signature verified in handler."
+  - method: POST
+    path: "/api/webhooks/twilio/whatsapp"
+    access: twilio-signature
+    source: src/server/routes/twilioWebhook.ts
+    lifecycle: active
+    note: "Twilio request signature verified; sender is owner-restricted."
+  - method: POST
+    path: "/api/reason/with-approval"
+    access: admin
+    source: src/server/routes/approvalRoutes.ts
+    lifecycle: active
+    note: "Administrator-only human approval workflow."
+  - method: POST
+    path: "/api/reason/approve"
+    access: admin
+    source: src/server/routes/approvalRoutes.ts
+    lifecycle: active
+    note: "Administrator-only resume/reject workflow."
+  - method: GET
+    path: "/api/admin/threads/:threadId/pending"
+    access: admin
+    source: src/server/routes/approvalRoutes.ts
+    lifecycle: active
+    note: "Administrator-only pending thread inspection."
+  - method: POST
+    path: "/api/admin/threads/:threadId/resolve"
+    access: admin
+    source: src/server/routes/approvalRoutes.ts
+    lifecycle: active
+    note: "Administrator-only thread resolution."
+  - method: GET
+    path: "/api/engineering/jobs"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Administrator-only engineering evidence."
+  - method: POST
+    path: "/api/engineering/jobs"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Persist an engineering proposal; no execution before matching approval."
+  - method: GET
+    path: "/api/engineering/jobs/:jobId"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Read job status, evidence chain and acceptance state."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/approve"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Approval binds exact plan, base commit and proposed diff hashes."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/steer"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Record an approved engineering steering update."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/reject"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Reject an engineering proposal."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/cancel"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Cancel an engineering job."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/checks"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Record CI/check evidence."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/evaluations"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Record an evaluation receipt."
+  - method: POST
+    path: "/api/engineering/jobs/:jobId/assurance"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Record an assurance receipt."
+  - method: GET
+    path: "/api/engineering/jobs/:jobId/evidence-bundle"
+    access: admin
+    source: src/server/routes/engineeringEvidenceRoutes.ts
+    lifecycle: active
+    note: "Retrieve the evidence bundle."
+  - method: POST
+    path: "/api/slack/interactions"
+    access: slack-signature
+    source: src/server/routes/slackInteractions.ts
+    lifecycle: active
+    note: "Slack request signature verified."
+  - method: GET
+    path: "/api/admin/metrics"
+    access: admin
+    source: src/server/routes/metrics.ts
+    lifecycle: active
+    note: "Process metrics; database status is intentionally unknown here."
+  - method: GET
+    path: "/api/tasks"
+    access: admin-current
+    source: src/server/routes/tasks.ts
+    lifecycle: active
+    note: "Handler scopes to the current user, but global guard currently requires admin; authorization alignment is tracked."
+  - method: DELETE
+    path: "/api/tasks/:id"
+    access: admin-current
+    source: src/server/routes/tasks.ts
+    lifecycle: active
+    note: "Handler scopes to the current user, but global guard currently requires admin; authorization alignment is tracked."
+  - method: GET
+    path: "/api/agent/ops/knowledge"
+    access: admin
+    source: src/server/routes/agentOperations.ts
+    lifecycle: active
+    note: "Administrator-only shared brain knowledge."
+  - method: POST
+    path: "/api/agent/ops/knowledge"
+    access: admin
+    source: src/server/routes/agentOperations.ts
+    lifecycle: active
+    note: "Administrator-only shared knowledge publication."
+  - method: GET
+    path: "/api/agent/ops/brains"
+    access: admin-current
+    source: src/server/routes/agentOperations.ts
+    lifecycle: active
+    note: "Global auth hook currently requires admin despite route handler only checking signed-in status."
+  - method: POST
+    path: "/api/agent/ops/brains/probe"
+    access: admin
+    source: src/server/routes/agentOperations.ts
+    lifecycle: active
+    note: "Live provider probes are rate-limited and administrator-only."
+  - method: POST
+    path: "/api/agent/ops/tasks"
+    access: admin-current
+    source: src/server/routes/agentOperations.ts
+    lifecycle: active
+    note: "Queues persisted task; global auth hook currently requires admin."
+  - method: GET
+    path: "/api/agent/ops/tasks"
+    access: admin-current
+    source: src/server/routes/agentOperations.ts
+    lifecycle: active
+    note: "Lists authenticated user's run history; global auth hook currently requires admin."
+  - method: POST
+    path: "/api/v1/realtime/voice-ticket"
+    access: supabase-user
+    source: src/server/routes/realtimeVoice.ts
+    lifecycle: active
+    note: "Issues one-time short-lived Redis-backed voice ticket."
+  - method: GET
+    path: "/api/v1/realtime/voice"
+    access: single-use-voice-ticket
+    source: src/server/routes/realtimeVoice.ts
+    lifecycle: active
+    note: "WebSocket upgrade; ticket is consumed once and upstream is provider-backed."
+  - method: GET
+    path: "/api/actions"
+    access: admin
+    source: src/server/routes/pendingActions.ts
+    lifecycle: active
+    note: "Administrator-only pending outbound actions."
+  - method: POST
+    path: "/api/actions/:id/approve"
+    access: admin
+    source: src/server/routes/pendingActions.ts
+    lifecycle: active
+    note: "Approval releases the queued action once."
+  - method: POST
+    path: "/api/actions/:id/reject"
+    access: admin
+    source: src/server/routes/pendingActions.ts
+    lifecycle: active
+    note: "Rejects a queued action."
+  - method: GET
+    path: "/api/jarvis/status"
+    access: admin
+    source: src/server/routes/jarvisRoutes.ts
+    lifecycle: active
+    note: "Restricted Jarvis bridge status."
+  - method: POST
+    path: "/api/jarvis/patches"
+    access: admin
+    source: src/server/routes/jarvisRoutes.ts
+    lifecycle: active
+    note: "Submits a patch proposal to Jarvis; not an automatic merge."
+  - method: POST
+    path: "/api/jarvis/stacks/publish"
+    access: admin
+    source: src/server/routes/jarvisRoutes.ts
+    lifecycle: active
+    note: "Publishes stack metadata to Jarvis."
+  - method: POST
+    path: "/api/jarvis/patches/apply"
+    access: jarvis-ingress-token
+    source: src/server/routes/jarvisRoutes.ts
+    lifecycle: active
+    note: "Machine ingress is disabled by default and requires its dedicated bearer token."
+  - method: GET
+    path: "/api/jarvis/internal/health"
+    access: admin-current
+    source: src/server/routes/internalJarvisRoutes.ts
+    lifecycle: active
+    note: "Global auth hook requires admin; handler also checks a verified user."
+  - method: GET
+    path: "/api/jarvis/internal/agents"
+    access: admin
+    source: src/server/routes/internalJarvisRoutes.ts
+    lifecycle: active
+    note: "Administrator-only agent registry."
+  - method: POST
+    path: "/api/jarvis/internal/tasks"
+    access: admin-current
+    source: src/server/routes/internalJarvisRoutes.ts
+    lifecycle: active
+    note: "Queue task under verified user identity; global auth hook currently requires admin."
+  - method: GET
+    path: "/api/jarvis/internal/tasks"
+    access: admin
+    source: src/server/routes/internalJarvisRoutes.ts
+    lifecycle: active
+    note: "Administrator-only task listing."
+  - method: GET
+    path: "/api/jarvis/internal/policy/:agentId/:capability"
+    access: admin
+    source: src/server/routes/internalJarvisRoutes.ts
+    lifecycle: active
+    note: "Administrator-only capability policy query."
+  - method: GET
+    path: "/api/jarvis/internal/audit"
+    access: admin
+    source: src/server/routes/internalJarvisRoutes.ts
+    lifecycle: active
+    note: "Administrator-only Jarvis audit history."
+  - method: POST
+    path: "/api/internal/openai/chat"
+    access: internal-gateway-token
+    source: src/server/routes/internalOpenAi.ts
+    lifecycle: active
+    note: "Private MCP-to-API provider proxy; no browser session."
+  - method: POST
+    path: "/api/patches/apply"
+    access: admin
+    source: src/server/routes/patchRoutes.ts
+    lifecycle: active
+    note: "Administrator-only isolated patch proposal endpoint."
