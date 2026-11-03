@@ -233,6 +233,17 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       after.socket.close();
     });
 
+    await t.test('abrupt browser network loss replays unacknowledged events on a new socket', async () => {
+      await publish(bridgePort, 'network-drop-key', { sequence: 22 });
+      const before = await openSocket(bridgePort);
+      const unacked = await before.next((value) => value.type === 'event' && value.data.sequence === 22);
+      before.socket.terminate();
+      const after = await openSocket(bridgePort);
+      const replay = await after.next((value) => value.type === 'event' && value.id === unacked.id);
+      assert.equal(replay.data.sequence, 22);
+      after.socket.close();
+    });
+
     await t.test('Redis AOF recovery restores unacknowledged events after Redis restart', async () => {
       await publish(bridgePort, 'redis-restart-key', { sequence: 3 });
       const before = await openSocket(bridgePort);
