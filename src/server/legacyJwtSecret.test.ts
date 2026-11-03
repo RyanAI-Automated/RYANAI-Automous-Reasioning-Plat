@@ -8,7 +8,7 @@ describe('legacy JWT secret resolution', () => {
 
   it('fails closed when production has no secret', () => {
     expect(() => resolveLegacyJwtSecret('production', undefined)).toThrow(
-      'JWT_SECRET is required in production',
+      'JWT_SECRET is required unless NODE_ENV is explicitly development or test',
     );
   });
 
