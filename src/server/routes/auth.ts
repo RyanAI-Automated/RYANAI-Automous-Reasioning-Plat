@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type {
   FastifyInstance,
   FastifyPluginAsync,
@@ -52,6 +51,7 @@ export async function requireUser(request: FastifyRequest, reply: FastifyReply) 
     }
     const ownerEmail = process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase();
     const sessionId = getVerifiedSessionId(token);
+    if (!sessionId) return reply.code(401).send({ error: 'The verified identity token has no Supabase session identifier.' });
     if (request.server.hasDecorator('prisma')) {
       const session = await request.server.prisma.apiAuthSession.upsert({
         where: { sessionId },
@@ -77,15 +77,15 @@ export async function requireUser(request: FastifyRequest, reply: FastifyReply) 
   }
 }
 
-function getVerifiedSessionId(token: string): string {
+function getVerifiedSessionId(token: string): string | null {
   try {
     const encoded = token.split('.')[1];
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as { session_id?: unknown };
     if (typeof payload.session_id === 'string' && payload.session_id.length > 0 && payload.session_id.length <= 128) return payload.session_id;
   } catch {
-    // Supabase verified the token already; fall back to a token-specific revocation key.
+    // The token has already been verified by Supabase; malformed claims are rejected below.
   }
-  return createHash('sha256').update(token).digest('hex');
+  return null;
 }
 
 /** Owner identity is resolved only from the server-side configured owner email. */
