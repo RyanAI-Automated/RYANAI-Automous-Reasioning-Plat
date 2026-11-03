@@ -91,12 +91,13 @@ describe('Jarvis machine task API contract', () => {
   afterEach(async () => {
     await app.close();
     for (const [key, value] of Object.entries(originalEnv)) {
-      const envKey = {
+      const envKeys: Record<string, string> = {
         enabled: 'JARVIS_TASK_INGRESS_ENABLED',
         token: 'JARVIS_TASK_INGRESS_TOKEN',
         agent: 'JARVIS_TASK_AGENT_ID',
         owner: 'JARVIS_TASK_OWNER_ID',
-      }[key]!;
+      };
+      const envKey = envKeys[key];
       if (value === undefined) delete process.env[envKey];
       else process.env[envKey] = value;
     }
