@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 const bridgeUrl = process.env.BRIDGE_INTERNAL_URL?.replace(/\/+$/, '');
-const bridgeToken = process.env.BRIDGE_ADAPTER_TOKEN || '';
+const bridgeToken = process.env.BRIDGE_MCP_ADAPTER_TOKEN || '';
 let heartbeatTimer;
 
 export async function heartbeatMcpAdapter() {
