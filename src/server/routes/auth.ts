@@ -125,6 +125,8 @@ export function installAuthentication(fastify: FastifyInstance) {
     if (request.method === 'OPTIONS') return;
     // Machine-to-machine routes authenticate their own dedicated bearer tokens.
     if (request.method === 'POST' && path === '/api/internal/openai/chat') return;
+    // Comms browser routes require a verified Supabase user; the plugin enforces owner scope.
+    if (path.startsWith('/api/comms/')) return requireUser(request, reply);
     // This machine-to-machine route verifies JARVIS_INGRESS_TOKEN in its own preHandler.
     if (request.method === 'POST' && path === '/api/jarvis/patches/apply') return;
     
