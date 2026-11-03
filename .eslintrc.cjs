@@ -1,0 +1,38 @@
+module.exports = {
+  root: true,
+  env: {
+    es2022: true,
+    browser: true,
+    node: true,
+  },
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+    ecmaFeatures: { jsx: true },
+  },
+  plugins: ['@typescript-eslint', 'react-hooks', 'react-refresh'],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
+  ignorePatterns: [
+    'dist/**',
+    'build/**',
+    'node_modules/**',
+    '.next/**',
+    '.turbo/**',
+    '.vercel/**',
+    'coverage/**',
+    'src-tauri/target/**',
+    'src-tauri/gen/**',
+    'mcp-server/**',
+  ],
+  rules: {
+    ...require('eslint-plugin-react-hooks').configs.recommended.rules,
+    'react-hooks/set-state-in-effect': 'warn',
+    'react-hooks/purity': 'warn',
+    'react-hooks/refs': 'warn',
+    'react-hooks/immutability': 'warn',
+    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+  },
+};
