@@ -496,9 +496,6 @@ export async function listAgentRuns(userId: string) {
     where: { userId },
     orderBy: { createdAt: 'desc' },
     take: 25,
-    include: {
-      handoffs: { orderBy: { startedAt: 'asc' } },
-      evidence: { orderBy: { sequence: 'asc' } },
-    },
+    include: { handoffs: { orderBy: { startedAt: 'asc' } } },
   });
 }
