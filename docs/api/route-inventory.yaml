@@ -49,13 +49,13 @@ routes:
     access: public
     source: src/server/launcher.ts
     lifecycle: active
-    note: "Process liveness; does not assert dependency readiness."
+    note: "Public process liveness; global authentication explicitly exempts this probe."
   - method: GET
     path: "/readyz"
     access: public
     source: src/server/launcher.ts
     lifecycle: active
-    note: "Live PostgreSQL and Redis readiness plus API/checkpointer state."
+    note: "Public live PostgreSQL and Redis readiness plus API/checkpointer state; safe status booleans only."
   - method: GET
     path: "/health"
     access: public
