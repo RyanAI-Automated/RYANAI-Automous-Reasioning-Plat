@@ -17,7 +17,7 @@ export interface AuthenticatedUser {
   role: 'user' | 'admin';
   displayName?: string;
   isOwner: boolean;
-  sessionId: string;
+  sessionId?: string;
 }
 
 export function hasAdminAccess(user?: Partial<Pick<AuthenticatedUser, 'role' | 'isOwner'>> | null): boolean {
