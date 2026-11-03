@@ -26,7 +26,7 @@ projects:
               - key: PORT
                 value: "10000"
               - key: CORS_ORIGINS
-                value: https://ryanai-automous-reasoning-plat-uss1632.vercel.app
+                value: https://www.ryan.co.za,https://ryan.co.za,https://ryanai-automous-reasioning-plat.vercel.app
               - key: JWT_SECRET
                 generateValue: true
               - key: DATABASE_URL
