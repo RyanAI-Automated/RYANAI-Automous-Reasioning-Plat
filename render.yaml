@@ -11,8 +11,12 @@ projects:
             name: ryanai-web
             runtime: static
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
+            rootDir: .
             plan: free
             autoDeployTrigger: "off"
+            previews:
+              generation: manual
             buildCommand: npm ci --legacy-peer-deps && npm run build
             staticPublishPath: ./dist
             envVars:
@@ -35,15 +39,20 @@ projects:
             branch: main
             plan: free
             region: oregon
+            rootDir: .
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
             autoDeployTrigger: "off"
+            previews:
+              generation: manual
             healthCheckPath: /health
             envVars:
               - key: NODE_ENV
                 value: production
               - key: HOST
                 value: 0.0.0.0
+              - key: PORT
+                value: "10000"
               - key: CORS_ORIGINS
                 value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
               - key: JWT_SECRET
