@@ -1,10 +1,8 @@
 name: CodeQL Security Analysis
 
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+  push: {}
+  pull_request: {}
   schedule:
     - cron: '0 0 * * 0'
   workflow_dispatch:
@@ -14,9 +12,6 @@ permissions:
   security-events: write
   actions: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) && github.sha || 'shared' }}
-  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
 
 jobs:
   analyze:
