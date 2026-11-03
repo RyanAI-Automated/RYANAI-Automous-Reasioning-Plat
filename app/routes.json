@@ -17,6 +17,11 @@
       "path": "/cockpit"
     },
     {
+      "id": "tasks",
+      "label": "Agent Tasks",
+      "path": "/tasks"
+    },
+    {
       "id": "comms",
       "label": "Comms",
       "path": "/comms"
