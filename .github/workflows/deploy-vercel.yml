@@ -19,7 +19,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy validated commit
-    if: inputs.confirm_production_deploy == true && vars.VERCEL_DEPLOY_ENABLED == 'true'
+    if: inputs.confirm_production_deploy == true && vars.VERCEL_DEPLOY_ENABLED == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     uses: ./.github/workflows/deploy.yml
     with:
       commit_sha: ${{ github.sha }}
