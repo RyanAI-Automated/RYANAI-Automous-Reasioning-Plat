@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Prisma } from '@prisma/client';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../../lib/prisma.js';
 import { requireAdmin } from './auth.js';
@@ -43,7 +44,7 @@ async function recordRoleAudit(
   actorId: string,
   target: NonNullable<IdentityUser>,
   eventType: string,
-  details: Record<string, unknown>,
+  details: Prisma.InputJsonObject,
   request: RoleChangeRequest,
 ): Promise<boolean> {
   try {
