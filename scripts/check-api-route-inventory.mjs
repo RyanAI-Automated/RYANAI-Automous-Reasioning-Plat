@@ -63,7 +63,7 @@ for (const routeKey of declared.keys()) {
   if (!discovered.has(routeKey)) errors.push(`Inventory route is not registered by the launcher: ${routeKey}`);
 }
 
-const pathToRuntime = (value) => value.replace(/\{([^}]+)\\}/g, ':$1');
+const pathToRuntime = (value) => value.replace(/\{([^}]+)\}/g, ':$1');
 for (const [routePath, operations] of Object.entries(openapi.paths ?? {})) {
   for (const method of Object.keys(operations ?? {})) {
     if (!methods.has(method)) continue;
