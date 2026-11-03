@@ -45,7 +45,8 @@ const session = {
 } as Session;
 
 beforeEach(() => {
-  vi.resetAllMocks();
+  vi.clearAllMocks();
+  auth.listener = null;
   auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
   auth.signOut.mockResolvedValue({ error: null });
   auth.onAuthStateChange.mockImplementation((listener) => {
