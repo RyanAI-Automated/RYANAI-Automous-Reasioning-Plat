@@ -126,15 +126,21 @@ const server = createServer(async (request, response) => {
       });
       return sendJson(response, 202, { accepted: true, cursor });
     } catch (error) {
-      const status = error.message === 'BODY_TOO_LARGE' ? 413 : 400;
-      return sendJson(response, status, { error: error.message === 'BODY_TOO_LARGE' ? 'Event payload is too large.' : 'Invalid event request.' });
+      if (['BODY_TOO_LARGE', 'Event payload is too large'].includes(error.message)) return sendJson(response, 413, { error: 'Event payload is too large.' });
+      if (['Invalid user identity', 'Invalid idempotency key', 'Invalid event payload'].includes(error.message)) return sendJson(response, 400, { error: 'Invalid event request.' });
+      console.error('[connectivity-bridge] Event persistence unavailable:', error.message);
+      return sendJson(response, 503, { error: 'Event could not be durably accepted.' });
     }
   }
   if (url.pathname.startsWith('/internal/adapters/') && url.pathname.endsWith('/heartbeat') && request.method === 'POST') {
     const name = url.pathname.split('/')[3];
     if (!['api', 'mcp'].includes(name)) return sendJson(response, 400, { error: 'Unknown adapter.' });
-    await redis.set('ryanai:connectivity:adapter:' + name, JSON.stringify({ status: 'ready', checkedAt: Date.now() }), { EX: 45 });
-    return sendJson(response, 200, { accepted: true, adapter: name });
+    try {
+      await redis.set('ryanai:connectivity:adapter:' + name, JSON.stringify({ status: 'ready', checkedAt: Date.now() }), { EX: 45 });
+      return sendJson(response, 200, { accepted: true, adapter: name });
+    } catch {
+      return sendJson(response, 503, { error: 'Adapter heartbeat could not be persisted.' });
+    }
   }
   return sendJson(response, 404, { error: 'Not found.' });
 });
