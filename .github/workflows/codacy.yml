@@ -54,6 +54,16 @@ jobs:
           # This will handover control about PR rejection to the GitHub side
           max-allowed-issues: 2147483647
 
+      # Preserve the original report even when splitting or uploading fails.
+      - name: Preserve raw Codacy SARIF report
+        if: always() && hashFiles('results.sarif') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: codacy-raw-sarif
+          path: results.sarif
+          if-no-files-found: warn
+          retention-days: 14
+
       # GitHub requires one SARIF run per category. Codacy can emit multiple
       # runs in one file, so split them and give each run a stable unique category.
       - name: Split Codacy SARIF into uniquely categorized runs
@@ -69,8 +79,8 @@ jobs:
 
           const batchSize = 25;
           const batchCount = Math.ceil(report.runs.length / batchSize);
-          if (batchCount > 2) {
-            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 50 so uploads can stay within GitHub's 25-item request limit.`);
+          if (batchCount > 3) {
+            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 75 so uploads can stay within GitHub's 25-item request limit.`);
           }
 
           for (let index = 0; index < report.runs.length; index += 1) {
@@ -102,3 +112,9 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: sarif-output/batch-2/
+
+      - name: Upload Codacy SARIF batch 3
+        if: hashFiles('sarif-output/batch-3/*.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-output/batch-3/
