@@ -1,6 +1,7 @@
 // File path: ./src/server.ts
 
 import { startTelemetry } from './telemetry/otel.js';
+import { resolveLegacyJwtSecret } from './server/legacyJwtSecret.js';
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -156,7 +157,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(formbody);
   await app.register(websocket);
   await app.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET || "ryanai-secure-jwt-secret-key-2026",
+    secret: resolveLegacyJwtSecret(process.env.NODE_ENV, process.env.JWT_SECRET),
   });
   await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
