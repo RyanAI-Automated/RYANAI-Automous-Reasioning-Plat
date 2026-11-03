@@ -4,7 +4,6 @@ import { startTelemetry } from './telemetry/otel.js';
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import fastifyJwt from "@fastify/jwt";
 import { registerAuthRoutes } from './routes/auth.js';
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
@@ -155,10 +154,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
   await app.register(formbody);
   await app.register(websocket);
-  await app.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET || "ryanai-secure-jwt-secret-key-2026",
-  });
-  // Local password/JWT routes are retired; Supabase Auth is the only session authority.
+  await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
   await app.register(transcendPlugin, {
