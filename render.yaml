@@ -20,6 +20,11 @@ projects:
                 value: https://narsvpwymvlrhurqbthu.supabase.co
               - key: VITE_SUPABASE_PUBLISHABLE_KEY
                 sync: false
+              # Public CAPTCHA values; set them to match Supabase Auth's selected provider.
+              - key: VITE_SUPABASE_CAPTCHA_PROVIDER
+                sync: false
+              - key: VITE_SUPABASE_CAPTCHA_SITE_KEY
+                sync: false
               - key: VITE_API_BASE_URL
                 value: https://ryanai-api.onrender.com
               - key: VITE_APP_ENV
