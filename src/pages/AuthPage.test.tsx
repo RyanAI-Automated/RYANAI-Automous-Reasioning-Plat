@@ -96,6 +96,8 @@ it('requires a CAPTCHA token before calling Supabase sign-in', async () => {
   expect(container.querySelector('[role=alert]')?.textContent).toContain(
     'Complete the human verification challenge',
   );
+  await completeCaptcha();
+  expect(container.querySelector('[role=alert]')).toBeNull();
 });
 it('shows server rejection and never offers demo authentication', async () => {
   mock.signInWithPassword.mockResolvedValue({
