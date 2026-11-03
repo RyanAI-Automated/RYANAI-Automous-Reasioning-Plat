@@ -14,11 +14,12 @@ const streamMaxLength = Number(process.env.BRIDGE_STREAM_MAX_LENGTH || 10000);
 const maxPayload = 256 * 1024;
 const apiAdapterToken = process.env.BRIDGE_API_ADAPTER_TOKEN || '';
 const mcpAdapterToken = process.env.BRIDGE_MCP_ADAPTER_TOKEN || '';
+const vercelAdapterToken = process.env.BRIDGE_VERCEL_ADAPTER_TOKEN || '';
 const origins = new Set((process.env.CORS_ORIGINS || '').split(',').map((v) => v.trim()).filter(Boolean));
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('BRIDGE_PORT must be a valid TCP port.');
 if (!Number.isInteger(ticketTtl) || ticketTtl < 5 || ticketTtl > 120) throw new Error('BRIDGE_TICKET_TTL_SECONDS must be between 5 and 120.');
 if (!Number.isInteger(streamMaxLength) || streamMaxLength < 100) throw new Error('BRIDGE_STREAM_MAX_LENGTH must be at least 100.');
-if ((apiAdapterToken && apiAdapterToken.length < 32) || (mcpAdapterToken && mcpAdapterToken.length < 32)) throw new Error('Bridge adapter tokens must each contain at least 32 characters.');
+if ([apiAdapterToken, mcpAdapterToken, vercelAdapterToken].some((token) => token && token.length < 32)) throw new Error('Bridge adapter tokens must each contain at least 32 characters.');
 
 const redis = createClient({
   url: process.env.REDIS_URL,
@@ -48,8 +49,8 @@ async function readJson(request) {
   try { return body ? JSON.parse(body) : {}; } catch { throw new Error('INVALID_JSON'); }
 }
 async function adapterStatuses() {
-  const statuses = { bridge: 'ready', redis: 'ready', api: 'unavailable', mcp: 'unavailable' };
-  for (const name of ['api', 'mcp']) {
+  const statuses = { bridge: 'ready', redis: 'ready', api: 'unavailable', vercel: 'unavailable', mcp: 'unavailable' };
+  for (const name of ['api', 'vercel', 'mcp']) {
     const value = await redis.get('ryanai:connectivity:adapter:' + name);
     if (value) {
       try {
@@ -135,8 +136,8 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname.startsWith('/internal/adapters/') && url.pathname.endsWith('/heartbeat') && request.method === 'POST') {
     const name = url.pathname.split('/')[3];
-    if (!['api', 'mcp'].includes(name)) return sendJson(response, 400, { error: 'Unknown adapter.' });
-    const expectedToken = name === 'api' ? apiAdapterToken : mcpAdapterToken;
+    if (!['api', 'vercel', 'mcp'].includes(name)) return sendJson(response, 400, { error: 'Unknown adapter.' });
+    const expectedToken = name === 'api' ? apiAdapterToken : name === 'vercel' ? vercelAdapterToken : mcpAdapterToken;
     if (!expectedToken) return sendJson(response, 503, { error: name.toUpperCase() + ' adapter is not configured.' });
     if (!safeEqual(getBearer(request), expectedToken)) return sendJson(response, 401, { error: 'Unauthorized.' });
     try {
@@ -247,7 +248,12 @@ sockets.on('connection', (ws) => {
       return;
     }
     if (message?.type === 'heartbeat' && typeof message.nonce === 'string' && message.nonce.length <= 128) {
-      send({ type: 'heartbeat_ack', nonce: message.nonce, at: Date.now() });
+      try {
+        send({ type: 'heartbeat_ack', nonce: message.nonce, at: Date.now(), capabilities: await adapterStatuses() });
+      } catch {
+        send({ type: 'degraded', dependency: 'redis', retryable: true });
+        ws.close(1011, 'Capability status unavailable');
+      }
       return;
     }
     send({ type: 'error', error: 'Unsupported bridge message.' });
