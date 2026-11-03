@@ -47,7 +47,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_db
+      DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_db # trufflehog:ignore
 
     steps:
       - name: Checkout
@@ -98,7 +98,7 @@ jobs:
 
       - name: Build and run the one-shot migration image twice
         env:
-          MIGRATION_DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_migration_container
+          MIGRATION_DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_migration_container # trufflehog:ignore
         run: |
           set -euo pipefail
           docker build --target migrate -t ryanai-migrate:ci .
