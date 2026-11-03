@@ -120,8 +120,8 @@ function createMessageQueue(socket) {
     });
   };
 }
-async function openSocket(port) {
-  const ticket = await issueTicket(port);
+async function openSocket(port, suppliedTicket) {
+  const ticket = suppliedTicket || await issueTicket(port);
   const socket = new WebSocket('ws://127.0.0.1:' + port + '/v1/socket?ticket=' + encodeURIComponent(ticket));
   const next = createMessageQueue(socket);
   await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
@@ -189,10 +189,18 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       const first = await publish(bridgePort, 'duplicate-key', { sequence: 1 });
       const duplicate = await publish(bridgePort, 'duplicate-key', { sequence: 1 });
       assert.equal(first.cursor, duplicate.cursor);
-      const event = await opened.next( (value) => value.type === 'event');
-      assert.equal(event.data.sequence, 1);
-      opened.socket.send(JSON.stringify({ type: 'ack', id: event.id }));
-      await nextMessage(opened.socket, (value) => value.type === 'acknowledged' && value.id === event.id);
+      await publish(bridgePort, 'second-key', { sequence: 2 });
+      const event1 = await opened.next((value) => value.type === 'event');
+      const event2 = await opened.next((value) => value.type === 'event');
+      assert.equal(event1.data.sequence, 1);
+      assert.equal(event2.data.sequence, 2);
+      opened.socket.send(JSON.stringify({ type: 'ack', id: event2.id }));
+      const rejected = await opened.next((value) => value.type === 'error');
+      assert.match(rejected.error, /delivery order/i);
+      opened.socket.send(JSON.stringify({ type: 'ack', id: event1.id }));
+      await opened.next((value) => value.type === 'acknowledged' && value.id === event1.id);
+      opened.socket.send(JSON.stringify({ type: 'ack', id: event2.id }));
+      await opened.next((value) => value.type === 'acknowledged' && value.id === event2.id);
       opened.socket.close();
     });
 
@@ -232,6 +240,18 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       const ack = await nextMessage(opened.socket, (value) => value.type === 'heartbeat_ack');
       assert.equal(ack.nonce, 'heartbeat-test-1');
       opened.socket.close();
+    });
+
+    await t.test('one-time connection tickets cannot be replayed', async () => {
+      const ticket = await issueTicket(bridgePort);
+      const first = await openSocket(bridgePort, ticket);
+      first.socket.close();
+      const replay = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket?ticket=' + encodeURIComponent(ticket));
+      const status = await new Promise((resolve, reject) => {
+        replay.once('unexpected-response', (_request, response) => resolve(response.statusCode));
+        replay.once('error', reject);
+      });
+      assert.equal(status, 401);
     });
 
     await t.test('expired one-time tickets cannot open a socket', async () => {
