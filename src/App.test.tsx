@@ -20,9 +20,10 @@ vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
 vi.mock('@/pages/LandingPage', () => ({
   default: () => <div>Public landing</div>,
 }));
-vi.mock('@/pages/Dashboard', () => ({
-  default: () => <div>Private dashboard</div>,
-}));
+vi.mock('@/pages/Dashboard', () => ({ default: () => <div>Private dashboard</div> }));
+vi.mock('@/pages/BaseboardPage', () => ({ default: () => <div>Private Baseboard</div> }));
+vi.mock('@/pages/LLMSystemDashboard', () => ({ default: () => <div>Private LLM operations</div> }));
+vi.mock('@/pages/AdminDashboard', () => ({ default: () => <div>Private administration</div> }));
 vi.mock('@/components/dashboard/RyanAICockpit', () => ({
   default: () => <div>Private cockpit</div>,
 }));
@@ -93,6 +94,21 @@ describe('application authentication boundary', () => {
     await act(async () => auth.listener?.('SIGNED_IN', anonymousSession));
     await expectContent('Sign in to RYANAI');
     expect(container.textContent).not.toContain('Private dashboard');
+  });
+  it.each(['baseboard', 'llm'])(
+    'requires authentication before rendering %s',
+    async (route) => {
+      await mount(`/${route}`);
+      await expectContent('Sign in to RYANAI');
+      expect(container.textContent).not.toContain('Private ');
+    },
+  );
+  it('exposes the admin destination only to an authenticated admin role', async () => {
+    const adminSession = { ...session, user: { ...session.user, app_metadata: { role: 'admin' } } } as Session;
+    auth.getSession.mockResolvedValue({ data: { session: adminSession }, error: null });
+    await mount('/admin');
+    await expectContent('Private administration');
+    expect(container.querySelector('nav a[href="#/admin"]')).not.toBeNull();
   });
   it('keeps the landing page public', async () => {
     await mount('/');
