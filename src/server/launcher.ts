@@ -22,7 +22,6 @@ import { inspectReadiness } from './readiness.js';
 import { API_ROUTES } from '../config/core.js';
 
 import { invokeReasoningAgent } from '../agent/invoke.js';
-import { verifyCheckpointerConnection } from '../agent/approvalEngine.js';
 import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
@@ -438,6 +437,7 @@ async function initializeDatabase() {
     serviceStatus.agentCheckpointer = false;
 
     if (schema.agentCheckpointer) {
+      const { verifyCheckpointerConnection } = await import('../agent/approvalEngine.js');
       await verifyCheckpointerConnection();
       serviceStatus.agentCheckpointer = true;
       console.log('✓ LangGraph checkpointer read probe succeeded.');
