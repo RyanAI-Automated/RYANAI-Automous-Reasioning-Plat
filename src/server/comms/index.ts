@@ -232,7 +232,14 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       email: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM && process.env.RYANAI_OWNER_EMAIL),
       inboundEmail: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_WEBHOOK_SECRET),
     },
-    note: 'Configuration presence only; this endpoint does not claim live provider connectivity.',
+    ai: {
+      openai: {
+        status: process.env.OPENAI_API_KEY?.trim() || process.env.OPENAI_BASE_URL?.trim()
+          ? 'configured_unverified'
+          : 'missing_credentials',
+      },
+    },
+    note: 'Configuration presence only; this endpoint does not claim live provider connectivity or successful model authentication.',
   }));
 
   fastify.post('/api/webhooks/twilio/voice', { preHandler: webhookAuth('TWILIO_VOICE_WEBHOOK_URL') }, async (request, reply) => {
