@@ -6,7 +6,7 @@ This document joins the existing Jarvis bridge, RyanAI MCP manager, optional MCP
 
 - **Jarvis outbound bridge:** administrator-only API routes expose status, patch proposal submission, and non-secret stack-manifest publication. Outbound requests require `JARVIS_BASE_URL`, `JARVIS_API_TOKEN`, and `JARVIS_SYNC_ENABLED=true`.
 - **Jarvis inbound patch bridge:** `POST /api/jarvis/patches/apply` is disabled unless `JARVIS_PATCH_INGRESS_ENABLED=true` and a separate `JARVIS_INGRESS_TOKEN` are configured. Accepted candidates pass through RyanAI's sandboxed patch verification pipeline; this does not automatically create a Git commit, PR, merge, or deployment.
-- **RyanAI MCP manager:** `/mcp` offers health, repository status, stack manifest, reasoning, project-check, and tool-registry capabilities. Action tools are controlled by `RYANAI_MCP_ENABLED_TOOLS`; the registry is always read-only and discoverable.
+- **RyanAI MCP manager:** `/mcp` exposes health, stack manifest, reasoning, and tool-registry capabilities in the minimal container. Repository status and project checks are available only when the runtime is explicitly given the corresponding workspace files; they are not assumed to exist in the production image. Action tools are controlled by `RYANAI_MCP_ENABLED_TOOLS`; the registry is always read-only and discoverable.
 - **DeepSeek Flash:** optional OpenAI-compatible MCP reasoning route, with JSON validation and no implicit execution of model tool calls.
 - **Durable agent orchestration:** queue/worker, leases, recovery and handoff telemetry are in the main application; their live operational state still needs to pass the current CI and staging checks.
 
@@ -23,7 +23,7 @@ MCPJungle (enterprise mode, per-client ACLs, tool groups)
         v
 RyanAI MCP manager (MCP_AUTH_TOKEN)
         |
-        +--> health / repository / stack manifest / reasoning / project checks
+        +--> health / stack manifest / reasoning (only explicitly enabled tools)
 
 Jarvis patch service
         |
@@ -80,7 +80,6 @@ After registering RyanAI, inspect canonical tool names with `mcpjungle --registr
   "included_tools": [
     "ryanai__tool_registry",
     "ryanai__platform_health",
-    "ryanai__repository_status",
     "ryanai__ryanai_stack_manifest",
     "ryanai__reasoning_route"
   ]
