@@ -10,6 +10,11 @@ on:
     paths:
       - 'Dockerfile'
       - 'Dockerfile.api'
+      - 'render.yaml'
+      - 'vercel.json'
+      - 'railway.json'
+      - 'railway.toml'
+      - '.github/workflows/ci.yml'
       - 'index.html'
       - 'mcp-server/**'
       - 'docker-compose.yml'
@@ -94,6 +99,9 @@ jobs:
         include:
           - image: api
             file: Dockerfile
+            target: api
+          - image: api-render
+            file: Dockerfile.api
             target: api
           - image: web
             file: Dockerfile
