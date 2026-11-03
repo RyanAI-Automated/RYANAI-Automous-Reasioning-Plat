@@ -1,44 +1,8 @@
 name: Container Security Scan
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - 'Dockerfile'
-      - 'Dockerfile.api'
-      - 'index.html'
-      - 'mcp-server/**'
-      - 'docker-compose.yml'
-      - 'nginx.conf.template'
-      - '.dockerignore'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'src/**'
-      - 'app/**'
-      - 'store/**'
-      - 'stacks/**'
-      - 'prisma/**'
-      - 'scripts/copy-server-assets.mjs'
-      - '.github/workflows/container-security.yml'
-  pull_request:
-    branches: [main, master]
-    paths:
-      - 'Dockerfile'
-      - 'Dockerfile.api'
-      - 'index.html'
-      - 'mcp-server/**'
-      - 'docker-compose.yml'
-      - 'nginx.conf.template'
-      - '.dockerignore'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'src/**'
-      - 'app/**'
-      - 'store/**'
-      - 'stacks/**'
-      - 'prisma/**'
-      - 'scripts/copy-server-assets.mjs'
-      - '.github/workflows/container-security.yml'
+  push: {}
+  pull_request: {}
   schedule:
     - cron: '0 4 * * 1'
   workflow_dispatch:
@@ -46,9 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   scan:
