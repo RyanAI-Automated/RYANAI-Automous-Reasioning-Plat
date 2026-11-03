@@ -55,7 +55,7 @@ export default function AuditLogPanel() {
         <div className="flex items-center gap-3">
           <Activity className="h-5 w-5 text-cyan-300" />
           <div>
-            <h2 id="audit-log-heading" className="font-semibold text-white">Internal Jarvis audit events</h2>
+            <h2 id="audit-log-heading" className="font-semibold text-white">RyanAI security and administration events</h2>
             <p className="text-xs text-slate-400">Latest 100 recorded events · read-only</p>
           </div>
         </div>
@@ -66,7 +66,7 @@ export default function AuditLogPanel() {
 
       <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs leading-5 text-amber-100/80">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-        This is the existing Jarvis audit stream, not a complete security audit log. Authentication events, administrative session changes and provider configuration changes are not yet unified in this feed.
+        This feed includes Jarvis control-plane events, verified API-session events, session revocations and administrator role-change events. Provider configuration changes and identity-provider activity outside RyanAI APIs are not yet included.
       </p>
 
       {error && <p role="alert" className="mb-3 text-sm text-rose-300">{error}</p>}
