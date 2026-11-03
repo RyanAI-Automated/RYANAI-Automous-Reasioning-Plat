@@ -37,7 +37,31 @@ export default function ConnectivityBridgeRuntime({ userId }: ConnectivityBridge
       },
     });
     client.connect();
-    return () => client.disconnect();
+
+    let vercelHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
+    if (import.meta.env.VITE_VERCEL_BRIDGE_ADAPTER_ENABLED === 'true') {
+      const sendVercelHeartbeat = async () => {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (error || data.session?.user.id !== userId) return;
+          await fetch('/api/bridge/heartbeat', {
+            method: 'POST',
+            headers: { authorization: 'Bearer ' + data.session.access_token },
+            cache: 'no-store',
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch {
+          // The bridge will mark Vercel unavailable when its independent heartbeat expires.
+        }
+      };
+      void sendVercelHeartbeat();
+      vercelHeartbeatTimer = setInterval(() => void sendVercelHeartbeat(), 30000);
+    }
+
+    return () => {
+      if (vercelHeartbeatTimer) clearInterval(vercelHeartbeatTimer);
+      client.disconnect();
+    };
   }, [userId]);
 
   const stateLabel = connectionState === 'connected' ? 'connected' : connectionState;
