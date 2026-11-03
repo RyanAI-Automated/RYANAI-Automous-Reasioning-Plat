@@ -8,6 +8,7 @@ import {
   Orbit,
   LogIn,
   UserPlus,
+  ListTodo,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,6 +21,7 @@ const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const AgentTaskBoard = lazy(() => import('@/pages/AgentTaskBoard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
@@ -55,6 +57,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   signup: UserPlus,
   dashboard: LayoutDashboard,
   cockpit: Cpu,
+  tasks: ListTodo,
   workspace: MessageSquareText,
   comms: Mail,
 };
@@ -143,7 +146,7 @@ export default function App() {
           {destinations
             .filter(({ id }) =>
               user
-                ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
+                ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner) && (id !== 'tasks' || isAdmin)
                 : id === 'landing' || id === 'signin' || id === 'signup',
             )
             .map(({ id, path, label, icon: Icon }) => (
@@ -221,6 +224,7 @@ export default function App() {
         ) : (
           <>
             {route === 'dashboard' && <DashboardPage />}
+            {route === 'tasks' && (isAdmin ? <AgentTaskBoard /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the agent task board.</p>)}
             {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
             {route === 'cockpit' && (
               <>
