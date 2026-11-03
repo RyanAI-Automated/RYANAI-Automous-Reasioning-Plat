@@ -3,8 +3,20 @@
 ALTER TABLE public.users
   ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-REVOKE ALL PRIVILEGES ON TABLE public.users FROM PUBLIC, anon, authenticated;
-GRANT ALL PRIVILEGES ON TABLE public.users TO service_role;
+REVOKE ALL PRIVILEGES ON TABLE public.users FROM PUBLIC;
+DO $roles$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL PRIVILEGES ON TABLE public.users FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL PRIVILEGES ON TABLE public.users FROM authenticated;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'service_role') THEN
+    GRANT ALL PRIVILEGES ON TABLE public.users TO service_role;
+  END IF;
+END
+$roles$;
 
 CREATE OR REPLACE FUNCTION public.sync_ryanai_auth_user()
 RETURNS trigger
@@ -38,8 +50,17 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL PRIVILEGES ON FUNCTION public.sync_ryanai_auth_user()
-  FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON FUNCTION public.sync_ryanai_auth_user() FROM PUBLIC;
+DO $roles$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL PRIVILEGES ON FUNCTION public.sync_ryanai_auth_user() FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL PRIVILEGES ON FUNCTION public.sync_ryanai_auth_user() FROM authenticated;
+  END IF;
+END
+$roles$;
 
 DROP TRIGGER IF EXISTS ryanai_auth_user_sync_insert ON auth.users;
 CREATE TRIGGER ryanai_auth_user_sync_insert
