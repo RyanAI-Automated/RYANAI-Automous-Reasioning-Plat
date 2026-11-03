@@ -209,6 +209,14 @@ describe('Supabase API authentication', () => {
     expect(response.json().user.isOwner).toBe(true);
   });
 
+  it('grants the configured owner the same backend admin guard access without trusting browser metadata', async () => {
+    vi.stubEnv('RYANAI_OWNER_EMAIL', 'member@example.test');
+    const app = await createApp();
+    const response = await app.inject({ method: 'GET', url: '/api/new-admin-feature', headers: bearer });
+    expect(response.statusCode).toBe(200);
+    expect(getUser).toHaveBeenCalledExactlyOnceWith('synthetic-access-token');
+  });
+
   it.each(['/api/reason', '/api/reasoning/stream'])(
     'allows ordinary members to use %s',
     async (url) => {
