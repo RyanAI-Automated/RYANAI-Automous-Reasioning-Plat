@@ -166,7 +166,7 @@ function registerCoreRoutes() {
       services: readiness.services,
       engine: 'LangGraph ReAct',
       architect: 'RyanAI',
-      cudaActive: false,
+      cudaActive: null,
       activeGraph: 'reasoning-agent',
     };
   };
