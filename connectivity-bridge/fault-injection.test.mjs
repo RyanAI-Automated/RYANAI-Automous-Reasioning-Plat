@@ -9,7 +9,8 @@ import net from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import WebSocket from 'ws';
 
-const ADAPTER = 'bridge-test-adapter-token-32-characters-minimum';
+const API_ADAPTER = 'bridge-test-api-adapter-token-32-characters-minimum';
+const MCP_ADAPTER = 'bridge-test-mcp-adapter-token-32-characters-minimum';
 const SESSION = 'mock-supabase-session-token';
 const hasRedisServer = spawnSync('redis-server', ['--version'], { stdio: 'ignore' }).status === 0;
 
@@ -49,7 +50,8 @@ function startBridge(port, redisPort, authPort) {
       REDIS_URL: 'redis://127.0.0.1:' + redisPort,
       SUPABASE_URL: 'http://127.0.0.1:' + authPort,
       SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
-      BRIDGE_ADAPTER_TOKEN: ADAPTER,
+      BRIDGE_API_ADAPTER_TOKEN: API_ADAPTER,
+      BRIDGE_MCP_ADAPTER_TOKEN: MCP_ADAPTER,
       BRIDGE_TICKET_TTL_SECONDS: '5',
       BRIDGE_STREAM_MAX_LENGTH: '1000',
       CORS_ORIGINS: '',
@@ -132,7 +134,7 @@ async function openSocket(port, suppliedTicket) {
 async function publish(port, idempotencyKey, payload) {
   const response = await fetch('http://127.0.0.1:' + port + '/internal/events', {
     method: 'POST',
-    headers: { authorization: 'Bearer ' + ADAPTER, 'content-type': 'application/json' },
+    headers: { authorization: 'Bearer ' + API_ADAPTER, 'content-type': 'application/json' },
     body: JSON.stringify({ userId: 'bridge-test-user', idempotencyKey, payload }),
   });
   assert.equal(response.status, 202);
@@ -140,7 +142,7 @@ async function publish(port, idempotencyKey, payload) {
 }
 async function heartbeat(port, name) {
   const response = await fetch('http://127.0.0.1:' + port + '/internal/adapters/' + name + '/heartbeat', {
-    method: 'POST', headers: { authorization: 'Bearer ' + ADAPTER },
+    method: 'POST', headers: { authorization: 'Bearer ' + (name === 'api' ? API_ADAPTER : MCP_ADAPTER) },
   });
   assert.equal(response.status, 200);
 }
