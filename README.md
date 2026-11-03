@@ -408,7 +408,9 @@ Communications configuration presence is not proof of provider authentication or
 
 ### Hosted database networking
 
-For the Render API to connect to Supabase PostgreSQL or its session pooler, the Supabase database network restrictions must allow the API service's current Render outbound CIDRs. Follow [`docs/render-supabase-networking.md`](docs/render-supabase-networking.md); verify the service-specific ranges in Render Connect → Outbound before adding them. This is a network allowlist, not a `DATABASE_URL` value.
+For the Render API to connect to Supabase PostgreSQL, the API Blueprint sets `SUPABASE_DB_POOLER_HOST` to the project's shared session-pooler host. At startup, the API rewrites only the host, session port (5432), project-qualified role and TLS mode; the existing URL-encoded password remains in `DATABASE_URL` and is never logged. Confirm that the configured database password is current and URL-encoded.
+
+The Supabase database network restrictions must also allow the API service's current Render outbound CIDRs. Follow [`docs/render-supabase-networking.md`](docs/render-supabase-networking.md); verify the service-specific ranges in Render Connect → Outbound before adding them. This is a network allowlist, not a `DATABASE_URL` value.
 
 ### MCP variables
 
