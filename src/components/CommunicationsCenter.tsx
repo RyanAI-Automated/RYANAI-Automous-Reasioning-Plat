@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, Mail, MessageCircle, Phone, RefreshCw, Send, ShieldCheck } from 'lucide-react';
+import { Activity, BrainCircuit, Mail, MessageCircle, Phone, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import {
   getCommsConversations, getCommsStatus, sendCommsMessage,
   type CommsChannel, type CommsConversation, type CommsStatus,
@@ -18,6 +18,7 @@ const statusChannels = [
   { id: 'voice', label: 'Voice call', icon: Phone },
   { id: 'email', label: 'Outbound email (SMTP)', icon: Mail },
   { id: 'inboundEmail', label: 'Inbound email (Resend)', icon: Mail },
+  { id: 'openai', label: 'Central OpenAI API', icon: BrainCircuit },
 ];
 
 function dateLabel(value: string) {
@@ -106,7 +107,9 @@ export default function CommunicationsCenter() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statusChannels.map(({ id, label, icon: Icon }) => {
-          const configured = status?.channels?.[id] === true;
+          const configured = id === 'openai'
+            ? status?.ai?.openai?.status === 'configured_unverified'
+            : status?.channels?.[id] === true;
           return (
             <div key={id} className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
               <div className="flex items-center justify-between">
