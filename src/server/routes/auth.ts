@@ -52,18 +52,21 @@ export async function requireUser(request: FastifyRequest, reply: FastifyReply) 
     const ownerEmail = process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase();
     const sessionId = getVerifiedSessionId(token);
     if (!sessionId) return reply.code(401).send({ error: 'The verified identity token has no Supabase session identifier.' });
-    if (request.server.hasDecorator('prisma')) {
-      const session = await request.server.prisma.apiAuthSession.upsert({
-        where: { sessionId },
-        create: { sessionId, userId: data.user.id, email: data.user.email ?? null },
-        update: {},
-      });
-      if (session.revokedAt) return reply.code(401).send({ error: 'This RyanAI API session has been revoked. Sign in again.' });
-      await request.server.prisma.apiAuthSession.updateMany({
-        where: { sessionId, revokedAt: null, lastSeenAt: { lt: new Date(Date.now() - 60_000) } },
-        data: { lastSeenAt: new Date(), email: data.user.email ?? null },
-      });
+    if (!request.server.hasDecorator('prisma')) {
+      return reply.code(503).send({ error: 'Session security is not configured.' });
     }
+    const session = await request.server.prisma.apiAuthSession.upsert({
+      where: { sessionId },
+      create: { sessionId, userId: data.user.id, email: data.user.email ?? null },
+      update: {},
+    });
+    if (session.revokedAt) {
+      return reply.code(401).send({ error: 'This RyanAI API session has been revoked. Sign in again.' });
+    }
+    await request.server.prisma.apiAuthSession.updateMany({
+      where: { sessionId, revokedAt: null, lastSeenAt: { lt: new Date(Date.now() - 60_000) } },
+      data: { lastSeenAt: new Date(), email: data.user.email ?? null },
+    });
     request.authUser = {
       id: data.user.id,
       email: data.user.email,
