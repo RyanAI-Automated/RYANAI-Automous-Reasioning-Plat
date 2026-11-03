@@ -17,6 +17,11 @@
       "path": "/cockpit"
     },
     {
+      "id": "comms",
+      "label": "Comms",
+      "path": "/comms"
+    },
+    {
       "id": "workspace",
       "label": "Workspace",
       "path": "/workspace"
