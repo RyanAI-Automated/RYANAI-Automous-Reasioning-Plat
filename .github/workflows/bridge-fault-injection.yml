@@ -3,10 +3,13 @@ name: Connectivity Bridge Fault Injection
 on:
   pull_request:
     paths:
-      - 'bridge-runtime/**'
-      - 'Dockerfile.bridge'
+      - 'connectivity-bridge/**'
+      - 'connectivity-bridge/Dockerfile'
       - 'docker-compose.yml'
-      - 'src/bridge/**'
+      - 'src/api/connectivityBridge.ts'
+      - 'src/components/ConnectivityBridgeRuntime.tsx'
+      - 'src/server/connectivityBridgeAdapter.ts'
+      - 'src/server/launcher.ts'
       - 'src/server/routes/auth.ts'
       - 'src/server/launcher.ts'
       - 'mcp-server/**'
@@ -14,10 +17,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'bridge-runtime/**'
-      - 'Dockerfile.bridge'
+      - 'connectivity-bridge/**'
+      - 'connectivity-bridge/Dockerfile'
       - 'docker-compose.yml'
-      - 'src/bridge/**'
+      - 'src/api/connectivityBridge.ts'
       - 'src/server/routes/auth.ts'
       - 'src/server/launcher.ts'
       - 'mcp-server/**'
