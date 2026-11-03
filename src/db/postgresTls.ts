@@ -59,8 +59,8 @@ export function loadSupabaseRootCa(): string {
  * are present. Remove those parameters and supply a pinned CA with hostname
  * verification enabled instead.
  */
-export function postgresClientOptions(connectionString: string) {
-  if (!isSupabasePostgresUrl(connectionString)) {
+export function postgresClientOptions(connectionString?: string) {
+  if (!connectionString || !isSupabasePostgresUrl(connectionString)) {
     return { connectionString };
   }
 
