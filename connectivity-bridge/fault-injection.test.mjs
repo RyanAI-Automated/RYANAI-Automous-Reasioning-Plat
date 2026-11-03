@@ -160,6 +160,16 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       assert.equal(opened.capabilities.api, 'unavailable');
       assert.equal(opened.capabilities.mcp, 'unavailable');
       opened.socket.close();
+      const wrongApiHeartbeat = await fetch('http://127.0.0.1:' + bridgePort + '/internal/adapters/api/heartbeat', {
+        method: 'POST', headers: { authorization: 'Bearer ' + MCP_ADAPTER },
+      });
+      assert.equal(wrongApiHeartbeat.status, 401);
+      const deniedMcpPublish = await fetch('http://127.0.0.1:' + bridgePort + '/internal/events', {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + MCP_ADAPTER, 'content-type': 'application/json' },
+        body: JSON.stringify({ userId: 'bridge-test-user', idempotencyKey: 'mcp-must-not-publish', payload: {} }),
+      });
+      assert.equal(deniedMcpPublish.status, 401);
       await heartbeat(bridgePort, 'api');
       opened = await openSocket(bridgePort);
       assert.equal(opened.capabilities.api, 'ready');
