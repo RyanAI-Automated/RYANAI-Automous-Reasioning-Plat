@@ -4,6 +4,8 @@ const TOOL_POLICY = Object.freeze({
   repository_status: { owner: 'platform', risk: 'read-only', description: 'Read Git status and whitespace diagnostics.' },
   ryanai_stack_manifest: { owner: 'platform', risk: 'read-only', description: 'Read the non-secret service stack manifest.' },
   platform_health: { owner: 'platform', risk: 'network-read', description: 'Read the configured RyanAI API health endpoint.' },
+  agent_tasks_list: { owner: 'orchestration', risk: 'scoped-read', description: 'Read tasks owned by the configured agent principal.' },
+  agent_task_comment: { owner: 'orchestration', risk: 'scoped-write', description: 'Append an auditable progress comment to an owned task.' },
   reasoning_route: { owner: 'reasoning', risk: 'external-model-request', description: 'Send a prompt to a configured reasoning provider.' },
 });
 
