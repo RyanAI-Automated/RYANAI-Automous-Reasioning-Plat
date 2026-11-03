@@ -3,6 +3,7 @@ export interface BridgeCapabilities {
   bridge?: 'ready' | 'degraded' | 'unavailable';
   redis?: 'ready' | 'degraded' | 'unavailable';
   api?: 'ready' | 'degraded' | 'unavailable';
+  vercel?: 'ready' | 'degraded' | 'unavailable';
   mcp?: 'ready' | 'degraded' | 'unavailable';
 }
 export interface ConnectivityBridgeOptions {
