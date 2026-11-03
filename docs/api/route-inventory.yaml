@@ -43,7 +43,7 @@ derived_routes:
   - method: POST
     path: /api/auth/logout
     source: src/server/routes/auth.ts
-    expression: "for (const path of ['/api/auth/login', '/api/auth/logout'])"
+    expression: "for (const path of ['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout'])"
 routes:
   - method: GET
     path: "/"
