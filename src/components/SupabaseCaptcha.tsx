@@ -174,7 +174,7 @@ export default function SupabaseCaptcha({
     setMessage('Complete the human verification challenge to continue.');
   }, [resetKey]);
 
-  if (!provider || !siteKey) {
+  if (!rawProvider || !siteKey) {
     return (
       <p role="alert" className="text-sm text-amber-200">
         Human verification is not configured for this deployment. Set
@@ -184,7 +184,7 @@ export default function SupabaseCaptcha({
     );
   }
 
-  if (!rawProvider || (rawProvider !== 'turnstile' && rawProvider !== 'hcaptcha')) {
+  if (rawProvider !== 'turnstile' && rawProvider !== 'hcaptcha') {
     return (
       <p role="alert" className="text-sm text-amber-200">
         The configured human-verification provider is not supported.
