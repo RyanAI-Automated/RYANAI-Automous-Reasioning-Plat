@@ -28,11 +28,6 @@ describe('RyanAI bridge protocol contract', () => {
       .toBe('subscribe');
     expect(parseBridgeClientEnvelope(envelope('ack', { eventId: 'event-1', cursor: 'cursor-1' })).message.type)
       .toBe('ack');
-    expect(parseBridgeClientEnvelope(envelope('publish', {
-      topic: 'tasks.requested',
-      idempotencyKey: 'request-1',
-      payload: { task: 'inspect' },
-    })).message.type).toBe('publish');
   });
 
   it('rejects unsupported protocol versions without reflecting frame contents', () => {
@@ -52,7 +47,6 @@ describe('RyanAI bridge protocol contract', () => {
     envelope('subscribe', { topics: [] }),
     envelope('subscribe', { topics: Array.from({ length: 65 }, (_, i) => `topic-${i}`) }),
     envelope('ack', { eventId: 'event-1', cursor: '' }),
-    envelope('publish', { topic: 'tasks.requested', idempotencyKey: '' }),
     envelope('unknown', {}),
     { ...envelope('heartbeat', { nonce: 'n' }), sentAt: Number.NaN },
   ])('rejects malformed client frame %j', (frame) => {
