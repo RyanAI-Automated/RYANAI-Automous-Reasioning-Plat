@@ -39,16 +39,17 @@ The MCP tool allowlist defaults to empty. Enable individual tools only after rev
 
 ## Railway
 
-Railway is an alternate persistent-container target, not a second independently writable production stack.
+Railway is an independently configured alternate environment, not a warm standby and not a second writable production copy. Its IaC provisions a separate Railway PostgreSQL and Redis for isolation. Do not copy production data or production secrets into it by default. A production failover requires a separately reviewed data-replication, pgvector-extension, credential-rotation, DNS/frontend-cutover, and rollback procedure; this configuration alone does not provide failover or data continuity.
 
 For an API service:
 1. Connect the official repository and `main` branch in Railway.
 2. Set the service Dockerfile path to `Dockerfile.api` (Railway's `RAILWAY_DOCKERFILE_PATH` variable may be used for a non-root Dockerfile path).
 3. Configure the healthcheck path as `/health`; ensure the app listens on Railway's injected `PORT`.
-4. Supply the same authoritative `DATABASE_URL`, `REDIS_URL`, and required server-side environment values through Railway's Variables UI. Never commit values here.
-5. Keep production deploy approval/manual until CI and migration policy are wired and reviewed.
+4. The Railway IaC connects the API to its own Railway PostgreSQL and Redis resources. Verify the required `vector` extension and run the migration suite against a disposable Railway environment before accepting it as compatible.
+5. Supply provider credentials, `JWT_SECRET`, and MCP authentication values through Railway's Variables UI. Never commit values here; do not reuse production secrets in the alternate environment.
+6. Keep production deploy approval/manual until CI and migration policy are wired and reviewed.
 
-For MCP, create a separate service from `mcp-server/Dockerfile`, set `MCP_HOST=0.0.0.0`, `MCP_PORT=8765`, `MCP_AUTH_TOKEN` (32+ characters), a precise `MCP_ALLOWED_HOSTS`, and the private API health URL. Keep `RYANAI_MCP_ENABLED_TOOLS` empty until individual tools are approved.
+The committed `.railway/railway.ts` declares separate API and MCP services, Railway PostgreSQL, and Redis. It selects `Dockerfile.api` and `mcp-server/Dockerfile` through `RAILWAY_DOCKERFILE_PATH`, and uses Railway private networking for the MCP-to-API health probe. For MCP, set a unique `MCP_AUTH_TOKEN` (32+ characters) and a precise `MCP_ALLOWED_HOSTS` after generating the service domain. Keep `RYANAI_MCP_ENABLED_TOOLS` empty until individual tools are approved.
 
 Railway's legacy `railway.json` / `railway.toml` Config-as-Code path is deprecated and existing support has a published 2026-12-01 cutoff. This repository therefore does not add a new legacy config file. Use Railway's current Infrastructure-as-Code workflow only after its CLI/SDK and project ownership are explicitly selected.
 
