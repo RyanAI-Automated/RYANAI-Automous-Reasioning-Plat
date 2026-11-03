@@ -61,4 +61,13 @@ describe('communications history API', () => {
     await app.inject({ method: 'GET', url: '/api/comms/conversations?limit=10000' });
     expect(prisma.communicationConversation.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
   });
+
+  it('reports central OpenAI configuration without exposing its credential', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-only-openai-secret');
+    const app = await createApp(true);
+    const response = await app.inject({ method: 'GET', url: '/api/comms/status' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().ai.openai.status).toBe('configured_unverified');
+    expect(response.body).not.toContain('test-only-openai-secret');
+  });
 });
