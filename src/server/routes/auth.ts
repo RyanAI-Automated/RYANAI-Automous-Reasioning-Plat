@@ -20,7 +20,7 @@ export interface AuthenticatedUser {
   sessionId: string;
 }
 
-export function hasAdminAccess(user?: Pick<AuthenticatedUser, 'role' | 'isOwner'> | null): boolean {
+export function hasAdminAccess(user?: Partial<Pick<AuthenticatedUser, 'role' | 'isOwner'>> | null): boolean {
   return Boolean(user && (user.role === 'admin' || user.isOwner));
 }
 
