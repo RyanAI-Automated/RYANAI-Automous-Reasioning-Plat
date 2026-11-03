@@ -141,6 +141,33 @@ projects:
                 sync: false
               - key: RYANAI_OWNER_EMAIL
                 sync: false
+          # Persistent MCP endpoint. Tool access remains operator-allowlisted and disabled by default.
+          - type: web
+            name: ryanai-mcp
+            runtime: docker
+            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
+            plan: free
+            region: oregon
+            dockerContext: .
+            dockerfilePath: ./mcp-server/Dockerfile
+            autoDeployTrigger: "off"
+            healthCheckPath: /health
+            envVars:
+              - key: NODE_ENV
+                value: production
+              - key: MCP_HOST
+                value: 0.0.0.0
+              - key: MCP_PORT
+                value: "8765"
+              - key: MCP_AUTH_TOKEN
+                sync: false
+              - key: MCP_ALLOWED_HOSTS
+                value: ryanai-mcp.onrender.com
+              - key: RYANAI_API_HEALTH_URL
+                value: http://ryanai-api:3000/health
+              - key: RYANAI_MCP_ENABLED_TOOLS
+                value: ""
           - type: keyvalue
             name: ryanai-redis
             plan: free
