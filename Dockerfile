@@ -43,7 +43,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true
-RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
+RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget postgresql-client \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
@@ -56,6 +56,7 @@ COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
+COPY --chown=node:node scripts/backup-on-startup.mjs ./scripts/backup-on-startup.mjs
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
@@ -87,7 +88,6 @@ RUN npm run build
 
 # nginx serves the SPA and proxies API/WebSocket requests to the API service.
 FROM nginx:alpine AS web
-# Pull patched packages from the current Alpine repository before shipping nginx.
 RUN apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0'
 ENV PORT=80 \
