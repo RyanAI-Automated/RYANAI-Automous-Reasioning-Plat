@@ -119,6 +119,30 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
+  build-api-standalone:
+    name: Build standalone Dockerfile.api image
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build standalone API image without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.api
+          push: false
+          tags: ryanai-api-standalone:ci
+          cache-from: type=gha,scope=api-standalone
+          cache-to: type=gha,mode=max,scope=api-standalone
+
   publish:
     name: Build and publish ${{ matrix.image }}
     # Publishing is opt-in only. Pushes, tags, and PRs must never publish images.
