@@ -89,9 +89,6 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
       REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
-      BRIDGE_INTERNAL_URL: http://bridge:8787
-      BRIDGE_ISSUER_TOKEN: ${BRIDGE_ISSUER_TOKEN:?Set BRIDGE_ISSUER_TOKEN in .env}
-      BRIDGE_ADAPTER_TOKEN: ${BRIDGE_ADAPTER_TOKEN:?Set BRIDGE_ADAPTER_TOKEN in .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
       SUPABASE_URL: ${SUPABASE_URL:-https://narsvpwymvlrhurqbthu.supabase.co}
@@ -159,8 +156,6 @@ services:
       RYANAI_API_HEALTH_URL: http://api:3000/health
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8765
-      BRIDGE_INTERNAL_URL: http://bridge:8787
-      BRIDGE_ADAPTER_TOKEN: ${BRIDGE_ADAPTER_TOKEN:?Set BRIDGE_ADAPTER_TOKEN in .env}
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
       RYANAI_OPENAI_GATEWAY_URL: ${RYANAI_OPENAI_GATEWAY_URL:-http://api:3000/api/internal/openai/chat}
       RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
@@ -270,7 +265,7 @@ services:
       PORT: 80
       API_HOST: api
       API_PORT: 3000
-      BRIDGE_HOST: bridge
+      BRIDGE_HOST: connectivity-bridge
       BRIDGE_PORT: 8787
     networks: [ryanai-net]
     ports:
