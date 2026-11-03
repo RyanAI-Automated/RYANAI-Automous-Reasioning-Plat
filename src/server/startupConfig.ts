@@ -1,13 +1,8 @@
+import { resolveDatabaseConnectionUrl } from './databaseConnection.js';
+
 export interface ConnectionUrls {
   databaseUrl: string;
   redisUrl: string;
-}
-
-function localDevelopmentDatabaseUrl(): string {
-  const url = new URL('postgresql://localhost:5432/ryanai');
-  url.username = 'postgres';
-  url.password = 'postgres';
-  return url.toString();
 }
 
 /**
@@ -36,7 +31,7 @@ export function resolveConnectionUrls(
   }
 
   return {
-    databaseUrl: database || localDevelopmentDatabaseUrl(),
+    databaseUrl: resolveDatabaseConnectionUrl(nodeEnv, database),
     redisUrl: redis || 'redis://localhost:6379',
   };
 }
