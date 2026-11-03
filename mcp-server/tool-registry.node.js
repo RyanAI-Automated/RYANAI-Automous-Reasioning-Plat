@@ -7,6 +7,8 @@ const tools = [
   { name: 'repository_status' },
   { name: 'run_project_checks' },
   { name: 'platform_health' },
+  { name: 'agent_tasks_list' },
+  { name: 'agent_task_comment' },
 ];
 
 test('only explicitly allowlisted action tools are exposed', () => {
@@ -56,4 +58,18 @@ test('configured tools missing from this runtime fail closed', () => {
     }),
     /Configured MCP tool.*not available in this runtime/,
   );
+});
+
+
+test('task board tools require explicit read and write allowlisting', () => {
+  const result = resolveToolRegistry(tools, {
+    RYANAI_MCP_ENABLED_TOOLS: 'agent_tasks_list,agent_task_comment',
+  });
+  assert.deepEqual(result.tools.map((tool) => tool.name), [
+    'tool_registry',
+    'agent_tasks_list',
+    'agent_task_comment',
+  ]);
+  assert.equal(result.registry.find((entry) => entry.name === 'agent_tasks_list').risk, 'scoped-read');
+  assert.equal(result.registry.find((entry) => entry.name === 'agent_task_comment').risk, 'scoped-write');
 });
