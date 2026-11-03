@@ -6,11 +6,11 @@ info:
     Contract for the supported Fastify gateway. The complete HTTP route set,
     including webhook and machine-only endpoints, is in route-inventory.yaml.
 servers:
-  - url: "{apiOrigin}"
+  - url: "https://{apiHost}"
     variables:
-      apiOrigin:
-        default: https://api.example.invalid
-        description: Set to the deployed RyanAI API origin.
+      apiHost:
+        default: api.example.invalid
+        description: Hostname of the deployed RyanAI API.
 tags:
   - name: Health
   - name: Authentication
