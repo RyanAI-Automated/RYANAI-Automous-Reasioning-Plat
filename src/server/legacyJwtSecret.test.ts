@@ -34,7 +34,16 @@ describe('legacy JWT secret resolution', () => {
 
   it('treats whitespace-only production secrets as missing', () => {
     expect(() => resolveLegacyJwtSecret('production', '   ')).toThrow(
-      'JWT_SECRET is required in production',
+      'JWT_SECRET is required',
+    );
+  });
+
+  it('fails closed when the runtime environment is unspecified or staging', () => {
+    expect(() => resolveLegacyJwtSecret(undefined, undefined)).toThrow(
+      'NODE_ENV is explicitly development or test',
+    );
+    expect(() => resolveLegacyJwtSecret('staging', undefined)).toThrow(
+      'NODE_ENV is explicitly development or test',
     );
   });
 });
