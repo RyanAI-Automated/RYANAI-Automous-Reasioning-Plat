@@ -13,7 +13,12 @@ BEGIN
   -- some deployments. Skip function relocation when that feature is absent.
   IF to_regclass('public.rooms') IS NULL
      OR to_regclass('public.room_members') IS NULL THEN
-    RAISE NOTICE 'Shared-room tables are absent; skipping room RLS helper relocation.';
+    IF to_regprocedure('public.is_room_member(uuid)') IS NOT NULL
+       OR to_regprocedure('public.is_room_owner(uuid)') IS NOT NULL
+       OR to_regprocedure('public.is_room_member_topic(text)') IS NOT NULL THEN
+      RAISE EXCEPTION 'Legacy public room helper functions exist without their required room tables; refusing to skip relocation.';
+    END IF;
+    RAISE NOTICE 'Shared-room tables and public helpers are absent; skipping room RLS helper relocation.';
     RETURN;
   END IF;
 
@@ -49,6 +54,7 @@ BEGIN
           AND r.created_by = (SELECT auth.uid())
       );
     $body$;
+  $function_ddl$;
 
   EXECUTE $function_ddl$
     CREATE OR REPLACE FUNCTION private.is_room_member_topic(_topic text)
