@@ -1,3 +1,4 @@
+import { postgresClientOptions } from '../db/postgresTls.js';
 import { Pool } from "pg";
 
 interface AgentState {
@@ -11,7 +12,7 @@ export class AgentOrchestrator {
   private pgPool: Pool;
 
   constructor(connectionString: string) {
-    this.pgPool = new Pool({ connectionString });
+    this.pgPool = new Pool(postgresClientOptions(connectionString));
   }
 
   async initializeSession(sessionId: string): Promise<AgentState> {
