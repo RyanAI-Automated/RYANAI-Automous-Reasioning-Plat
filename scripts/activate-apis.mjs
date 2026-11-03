@@ -18,6 +18,8 @@ const PROVIDERS = {
   NVIDIA: ['NVIDIA_API_KEY'],
   QWEN: ['QWEN_API_KEY'],
   LOGIC: ['LOGIC_API_KEY', 'OPENAI_API_KEY'],
+  DEEPSEEK: ['DEEPSEEK_API_KEY'],
+  TORCHTPU: ['TORCHTPU_API_KEY'],
 };
 const COMMUNICATIONS = {
   whatsapp: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER', 'TWILIO_WHATSAPP_WEBHOOK_URL', 'RYANAI_OWNER_PHONE'],
@@ -66,6 +68,14 @@ export function configurationReport(config) {
     return [name, { status: configured ? 'configured_unverified' : 'missing_credentials' }];
   }));
 
+  const integrations = {
+    supabase: { status: present(config, 'SUPABASE_URL') && (present(config, 'SUPABASE_SERVICE_ROLE_KEY') || present(config, 'SUPABASE_ANON_KEY')) ? 'configured_unverified' : 'missing_credentials' },
+    github: { status: present(config, 'RYANAI_GITHUB_TOKEN') ? 'configured_unverified' : 'missing_credentials' },
+    jarvis: { status: config.JARVIS_SYNC_ENABLED === 'true' ? (present(config, 'JARVIS_BASE_URL') && present(config, 'JARVIS_API_TOKEN') ? 'configured_unverified' : 'blocked_missing_credentials') : 'disabled' },
+    mcpjungle: { status: present(config, 'MCPJUNGLE_DB_PASSWORD') ? 'configured_unverified' : 'disabled' },
+    cloudflareTunnel: { status: present(config, 'CLOUDFLARE_TUNNEL_TOKEN') ? 'configured_unverified_not_started' : 'disabled' },
+  };
+
   const communications = Object.fromEntries(Object.entries(COMMUNICATIONS).map(([channel, keys]) => {
     const configured = keys.every((key) => present(config, key));
     return [channel, { status: configured ? 'configured_unverified' : 'missing_credentials' }];
@@ -74,6 +84,7 @@ export function configurationReport(config) {
   return {
     core: { status: Object.values(core).every(Boolean) ? 'configured' : 'blocked', checks: core },
     providers,
+    integrations,
     communications,
     integrationsNote: 'Configured means environment values are present only. Authentication, callback registration and delivery are not verified.',
   };
