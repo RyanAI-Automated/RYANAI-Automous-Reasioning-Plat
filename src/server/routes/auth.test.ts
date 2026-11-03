@@ -29,7 +29,8 @@ vi.mock('../../utils/notifications.js', () => ({
 }));
 
 const applications: FastifyInstance[] = [];
-const bearer = { authorization: 'Bearer synthetic-access-token' };
+const bearerToken = 'header.' + Buffer.from(JSON.stringify({ session_id: '00000000-0000-4000-8000-000000000099' })).toString('base64url') + '.signature';
+const bearer = { authorization: 'Bearer ' + bearerToken };
 const user = {
   id: 'verified-user-id',
   email: 'member@example.test',
@@ -185,14 +186,14 @@ describe('Supabase API authentication', () => {
       authenticated: true,
       user: { id: user.id, email: user.email, role: 'user', isOwner: false },
     });
-    expect(getUser).toHaveBeenCalledExactlyOnceWith('synthetic-access-token');
+    expect(getUser).toHaveBeenCalledExactlyOnceWith(bearerToken);
     expect(createContextClient).toHaveBeenCalledWith(
       expect.objectContaining({
         env: {
           url: 'https://project.supabase.co',
           publishableKeys: { default: 'synthetic-publishable-key' },
         },
-        auth: { token: 'synthetic-access-token' },
+        auth: { token: bearerToken },
       }),
     );
   });
@@ -214,7 +215,7 @@ describe('Supabase API authentication', () => {
     const app = await createApp();
     const response = await app.inject({ method: 'GET', url: '/api/new-admin-feature', headers: bearer });
     expect(response.statusCode).toBe(200);
-    expect(getUser).toHaveBeenCalledExactlyOnceWith('synthetic-access-token');
+    expect(getUser).toHaveBeenCalledExactlyOnceWith(bearerToken);
   });
 
   it.each(['/api/reason', '/api/reasoning/stream'])(
