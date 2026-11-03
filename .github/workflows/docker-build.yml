@@ -65,6 +65,9 @@ jobs:
           - image: web
             file: Dockerfile
             target: web
+          - image: mcp-server
+            file: mcp-server/Dockerfile
+            target: ''
     steps:
       - name: Checkout
         uses: actions/checkout@v4
