@@ -59,7 +59,7 @@
     ],
     "render": "render.yaml",
     "vercel": ".github/workflows/deploy-vercel.yml",
-    "railway": "docs/deployment/hybrid-hosting.md"
+    "railway": ".railway/railway.ts"
   },
   "integrations": {
     "jarvis": {
