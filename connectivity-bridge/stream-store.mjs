@@ -22,6 +22,7 @@ export async function publishUserEvent(redis, { userId, idempotencyKey, payload,
   if (typeof userId !== 'string' || !userId || userId.length > 256) throw new Error('Invalid user identity');
   if (typeof idempotencyKey !== 'string' || !/^[a-zA-Z0-9._:-]{1,128}$/.test(idempotencyKey)) throw new Error('Invalid idempotency key');
   const serialized = JSON.stringify(payload);
+  if (serialized === undefined) throw new Error('Invalid event payload');
   if (Buffer.byteLength(serialized) > 256 * 1024) throw new Error('Event payload is too large');
   const dedupeKey = 'ryanai:connectivity:dedupe:' + Buffer.from(userId).toString('base64url') + ':' + Buffer.from(idempotencyKey).toString('base64url');
   const script = [
