@@ -1,10 +1,10 @@
 name: Deploy API to Render
 
-# Trigger only after the repository's required CI workflow succeeds on a trusted branch.
+# Trigger only after the actual container publishing workflow succeeds.
 # Render remains opt-in and requires an explicit gate plus a configured deploy hook.
 on:
   workflow_run:
-    workflows: ['CI - Build, Test, and Integrate']
+    workflows: ['Build and Publish RyanAI Containers']
     branches: [main, master]
     types: [completed]
   workflow_dispatch:
