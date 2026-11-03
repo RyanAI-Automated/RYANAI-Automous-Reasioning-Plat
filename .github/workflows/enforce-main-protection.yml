@@ -20,6 +20,17 @@ jobs:
     name: Apply and verify main protection ruleset
     runs-on: ubuntu-latest
     steps:
+      - name: Test bypass actor verification predicate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n -e '{bypass_actors: []} | ((.bypass_actors // []) | length == 0)' >/dev/null
+          jq -n -e '{} | ((.bypass_actors // []) | length == 0)' >/dev/null
+          if jq -n -e '{bypass_actors: [{actor_id: 123}]} | ((.bypass_actors // []) | length == 0)' >/dev/null; then
+            echo "::error::Bypass verification accepted a non-empty actor list"
+            exit 1
+          fi
+
       - name: Validate confirmation and administrator credential
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
