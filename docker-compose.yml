@@ -188,7 +188,8 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8765
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
-      RYANAI_OPENAI_GATEWAY_URL: ${RYANAI_OPENAI_GATEWAY_URL:-http://api:3000/api/internal/openai/chat}
+      # Container-to-container routing must use the Compose API service name.
+      RYANAI_OPENAI_GATEWAY_URL: http://api:3000/api/internal/openai/chat
       RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
       MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1],mcp-server}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
