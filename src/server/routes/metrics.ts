@@ -49,16 +49,18 @@ export const metricsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/api/admin/usage', async () => {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const [totalRuns, recentRuns, grouped] = await Promise.all([
+    const [totalRuns, recentRuns, grouped, handoffs] = await Promise.all([
       prisma.agentRun.count(),
       prisma.agentRun.count({ where: { createdAt: { gte: since } } }),
       prisma.agentRun.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.agentHandoff.groupBy({ by: ['toAgent', 'status'], _count: { _all: true } }),
     ]);
     return {
       windowDays: 30,
       totalRuns,
       runsLast30Days: recentRuns,
       runsByStatus: grouped.map((entry) => ({ status: entry.status, count: entry._count._all })),
+      handoffsByAgent: handoffs.map((entry) => ({ agent: entry.toAgent, status: entry.status, count: entry._count._all })),
       usageAccounting: {
         executionRecords: 'available',
         providerRequests: 'not-instrumented',
