@@ -12,24 +12,21 @@ export default function RyanAIWorkspace() {
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
-
-  useEffect(() => {
-    const configuredUrl = import.meta.env.VITE_TELEMETRY_WSS?.trim() || import.meta.env.VITE_WS_URL?.trim();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(configuredUrl || `${protocol}//${window.location.host}/ws`);
-
-    socket.onopen = () => {
-      setSocketStatus('CONNECTED');
-      appendLog('SYSTEM', 'Telemetry connection established.');
-    };
-    socket.onmessage = (event) => appendLog('AGENT', String(event.data));
-    socket.onerror = () => setSocketStatus('OFFLINE');
-    socket.onclose = () => setSocketStatus('OFFLINE');
-
-    return () => socket.close();
-  }, [appendLog]);
+    if (!session?.access_token) {
+      setSocketStatus('OFFLINE');
+      return;
+    }
+    const client = new ConnectivityBridgeClient({
+      getAccessToken: async () => session.access_token,
+      onEvent: (event) => {
+        const message = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+        appendLog('AGENT', message);
+      },
+      onState: (state) => setSocketStatus(state === 'closed' ? 'OFFLINE' : state.toUpperCase() as 'CONNECTING' | 'CONNECTED' | 'DEGRADED'),
+    });
+    client.connect();
+    return () => client.disconnect();
+  }, [session?.access_token, appendLog]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
