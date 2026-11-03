@@ -101,5 +101,7 @@ jobs:
             and ([.rules[].type] | index("required_status_checks") != null)
             and ([.rules[].type] | index("non_fast_forward") != null)
             and ([.rules[].type] | index("deletion") != null)
+            and ([.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | index("RyanAI CodeQL (javascript-typescript)") != null)
+            and ([.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | index("RyanAI CodeQL (python)") != null)
             and ((.bypass_actors // []) | length == 0)
           ' ruleset-final.json
