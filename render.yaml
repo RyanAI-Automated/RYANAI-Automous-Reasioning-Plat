@@ -141,6 +141,8 @@ projects:
                 value: 0.0.0.0
               - key: MCP_PORT
                 value: "8765"
+              - key: PORT
+                value: "8765"
               - key: MCP_AUTH_TOKEN
                 sync: false
               - key: MCP_ALLOWED_HOSTS
