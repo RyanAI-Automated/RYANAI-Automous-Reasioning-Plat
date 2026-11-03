@@ -150,7 +150,7 @@ const server = createServer(async (request, response) => {
 });
 
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024, perMessageDeflate: false });
-server.on('upgrade', async (request, socket, head) => {
+server.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url || '/', 'http://localhost');
   const origin = request.headers.origin;
   if (origin && !origins.has(origin)) {
@@ -158,29 +158,12 @@ server.on('upgrade', async (request, socket, head) => {
     socket.destroy();
     return;
   }
-  const ticket = url.searchParams.get('ticket');
-  if (url.pathname !== '/v1/socket' || !ticket || ticket.length > 128) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+  if (url.pathname !== '/v1/socket') {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
     socket.destroy();
     return;
   }
-  try {
-    const serialized = await redis.getDel('ryanai:connectivity:ticket:' + ticket);
-    if (!serialized) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-    const identity = JSON.parse(serialized);
-    if (!identity.userId) throw new Error('Invalid ticket identity');
-    sockets.handleUpgrade(request, socket, head, (ws) => {
-      ws.userId = identity.userId;
-      sockets.emit('connection', ws, request);
-    });
-  } catch {
-    socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
-    socket.destroy();
-  }
+  sockets.handleUpgrade(request, socket, head, (ws) => sockets.emit('connection', ws, request));
 });
 
 sockets.on('connection', (ws) => {
@@ -189,16 +172,45 @@ sockets.on('connection', (ws) => {
   let closed = false;
   let reading = false;
   let requestedResume = false;
+  let authenticated = false;
   let alive = true;
+  let stream;
+  let cursorKey;
   const sentOrder = [];
-  const stream = userStreamKey(ws.userId);
-  const cursorKey = userCursorKey(ws.userId);
+  const authTimer = setTimeout(() => ws.close(1008, 'Single-use ticket required'), 5000);
   const send = (value) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(value)); };
 
   ws.on('message', async (raw) => {
     if (raw.length > 64 * 1024) return ws.close(1009, 'Message too large');
     let message;
     try { message = JSON.parse(raw.toString()); } catch { return send({ type: 'error', error: 'Invalid JSON' }); }
+    if (!authenticated) {
+      if (message?.type !== 'hello' || typeof message.ticket !== 'string' || message.ticket.length > 128) {
+        ws.close(1008, 'A valid single-use ticket is required');
+        return;
+      }
+      try {
+        const serialized = await redis.getDel('ryanai:connectivity:ticket:' + message.ticket);
+        if (!serialized) {
+          ws.close(1008, 'Ticket expired or already used');
+          return;
+        }
+        const identity = JSON.parse(serialized);
+        if (!identity.userId) {
+          ws.close(1008, 'Invalid ticket identity');
+          return;
+        }
+        ws.userId = identity.userId;
+        stream = userStreamKey(identity.userId);
+        cursorKey = userCursorKey(identity.userId);
+        authenticated = true;
+        clearTimeout(authTimer);
+        send({ type: 'authenticated' });
+      } catch {
+        ws.close(1011, 'Ticket verification temporarily unavailable');
+      }
+      return;
+    }
     if (message?.type === 'resume' && !requestedResume) {
       requestedResume = true;
       try {
@@ -282,8 +294,8 @@ sockets.on('connection', (ws) => {
     alive = false;
     ws.ping();
   }, 25000);
-  ws.on('close', () => { closed = true; clearInterval(heartbeat); });
-  ws.on('error', () => { closed = true; clearInterval(heartbeat); });
+  ws.on('close', () => { closed = true; clearTimeout(authTimer); clearInterval(heartbeat); });
+  ws.on('error', () => { closed = true; clearTimeout(authTimer); clearInterval(heartbeat); });
 });
 
 server.listen(port, '0.0.0.0', () => console.log('[connectivity-bridge] listening on ' + port));
