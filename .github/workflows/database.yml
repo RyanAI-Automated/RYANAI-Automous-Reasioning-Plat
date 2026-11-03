@@ -17,6 +17,7 @@ on:
       - 'src/db/**'
       - 'tests/fixtures/supabase-auth-ci-*.sql'
       - 'Dockerfile'
+      - 'docker-compose.yml'
       - '.github/workflows/database.yml'
   workflow_dispatch:
 
