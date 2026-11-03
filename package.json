@@ -114,7 +114,7 @@
     "api:report": "node scripts/activate-apis.mjs report",
     "test:api-activation": "node --test scripts/activate-apis.node.mjs",
     "bridge:start": "node bridge-runtime/server.mjs",
-    "test:bridge": "node --test bridge-runtime/server.test.mjs"
+    "test:bridge": "node --test bridge-runtime/server.test.mjs bridge-runtime/fault-injection.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
