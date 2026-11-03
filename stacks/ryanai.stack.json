@@ -58,7 +58,8 @@
       "k8s/ryanai-databases.yaml"
     ],
     "render": "render.yaml",
-    "vercel": ".github/workflows/deploy-vercel.yml"
+    "vercel": ".github/workflows/deploy-vercel.yml",
+    "railway": "docs/deployment/hybrid-hosting.md"
   },
   "integrations": {
     "jarvis": {
