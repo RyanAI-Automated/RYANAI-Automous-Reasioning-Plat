@@ -3,11 +3,13 @@ name: Deploy API to Render
 # Trigger only after the actual container publishing workflow succeeds.
 # Render remains opt-in and requires an explicit gate plus a configured deploy hook.
 on:
-  workflow_run:
-    workflows: ['Build and Publish RyanAI Containers']
-    branches: [main, master]
-    types: [completed]
   workflow_dispatch:
+    inputs:
+      confirm_production_deploy:
+        description: Explicitly authorize a production Render deployment
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,14 +21,7 @@ concurrency:
 jobs:
   deploy:
     name: Trigger Render deploy
-    if: >-
-      ${{
-        vars.RENDER_DEPLOY_ENABLED == 'true' &&
-        (
-          github.event_name == 'workflow_dispatch' ||
-          (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-        )
-      }}
+    if: inputs.confirm_production_deploy == true && vars.RENDER_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: production
