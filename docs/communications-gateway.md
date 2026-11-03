@@ -78,3 +78,16 @@ The owner-only workspace uses the same API and durable PostgreSQL communication 
 - Inbound Twilio and Resend webhooks continue to verify provider signatures and persist inbound events before/while processing them.
 
 All `/api/comms/*` browser requests require a verified Supabase session. History and outbound send additionally require the server-verified owner identity; no owner phone/email is sent to the browser. A provider acceptance response is not a delivery receipt. No live provider calls or messages are part of CI.
+
+
+## Frontend-to-backend chain
+
+The authenticated frontend route is `/#/comms`. It uses the Supabase session access token through `authenticatedFetch` and calls only the configured RyanAI API origin:
+
+1. `GET /api/comms/status` — channel configuration plus central OpenAI configuration state. This is presence-only and never returns provider credentials.
+2. `GET /api/comms/conversations` — owner-scoped history from the shared Prisma/PostgreSQL communication tables.
+3. `POST /api/comms/send` — owner-authenticated request into the existing Twilio or SMTP adapter.
+4. Provider webhooks — Twilio WhatsApp/SMS/voice/status and Resend inbound email verify signatures, process inbound events, and reconcile provider status into the same history.
+5. The Comms screen refreshes the timeline periodically and after a send. It displays provider acceptance separately from confirmed delivery.
+
+The browser never receives `OPENAI_API_KEY`, Twilio credentials, SMTP credentials, Resend credentials, or owner contact configuration. The Comms agent runs server-side through the shared `createChatModel()` configuration; MCP and other server agents use the same API-owned OpenAI key via their authenticated gateway path.
