@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'connectivity-bridge/**'
+      - 'railway.bridge.json'
       - 'docker-compose.yml'
       - 'src/api/connectivityBridge.ts'
       - 'src/api/connectivityBridge.test.ts'
