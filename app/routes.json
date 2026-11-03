@@ -27,6 +27,11 @@
       "path": "/llm"
     },
     {
+      "id": "tools",
+      "label": "Tools",
+      "path": "/tools"
+    },
+    {
       "id": "workspace",
       "label": "Workspace",
       "path": "/workspace"
