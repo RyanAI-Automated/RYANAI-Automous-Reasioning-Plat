@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { containsTaskCommentSecretMaterial } from './internalJarvisRoutes.js';
+import { containsTaskCommentSecretMaterial } from './taskCommentSecurity.js';
 
 describe('task comment credential screening', () => {
   it.each([
