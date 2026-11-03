@@ -52,6 +52,7 @@ RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && chown -R node:node /app
 COPY --from=api-builder --chown=node:node /app/package.json ./package.json
 COPY --from=api-builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=api-builder --chown=node:node /app/prisma/certs ./prisma/certs
 COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
