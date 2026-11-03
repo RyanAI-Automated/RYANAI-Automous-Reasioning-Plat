@@ -4,7 +4,7 @@ import { dispatchJarvisTask, listAgentRuns } from '../../agent/operations.js';
 import { authorizeJarvisCapability, getJarvisAgentRegistry, type JarvisCapability } from '../../agent/jarvisRegistry.js';
 import { prisma } from '../../lib/prisma.js';
 import { appendRunEvidence } from '../../agent/engineeringEvidence.js';
-import { containsTaskCommentSecretMaterial } from './taskCommentSecurity.js';
+import { buildAgentTaskScope, containsTaskCommentSecretMaterial } from './taskCommentSecurity.js';
 
 interface CreateTaskBody { objective: string; }
 interface TaskCommentBody { comment: string; }
@@ -85,7 +85,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     const ownerId = process.env.JARVIS_TASK_OWNER_ID!.trim();
     const agentId = process.env.JARVIS_TASK_AGENT_ID!.trim();
     const tasks = await prisma.agentRun.findMany({
-      where: { userId: ownerId },
+      where: buildAgentTaskScope(ownerId, agentId),
       orderBy: { createdAt: 'desc' },
       take: 25,
       select: {
@@ -100,6 +100,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
         maxAttempts: true,
         error: true,
         handoffs: {
+          where: { toAgent: agentId },
           orderBy: { startedAt: 'asc' },
           select: { id: true, fromAgent: true, toAgent: true, status: true, startedAt: true, completedAt: true, error: true },
         },
