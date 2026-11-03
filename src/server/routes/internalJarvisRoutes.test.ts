@@ -125,7 +125,7 @@ describe('Jarvis machine task API contract', () => {
     expect(response.json()).toEqual({ agentId: 'primary', tasks: [] });
   });
 
-  it('rejects cross-owner task comments without writing evidence or audit rows', async () => {
+  it('rejects unowned or unassigned task comments without writing evidence or audit rows', async () => {
     mocks.tx.agentRun.findFirst.mockResolvedValue(null);
     const response = await app.inject({
       method: 'POST',
@@ -134,7 +134,7 @@ describe('Jarvis machine task API contract', () => {
       payload: { comment: 'Progress update' },
     });
     expect(response.statusCode).toBe(404);
-    expect(mocks.tx.agentRun.findFirst).toHaveBeenCalledWith({ where: { id: taskId, userId: ownerId }, select: { id: true } });
+    expect(mocks.tx.agentRun.findFirst).toHaveBeenCalledWith({ where: { id: taskId, userId: ownerId, handoffs: { some: { toAgent: 'primary' } } }, select: { id: true } });
     expect(mocks.appendRunEvidence).not.toHaveBeenCalled();
     expect(mocks.tx.jarvisAuditEvent.create).not.toHaveBeenCalled();
   });
