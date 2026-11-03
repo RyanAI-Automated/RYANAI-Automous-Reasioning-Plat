@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { ConnectivityBridgeClient } from '@/api/connectivityBridge';
+import { useEffect, useState } from 'react';
+import { ConnectivityBridgeClient, type BridgeCapabilities } from '@/api/connectivityBridge';
 import { supabase } from '@/lib/supabase';
 
 interface ConnectivityBridgeRuntimeProps {
@@ -8,6 +8,10 @@ interface ConnectivityBridgeRuntimeProps {
 
 /** Keeps one authenticated, replayable bridge session for the signed-in browser. */
 export default function ConnectivityBridgeRuntime({ userId }: ConnectivityBridgeRuntimeProps) {
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'degraded' | 'closed'>('connecting');
+  const [capabilities, setCapabilities] = useState<BridgeCapabilities>({});
+  const [replayGap, setReplayGap] = useState(false);
+
   useEffect(() => {
     if (!userId || !supabase) return;
     const client = new ConnectivityBridgeClient({
@@ -20,12 +24,15 @@ export default function ConnectivityBridgeRuntime({ userId }: ConnectivityBridge
         window.dispatchEvent(new CustomEvent('ryanai-bridge-event', { detail: event }));
       },
       onState: (state) => {
+        setConnectionState(state);
         window.dispatchEvent(new CustomEvent('ryanai-bridge-state', { detail: { state, userId } }));
       },
-      onCapabilities: (capabilities) => {
+      onCapabilities: (nextCapabilities) => {
+        setCapabilities(nextCapabilities);
         window.dispatchEvent(new CustomEvent('ryanai-bridge-capabilities', { detail: { capabilities, userId } }));
       },
       onReplayGap: (gap) => {
+        setReplayGap(true);
         window.dispatchEvent(new CustomEvent('ryanai-bridge-replay-gap', { detail: { ...gap, userId } }));
       },
     });
@@ -33,5 +40,14 @@ export default function ConnectivityBridgeRuntime({ userId }: ConnectivityBridge
     return () => client.disconnect();
   }, [userId]);
 
-  return null;
+  const stateLabel = connectionState === 'connected' ? 'connected' : connectionState;
+  const stateColor = connectionState === 'connected' ? 'text-emerald-400' : connectionState === 'degraded' ? 'text-amber-400' : 'text-slate-400';
+  return (
+    <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-2 text-xs">
+      <span className={stateColor}>Bridge: {stateLabel}</span>
+      <span className={capabilities.api === 'ready' ? 'text-emerald-400' : 'text-slate-400'}>API: {capabilities.api ?? 'unknown'}</span>
+      <span className={capabilities.mcp === 'ready' ? 'text-emerald-400' : 'text-slate-400'}>MCP: {capabilities.mcp ?? 'unknown'}</span>
+      {replayGap && <span className="text-amber-400">History gap: reconciliation required</span>}
+    </div>
+  );
 }
