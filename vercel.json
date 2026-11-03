@@ -8,6 +8,10 @@
     {
       "source": "/oauth/consent",
       "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
