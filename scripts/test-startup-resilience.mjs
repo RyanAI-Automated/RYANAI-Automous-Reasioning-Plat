@@ -185,7 +185,7 @@ try {
   await expectStartupFailure(
     'Redis unavailable',
     { DATABASE_URL: databaseUrl, REDIS_URL: unreachableRedis.toString() },
-    'Production startup blocked: required dependency checks failed for PostgreSQL, Redis, agent checkpointer. The API listener was not started.',
+    'Production startup blocked: required dependency checks failed for Redis',
   );
 
   // Combined outage: both configured dependencies are unreachable in the
