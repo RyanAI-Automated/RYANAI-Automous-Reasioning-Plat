@@ -15,7 +15,8 @@ export function resolveBrain(name = 'nemotron', env = process.env) {
   };
 }
 
-export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
+export async function routeReasoning(prompt, name = 'openai', options = {}) {
+  if (name === 'openai') return routeOpenAIGateway(prompt, options);
   const brain = resolveBrain(name, options.env || process.env);
   if (!brain.id.trim()) {
     throw new Error('The configured ' + name + ' provider requires its model id to be set.');
@@ -89,4 +90,28 @@ export async function routeReasoning(prompt, name = 'nemotron', options = {}) {
     }
   }
   return { mode: 'provider', brain: brain.id, response: content, responseFormat };
+}
+
+
+/** MCP reaches the API-owned OpenAI key through an authenticated private gateway. */
+export async function routeOpenAIGateway(prompt, options = {}) {
+  const env = options.env || process.env;
+  const endpoint = env.RYANAI_OPENAI_GATEWAY_URL || 'http://api:3000/api/internal/openai/chat';
+  const token = env.RYANAI_OPENAI_GATEWAY_TOKEN || '';
+  if (!token || token.length < 32) throw new Error('RyanAI OpenAI gateway service token is not configured.');
+  let url;
+  try { url = new URL(endpoint); } catch { throw new Error('RyanAI OpenAI gateway URL is invalid.'); }
+  const localHost = ['localhost', '127.0.0.1', '::1', '[::1]', 'api'].includes(url.hostname.toLowerCase());
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || (url.protocol !== 'https:' && !localHost)) {
+    throw new Error('RyanAI OpenAI gateway must use HTTPS, except for the private Docker API service or loopback.');
+  }
+  if (url.pathname !== '/api/internal/openai/chat') throw new Error('RyanAI OpenAI gateway path is not allowlisted.');
+  const response = await (options.fetch || fetch)(url, {
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+    body: JSON.stringify({ prompt }), signal: AbortSignal.timeout(60_000),
+  });
+  if (!response.ok) throw new Error('RyanAI OpenAI gateway returned HTTP ' + response.status + '.');
+  const payload = await response.json();
+  if (payload?.success !== true || typeof payload.response !== 'string' || !payload.response.trim()) throw new Error('RyanAI OpenAI gateway returned an invalid response.');
+  return { mode: 'gateway', brain: 'openai', response: payload.response, responseFormat: 'text' };
 }
