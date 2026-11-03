@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { requireAdmin } from '../server/routes/auth.js';
+import { requireUser } from '../server/routes/auth.js';
 
 const BRIDGE_TOPICS = ['telemetry', 'logs', 'tasks', 'agent.status', 'notifications'];
 
 export async function bridgeTicketRoutes(fastify: FastifyInstance) {
   fastify.post('/api/bridge/ticket', {
-    preValidation: requireAdmin,
+    preValidation: requireUser,
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const subject = request.authUser?.id;
