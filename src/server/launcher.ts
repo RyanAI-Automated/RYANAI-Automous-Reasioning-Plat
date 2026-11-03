@@ -435,10 +435,11 @@ async function initializeDatabase() {
 
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
-    serviceStatus.agentCheckpointer = schema.agentCheckpointer;
+    serviceStatus.agentCheckpointer = false;
 
     if (schema.agentCheckpointer) {
       await verifyCheckpointerConnection();
+      serviceStatus.agentCheckpointer = true;
       console.log('✓ LangGraph checkpointer read probe succeeded.');
     }
 
