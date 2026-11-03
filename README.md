@@ -385,6 +385,7 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 | Variable | Purpose / handling |
 | --- | --- |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Optional server-side Supabase configuration. |
+| `SUPABASE_DB_POOLER_HOST` | Optional exact Supabase shared session-pooler host; API runtime only. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-only credential. Never expose to the browser. |
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
