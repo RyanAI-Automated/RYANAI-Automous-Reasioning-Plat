@@ -8,11 +8,14 @@ import { registerWebSocketRoutes } from '../../api/websocket.js';
 import { authPlugin, installAuthentication } from './auth.js';
 import { approvalRoutes } from './approvalRoutes.js';
 
-const { getUser, createContextClient, invoke, getState } = vi.hoisted(() => ({
+const { getUser, createContextClient, invoke, getState, upsertSession, updateSession, createAuditEvent } = vi.hoisted(() => ({
   getUser: vi.fn(),
   createContextClient: vi.fn(),
   invoke: vi.fn(),
   getState: vi.fn(),
+  upsertSession: vi.fn(),
+  updateSession: vi.fn(),
+  createAuditEvent: vi.fn(),
 }));
 vi.mock('@supabase/server/core', () => ({ createContextClient }));
 vi.mock('../../shared/logger.js', () => ({
@@ -39,9 +42,16 @@ const user = {
   is_anonymous: false,
 };
 
-async function createApp(standaloneApprovals = false) {
+async function createApp(standaloneApprovals = false, includePrisma = true) {
   const app = Fastify();
   applications.push(app);
+  if (includePrisma) {
+    app.decorate('prisma', {
+      apiAuthSession: { upsert: upsertSession, updateMany: updateSession },
+      jarvisAuditEvent: { create: createAuditEvent },
+      user: { findUnique: vi.fn() },
+    } as never);
+  }
   if (standaloneApprovals) {
     await app.register(approvalRoutes);
   } else {
@@ -71,6 +81,9 @@ beforeEach(() => {
   vi.stubEnv('SUPABASE_PUBLISHABLE_KEY', 'synthetic-publishable-key');
   createContextClient.mockReturnValue({ auth: { getUser } });
   getUser.mockResolvedValue({ data: { user }, error: null });
+  upsertSession.mockResolvedValue({ revokedAt: null });
+  updateSession.mockResolvedValue({ count: 1 });
+  createAuditEvent.mockResolvedValue({});
   invoke.mockResolvedValue({ messages: [{ content: 'done' }] });
   getState.mockResolvedValue({ next: [], values: { messages: [] } });
 });
@@ -173,6 +186,43 @@ describe('Supabase API authentication', () => {
       ).toBe(503);
     },
   );
+
+  it('fails closed when the session registry is not registered', async () => {
+    const app = await createApp(false, false);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/reason',
+      headers: bearer,
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error).toBe('Session security is not configured.');
+    expect(getUser).toHaveBeenCalledExactlyOnceWith(bearerToken);
+  });
+
+  it('rejects a session already marked as revoked in the registry', async () => {
+    upsertSession.mockResolvedValue({ revokedAt: new Date('2026-01-01T00:00:00.000Z') });
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/reason',
+      headers: bearer,
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error).toContain('session has been revoked');
+    expect(updateSession).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the session registry cannot be read or updated', async () => {
+    upsertSession.mockRejectedValue(new Error('database unavailable'));
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/reason',
+      headers: bearer,
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error).toBe('Authentication is temporarily unavailable.');
+  });
 
   it('uses the verified identity and ignores client-editable admin metadata', async () => {
     const app = await createApp();
