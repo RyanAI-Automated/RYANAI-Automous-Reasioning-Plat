@@ -63,6 +63,7 @@ services:
     environment:
       NODE_ENV: production
       BRIDGE_PORT: 8787
+      BRIDGE_TICKET_TTL_SECONDS: ${BRIDGE_TICKET_TTL_SECONDS:-30}
       REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
       SUPABASE_URL: ${SUPABASE_URL:-https://narsvpwymvlrhurqbthu.supabase.co}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}
