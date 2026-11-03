@@ -1,9 +1,13 @@
 name: Optional Azure Kubernetes Service deployment
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      confirm_production_deploy:
+        description: Explicitly authorize an Azure AKS production deployment
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ env:
 jobs:
   buildImage:
     name: Build image for AKS
-    if: ${{ vars.AZURE_AKS_DEPLOY_ENABLED == 'true' }}
+    if: ${{ inputs.confirm_production_deploy == true && vars.AZURE_AKS_DEPLOY_ENABLED == 'true' }}
     permissions:
       contents: read
       id-token: write

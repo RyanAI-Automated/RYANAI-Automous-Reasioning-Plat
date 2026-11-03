@@ -1,10 +1,13 @@
 name: Deploy Vercel Production
 
 on:
-  workflow_run:
-    workflows: ["CI - Build, Test, and Integrate"]
-    branches: [main, master]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      confirm_production_deploy:
+        description: Explicitly authorize a production Vercel deployment
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -16,14 +19,8 @@ concurrency:
 jobs:
   deploy:
     name: Deploy validated commit
-    if: >-
-      ${{
-        vars.VERCEL_DEPLOY_ENABLED == 'true' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
-      }}
+    if: inputs.confirm_production_deploy == true && vars.VERCEL_DEPLOY_ENABLED == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     uses: ./.github/workflows/deploy.yml
     with:
-      commit_sha: ${{ github.event.workflow_run.head_sha }}
+      commit_sha: ${{ github.sha }}
     secrets: inherit

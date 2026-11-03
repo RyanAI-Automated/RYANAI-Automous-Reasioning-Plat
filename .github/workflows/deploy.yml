@@ -36,6 +36,21 @@ jobs:
         with:
           ref: ${{ inputs.commit_sha || github.sha }}
 
+      - name: Verify deployment commit signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_COMMIT: ${{ inputs.commit_sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${DEPLOY_COMMIT}")"
+          verified="$(printf '%s' "$response" | jq -r '.commit.verification.verified')"
+          reason="$(printf '%s' "$response" | jq -r '.commit.verification.reason // "unknown"')"
+          if [[ "$verified" != "true" ]]; then
+            echo "::error::Refusing Vercel deployment: commit ${DEPLOY_COMMIT} is not cryptographically verified (${reason})."
+            exit 1
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

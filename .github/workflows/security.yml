@@ -3,10 +3,8 @@ name: Security - Scan and Audit
 # CodeQL lives in codeql.yml, secret scanning in secret-scan.yml and
 # container image scanning in container-security.yml.
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+  push: {}
+  pull_request: {}
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
@@ -15,9 +13,6 @@ permissions:
   contents: read
   security-events: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) && github.sha || 'shared' }}
-  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
 
 jobs:
   trivy:

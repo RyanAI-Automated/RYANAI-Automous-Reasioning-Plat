@@ -1,18 +1,13 @@
 name: CI - Build, Test, and Integrate
 
 on:
-  push:
-    branches: [main, master, dev, develop]
-  pull_request:
-    branches: [main, master, dev, develop]
+  push: {}
+  pull_request: {}
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) && github.sha || 'shared' }}
-  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
 
 env:
   NODE_OPTIONS: --max-old-space-size=6144
@@ -49,6 +44,15 @@ jobs:
 
       - name: Validate GitHub workflows
         run: npm run workflow:validate
+
+      - name: Validate Docker Compose runtime contract
+        env:
+          DB_PASSWORD: ci-only-db-password
+          REDIS_PASSWORD: ci-only-redis-password
+          JWT_SECRET: ci_only_secret_at_least_32_characters_long
+          MCP_AUTH_TOKEN: ci-only-mcp-token-at-least-32-characters
+          CLOUDFLARE_TUNNEL_TOKEN: ci-only-cloudflare-placeholder
+        run: docker compose --file docker-compose.yml config --quiet
 
       - name: Audit optional deployment readiness and agent inventory
         env:

@@ -36,6 +36,22 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
+      - name: Verify release commit signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_commit="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          response="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${release_commit}")"
+          verified="$(printf '%s' "$response" | jq -r '.commit.verification.verified')"
+          reason="$(printf '%s' "$response" | jq -r '.commit.verification.reason // "unknown"')"
+          if [[ "$verified" != "true" ]]; then
+            echo "::error::Refusing release: tag ${RELEASE_TAG} resolves to an unverified commit (${reason})."
+            exit 1
+          fi
+
       - name: Generate SPDX SBOM
         uses: anchore/sbom-action@v0
         with:

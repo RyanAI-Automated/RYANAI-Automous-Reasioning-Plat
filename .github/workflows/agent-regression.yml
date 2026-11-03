@@ -1,10 +1,8 @@
 name: Agent API Regression Tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  push: {}
+  pull_request: {}
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:

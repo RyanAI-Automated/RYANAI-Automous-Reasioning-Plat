@@ -139,16 +139,27 @@ const productionDeployPath = join(workflowDir, 'deploy-vercel.yml');
 if (statSafe(productionDeployPath)) {
   const productionDeployText = readFileSync(productionDeployPath, 'utf8');
   const productionDeployDocument = parse(productionDeployText);
-  if (Object.prototype.hasOwnProperty.call(productionDeployDocument?.on ?? {}, 'workflow_dispatch')) {
-    fail(productionDeployPath, 'production deployment must not bypass the successful-CI gate through workflow_dispatch');
+  const deployTriggers = productionDeployDocument?.on ?? {};
+  const dispatch = deployTriggers.workflow_dispatch;
+  if (!dispatch || typeof dispatch !== 'object') {
+    fail(productionDeployPath, 'production deployment must require a manual workflow_dispatch approval');
   }
+  if (deployTriggers.push || deployTriggers.pull_request || deployTriggers.workflow_run) {
+    fail(productionDeployPath, 'production deployment must not run automatically from push, pull_request, or workflow_run');
+  }
+  const confirmation = dispatch?.inputs?.confirm_production_deploy;
+  if (confirmation?.type !== 'boolean' || confirmation?.required !== true) {
+    fail(productionDeployPath, 'production deployment must require the boolean confirm_production_deploy input');
+  }
+  const deployCondition = String(productionDeployDocument?.jobs?.deploy?.if ?? '');
   for (const required of [
-    "github.event.workflow_run.conclusion == 'success'",
-    "github.event.workflow_run.event == 'push'",
+    'inputs.confirm_production_deploy == true',
     "vars.VERCEL_DEPLOY_ENABLED == 'true'",
+    "github.ref == 'refs/heads/main'",
+    "github.ref == 'refs/heads/master'",
   ]) {
-    if (!productionDeployText.includes(required)) {
-      fail(productionDeployPath, 'production deployment is missing required gate: ' + required);
+    if (!deployCondition.includes(required)) {
+      fail(productionDeployPath, 'production deployment is missing required manual/branch gate: ' + required);
     }
   }
 }

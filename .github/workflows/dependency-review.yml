@@ -1,25 +1,13 @@
 name: Dependency Review
 
 on:
-  pull_request:
-    branches: [main, master]
-    paths:
-      - 'package.json'
-      - 'package-lock.json'
-      - 'mcp-server/package*.json'
-      - 'workflows-ryanai/package*.json'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - 'requirements.txt'
+  pull_request: {}
   workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   review:
