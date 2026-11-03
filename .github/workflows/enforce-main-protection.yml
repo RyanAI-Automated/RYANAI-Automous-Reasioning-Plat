@@ -70,8 +70,8 @@ jobs:
                   { context: "Test agent API contracts" },
                   { context: "Dependency audit" },
                   { context: "Trivy filesystem scan" },
-                  { context: "Analyze (javascript-typescript)" },
-                  { context: "Analyze (python)" },
+                  { context: "RyanAI CodeQL (javascript-typescript)" },
+                  { context: "RyanAI CodeQL (python)" },
                   { context: "TruffleHog secret audit" },
                   { context: "Codacy Security Scan" }
                 ]
