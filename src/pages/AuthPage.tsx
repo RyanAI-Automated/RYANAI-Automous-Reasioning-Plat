@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import SupabaseCaptcha from '@/components/SupabaseCaptcha';
 import { supabase } from '@/lib/supabase';
 
 interface AuthPageProps {
@@ -6,7 +7,7 @@ interface AuthPageProps {
 }
 
 /**
- * Render Supabase sign-in or signup, including provider errors and email confirmation.
+ * Render Supabase sign-in or signup with CAPTCHA and host-specific confirmation.
  * Authentication is disabled without a configured client; access follows session state.
  */
 export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
@@ -14,6 +15,8 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,15 +31,27 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
       setError('Passwords do not match.');
       return;
     }
+    if (!captchaToken) {
+      setError('Complete the human verification challenge before continuing.');
+      return;
+    }
+
     setLoading(true);
     try {
       const credentials = { email: email.trim().toLowerCase(), password };
       const { data, error: authError } = isSignup
         ? await supabase.auth.signUp({
             ...credentials,
-            options: { data: { full_name: fullName.trim() || undefined } },
+            options: {
+              data: { full_name: fullName.trim() || undefined },
+              captchaToken,
+              emailRedirectTo: new URL('/', window.location.origin).toString(),
+            },
           })
-        : await supabase.auth.signInWithPassword(credentials);
+        : await supabase.auth.signInWithPassword({
+            ...credentials,
+            options: { captchaToken },
+          });
       if (authError) throw authError;
       // Access is granted only by the session listener, never by form submission.
       if (isSignup && !data.session) {
@@ -51,6 +66,9 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
           : 'Authentication failed. Please try again.',
       );
     } finally {
+      // CAPTCHA responses are single-use. Clear the token and require a fresh challenge.
+      setCaptchaToken(null);
+      setCaptchaResetKey((current) => current + 1);
       setLoading(false);
     }
   };
@@ -125,6 +143,10 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
                 />
               </label>
             )}
+            <SupabaseCaptcha
+              onToken={setCaptchaToken}
+              resetKey={captchaResetKey}
+            />
             {error && (
               <p role="alert" className="text-sm text-rose-300">
                 {error}
@@ -154,7 +176,7 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
       >
         {isSignup
           ? 'Already have an account? Sign in'
-          : 'New to RYANAI? Sign up'}
+          : 'New to RyanAI? Sign up'}
       </a>
     </section>
   );
