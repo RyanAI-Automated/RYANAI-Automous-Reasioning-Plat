@@ -42,45 +42,6 @@ class RyanAIClient {
     return response.json() as Promise<T>;
   }
 
-  async executePipeline(targetEnv: string, autoShip: boolean) {
-    return this.request('/api/pipeline/execute', {
-      method: 'POST',
-      body: JSON.stringify({ targetEnv, autoShip }),
-    });
-  }
-
-  async getPipelineStatus() {
-    return this.request('/api/pipeline/status');
-  }
-
-  async getGovernanceErrors(filter?: string) {
-    return this.request(
-      `/api/governance/errors${filter ? `?filter=${encodeURIComponent(filter)}` : ''}`,
-    );
-  }
-
-  async applyAutoFix(errorId: string) {
-    return this.request(`/api/governance/fix/${errorId}`, { method: 'POST' });
-  }
-
-  async getRecycledItems(category?: string) {
-    return this.request(
-      `/api/recycling/items${category ? `?category=${encodeURIComponent(category)}` : ''}`,
-    );
-  }
-
-  async restoreRecycledItem(itemId: string) {
-    return this.request(`/api/recycling/restore/${itemId}`, { method: 'POST' });
-  }
-
-  async getTelemetry() {
-    return this.request('/api/telemetry');
-  }
-
-  async runDiagnosticSweep() {
-    return this.request('/api/telemetry/diagnostic', { method: 'POST' });
-  }
-
   async healthCheck() {
     return getPlatformHealth();
   }
@@ -93,8 +54,6 @@ declare global {
     __DEV__?: {
       apiClient: RyanAIClient;
       logs: Console;
-      simulatePipeline: () => Promise<unknown>;
-      simulateError: (errorId: string) => Promise<unknown>;
       checkHealth: () => Promise<boolean>;
     };
     ryanai: {
@@ -217,14 +176,6 @@ if (APP_ENV === 'development') {
   window.__DEV__ = {
     apiClient,
     logs: console,
-    simulatePipeline: async () => {
-      console.log('Simulating pipeline...');
-      return apiClient.executePipeline('production', true);
-    },
-    simulateError: async (errorId: string) => {
-      console.log(`Applying auto-fix to ${errorId}...`);
-      return apiClient.applyAutoFix(errorId);
-    },
     checkHealth: performHealthCheck,
   };
 
