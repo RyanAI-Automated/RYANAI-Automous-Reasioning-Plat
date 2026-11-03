@@ -135,6 +135,8 @@ export default defineConfig(({ command, mode }) => {
         'scripts/validate-stack-manifest.test.mjs',
         // Written for node:test and run explicitly with `node --test` in CI.
         'scripts/redis-probe.test.mjs',
+        // Bridge storage tests use node:test and run through `npm run test:bridge`.
+        'connectivity-bridge/**/*.test.mjs',
       ],
       env: {
         RYAN_PATCH_VERIFIER_IMAGE:
@@ -158,6 +160,12 @@ export default defineConfig(({ command, mode }) => {
           target: targetApiUrl,
           changeOrigin: true,
           secure: true,
+        },
+        '/bridge': {
+          target: env.VITE_BRIDGE_PROXY_URL || process.env.VITE_BRIDGE_PROXY_URL || 'http://127.0.0.1:8787',
+          changeOrigin: true,
+          ws: true,
+          rewrite: (path) => path.replace(/^\\/bridge/, ''),
         },
         '/ws': {
           target: targetWsUrl,
