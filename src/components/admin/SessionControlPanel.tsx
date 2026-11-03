@@ -27,10 +27,14 @@ export default function SessionControlPanel() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [refresh]);
 
   const revoke = async (session: ApiSession) => {
     if (session.isCurrent || session.status === 'revoked' || busyId) return;
+    if (!window.confirm('Revoke RyanAI API access for ' + (session.email || session.userId) + '?')) return;
     setBusyId(session.id);
     setError('');
     try {
