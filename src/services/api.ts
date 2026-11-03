@@ -17,7 +17,7 @@ export interface SystemHealth {
   status: string;
   engine: string;
   architect: string;
-  cudaActive: boolean;
+  cudaActive: boolean | null;
   activeGraph: string;
   timestamp: string;
 }
