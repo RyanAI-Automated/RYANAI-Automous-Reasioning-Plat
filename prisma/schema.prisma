@@ -423,6 +423,20 @@ model LangGraphCheckpointWrite {
   @@map("checkpoint_writes")
 }
 
+model ApiAuthSession {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String    @unique @map("session_id")
+  userId     String    @map("user_id")
+  email      String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @db.Timestamptz(6) @map("last_seen_at")
+  revokedAt  DateTime? @db.Timestamptz(6) @map("revoked_at")
+
+  @@index([userId, lastSeenAt(sort: Desc)])
+  @@index([revokedAt, lastSeenAt(sort: Desc)])
+  @@map("api_auth_sessions")
+}
+
 model JarvisAuditEvent {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   actorId    String   @map("actor_id")
