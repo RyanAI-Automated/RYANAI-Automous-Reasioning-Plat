@@ -3,6 +3,7 @@ import { createServer as createHttpServer } from 'node:http';
 import process from 'node:process';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createMcpServer } from './index.js';
+import { startMcpBridgeHeartbeat, stopMcpBridgeHeartbeat } from './bridge-adapter.js';
 
 const host = process.env.MCP_HOST || '127.0.0.1';
 const port = Number(process.env.MCP_PORT || 8765);
@@ -105,12 +106,15 @@ httpServer.requestTimeout = 120_000;
 httpServer.headersTimeout = 10_000;
 httpServer.keepAliveTimeout = 5_000;
 
+startMcpBridgeHeartbeat();
+
 httpServer.listen(port, host, () => {
   console.error(`RyanAI MCP Manager listening at http://${host}:${port}/mcp`);
 });
 
 async function shutdown(signal) {
   console.error(`Received ${signal}; closing RyanAI MCP Manager.`);
+  stopMcpBridgeHeartbeat();
   httpServer.close((error) => {
     if (error) {
       console.error('MCP HTTP server shutdown failed:', error.message);
