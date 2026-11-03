@@ -128,7 +128,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     const agentId = process.env.JARVIS_TASK_AGENT_ID!.trim();
     const result = await prisma.$transaction(async (tx) => {
       const task = await tx.agentRun.findFirst({
-        where: { id: request.params.taskId, userId: ownerId },
+        where: { id: request.params.taskId, ...buildAgentTaskScope(ownerId, agentId) },
         select: { id: true },
       });
       if (!task) return null;
