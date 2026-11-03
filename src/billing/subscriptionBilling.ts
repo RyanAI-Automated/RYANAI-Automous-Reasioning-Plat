@@ -1,9 +1,10 @@
+import { prismaTlsOptions } from '../db/postgresTls.js';
 import { Resend } from 'resend';
 import { PrismaClient } from '@prisma/client';
 import { GoogleWorkspaceService } from '../services/googleWorkspaceService.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(prismaTlsOptions());
 const docService = new GoogleWorkspaceService();
 
 export class SubscriptionBillingEngine {
