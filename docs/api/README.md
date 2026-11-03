@@ -28,14 +28,12 @@ request/response contract is `openapi.yaml`.
 
 ## Findings carried into the authentication compatibility PR
 
-The active launcher still registers two legacy local-password sign-in handlers:
-`POST /signin` and `POST /api/auth/signin`. The React `AuthPage` already uses
-Supabase Auth directly, while the API global middleware verifies Supabase bearer
-tokens. `POST /signin` is additionally caught by the default administrator guard,
-so it is not a usable logged-out sign-in entry point. The duplicate local handlers and the stale `authClient` API methods
-(`/api/auth/signup`, `/api/auth/signin`, `/api/auth/me`) must be removed or
-replaced by Supabase-backed client methods; they must not mint a token that
-the gateway cannot verify.
+The active launcher retires the legacy local-password paths
+`POST /signin` and `POST /api/auth/signin` with HTTP 410. The React
+`AuthPage` uses Supabase Auth directly, while the API verifies Supabase bearer
+tokens. The stale local-token `authClient` methods for `/api/auth/signup`,
+`/api/auth/signin` and `/api/auth/me` have been removed from the frontend API
+service. Signup and sign-in remain Supabase client operations.
 
 The current global authentication hook also makes some route groups more
 restrictive than their own handlers and comments suggest (notably user task
