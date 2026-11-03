@@ -9,6 +9,7 @@ import {
   Network,
   ShieldCheck,
   Layers3,
+  Wrench,
   LogIn,
   UserPlus,
   type LucideIcon,
@@ -24,6 +25,7 @@ const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const BaseboardPage = lazy(() => import('@/pages/BaseboardPage'));
 const LLMSystemDashboard = lazy(() => import('@/pages/LLMSystemDashboard'));
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
+const ToolsDashboard = lazy(() => import('@/pages/ToolsDashboard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
@@ -64,6 +66,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   baseboard: Layers3,
   llm: Network,
   admin: ShieldCheck,
+  tools: Wrench,
 };
 
 const destinations = appManifest.routes.map((route) => ({
@@ -230,6 +233,7 @@ export default function App() {
             {route === 'dashboard' && <DashboardPage />}
             {route === 'baseboard' && <BaseboardPage />}
             {route === 'llm' && <LLMSystemDashboard />}
+            {route === 'tools' && <ToolsDashboard />}
             {route === 'admin' && ((isAdmin || isOwner) ? <AdminDashboard /> : <p role="alert" className="p-8 text-sm text-rose-200">Verified owner or administrator access is required.</p>)}
             {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
             {route === 'cockpit' && (
