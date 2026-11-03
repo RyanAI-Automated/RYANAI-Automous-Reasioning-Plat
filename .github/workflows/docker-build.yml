@@ -45,7 +45,9 @@ jobs:
           JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
           MCP_AUTH_TOKEN=ci_only_mcp_token_1234567890_abcdefgh
           MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
+          CLOUDFLARE_MCP_HOSTNAME=mcp.ryanai.dev
           EOF
+          export CLOUDFLARE_TUNNEL_TOKEN=ci_only_cloudflare_tunnel_token_not_valid
           docker compose config --quiet
 
   build:
