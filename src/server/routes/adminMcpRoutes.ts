@@ -85,6 +85,3 @@ export const adminMcpRoutes: FastifyPluginAsync = async (fastify) => {
   });
 };
 
-function requestLogError(fastify: Parameters<FastifyPluginAsync>[0], error: unknown) {
-  fastify.log.warn({ err: error instanceof Error ? error.message : 'unknown MCP registry error' }, 'Live MCP registry discovery failed');
-}
