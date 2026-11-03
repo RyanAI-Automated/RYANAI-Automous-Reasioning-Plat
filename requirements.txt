@@ -7,7 +7,7 @@
 #   test_mongo.py  -> MongoDB connectivity example (requires your own URI)
 #
 # Never put live provider credentials or database URIs in source files.
-openai>=3.41.0
+openai>=3.42.0
 pydantic>=2.0.0
 langchain-core>=1.7.3
 langchain-openai>=0.2.0
