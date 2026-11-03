@@ -137,6 +137,11 @@ export function installAuthentication(fastify: FastifyInstance) {
     }
     // This machine-to-machine route verifies JARVIS_INGRESS_TOKEN in its own preHandler.
     if (request.method === 'POST' && path === '/api/jarvis/patches/apply') return;
+    // Scoped MCP task ingress authenticates its own dedicated token and never inherits user/admin sessions.
+    if (
+      (request.method === 'GET' && path === '/api/jarvis/agent/tasks') ||
+      (request.method === 'POST' && /^\\/api\\/jarvis\\/agent\\/tasks\\/[0-9a-f-]+\\/comments$/i.test(path))
+    ) return;
     
     if (
       ['GET', 'HEAD'].includes(request.method) &&
