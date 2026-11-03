@@ -233,10 +233,11 @@ function registerCoreRoutes() {
     const publishProgress = (event: AgentRunProgressEvent) => {
       onProgress?.(event);
       const idempotencyKey = createHash('sha256').update(JSON.stringify(event)).digest('hex');
-      void bridgeAdapter.publish({
+      const userId = typeof user?.id === 'string' ? user.id : '';
+      if (userId) void bridgeAdapter.publish(userId, idempotencyKey, {
         topic: 'tasks',
-        idempotencyKey,
-        payload: { type: 'agent.progress', ...event },
+        type: 'agent.progress',
+        ...event,
       }).catch(() => {
         fastify.log.warn('Connectivity bridge did not accept an API progress event; API reasoning continues independently.');
       });
