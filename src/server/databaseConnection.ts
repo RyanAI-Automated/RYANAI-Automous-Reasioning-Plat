@@ -56,7 +56,7 @@ export function describeDatabaseBackend(databaseUrl: string): DatabaseBackendIde
     protocol,
     host: parsed.hostname.toLowerCase(),
     port,
-    database: decodeURIComponent(parsed.pathname.replace(/^\\//, '')),
+    database: decodeURIComponent(parsed.pathname.replace(/^\/+/, '')),
     sslMode: parsed.searchParams.get('sslmode'),
   };
 }
