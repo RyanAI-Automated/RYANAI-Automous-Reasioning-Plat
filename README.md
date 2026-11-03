@@ -408,10 +408,24 @@ The Supabase Auth URL allow-list must therefore contain these exact production U
 - `https://ryanai-automous-reasoning-plat-uss1632.vercel.app/`
 - `https://ryanai-web.onrender.com/`
 
-Also allow the corresponding `/oauth/consent` paths when using RyanAI's OAuth consent
-route. Review the Supabase confirmation email template: use `{{ .ConfirmationURL }}`,
-or construct links using `{{ .RedirectTo }}`; do not hard-code `{{ .SiteURL }}` into
-a confirmation link when the signup origin must be preserved.
+Review the Supabase confirmation email template and keep its confirmation link
+based on Supabase's `{{ .ConfirmationURL }}` value so Auth can apply the per-signup
+redirect. Do not hard-code the Vercel Site URL into the confirmation link.
+
+The project callback URI
+`https://narsvpwymvlrhurqbthu.supabase.co/auth/v1/callback` is for an external
+OAuth identity provider to return its authorization response to Supabase Auth. Add
+that URI in the external provider's callback/authorized-redirect settings when
+configuring that provider; it is not RyanAI's `emailRedirectTo` and is not a
+frontend destination to add to the Auth URL allow-list.
+
+RyanAI's OAuth 2.1 Server consent page is a separate feature. Supabase builds its
+authorization UI URL from the single configured Site URL plus the configured
+Authorization Path (currently intended as `/oauth/consent`). The callback URLs
+registered for each third-party OAuth client belong in Authentication → OAuth Apps
+and must be exact matches; they are not the general Auth URL allow-list. RyanAI
+does not enable anonymous sign-in: both the frontend session restoration and
+backend token verification reject users whose Supabase identity is anonymous.
 
 ### MCP variables
 
