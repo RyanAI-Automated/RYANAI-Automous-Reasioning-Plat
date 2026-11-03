@@ -108,9 +108,11 @@ function createMessageQueue(socket) {
 }
 async function openSocket(port, suppliedTicket) {
   const ticket = suppliedTicket || await issueTicket(port);
-  const socket = new WebSocket('ws://127.0.0.1:' + port + '/v1/socket?ticket=' + encodeURIComponent(ticket));
+  const socket = new WebSocket('ws://127.0.0.1:' + port + '/v1/socket');
   const next = createMessageQueue(socket);
   await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+  socket.send(JSON.stringify({ type: 'hello', ticket }));
+  await next((value) => value.type === 'authenticated');
   socket.send(JSON.stringify({ type: 'resume' }));
   const resumed = await next((value) => value.type === 'resumed');
   return { socket, capabilities: resumed.capabilities, next };
@@ -232,23 +234,21 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       const ticket = await issueTicket(bridgePort);
       const first = await openSocket(bridgePort, ticket);
       first.socket.close();
-      const replay = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket?ticket=' + encodeURIComponent(ticket));
-      const status = await new Promise((resolve, reject) => {
-        replay.once('unexpected-response', (_request, response) => resolve(response.statusCode));
-        replay.once('error', reject);
-      });
-      assert.equal(status, 401);
+      const replay = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket');
+      await new Promise((resolve, reject) => { replay.once('open', resolve); replay.once('error', reject); });
+      replay.send(JSON.stringify({ type: 'hello', ticket }));
+      const closeCode = await new Promise((resolve) => replay.once('close', (code) => resolve(code)));
+      assert.equal(closeCode, 1008);
     });
 
     await t.test('expired one-time tickets cannot open a socket', async () => {
       const expired = await issueTicket(bridgePort);
       await delay(5500);
-      const socket = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket?ticket=' + encodeURIComponent(expired));
-      const status = await new Promise((resolve, reject) => {
-        socket.once('unexpected-response', (_request, response) => resolve(response.statusCode));
-        socket.once('error', reject);
-      });
-      assert.equal(status, 401);
+      const socket = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket');
+      await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+      socket.send(JSON.stringify({ type: 'hello', ticket: expired }));
+      const closeCode = await new Promise((resolve) => socket.once('close', (code) => resolve(code)));
+      assert.equal(closeCode, 1008);
     });
   } finally {
     await stop(bridge);
