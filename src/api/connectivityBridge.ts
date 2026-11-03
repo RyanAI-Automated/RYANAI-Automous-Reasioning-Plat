@@ -1,26 +1,43 @@
+export interface BridgeEvent {
+  id: string;
+  data: unknown;
+}
+export interface BridgeCapabilities {
+  bridge?: 'ready' | 'degraded' | 'unavailable';
+  redis?: 'ready' | 'degraded' | 'unavailable';
+  api?: 'ready' | 'degraded' | 'unavailable';
+  mcp?: 'ready' | 'degraded' | 'unavailable';
+}
 export interface ConnectivityBridgeOptions {
   getAccessToken: () => Promise<string | null>;
-  onEvent: (event: { id: string; data: unknown }) => void | Promise<void>;
+  onEvent: (event: BridgeEvent) => void | Promise<void>;
   onState?: (state: 'connecting' | 'connected' | 'degraded' | 'closed') => void;
+  onCapabilities?: (capabilities: BridgeCapabilities) => void;
+  onReplayGap?: (details: { requestedCursor: string; oldestAvailable: string }) => void;
   basePath?: string;
   maxReconnectDelayMs?: number;
+  heartbeatIntervalMs?: number;
+  heartbeatTimeoutMs?: number;
 }
-
 type BridgeMessage =
   | { type: 'event'; id: string; data: unknown }
-  | { type: 'degraded'; retryable?: boolean }
-  | { type: 'resumed'; cursor?: string }
+  | { type: 'degraded'; retryable?: boolean; dependency?: string }
+  | { type: 'resumed'; cursor?: string; capabilities?: BridgeCapabilities }
+  | { type: 'replay_gap'; requestedCursor: string; oldestAvailable: string; reconcileRequired: boolean }
+  | { type: 'heartbeat_ack'; nonce: string; at: number }
   | { type: 'acknowledged'; id: string }
   | { type: 'error'; error?: string };
 
 export function reconnectDelay(attempt: number, maxDelayMs = 30_000, random = Math.random): number {
-  const ceiling = Math.min(maxDelayMs, 500 * 2 ** Math.min(attempt, 10));
-  return Math.floor(ceiling * (0.5 + random() * 0.5));
+  const exponent = Math.min(Math.max(0, attempt), 10);
+  const ceiling = Math.min(maxDelayMs, 500 * 2 ** exponent);
+  const jitter = Math.max(0, Math.min(1, random()));
+  return Math.floor(ceiling * (0.5 + jitter * 0.5));
 }
 
 /**
  * Browser transport for the independent RyanAI bridge.
- * A fresh, single-use ticket is obtained for every socket attempt; access tokens
+ * A fresh single-use ticket is obtained for every socket attempt; access tokens
  * are sent only in the HTTPS Authorization header, never in a WebSocket URL.
  */
 export class ConnectivityBridgeClient {
@@ -28,8 +45,10 @@ export class ConnectivityBridgeClient {
   private stopped = true;
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  private heartbeatDeadline: ReturnType<typeof setTimeout> | undefined;
+  private pendingNonce: string | null = null;
   private readonly basePath: string;
-  private readonly cursorKey = 'ryanai.connectivity.cursor.v1';
 
   constructor(private readonly options: ConnectivityBridgeOptions) {
     this.basePath = (options.basePath || '/bridge').replace(/\/$/, '');
@@ -45,9 +64,19 @@ export class ConnectivityBridgeClient {
     this.stopped = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
-    this.socket?.close(1000, 'Client disconnected');
+    this.stopHeartbeat();
+    const socket = this.socket;
     this.socket = null;
+    socket?.close(1000, 'Client disconnected');
     this.options.onState?.('closed');
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.heartbeatDeadline) clearTimeout(this.heartbeatDeadline);
+    this.heartbeatTimer = undefined;
+    this.heartbeatDeadline = undefined;
+    this.pendingNonce = null;
   }
 
   private async open(): Promise<void> {
@@ -56,50 +85,83 @@ export class ConnectivityBridgeClient {
     try {
       const token = await this.options.getAccessToken();
       if (!token) throw new Error('A current signed-in session is required');
-      const ticketResponse = await fetch(`${this.basePath}/v1/ticket`, {
+      const ticketResponse = await fetch(this.basePath + '/v1/ticket', {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
         cache: 'no-store',
         credentials: 'same-origin',
+        signal: AbortSignal.timeout(5000),
       });
-      if (!ticketResponse.ok) throw new Error(`Bridge ticket request failed: ${ticketResponse.status}`);
+      if (!ticketResponse.ok) throw new Error('Bridge ticket request failed: ' + ticketResponse.status);
       const ticket = await ticketResponse.json() as { ticket?: string };
       if (!ticket.ticket || this.stopped) throw new Error('Bridge did not issue a valid connection ticket');
 
       const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const socket = new WebSocket(`${scheme}//${window.location.host}${this.basePath}/v1/socket?ticket=${encodeURIComponent(ticket.ticket)}`);
+      const socket = new WebSocket(scheme + '//' + window.location.host + this.basePath + '/v1/socket?ticket=' + encodeURIComponent(ticket.ticket));
       this.socket = socket;
+      let eventQueue = Promise.resolve();
       socket.onopen = () => {
         if (this.stopped || this.socket !== socket) return socket.close();
-        this.attempt = 0;
-        this.options.onState?.('connected');
-        const cursor = sessionStorage.getItem(this.cursorKey);
-        socket.send(JSON.stringify({ type: 'resume', ...(cursor ? { cursor } : {}) }));
+        socket.send(JSON.stringify({ type: 'resume' }));
       };
       socket.onmessage = (message) => {
         let payload: BridgeMessage;
         try { payload = JSON.parse(String(message.data)) as BridgeMessage; } catch { return; }
-        if (payload.type === 'acknowledged' && typeof (payload as { id?: unknown }).id === 'string') {
-          sessionStorage.setItem(this.cursorKey, (payload as { id: string }).id);
+        if (payload.type === 'resumed') {
+          this.attempt = 0;
+          this.options.onState?.('connected');
+          if (payload.capabilities) this.options.onCapabilities?.(payload.capabilities);
+          this.startHeartbeat(socket);
+        } else if (payload.type === 'replay_gap') {
+          this.options.onReplayGap?.({ requestedCursor: payload.requestedCursor, oldestAvailable: payload.oldestAvailable });
+          this.options.onState?.('degraded');
+        } else if (payload.type === 'heartbeat_ack' && payload.nonce === this.pendingNonce) {
+          if (this.heartbeatDeadline) clearTimeout(this.heartbeatDeadline);
+          this.heartbeatDeadline = undefined;
+          this.pendingNonce = null;
         } else if (payload.type === 'event' && typeof payload.id === 'string') {
-          Promise.resolve(this.options.onEvent({ id: payload.id, data: payload.data }))
-            .then(() => {
-              if (socket.readyState !== WebSocket.OPEN) return;
-              socket.send(JSON.stringify({ type: 'ack', id: payload.id }));
-            })
-            .catch(() => this.options.onState?.('degraded'));
+          eventQueue = eventQueue.then(async () => {
+            await this.options.onEvent({ id: payload.id, data: payload.data });
+            if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ack', id: payload.id }));
+          }).catch(() => {
+            this.options.onState?.('degraded');
+            if (socket.readyState === WebSocket.OPEN) socket.close(1011, 'Event handler failed; replay required');
+          });
         } else if (payload.type === 'degraded') {
           this.options.onState?.('degraded');
+        } else if (payload.type === 'error') {
+          this.options.onState?.('degraded');
+        } else if (payload.type === 'acknowledged') {
+          // The authoritative cursor is persisted by the bridge in Redis.
         }
       };
       socket.onerror = () => this.options.onState?.('degraded');
       socket.onclose = () => {
         if (this.socket === socket) this.socket = null;
+        this.stopHeartbeat();
         this.scheduleReconnect();
       };
     } catch {
       this.scheduleReconnect();
     }
+  }
+
+  private startHeartbeat(socket: WebSocket): void {
+    this.stopHeartbeat();
+    const interval = this.options.heartbeatIntervalMs ?? 15000;
+    const timeout = this.options.heartbeatTimeoutMs ?? 10000;
+    this.heartbeatTimer = setInterval(() => {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      if (this.pendingNonce) {
+        socket.close(4000, 'Heartbeat acknowledgement timed out');
+        return;
+      }
+      this.pendingNonce = crypto.randomUUID();
+      socket.send(JSON.stringify({ type: 'heartbeat', nonce: this.pendingNonce }));
+      this.heartbeatDeadline = setTimeout(() => {
+        if (this.pendingNonce) socket.close(4000, 'Heartbeat acknowledgement timed out');
+      }, timeout);
+    }, interval);
   }
 
   private scheduleReconnect(): void {
