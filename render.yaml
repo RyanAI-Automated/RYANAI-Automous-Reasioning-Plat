@@ -28,6 +28,9 @@ projects:
                 value: https://ryanai-api.onrender.com
               - key: VITE_APP_ENV
                 value: production
+              # Keep TLS certificate verification enabled during the frontend build.
+              - key: NODE_TLS_REJECT_UNAUTHORIZED
+                value: "1"
             routes:
               - type: rewrite
                 source: /*
