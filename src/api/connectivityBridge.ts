@@ -17,6 +17,7 @@ export interface ConnectivityBridgeOptions {
   heartbeatTimeoutMs?: number;
 }
 type BridgeMessage =
+  | { type: 'authenticated' }
   | { type: 'event'; id: string; data: unknown }
   | { type: 'degraded'; retryable?: boolean; dependency?: string }
   | { type: 'resumed'; cursor?: string; capabilities?: BridgeCapabilities }
@@ -93,19 +94,20 @@ export class ConnectivityBridgeClient {
 
       const socketUrl = new URL('v1/socket', this.bridgeBaseUrl);
       socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-      socketUrl.searchParams.set('ticket', ticket.ticket);
       const socket = new WebSocket(socketUrl.toString());
       this.socket = socket;
       let eventQueue = Promise.resolve();
       const ackWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
       socket.onopen = () => {
         if (this.stopped || this.socket !== socket) return socket.close();
-        socket.send(JSON.stringify({ type: 'resume' }));
+        socket.send(JSON.stringify({ type: 'hello', ticket: ticket.ticket }));
       };
       socket.onmessage = (message) => {
         let payload: BridgeMessage;
         try { payload = JSON.parse(String(message.data)) as BridgeMessage; } catch { return; }
-        if (payload.type === 'resumed') {
+        if (payload.type === 'authenticated') {
+          if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'resume' }));
+        } else if (payload.type === 'resumed') {
           this.attempt = 0;
           this.options.onState?.('connected');
           if (payload.capabilities) this.options.onCapabilities?.(payload.capabilities);
