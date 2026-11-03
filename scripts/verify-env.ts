@@ -1,3 +1,4 @@
+import { postgresClientOptions } from '../src/db/postgresTls.js';
 // File path: ./scripts/verify-env.ts
 
 import { Pool } from 'pg';
@@ -23,9 +24,7 @@ export async function verifyEnvironment(): Promise<boolean> {
   console.log('Verifying RyanAI infrastructure connections...');
   let allPassed = true;
 
-  const dbPool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/ryanai',
-  });
+  const dbPool = new Pool(postgresClientOptions(process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/ryanai'));
 
   try {
     const dbRes = await dbPool.query('SELECT NOW()');
