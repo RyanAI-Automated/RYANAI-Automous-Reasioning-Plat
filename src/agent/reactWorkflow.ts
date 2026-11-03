@@ -1,3 +1,4 @@
+import { postgresClientOptions } from '../db/postgresTls.js';
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { END, StateGraph, MessagesAnnotation } from "@langchain/langgraph";
 import { AIMessage } from "@langchain/core/messages";
@@ -5,9 +6,7 @@ import { Pool } from "pg";
 import { runCppInference } from "../native/bridge.js";
 
 // 1. Setup PostgreSQL connection pool for LangGraph checkpointing
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/ryan_ai_db",
-});
+const pool = new Pool(postgresClientOptions(process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/ryan_ai_db"));
 
 // The checkpointer schema is applied by npm run db:migrate before service use.
 // Graph creation and requests must never perform schema DDL.
