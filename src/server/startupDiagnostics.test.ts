@@ -40,7 +40,7 @@ describe('safe database connection target reporting', () => {
   it('reports the PostgreSQL host and default port without credentials or path', () => {
     expect(
       databaseConnectionTarget(
-        'postgresql://private-user:private-password@db.example.com/private-db?sslmode=require',
+        'postgresql://private-user:private-password@db.example.com/private-db?sslmode=require', // trufflehog:ignore
       ),
     ).toBe('db.example.com:5432');
   });
@@ -57,7 +57,7 @@ describe('safe database connection target reporting', () => {
   it('reports an explicit session-pooler port', () => {
     expect(
       databaseConnectionTarget(
-        'postgres://postgres.project-ref:private-password@pooler.example.com:5432/postgres',
+        'postgres://postgres.project-ref:private-password@pooler.example.com:5432/postgres', // trufflehog:ignore
       ),
     ).toBe('pooler.example.com:5432');
   });
@@ -105,9 +105,9 @@ describe('safe database diagnostics', () => {
   it.each([
     undefined,
     null,
-    'postgresql://user:secret@db/private',
+    'postgresql://user:secret@db/private', // trufflehog:ignore
     { code: 'secret', message: 'secret', detail: 'secret', stack: 'secret' },
-    new Error('postgresql://user:secret@db/private'),
+    new Error('postgresql://user:secret@db/private'), // trufflehog:ignore
   ])(
     'keeps unknown failures useful without disclosing raw details',
     (error) => {
@@ -134,7 +134,7 @@ describe('safe database diagnostics', () => {
       throw new Error('Missing address');
     await new Promise<void>((resolve) => server.close(() => resolve()));
     const pool = new pg.Pool({
-      connectionString: `postgresql://fixture:private-password@127.0.0.1:${address.port}/fixture`,
+      connectionString: `postgresql://fixture:private-password@127.0.0.1:${address.port}/fixture`, // trufflehog:ignore
       connectionTimeoutMillis: 1000,
     });
     try {
