@@ -1,0 +1,427 @@
+openapi: 3.1.0
+info:
+  title: RyanAI Gateway API
+  version: 0.1.0
+  description: >
+    Contract for the supported Fastify gateway. The complete HTTP route set,
+    including webhook and machine-only endpoints, is in route-inventory.yaml.
+servers:
+  - url: "{apiOrigin}"
+    variables:
+      apiOrigin:
+        default: https://api.example.invalid
+        description: Set to the deployed RyanAI API origin.
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Reasoning
+  - name: Agents
+  - name: Tasks
+  - name: Communications
+  - name: Voice
+security:
+  - SupabaseBearerAuth: []
+paths:
+  /livez:
+    get:
+      tags: [Health]
+      summary: Process liveness
+      security: []
+      responses:
+        "200":
+          description: API process is alive; dependencies are not evaluated.
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Dependency readiness
+      security: []
+      responses:
+        "200":
+          description: PostgreSQL, Redis, API and checkpointer are ready.
+        "503":
+          description: One or more required services are unavailable.
+  /health:
+    get:
+      tags: [Health]
+      summary: Legacy readiness alias
+      security: []
+      deprecated: true
+      responses:
+        "200":
+          description: All readiness probes passed.
+        "503":
+          description: One or more readiness probes failed.
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Legacy readiness alias
+      security: []
+      deprecated: true
+      responses:
+        "200":
+          description: All readiness probes passed.
+        "503":
+          description: One or more readiness probes failed.
+  /api/auth/verify:
+    get:
+      tags: [Authentication]
+      summary: Verify the current Supabase session
+      responses:
+        "200":
+          description: Verified user identity.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authenticated, user]
+                properties:
+                  authenticated:
+                    const: true
+                  user:
+                    type: object
+                    required: [id, role, isOwner]
+                    properties:
+                      id: { type: string }
+                      email: { type: string }
+                      role: { type: string, enum: [user, admin] }
+                      displayName: { type: string }
+                      isOwner: { type: boolean }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/reason:
+    post:
+      tags: [Reasoning]
+      summary: Execute the durable three-brain reasoning workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasoningRequest"
+      responses:
+        "200":
+          description: Result and persisted execution identifiers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReasoningResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/ProviderFailure"
+  /api/reasoning/stream:
+    post:
+      tags: [Reasoning]
+      summary: Stream the same durable reasoning execution using server-sent events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasoningRequest"
+      responses:
+        "200":
+          description: SSE events for processing, persisted handoffs and completion.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/agent/ops/brains:
+    get:
+      tags: [Agents]
+      summary: Read the latest persisted brain health state
+      description: The current launcher global guard requires administrator access.
+      responses:
+        "200":
+          description: Latest persisted status for configured reasoning brains.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [brains]
+                properties:
+                  brains:
+                    type: array
+                    items:
+                      type: object
+  /api/agent/ops/brains/probe:
+    post:
+      tags: [Agents]
+      summary: Probe all configured reasoning providers
+      description: Administrator-only; probes perform real provider calls and are rate limited.
+      responses:
+        "200":
+          description: Provider probe outcomes.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/agent/ops/tasks:
+    get:
+      tags: [Agents]
+      summary: List the authenticated user's persisted agent runs
+      description: The current launcher global guard requires administrator access.
+      responses:
+        "200":
+          description: Persisted task history.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tasks]
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      type: object
+    post:
+      tags: [Agents]
+      summary: Queue a durable agent task
+      description: The current launcher global guard requires administrator access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [objective]
+              properties:
+                objective:
+                  type: string
+                  minLength: 5
+                  maxLength: 20000
+      responses:
+        "202":
+          description: Task was persisted and queued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, taskId, status, createdAt]
+                properties:
+                  success: { const: true }
+                  taskId: { type: string }
+                  status: { type: string }
+                  createdAt: { type: string, format: date-time }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: List scheduled tasks
+      description: Currently administrator-only due to the launcher's default guard.
+      responses:
+        "200":
+          description: Scheduled tasks belonging to the authenticated identity.
+  /api/tasks/{id}:
+    delete:
+      tags: [Tasks]
+      summary: Cancel an active scheduled task
+      description: Currently administrator-only due to the launcher's default guard.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Task cancelled.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: No active task with this id.
+  /api/comms/send:
+    post:
+      tags: [Communications]
+      summary: Send an owner-authorized communication
+      description: Requires a verified owner or administrator and a configured provider.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, recipient]
+              properties:
+                channel: { type: string, enum: [whatsapp, sms, voice, email] }
+                recipient: { type: string }
+                message: { type: string, maxLength: 4000 }
+                subject: { type: string }
+                contentSid: { type: string }
+                contentVariables: { type: string }
+      responses:
+        "202":
+          description: Provider accepted the request; this is not final delivery confirmation.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "502":
+          $ref: "#/components/responses/ProviderFailure"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/comms/conversations:
+    get:
+      tags: [Communications]
+      summary: Read persisted communications history
+      description: Owner or administrator access only.
+      responses:
+        "200":
+          description: Conversations and messages in chronological order.
+  /api/comms/status:
+    get:
+      tags: [Communications]
+      summary: Read communication configuration status
+      description: Reports configured variables; it does not establish provider connectivity.
+      responses:
+        "200":
+          description: Configuration snapshot without secrets.
+  /api/v1/realtime/voice-ticket:
+    post:
+      tags: [Voice]
+      summary: Issue a short-lived single-use realtime voice ticket
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language: { type: string, maxLength: 16 }
+      responses:
+        "201":
+          description: Voice ticket issued and stored in Redis.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket, expiresIn]
+                properties:
+                  ticket: { type: string }
+                  expiresIn: { type: integer, const: 30 }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/actions:
+    get:
+      tags: [Agents]
+      summary: List pending outbound actions
+      description: Administrator-only.
+      responses:
+        "200":
+          description: Pending action queue.
+  /api/actions/{id}/approve:
+    post:
+      tags: [Agents]
+      summary: Approve and release one pending action
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The action was executed.
+        "404":
+          description: The action was not pending or had expired.
+        "502":
+          description: Provider execution failed.
+  /api/actions/{id}/reject:
+    post:
+      tags: [Agents]
+      summary: Reject one pending action
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The action was rejected.
+        "404":
+          description: The action was not pending or had expired.
+components:
+  securitySchemes:
+    SupabaseBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase access token from the active browser session.
+  schemas:
+    ReasoningRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt: { type: string, minLength: 1, maxLength: 20000 }
+        model: { type: string, maxLength: 100 }
+        sessionId: { type: string, maxLength: 200 }
+        language: { type: string, maxLength: 16 }
+    ReasoningResponse:
+      type: object
+      required: [success, objective, output, reasoningTrace, timestamp]
+      properties:
+        success: { const: true }
+        objective: { type: string }
+        output: { type: string }
+        response: { type: string }
+        reasoningTrace:
+          type: array
+          items: { type: string }
+        trace:
+          type: array
+          items: { type: string }
+        engine: { type: string }
+        runId: { type: string }
+        handoffs:
+          type: array
+          items: { type: object }
+        timestamp: { type: string, format: date-time }
+  responses:
+    BadRequest:
+      description: Request payload failed validation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    Unauthorized:
+      description: A valid Supabase bearer session is required.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    Forbidden:
+      description: The verified identity does not have permission.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    Unavailable:
+      description: A required service or integration is not configured or ready.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    ProviderFailure:
+      description: Provider execution failed; raw provider details are not exposed.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+  # Shared error shape used by current API handlers.
+  x-error-schema:
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean }
+        error: { type: string }
+        message: { type: string }
