@@ -1,0 +1,45 @@
+name: Connectivity Bridge Fault Injection
+
+on:
+  pull_request:
+    paths:
+      - 'bridge-runtime/**'
+      - 'Dockerfile.bridge'
+      - 'docker-compose.yml'
+      - 'src/bridge/**'
+      - 'src/server/routes/auth.ts'
+      - 'src/server/launcher.ts'
+      - 'mcp-server/**'
+      - '.github/workflows/bridge-fault-injection.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bridge-runtime/**'
+      - 'Dockerfile.bridge'
+      - 'docker-compose.yml'
+      - 'src/bridge/**'
+      - 'src/server/routes/auth.ts'
+      - 'src/server/launcher.ts'
+      - 'mcp-server/**'
+
+permissions:
+  contents: read
+
+jobs:
+  bridge-fault-injection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install Redis for restart and AOF recovery tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes redis-server
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Run bridge protocol and fault-injection tests
+        run: npm run test:bridge
