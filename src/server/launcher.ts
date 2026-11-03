@@ -12,7 +12,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyCors from '@fastify/cors';
 import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
-import { connectRedis } from './connectRedis.js';
+import { connectRedis, redisFailureDiagnostic } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
@@ -440,7 +440,7 @@ async function initializeDatabase() {
   } catch (err) {
     console.error(
       `✗ Database connection failed:`,
-      databaseFailureDiagnostic(err),
+      databaseFailureDiagnostic(err, config.database.url),
     );
     return false;
   }
@@ -453,11 +453,8 @@ async function verifyRedis() {
     console.log(`✓ Redis connected: ${pong}`);
     serviceStatus.redis = true;
     return true;
-  } catch {
-    console.error(
-      `✗ Redis connection failed:`,
-      'Redis health probe failed. Raw error details are omitted to protect credentials.',
-    );
+  } catch (error) {
+    console.error('✗ Redis connection failed:', redisFailureDiagnostic(error, config.redis.url));
     return false;
   }
 }
@@ -523,11 +520,12 @@ async function start() {
     try {
       await registerPlugins();
       redisReady = await verifyRedis();
-    } catch {
-      // Redis URLs and client errors can contain credentials. connectRedis
-      // already emits a sanitized diagnostic; do not log a raw plugin error.
+    } catch (error) {
+      // Log only the sanitized code, endpoint and TLS/auth state. Never emit the
+      // raw client error because it may contain a Redis connection URL.
       fastify.log.error(
-        'Redis/plugin initialization failed. Raw connection details are omitted to protect credentials.',
+        { diagnostic: redisFailureDiagnostic(error, config.redis.url) },
+        'Redis/plugin initialization failed',
       );
     }
 
