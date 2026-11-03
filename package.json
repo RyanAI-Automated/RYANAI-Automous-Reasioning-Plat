@@ -47,7 +47,7 @@
     "db:push": "prisma db push",
     "db:migrate": "node --import tsx/esm src/db/migrate.ts",
     "db:setup": "npm run db:generate && npm run db:migrate",
-    "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs && npm run test:bridge",
+    "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
     "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
@@ -112,9 +112,7 @@
     "api:start": "node scripts/activate-apis.mjs start",
     "api:verify": "node scripts/activate-apis.mjs verify",
     "api:report": "node scripts/activate-apis.mjs report",
-    "test:api-activation": "node --test scripts/activate-apis.node.mjs",
-    "bridge:start": "node bridge-runtime/server.mjs",
-    "test:bridge": "node --test bridge-runtime/server.test.mjs bridge-runtime/fault-injection.test.mjs"
+    "test:api-activation": "node --test scripts/activate-apis.node.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
