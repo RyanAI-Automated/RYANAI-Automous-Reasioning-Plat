@@ -9,6 +9,12 @@ const connectionHints: Record<string, string> = {
     'Connection timed out. Check database reachability and network rules.',
   ECONNRESET:
     'Connection was reset. Check database availability and TLS settings.',
+  EHOSTUNREACH:
+    'The database host is unreachable from this service. Check the configured network endpoint.',
+  ENETUNREACH:
+    'The database network is unreachable from this service. Check IPv4/IPv6 compatibility and the configured endpoint.',
+  ERR_INVALID_URL:
+    'DATABASE_URL is not a valid PostgreSQL connection URL. It must use postgres:// or postgresql://.',
   '28P01':
     'Password authentication failed. Check the database credentials in DATABASE_URL.',
   '28000':
@@ -20,6 +26,28 @@ const connectionHints: Record<string, string> = {
   '57P03':
     'PostgreSQL is not accepting connections yet. Check server readiness and retry.',
 };
+
+/** Return only the configured database hostname and port; never credentials or URL paths. */
+export function databaseConnectionTarget(databaseUrl: string): string {
+  try {
+    const parsed = new URL(databaseUrl);
+    const isPostgres =
+      parsed.protocol === 'postgres:' || parsed.protocol === 'postgresql:';
+    const defaultPort =
+      parsed.protocol === 'https:'
+        ? '443'
+        : parsed.protocol === 'http:'
+          ? '80'
+          : '5432';
+    const port = parsed.port || defaultPort;
+    const protocolHint = isPostgres
+      ? ''
+      : ` (unexpected protocol ${parsed.protocol || 'unknown'})`;
+    return `${parsed.hostname || 'unknown-host'}:${port}${protocolHint}`;
+  } catch {
+    return 'unparseable DATABASE_URL';
+  }
+}
 
 /**
  * Summarize recognized database failures without exposing raw error details.
