@@ -77,7 +77,7 @@ model AgentSession {
   id          String         @id @default(uuid())
   operator    String         @default("Ntsiyeni Ganyane")
   activeGraph String         @default("ReAct-v2.1") @map("active_graph")
-  cudaActive  Boolean        @default(true) @map("cuda_active")
+  cudaActive  Boolean?       @map("cuda_active")
   userId      String?        @map("user_id")
   user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt   DateTime       @default(now()) @map("created_at")
@@ -96,7 +96,7 @@ model AgentMessage {
   role           Role         @default(USER)
   content        String       @db.Text
   reasoningSteps String       @db.Text @map("reasoning_steps")
-  latencyMs      Int          @default(14) @map("latency_ms")
+  latencyMs      Int?         @map("latency_ms")
   timestamp      String
   createdAt      DateTime     @default(now()) @map("created_at")
 
@@ -140,7 +140,7 @@ model SystemTelemetry {
   cpuUsage    Float?   @map("cpu_usage")
   memoryUsage Float?   @map("memory_usage")
   activeNodes Int?     @map("active_nodes")
-  status      String   @default("healthy")
+  status      String   @default("unknown")
   payload     Json?
   recordedAt  DateTime @default(now()) @map("recorded_at")
 
