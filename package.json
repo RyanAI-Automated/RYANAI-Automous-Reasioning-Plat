@@ -112,7 +112,7 @@
     "api:start": "node scripts/activate-apis.mjs start",
     "api:verify": "node scripts/activate-apis.mjs verify",
     "api:report": "node scripts/activate-apis.mjs report",
-    "test:api-activation": "node --test scripts/activate-apis.test.mjs"
+    "test:api-activation": "node --test scripts/activate-apis.node.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
