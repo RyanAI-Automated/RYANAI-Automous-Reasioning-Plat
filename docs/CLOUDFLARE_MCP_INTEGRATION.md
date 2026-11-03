@@ -59,7 +59,7 @@ If later approved write operations are needed, create a separate token for a nar
 1. Confirm the pinned MCPJungle version and inspect its upstream credential storage, database encryption, backup, access-control, and audit behavior.
 2. In Cloudflare Zero Trust, create a named Tunnel and a published-application route for the chosen MCP hostname, targeting `http://mcpjungle:8080` on the private Docker network. Do not create a public origin IP or direct port-forward.
 3. Create a Cloudflare Access application for that hostname. Add an operator identity policy and separate service-token policies for each non-interactive agent. Keep Access Managed OAuth disabled unless the origin validates Access JWTs.
-4. Set `CLOUDFLARE_TUNNEL_TOKEN` and a reviewed, pinned `CLOUDFLARED_IMAGE` in the private runtime secret/config store. Do not put the token in source control or shell history.
+4. Set `CLOUDFLARE_TUNNEL_TOKEN` in the private runtime secret store. Override the development image default with a reviewed immutable `cloudflare/cloudflared` image digest before any shared/cloud activation. Do not put the token in source control or shell history.
 5. Start MCPJungle, its dedicated PostgreSQL service, and the connector using both opt-in profiles: `docker compose --profile mcp-gateway --profile cloudflare-edge up -d mcpjungle-db mcpjungle cloudflared`.
 6. Initialize the enterprise gateway from an authorized operator workstation; retain the admin credential in a secret manager.
 7. Register RyanAI's local MCP server as a Streamable HTTP upstream. Verify it with a read-only `tools/list`.
