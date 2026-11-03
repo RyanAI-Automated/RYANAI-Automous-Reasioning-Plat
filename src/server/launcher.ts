@@ -55,8 +55,8 @@ async function refreshBridgeHeartbeat() {
   const ready = await bridgeAdapter.heartbeat();
   if (ready !== lastBridgeHeartbeatState) {
     lastBridgeHeartbeatState = ready;
-    if (ready) fastify.log.info('Connectivity bridge registered API adapter.');
-    else fastify.log.warn('Connectivity bridge API adapter is unavailable.');
+    if (ready) console.info('Connectivity bridge registered API adapter.');
+    else console.warn('Connectivity bridge API adapter is unavailable.');
   }
 }
 
