@@ -11,8 +11,12 @@ projects:
             name: ryanai-web
             runtime: static
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
+            rootDir: .
             plan: free
             autoDeployTrigger: "off"
+            previews:
+              generation: manual
             buildCommand: npm ci --legacy-peer-deps && npm run build
             staticPublishPath: ./dist
             envVars:
@@ -24,6 +28,9 @@ projects:
                 value: https://ryanai-api.onrender.com
               - key: VITE_APP_ENV
                 value: production
+              # Keep TLS certificate verification enabled during the frontend build.
+              - key: NODE_TLS_REJECT_UNAUTHORIZED
+                value: "1"
             routes:
               - type: rewrite
                 source: /*
@@ -35,15 +42,20 @@ projects:
             branch: main
             plan: free
             region: oregon
+            rootDir: .
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
             autoDeployTrigger: "off"
+            previews:
+              generation: manual
             healthCheckPath: /health
             envVars:
               - key: NODE_ENV
                 value: production
               - key: HOST
                 value: 0.0.0.0
+              - key: PORT
+                value: "10000"
               - key: CORS_ORIGINS
                 value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
               - key: JWT_SECRET
@@ -57,6 +69,8 @@ projects:
                   property: connectionString
               - key: SUPABASE_URL
                 value: https://narsvpwymvlrhurqbthu.supabase.co
+              - key: SUPABASE_DB_POOLER_HOST
+                value: aws-1-eu-west-1.pooler.supabase.com
               - key: SUPABASE_PUBLISHABLE_KEY
                 sync: false
               - key: SUPABASE_SERVICE_ROLE_KEY

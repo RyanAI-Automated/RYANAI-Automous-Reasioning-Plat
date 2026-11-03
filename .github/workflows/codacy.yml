@@ -80,7 +80,7 @@ jobs:
           const batchSize = 20;
           const batchCount = Math.ceil(report.runs.length / batchSize);
           if (batchCount > 3) {
-            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 60 so uploads stay within GitHub's 20-run SARIF limit.`);
+            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 60 so uploads stay within GitHub's 20-run request limit.`);
           }
 
           for (let index = 0; index < report.runs.length; index += 1) {

@@ -309,7 +309,7 @@ A minimal local example:
 NODE_ENV=development
 HOST=127.0.0.1
 PORT=3001
-DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5432/ryanai_db
+DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5432/ryanai_db # trufflehog:ignore
 REDIS_URL=redis://:PASSWORD@127.0.0.1:6379
 JWT_SECRET=replace_with_a_unique_random_secret
 ```
@@ -385,11 +385,32 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 | Variable | Purpose / handling |
 | --- | --- |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Optional server-side Supabase configuration. |
+| `SUPABASE_DB_POOLER_HOST` | Optional exact Supabase shared session-pooler host; API runtime only. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-only credential. Never expose to the browser. |
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
 
-Never place a service-role key, provider secret, GitHub token, or signing secret in a `VITE_*` variable. Frontend variables are bundled into browser-delivered assets.
+Never place a service-role key, provider secret, GitHub token, or signing secret in a `VITE_*` variable. Frontend variables are bundled into browser-delivered assets. The separate [`env.frontend.example`](env.frontend.example) contains browser-public values only.
+
+### Communications variables
+
+| Variable group | Purpose / handling |
+| --- | --- |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Server-side Twilio credentials. |
+| `TWILIO_PHONE_NUMBER`, `TWILIO_WHATSAPP_NUMBER` | Configured SMS/voice and WhatsApp senders. |
+| `TWILIO_*_WEBHOOK_URL`, `TWILIO_VOICE_ACTION_URL` | Exact public HTTPS callback URLs registered with Twilio. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Outbound email transport. |
+| `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` | Inbound email Receiving and webhook verification. |
+| `RYANAI_OWNER_PHONE`, `RYANAI_OWNER_EMAIL` | Private owner identity/destination, API runtime only. |
+| `RYANAI_OWNER_TITLE`, `RYANAI_OWNER_LANGUAGE` | Owner salutation and language defaults. |
+
+Communications configuration presence is not proof of provider authentication or delivery. Keep all provider credentials and owner contact values in the API deployment secret store. Follow [`docs/communications-gateway.md`](docs/communications-gateway.md) for callback registration and staged verification.
+
+### Hosted database networking
+
+For the Render API to connect to Supabase PostgreSQL, the API Blueprint sets `SUPABASE_DB_POOLER_HOST` to the project's shared session-pooler host. At startup, the API rewrites only the host, session port (5432), project-qualified role and TLS mode; the existing URL-encoded password remains in `DATABASE_URL` and is never logged. Confirm that the configured database password is current and URL-encoded.
+
+The Supabase database network restrictions must also allow the API service's current Render outbound CIDRs. Follow [`docs/render-supabase-networking.md`](docs/render-supabase-networking.md); verify the service-specific ranges in Render Connect → Outbound before adding them. This is a network allowlist, not a `DATABASE_URL` value.
 
 ### MCP variables
 
