@@ -16,6 +16,17 @@ const hasProjectManifest = existsSync(path.join(projectRoot, 'package.json'));
 const hasGitMetadata = existsSync(path.join(projectRoot, '.git'));
 const stackManifestPath = path.join(projectRoot, 'stacks', 'ryanai.stack.json');
 const hasStackManifest = existsSync(stackManifestPath);
+const taskApiBaseUrl = process.env.RYANAI_TASKS_API_URL?.trim() || '';
+const taskApiToken = process.env.RYANAI_TASKS_API_TOKEN?.trim() || '';
+const hasTaskBoardBridge = (() => {
+  if (!taskApiBaseUrl || taskApiToken.length < 32) return false;
+  try {
+    const url = new URL(taskApiBaseUrl);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1', 'api'].includes(url.hostname));
+  } catch {
+    return false;
+  }
+})();
 
 export function createMcpServer() {
   const server = new Server(
@@ -48,6 +59,25 @@ export function createMcpServer() {
       description: 'Return the non-secret RyanAI service and deployment stack manifest for Jarvis orchestration.',
       inputSchema: { type: 'object', properties: {} },
     }] : []),
+    ...(hasTaskBoardBridge ? [
+      {
+        name: 'agent_tasks_list',
+        description: 'Read RyanAI tasks assigned to this configured agent identity. Task ownership and authorization are enforced by the API.',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'agent_task_comment',
+        description: 'Append a progress comment to a RyanAI task. This tool cannot claim work, change task status, approve actions, merge pull requests, or deploy.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'UUID of a task returned by agent_tasks_list.' },
+            comment: { type: 'string', minLength: 1, maxLength: 4000, description: 'Progress update; never include credentials or personal secrets.' },
+          },
+          required: ['taskId', 'comment'],
+        },
+      },
+    ] : []),
     {
       name: 'platform_health',
       description: 'Check the configured RyanAI API health endpoint.',
@@ -107,6 +137,22 @@ export function createMcpServer() {
         return textResult(JSON.stringify(manifest, null, 2));
       }
 
+      if (request.params.name === 'agent_tasks_list') {
+        const result = await requestTaskApi('/api/jarvis/agent/tasks');
+        return textResult(JSON.stringify(result, null, 2));
+      }
+
+      if (request.params.name === 'agent_task_comment') {
+        const taskId = typeof args.taskId === 'string' ? args.taskId : '';
+        const comment = typeof args.comment === 'string' ? args.comment.trim() : '';
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+          throw new Error('taskId must be a valid task UUID.');
+        }
+        if (!comment || comment.length > 4000) throw new Error('comment must contain 1 to 4,000 characters.');
+        const result = await requestTaskApi(`/api/jarvis/agent/tasks/${encodeURIComponent(taskId)}/comments`, 'POST', { comment });
+        return textResult(JSON.stringify(result, null, 2));
+      }
+
       if (request.params.name === 'platform_health') {
         const configuredUrl = process.env.RYANAI_API_HEALTH_URL || 'http://localhost:3000/health';
         const requestedUrl = typeof args.url === 'string' ? args.url : undefined;
@@ -136,6 +182,27 @@ export function createMcpServer() {
   });
 
   return server;
+}
+
+async function requestTaskApi(path, method = 'GET', body) {
+  if (!hasTaskBoardBridge) throw new Error('RyanAI task board MCP bridge is not configured.');
+  const url = new URL(path, taskApiBaseUrl.endsWith('/') ? taskApiBaseUrl : taskApiBaseUrl + '/');
+  const response = await fetch(url, {
+    method,
+    headers: {
+      authorization: `Bearer ${taskApiToken}`,
+      accept: 'application/json',
+      ...(body ? { 'content-type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = result && typeof result.error === 'string' ? result.error : `HTTP ${response.status}`;
+    throw new Error(`RyanAI task API rejected the request: ${message}`);
+  }
+  return result;
 }
 
 async function run(command, args) {
