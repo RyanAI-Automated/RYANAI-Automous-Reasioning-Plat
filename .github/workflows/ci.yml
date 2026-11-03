@@ -326,7 +326,7 @@ jobs:
           for version in \
             20261030120000 20261030130000 20261030140000 \
             20261031100000 20261031110000 20261031120000 \
-            20261031130000 20261031150000 99999999999999; do
+            20261031130000 20261031150000 20261103112000 99999999999999; do
             grep -F "$version" /tmp/fresh-migration-list.txt
           done
           eval "$(supabase status -o env)"
@@ -360,6 +360,48 @@ jobs:
               RAISE EXCEPTION 'public default table ACL grants client access';
             END IF;
           END $$;
+          SQL
+      - name: Verify anonymous Auth identities are denied by restrictive RyanAI RLS gates
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/supabase-anonymous-policy-ci-smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE target text;
+          BEGIN
+            FOREACH target IN ARRAY ARRAY[
+              'public.conversations','public.memory_entries','public.messages',
+              'public.profiles','public.rooms','public.room_members',
+              'public.room_messages','public.ryanai_attachment_scans'
+            ] LOOP
+              IF to_regclass(target) IS NOT NULL AND NOT EXISTS (
+                SELECT 1 FROM pg_policies
+                WHERE schemaname = split_part(target, '.', 1)
+                  AND tablename = split_part(target, '.', 2)
+                  AND policyname = 'ryanai_registered_user_only'
+                  AND permissive = 'RESTRICTIVE'
+              ) THEN
+                RAISE EXCEPTION 'Missing restrictive registered-user policy on %', target;
+              END IF;
+            END LOOP;
+            IF to_regclass('storage.objects') IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM pg_policies WHERE schemaname = 'storage'
+                AND tablename = 'objects'
+                AND policyname = 'ryanai_registered_user_storage_only'
+                AND permissive = 'RESTRICTIVE'
+            ) THEN
+              RAISE EXCEPTION 'Missing restrictive Storage registered-user policy';
+            END IF;
+            IF to_regclass('realtime.messages') IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM pg_policies WHERE schemaname = 'realtime'
+                AND tablename = 'messages'
+                AND policyname = 'ryanai_registered_user_realtime_only'
+                AND permissive = 'RESTRICTIVE'
+            ) THEN
+              RAISE EXCEPTION 'Missing restrictive Realtime registered-user policy';
+            END IF;
+          END $;
           SQL
       - name: Simulate recorded far-future legacy migration and apply corrective migration
         run: |
