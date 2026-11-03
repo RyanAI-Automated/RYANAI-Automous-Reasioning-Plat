@@ -21,12 +21,32 @@ concurrency:
 jobs:
   deploy:
     name: Trigger Render deploy
-    if: inputs.confirm_production_deploy == true && vars.RENDER_DEPLOY_ENABLED == 'true'
+    if: >-
+      ${{
+        inputs.confirm_production_deploy == true &&
+        vars.RENDER_DEPLOY_ENABLED == 'true' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: production
 
     steps:
+      - name: Verify deployment commit signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${DEPLOY_COMMIT}")"
+          verified="$(printf '%s' "$response" | jq -r '.commit.verification.verified')"
+          reason="$(printf '%s' "$response" | jq -r '.commit.verification.reason // "unknown"')"
+          if [[ "$verified" != "true" ]]; then
+            echo "::error::Refusing Render deployment: commit ${DEPLOY_COMMIT} is not cryptographically verified (${reason})."
+            exit 1
+          fi
+
       - name: Validate Render deployment configuration
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
