@@ -39,4 +39,5 @@ test('publishing rejects unsafe identities, idempotency keys and oversized paylo
   await assert.rejects(publishUserEvent(redis, { userId: '', idempotencyKey: 'x', payload: {} }));
   await assert.rejects(publishUserEvent(redis, { userId: 'user', idempotencyKey: '../x', payload: {} }));
   await assert.rejects(publishUserEvent(redis, { userId: 'user', idempotencyKey: 'x', payload: 'x'.repeat(300000) }));
+  await assert.rejects(publishUserEvent(redis, { userId: 'user', idempotencyKey: 'x', payload: undefined }), /Invalid event payload/);
 });
