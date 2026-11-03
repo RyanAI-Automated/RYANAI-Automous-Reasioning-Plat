@@ -44,7 +44,9 @@ export default function AuditLogPanel() {
   }, []);
 
   useEffect(() => {
-    void load();
+    // Defer the first stateful load until after the effect has committed.
+    const initialLoad = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [load]);
 
   return (
