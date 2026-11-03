@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.reasoning_cache (
 
 CREATE TABLE IF NOT EXISTS public.agent_memory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "sessionId" VARCHAR(255) NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL,
     content TEXT NOT NULL,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -25,4 +25,4 @@ CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
     ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops);
 
 CREATE INDEX IF NOT EXISTS idx_agent_session
-    ON public.agent_memory ("sessionId", timestamp);
+    ON public.agent_memory (session_id, timestamp);
