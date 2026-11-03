@@ -33,7 +33,10 @@ export default function ModelUsagePanel() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [refresh]);
 
   return (
     <section className="space-y-4 rounded-2xl border border-white/10 bg-slate-950/70 p-5">
