@@ -140,7 +140,7 @@ export function installAuthentication(fastify: FastifyInstance) {
     
     if (
       ['GET', 'HEAD'].includes(request.method) &&
-      ['/', '/health', '/api/health'].includes(path)
+      ['/', '/health', '/api/health', '/livez', '/readyz'].includes(path)
     ) {
       return;
     }
