@@ -32,6 +32,7 @@ function fixture(t) {
   put('k8s/ryanai-databases.yaml');
   put('.github/workflows/deploy-vercel.yml');
   put('render.yaml');
+  put('docs/deployment/hybrid-hosting.md');
   put('docker-compose.yml', [
     'services:',
     '  postgres:',
