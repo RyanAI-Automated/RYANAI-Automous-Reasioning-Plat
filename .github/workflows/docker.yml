@@ -151,6 +151,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify publishing commit signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${PUBLISH_COMMIT}")"
+          verified="$(printf '%s' "$response" | jq -r '.commit.verification.verified')"
+          reason="$(printf '%s' "$response" | jq -r '.commit.verification.reason // "unknown"')"
+          if [[ "$verified" != "true" ]]; then
+            echo "::error::Refusing image publication: commit ${PUBLISH_COMMIT} is not cryptographically verified (${reason})."
+            exit 1
+          fi
+
       - name: Normalize image name
         id: image
         env:
