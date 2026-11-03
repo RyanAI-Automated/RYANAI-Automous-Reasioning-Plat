@@ -11,20 +11,12 @@ on:
         options: [audit, fix]
   schedule:
     - cron: '17 3 * * 1'
-  push:
-    branches: [main, master]
-    paths:
-      - '.github/**'
-      - 'scripts/github-workflow-agent.mjs'
-      - 'scripts/validate-github-workflows.mjs'
-      - 'package.json'
+  push: {}
+  pull_request: {}
 
 permissions:
   contents: read
 
-concurrency:
-  group: github-workflow-maintainer-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   maintain:
