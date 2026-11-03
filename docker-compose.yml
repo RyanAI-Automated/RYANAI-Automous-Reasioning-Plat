@@ -233,14 +233,16 @@ services:
   # Start with BOTH profiles enabled after the Tunnel and Access policies are configured.
   cloudflared:
     profiles: [cloudflare-edge]
-    image: "${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}"
+    image: "${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.0}"
     container_name: ryanai-cloudflared
     command:
       - tunnel
       - --no-autoupdate
       - run
-      - --token
-      - "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+      - --token-file
+      - /run/secrets/cloudflare_tunnel_token
+    secrets:
+      - cloudflare_tunnel_token
     networks: [ryanai-net]
     depends_on:
       mcpjungle:
@@ -286,3 +288,9 @@ volumes:
   postgres_data:
   redis_data:
   mcpjungle_data:
+
+secrets:
+  # Docker Compose mounts this host environment variable as a file in cloudflared.
+  # Keep the value only in the private runtime environment; never commit it.
+  cloudflare_tunnel_token:
+    environment: CLOUDFLARE_TUNNEL_TOKEN
