@@ -309,7 +309,7 @@ A minimal local example:
 NODE_ENV=development
 HOST=127.0.0.1
 PORT=3001
-DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5432/ryanai_db
+DATABASE_URL=postgresql://USER:PASSWORD@127.0.0.1:5432/ryanai_db # trufflehog:ignore
 REDIS_URL=redis://:PASSWORD@127.0.0.1:6379
 JWT_SECRET=replace_with_a_unique_random_secret
 ```
