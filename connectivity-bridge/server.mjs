@@ -61,6 +61,20 @@ async function adapterStatuses() {
 }
 
 const server = createServer(async (request, response) => {
+  const origin = request.headers.origin;
+  if (origin) {
+    if (!origins.has(origin)) return sendJson(response, 403, { error: 'Origin is not allowed.' });
+    response.setHeader('access-control-allow-origin', origin);
+    response.setHeader('vary', 'Origin');
+    response.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
+    response.setHeader('access-control-allow-headers', 'Authorization, Content-Type');
+    response.setHeader('access-control-max-age', '600');
+  }
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204, { 'cache-control': 'no-store' });
+    response.end();
+    return;
+  }
   const url = new URL(request.url || '/', 'http://localhost');
   if (url.pathname === '/livez' && request.method === 'GET') {
     return sendJson(response, 200, { status: 'alive', service: 'ryanai-connectivity-bridge' });
