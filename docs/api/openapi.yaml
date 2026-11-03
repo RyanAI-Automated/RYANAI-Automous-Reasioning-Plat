@@ -6,11 +6,11 @@ info:
     Contract for the supported Fastify gateway. The complete HTTP route set,
     including webhook and machine-only endpoints, is in route-inventory.yaml.
 servers:
-  - url: "{apiOrigin}"
+  - url: "https://{apiHost}"
     variables:
-      apiOrigin:
-        default: https://api.example.invalid
-        description: Set to the deployed RyanAI API origin.
+      apiHost:
+        default: api.example.invalid
+        description: Hostname of the deployed RyanAI API.
 tags:
   - name: Health
   - name: Authentication
@@ -62,6 +62,44 @@ paths:
           description: All readiness probes passed.
         "503":
           description: One or more readiness probes failed.
+  /signin:
+    post:
+      tags: [Authentication]
+      summary: Retired local-password sign-in
+      description: Use Supabase Auth. This endpoint no longer authenticates local credentials or issues API tokens.
+      deprecated: true
+      security: []
+      responses:
+        "410":
+          description: Local-password authentication has been retired.
+  /api/auth/signin:
+    post:
+      tags: [Authentication]
+      summary: Retired local-password sign-in
+      description: Use Supabase Auth. This endpoint no longer authenticates local credentials or issues API tokens.
+      deprecated: true
+      security: []
+      responses:
+        "410":
+          description: Local-password authentication has been retired.
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Retired shared-password login
+      deprecated: true
+      security: []
+      responses:
+        "410":
+          description: Legacy login has been retired.
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Retired shared-password logout
+      deprecated: true
+      security: []
+      responses:
+        "410":
+          description: Legacy logout has been retired; use Supabase Auth sign-out.
   /api/auth/verify:
     get:
       tags: [Authentication]
