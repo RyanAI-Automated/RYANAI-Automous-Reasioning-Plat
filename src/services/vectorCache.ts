@@ -1,3 +1,4 @@
+import { postgresClientOptions } from '../db/postgresTls.js';
 // File path: ./src/services/vectorCache.ts
 
 import { createClient } from "redis";
@@ -10,7 +11,7 @@ export class VectorCacheManager {
   constructor(redisUrl: string, connectionString: string) {
     this.redisClient = createClient({ url: redisUrl });
     this.redisClient.connect().catch(console.error);
-    this.pgPool = new Pool({ connectionString });
+    this.pgPool = new Pool(postgresClientOptions(connectionString));
   }
 
   async getCachedResponse(embedding: number[]): Promise<string | null> {
