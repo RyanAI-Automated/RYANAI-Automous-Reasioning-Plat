@@ -9,11 +9,12 @@ export function parseAgentRunExecutionChange(value: unknown): ExecutionChange {
     return { eventKnown: false, snapshotFresh: false };
   }
   const candidate = value as Record<string, unknown>;
-  const hasResourceKeys = Array.isArray(candidate.resourceKeys);
-  const resourceKeysValid = !hasResourceKeys || candidate.resourceKeys.every((key) => typeof key === 'string');
+  const rawResourceKeys = candidate.resourceKeys;
+  const hasResourceKeys = Array.isArray(rawResourceKeys);
+  const resourceKeysValid = !hasResourceKeys || rawResourceKeys.every((key: unknown) => typeof key === 'string');
   const resourceKeys = hasResourceKeys
     ? resourceKeysValid
-      ? candidate.resourceKeys as string[]
+      ? rawResourceKeys as string[]
       : ['']
     : undefined;
 
