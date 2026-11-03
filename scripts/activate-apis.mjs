@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import dotenv from 'dotenv';
 
 const CORE_REQUIRED = ['DB_PASSWORD', 'REDIS_PASSWORD', 'JWT_SECRET', 'MCP_AUTH_TOKEN'];
-const PLACEHOLDER = /^(?:replace[_ -]?with|changeme|your[_ -]?|<.*>)$/i;
+const PLACEHOLDER = /^(?:replace[_ -]?with|changeme|your[_ -]?|<.*>)/i;
 const PROVIDERS = {
   NVIDIA: ['NVIDIA_API_KEY'],
   QWEN: ['QWEN_API_KEY'],
