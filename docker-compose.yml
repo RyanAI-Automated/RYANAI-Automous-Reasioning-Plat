@@ -55,7 +55,6 @@ services:
     restart: unless-stopped
     stop_grace_period: 1m
 
-  # Apply committed Prisma migrations once; API startup is blocked on success.
   migrate:
     build:
       context: .
@@ -67,7 +66,7 @@ services:
         required: false
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
+      DATABASE_URL: ${DATABASE_URL:-postgresql://ryanai:${DB_PASSWORD}@postgres:5432/ryanai_db}
     networks: [ryanai-net]
     depends_on:
       postgres:
@@ -87,19 +86,23 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
-      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgresql://ryanai:${DB_PASSWORD}@postgres:5432/ryanai_db}
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
       SUPABASE_URL: ${SUPABASE_URL:-https://narsvpwymvlrhurqbthu.supabase.co}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
-      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
-      ATTACHMENT_SCANNER_ENABLED: ${ATTACHMENT_SCANNER_ENABLED:-false}
-      CLAMAV_HOST: ${CLAMAV_HOST:-}
-      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
-      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-60000}
-      ATTACHMENT_SCAN_INTERVAL_MS: ${ATTACHMENT_SCAN_INTERVAL_MS:-5000}
+      # Communications (Twilio / SMTP)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      COMMUNICATIONS_ENABLED: ${COMMUNICATIONS_ENABLED:-true}
+      # AI Providers
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
@@ -107,21 +110,6 @@ services:
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
       QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507-tput}
-      LOGIC_API_KEY: ${LOGIC_API_KEY:-}
-      LOGIC_API_ENDPOINT: ${LOGIC_API_ENDPOINT:-https://api.openai.com/v1}
-      LOGIC_REASONING_MODEL: ${LOGIC_REASONING_MODEL:-gpt-4o-mini}
-      RYANAI_GITHUB_TOKEN: ${RYANAI_GITHUB_TOKEN:-}
-      RYANAI_GITHUB_REPOSITORY: ${RYANAI_GITHUB_REPOSITORY:-RyanAI-Automated/RYANAI-Automous-Reasioning-Plat}
-      RYANAI_GITHUB_BASE_BRANCH: ${RYANAI_GITHUB_BASE_BRANCH:-main}
-      JARVIS_BASE_URL: ${JARVIS_BASE_URL:-}
-      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
-      JARVIS_SYNC_ENABLED: ${JARVIS_SYNC_ENABLED:-false}
-      JARVIS_ALLOW_PRODUCTION_SYNC: ${JARVIS_ALLOW_PRODUCTION_SYNC:-false}
-      JARVIS_PATCH_INGRESS_ENABLED: ${JARVIS_PATCH_INGRESS_ENABLED:-false}
-      JARVIS_INGRESS_TOKEN: ${JARVIS_INGRESS_TOKEN:-}
-      JARVIS_HEALTH_PATH: ${JARVIS_HEALTH_PATH:-/health}
-      JARVIS_PATCH_PATH: ${JARVIS_PATCH_PATH:-/api/v1/patches}
-      JARVIS_STACK_PATH: ${JARVIS_STACK_PATH:-/api/v1/stacks}
     networks: [ryanai-net]
     depends_on:
       postgres:
@@ -156,22 +144,9 @@ services:
       RYANAI_API_HEALTH_URL: http://api:3000/health
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8765
-      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env}
       RYANAI_OPENAI_GATEWAY_URL: ${RYANAI_OPENAI_GATEWAY_URL:-http://api:3000/api/internal/openai/chat}
-      RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
-      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1],mcp-server}
-      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      NVIDIA_API_ENDPOINT: ${NVIDIA_API_ENDPOINT:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
-      QWEN_API_KEY: ${QWEN_API_KEY:-}
-      QWEN_API_ENDPOINT: ${QWEN_API_ENDPOINT:-https://api.together.xyz/v1}
-      QWEN_MODEL: ${QWEN_MODEL:-Qwen/Qwen3-235B-A22B-Instruct-2507-tput}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_API_ENDPOINT: ${DEEPSEEK_API_ENDPOINT:-http://127.0.0.1:8888/v1}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-DeepSeek-V4.1-Flash-1017}
-      TORCHTPU_API_KEY: ${TORCHTPU_API_KEY:-}
-      TORCHTPU_API_ENDPOINT: ${TORCHTPU_API_ENDPOINT:-http://127.0.0.1:8000/v1}
-      TORCHTPU_MODEL: ${TORCHTPU_MODEL:-}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,[::1],mcp-server,ryanai-api}
       RYANAI_MCP_ENABLED_TOOLS: ${RYANAI_MCP_ENABLED_TOOLS:-platform_health,ryanai_stack_manifest,reasoning_route}
     networks: [ryanai-net]
     depends_on:
@@ -189,67 +164,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: unless-stopped
-    stop_grace_period: 30s
-
-  # Optional self-hosted MCP gateway. Enterprise mode is opt-in and uses its own DB.
-  # Start with: docker compose --profile mcp-gateway up -d mcpjungle-db mcpjungle
-  mcpjungle-db:
-    profiles: [mcp-gateway]
-    image: postgres:17-alpine
-    container_name: ryanai-mcpjungle-db
-    environment:
-      POSTGRES_USER: mcpjungle
-      POSTGRES_PASSWORD: ${MCPJUNGLE_DB_PASSWORD:-}
-      POSTGRES_DB: mcpjungle
-    networks: [ryanai-net]
-    volumes:
-      - mcpjungle_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [CMD-SHELL, "pg_isready -U mcpjungle -d mcpjungle"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  mcpjungle:
-    profiles: [mcp-gateway]
-    image: ghcr.io/mcpjungle/mcpjungle:${MCPJUNGLE_IMAGE_TAG:-0.4.6}
-    container_name: ryanai-mcpjungle
-    environment:
-      DATABASE_URL: postgres://mcpjungle:${MCPJUNGLE_DB_PASSWORD:-}@mcpjungle-db:5432/mcpjungle?sslmode=disable
-      SERVER_MODE: enterprise
-      OTEL_ENABLED: "true"
-    networks: [ryanai-net]
-    ports:
-      - "127.0.0.1:${MCPJUNGLE_HOST_PORT:-8080}:8080"
-    depends_on:
-      mcpjungle-db:
-        condition: service_healthy
-      mcp-server:
-        condition: service_healthy
-    restart: unless-stopped
-    stop_grace_period: 30s
-
-  # Cloudflare-first edge connector. No host port is published.
-  # Configure the named Tunnel's public hostname to route to http://mcpjungle:8080.
-  # Start with BOTH profiles enabled after the Tunnel and Access policies are configured.
-  cloudflared:
-    profiles: [cloudflare-edge]
-    image: "${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.0}"
-    container_name: ryanai-cloudflared
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token-file
-      - /run/secrets/cloudflare_tunnel_token
-    secrets:
-      - cloudflare_tunnel_token
-    networks: [ryanai-net]
-    depends_on:
-      mcpjungle:
-        condition: service_started
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -290,10 +204,3 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  mcpjungle_data:
-
-secrets:
-  # Docker Compose mounts this host environment variable as a file in cloudflared.
-  # Keep the value only in the private runtime environment; never commit it.
-  cloudflare_tunnel_token:
-    environment: CLOUDFLARE_TUNNEL_TOKEN
