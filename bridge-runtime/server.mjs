@@ -66,6 +66,10 @@ function verifyTicket(ticket) {
   return claims;
 }
 const envelope = (message) => ({ version: 1, id: randomUUID(), sentAt: Date.now(), message });
+const compareStreamIds = (left, right) => {
+  const a = left.split('-').map(BigInt), b = right.split('-').map(BigInt);
+  return a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : (a[0] < b[0] ? -1 : 1);
+};
 
 const httpServer = createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://bridge.local');
@@ -165,14 +169,19 @@ wss.on('connection', (ws) => {
             const saved = await redis.get(cursorKey(connection.claims.sub, topic, streamSubject)) || '0-0';
             cursors.set(streamSubject, saved);
           }
-          connection.subscriptions.set(topic, { streams: cursors });
+          connection.subscriptions.set(topic, { scanCursors: new Map(cursors), ackCursors: new Map(cursors) });
         }
       } else if (type === 'ack') {
         const delivered = connection.delivered.get(data.eventId);
         if (!delivered || delivered.cursor !== data.cursor) throw new Error('ACK_NOT_DELIVERED');
+        for (const pending of connection.delivered.values()) {
+          if (pending.topic === delivered.topic && pending.streamSubject === delivered.streamSubject && compareStreamIds(pending.cursor, delivered.cursor) < 0) {
+            throw new Error('ACK_OUT_OF_ORDER');
+          }
+        }
         await redis.set(cursorKey(connection.claims.sub, delivered.topic, delivered.streamSubject), delivered.cursor);
         const state = connection.subscriptions.get(delivered.topic);
-        if (state) state.streams.set(delivered.streamSubject, delivered.cursor);
+        if (state) state.ackCursors.set(delivered.streamSubject, delivered.cursor);
         connection.delivered.delete(data.eventId);
       } else {
         throw new Error('UNSUPPORTED_MESSAGE');
@@ -192,13 +201,13 @@ async function pollConnections() {
     connection.scanBusy = true;
     try {
       for (const [topic, state] of connection.subscriptions) {
-        for (const [streamSubject, scanCursor] of state.streams) {
+        for (const [streamSubject, scanCursor] of state.scanCursors) {
           const rows = await redis.xRange(streamKey(streamSubject, topic), '(' + scanCursor, '+', { COUNT: 100 });
           for (const row of rows) {
             if (connection.ws.readyState !== WebSocket.OPEN) break;
             const payload = JSON.parse(row.message.payload);
             const eventId = row.message.eventId;
-            state.streams.set(streamSubject, row.id);
+            state.scanCursors.set(streamSubject, row.id);
             connection.delivered.set(eventId, { topic, cursor: row.id, streamSubject });
             connection.ws.send(JSON.stringify(envelope({ type: 'event', data: { eventId, cursor: row.id, topic, payload, occurredAt: Number(row.message.occurredAt) } })));
           }
