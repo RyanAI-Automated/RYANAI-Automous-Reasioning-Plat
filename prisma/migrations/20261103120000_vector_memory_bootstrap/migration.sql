@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS public.agent_memory (
 -- Older local init volumes used the quoted camelCase column. After an
 -- operator-reviewed Prisma baseline, rename it in place rather than dropping
 -- or recreating the existing table and its data.
-DO $
+DO $$
 BEGIN
     IF EXISTS (
         SELECT 1
@@ -41,7 +41,7 @@ BEGIN
     ) THEN
         ALTER TABLE public.agent_memory RENAME COLUMN "sessionId" TO session_id;
     END IF;
-END $;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
     ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops);
