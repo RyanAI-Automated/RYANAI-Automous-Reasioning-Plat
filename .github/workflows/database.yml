@@ -109,7 +109,7 @@ jobs:
           # exists, then exclude it from Prisma's ORM-only drift comparison.
           docker run --rm --network host -e PGPASSWORD=ci_password postgres:16-alpine \
             psql -h 127.0.0.1 -U ryanai -d ryanai_migration_container -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF NOT EXISTS (
               SELECT 1 FROM pg_indexes
@@ -121,7 +121,7 @@ jobs:
               RAISE EXCEPTION 'Expected SQL-managed pgvector HNSW cosine index is missing';
             END IF;
           END
-          $;
+          $$;
           DROP INDEX public.idx_reasoning_embedding;
           SQL
           npx prisma migrate diff --from-url "$MIGRATION_DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
@@ -133,7 +133,7 @@ jobs:
           # only from this disposable CI database before Prisma schema diff.
           docker run --rm --network host -e PGPASSWORD=ci_password postgres:16-alpine \
             psql -h 127.0.0.1 -U ryanai -d ryanai_db -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           BEGIN
             IF NOT EXISTS (
               SELECT 1 FROM pg_indexes
@@ -145,7 +145,7 @@ jobs:
               RAISE EXCEPTION 'Expected SQL-managed pgvector HNSW cosine index is missing';
             END IF;
           END
-          $;
+          $$;
           DROP INDEX public.idx_reasoning_embedding;
           SQL
           npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
