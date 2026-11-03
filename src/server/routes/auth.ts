@@ -137,7 +137,7 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get('/api/auth/verify', { preHandler: requireUser }, async (request) => {
-    if (request.authUser) {
+    if (request.authUser && fastify.hasDecorator('prisma')) {
       try {
         await fastify.prisma.jarvisAuditEvent.create({
           data: {
