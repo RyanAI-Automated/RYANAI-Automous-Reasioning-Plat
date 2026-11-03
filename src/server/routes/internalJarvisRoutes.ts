@@ -78,7 +78,34 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
   // Scoped machine ingress: read and comment only. Worker claims and status transitions remain server-owned.
   fastify.get('/api/jarvis/agent/tasks', { preHandler: requireJarvisTaskAgentAuth }, async () => {
     const ownerId = process.env.JARVIS_TASK_OWNER_ID!.trim();
-    return { tasks: await listAgentRuns(ownerId) };
+    const agentId = process.env.JARVIS_TASK_AGENT_ID!.trim();
+    const tasks = await prisma.agentRun.findMany({
+      where: { userId: ownerId },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+      select: {
+        id: true,
+        objective: true,
+        status: true,
+        approvalStatus: true,
+        createdAt: true,
+        updatedAt: true,
+        completedAt: true,
+        attempts: true,
+        maxAttempts: true,
+        error: true,
+        handoffs: {
+          orderBy: { startedAt: 'asc' },
+          select: { id: true, fromAgent: true, toAgent: true, status: true, startedAt: true, completedAt: true, error: true },
+        },
+        evidence: {
+          where: { eventType: 'task.comment' },
+          orderBy: { sequence: 'asc' },
+          select: { id: true, sequence: true, eventType: true, actorId: true, payload: true, createdAt: true },
+        },
+      },
+    });
+    return { agentId, tasks };
   });
 
   fastify.post<{ Params: { taskId: string }; Body: TaskCommentBody }>('/api/jarvis/agent/tasks/:taskId/comments', {
