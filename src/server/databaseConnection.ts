@@ -24,7 +24,10 @@ export function resolveDatabaseConnectionUrl(
     );
   }
 
-  return configured || LOCAL_DEVELOPMENT_DATABASE_URL;
+  const resolved = configured || LOCAL_DEVELOPMENT_DATABASE_URL;
+  // Validate scheme/port without echoing the supplied URL in any error.
+  describeDatabaseBackend(resolved);
+  return resolved;
 }
 
 /**
