@@ -16,7 +16,6 @@ export interface BridgeClientMessageMap {
   heartbeat: { nonce: string };
   subscribe: { topics: string[]; after?: string };
   ack: { eventId: string; cursor: string };
-  publish: { topic: string; idempotencyKey: string; payload: unknown };
 }
 
 export type BridgeClientMessage = {
@@ -134,12 +133,6 @@ export function parseBridgeClientEnvelope(value: unknown): BridgeClientEnvelope 
       if (!isNonEmptyString(data.eventId) || !isNonEmptyString(data.cursor, 512)) {
         throw new BridgeProtocolError('INVALID_MESSAGE');
       }
-      break;
-    case 'publish':
-      if (
-        !isNonEmptyString(data.topic, MAX_BRIDGE_TOPIC_LENGTH) ||
-        !isNonEmptyString(data.idempotencyKey)
-      ) throw new BridgeProtocolError('INVALID_MESSAGE');
       break;
     default:
       throw new BridgeProtocolError('INVALID_MESSAGE');
