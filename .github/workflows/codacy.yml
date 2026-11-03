@@ -90,7 +90,7 @@ jobs:
               .replace(/[^a-z0-9-]+/g, '-')
               .replace(/^-+|-+$/g, '') || 'tool';
             run.automationDetails = {
-              ...(run.runAutomationDetails ?? {}),
+              ...(run.automationDetails ?? {}),
               id: `codacy-${tool}-${index}/analysis`,
             };
             const batch = Math.floor(index / batchSize) + 1;
