@@ -41,6 +41,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
   if (!supabaseUrl || !publishableKey || !bridgeUrl || adapterToken.length < 32) {
     return respond(response, 503, { error: 'Vercel connectivity adapter is not configured.' });
   }
+  try {
+    const bridgeOrigin = new URL(bridgeUrl);
+    if (bridgeOrigin.pathname !== '/' || (process.env.NODE_ENV === 'production' && bridgeOrigin.protocol !== 'https:')) {
+      return respond(response, 503, { error: 'Vercel bridge URL must be an HTTPS origin.' });
+    }
+  } catch {
+    return respond(response, 503, { error: 'Vercel bridge URL is invalid.' });
+  }
 
   try {
     const auth = await fetch(supabaseUrl + '/auth/v1/user', {
