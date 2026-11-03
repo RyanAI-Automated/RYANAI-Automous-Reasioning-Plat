@@ -23,11 +23,11 @@ export function useRyanEngine() {
     {
       id: "1",
       role: "assistant",
-      content: "RyanAI Autonomous Reasoning Engine initialized. Fastify gateway connection active.",
+      content: "RyanAI interface initialized. Live gateway, provider, and accelerator status have not yet been verified.",
       reasoningSteps: [
-        "Mounted root platform container template.",
-        "Initialized Fastify API gateway & LangGraph ReAct workflow.",
-        "Verified CUDA driver acceleration & memory allocation."
+        "Frontend interface initialized.",
+        "Gateway connectivity awaits a live health check.",
+        "CUDA availability is unknown until a live device probe succeeds."
       ],
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
