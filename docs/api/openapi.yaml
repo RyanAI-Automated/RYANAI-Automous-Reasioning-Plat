@@ -254,7 +254,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [channel, recipient]
+              required: [channel]
               properties:
                 channel: { type: string, enum: [whatsapp, sms, voice, email] }
                 recipient: { type: string }
@@ -391,6 +391,12 @@ components:
           type: array
           items: { type: object }
         timestamp: { type: string, format: date-time }
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean }
+        error: { type: string }
+        message: { type: string }
   responses:
     BadRequest:
       description: Request payload failed validation.
@@ -417,11 +423,3 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ApiError" }
-  # Shared error shape used by current API handlers.
-  x-error-schema:
-    ApiError:
-      type: object
-      properties:
-        success: { type: boolean }
-        error: { type: string }
-        message: { type: string }
