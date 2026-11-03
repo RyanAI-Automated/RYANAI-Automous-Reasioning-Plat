@@ -1,3 +1,4 @@
+import { prismaTlsOptions } from '../src/db/postgresTls.ts';
 import { appendFileSync } from 'node:fs';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -67,7 +68,7 @@ if (brain !== 'primary' && brain !== 'secondary' && brain !== 'logic') {
   throw new Error('RYANAI_PROBE_BRAIN must be primary, secondary, or logic.');
 }
 const { apiKey, model, endpoint } = resolveProviderProbeConfig(brain);
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(prismaTlsOptions());
 const started = Date.now();
 let record;
 
