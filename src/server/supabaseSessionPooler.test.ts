@@ -7,7 +7,7 @@ const poolerHost = 'aws-1-eu-west-1.pooler.supabase.com';
 describe('resolveSupabaseSessionPoolerUrl', () => {
   it('routes a direct connection through the supplied session pooler and keeps its password', () => {
     const result = resolveSupabaseSessionPoolerUrl(
-      'postgresql://postgres:p%40ss%23word@db.narsvpwymvlrhurqbthu.supabase.co:5432/postgres',
+      'postgresql://postgres:p%40ss%23word@db.narsvpwymvlrhurqbthu.supabase.co:5432/postgres', // trufflehog:ignore
       poolerHost,
       projectUrl,
     );
@@ -23,7 +23,7 @@ describe('resolveSupabaseSessionPoolerUrl', () => {
 
   it('does not duplicate the project ref in an already qualified pooler username', () => {
     const result = resolveSupabaseSessionPoolerUrl(
-      'postgresql://postgres.narsvpwymvlrhurqbthu:secret@old.pooler.supabase.com:5432/postgres?sslmode=prefer',
+      'postgresql://postgres.narsvpwymvlrhurqbthu:secret@old.pooler.supabase.com:5432/postgres?sslmode=prefer', // trufflehog:ignore
       poolerHost,
       projectUrl,
     );
@@ -36,7 +36,7 @@ describe('resolveSupabaseSessionPoolerUrl', () => {
   it('rejects a missing password rather than creating an unauthenticated URL', () => {
     expect(() =>
       resolveSupabaseSessionPoolerUrl(
-        'postgresql://postgres@db.narsvpwymvlrhurqbthu.supabase.co:5432/postgres',
+        'postgresql://postgres@db.narsvpwymvlrhurqbthu.supabase.co:5432/postgres', // trufflehog:ignore
         poolerHost,
         projectUrl,
       ),
@@ -46,7 +46,7 @@ describe('resolveSupabaseSessionPoolerUrl', () => {
   it('rejects a host that is not a Supabase shared-pooler hostname', () => {
     expect(() =>
       resolveSupabaseSessionPoolerUrl(
-        'postgresql://postgres:secret@db.narsvpwymvlrhurqbthu.supabase.co:5432/postgres',
+        'postgresql://postgres:secret@db.narsvpwymvlrhurqbthu.supabase.co:5432/postgres', // trufflehog:ignore
         'aws-1-eu-west-1.pooler.example.com',
         projectUrl,
       ),
@@ -56,7 +56,7 @@ describe('resolveSupabaseSessionPoolerUrl', () => {
   it('rejects a project URL that does not identify the expected Supabase project format', () => {
     expect(() =>
       resolveSupabaseSessionPoolerUrl(
-        'postgresql://postgres:secret@db.example.com:5432/postgres',
+        'postgresql://postgres:secret@db.example.com:5432/postgres', // trufflehog:ignore
         poolerHost,
         'https://example.com',
       ),
