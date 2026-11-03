@@ -23,7 +23,7 @@ Do not put service tokens or Supabase privileged keys in browser variables. The 
 - Events are sent as \`{"type":"event","id":"<stream-id>","data":...}\`. Acknowledge only after application handling succeeds with \`{"type":"ack","id":"<stream-id>"}\`.
 - Send \`{"type":"heartbeat","nonce":"..."}\`; the bridge responds with \`heartbeat_ack\`. WebSocket ping/pong also detects half-open transports.
 
-The short-lived ticket is the only credential placed in the socket URL. It expires quickly and can be consumed once. Long-lived Supabase access tokens and adapter tokens are never placed in URLs.
+No credentials are placed in the WebSocket URL. The short-lived ticket is sent only in the first frame, expires quickly and can be consumed once. Long-lived Supabase access tokens and adapter tokens are never sent over the WebSocket.
 
 ## Durable delivery semantics
 
