@@ -126,7 +126,10 @@ export const jarvisRoutes: FastifyPluginAsync = async (fastify) => {
         body: {
           type: 'object',
           required: ['filePath', 'patchContent'],
-          additionalProperties: false,
+          // Fastify's default Ajv setting removes unknown properties when this is false.
+          // Keep them intact here so the handler can reject them instead of silently
+          // accepting a different payload than the caller submitted.
+          additionalProperties: true,
           properties: {
             filePath: { type: 'string', minLength: 1, maxLength: 500 },
             patchContent: { type: 'string', minLength: 1, maxLength: 200_000 },
@@ -137,6 +140,15 @@ export const jarvisRoutes: FastifyPluginAsync = async (fastify) => {
       config: { rateLimit: { max: 2, timeWindow: '1 minute' } },
     },
     async (request, reply) => {
+      const allowedFields = new Set(['filePath', 'patchContent', 'testScript']);
+      const submittedFields = Object.keys(request.body ?? {});
+      if (submittedFields.some((field) => !allowedFields.has(field))) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Patch payload contains unsupported fields.',
+        });
+      }
+
       try {
         // Jarvis may propose a bounded GitHub PR; it must never mutate the live workspace.
         const result = await SelfPatchSkill.proposePullRequest(request.body);
