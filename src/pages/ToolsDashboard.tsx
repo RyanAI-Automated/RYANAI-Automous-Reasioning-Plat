@@ -33,7 +33,10 @@ export default function ToolsDashboard() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [refresh]);
 
   const filtered = useMemo(() => tools.filter((tool) => (tool.name + ' ' + (tool.description || '')).toLowerCase().includes(query.toLowerCase())), [tools, query]);
 
