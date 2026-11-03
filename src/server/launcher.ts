@@ -13,7 +13,10 @@ import fastifyCors from '@fastify/cors';
 import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
-import { databaseFailureDiagnostic } from './startupDiagnostics.js';
+import {
+  databaseConnectionTarget,
+  databaseFailureDiagnostic,
+} from './startupDiagnostics.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
@@ -439,7 +442,7 @@ async function initializeDatabase() {
     return true;
   } catch (err) {
     console.error(
-      `✗ Database connection failed:`,
+      `✗ PostgreSQL startup check failed for ${databaseConnectionTarget(config.database.url)}:`,
       databaseFailureDiagnostic(err),
     );
     return false;
