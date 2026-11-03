@@ -6,9 +6,9 @@
 
 | Layer | Supported host | Contract |
 |---|---|---|
-| Browser web app | Vercel or Render Static Site | Build the Vite SPA to `dist`; set the public `VITE_API_BASE_URL` to the chosen persistent API's HTTPS origin. |
-| Persistent API | Render (primary Blueprint target) or Railway (alternate deployment target) | Run the Fastify server as a long-lived container from `Dockerfile.api`; bind `0.0.0.0` and the platform-provided port; expose `/health`. |
-| MCP HTTP | Render Blueprint service or Railway service | Run `mcp-server/Dockerfile`; require a unique `MCP_AUTH_TOKEN` of at least 32 characters and a narrow `MCP_ALLOWED_HOSTS` allowlist. |
+| Browser web app | Vercel (primary) | Build the Vite SPA to `dist`; set the public `VITE_API_BASE_URL` to the Render API's HTTPS origin. Render does not host a duplicate frontend service in the primary Blueprint. |
+| Persistent API | Render (primary); Railway (independent alternate) | Run the Fastify server as a long-lived container from `Dockerfile.api`; bind `0.0.0.0` and the platform-provided port; expose `/health`. |
+| MCP HTTP | Render (primary); Railway (independent alternate) | Run `mcp-server/Dockerfile`; require a unique `MCP_AUTH_TOKEN` of at least 32 characters and a narrow `MCP_ALLOWED_HOSTS` allowlist. |
 | Web proxy container | Docker Compose | Use the `web` target in `Dockerfile`; nginx proxies `/api` and `/ws` to the API service. |
 | Database | One authoritative PostgreSQL/pgvector service | Keep PostgreSQL as the durable source of truth. Do not create independent writable production databases on each host. |
 | Redis | One coordination/cache service | Use `noeviction`; do not store durable task state only in Redis. |
@@ -22,20 +22,20 @@ Do not run multiple writable API stacks against separate databases and present t
 - Install: `npm ci --legacy-peer-deps`.
 - Build: `npm run build:web`.
 - Output: `dist`.
-- Set `VITE_API_BASE_URL` to the selected persistent API's HTTPS origin in Vercel project settings.
+- Set `VITE_API_BASE_URL` to the Render API's HTTPS origin in Vercel project settings. Do not point the primary frontend at Railway unless an approved cutover is in progress.
 - Only browser-public values may use `VITE_*`. Never place provider keys, service-role keys, database URLs, JWT secrets, or MCP tokens in Vite variables.
 - The Vercel config includes SPA fallback rewrites. Vercel is used here for the web client, not as a replacement for the persistent Fastify API, MCP listener, or background workers.
 
 ## Render
 
-The root `render.yaml` defines static web, Docker API, Redis-compatible Key Value, and an authenticated MCP service in Oregon. Git auto-deploy is intentionally off; CI and an explicit operator action remain the release gates.
+The root `render.yaml` defines the Docker API, Redis-compatible Key Value, and an authenticated MCP service in Oregon. Vercel owns the browser frontend. Git auto-deploy is intentionally off; CI and an explicit operator action remain the release gates.
 
 Required operator-supplied values are intentionally unresolved in source:
 - API: `DATABASE_URL`, Supabase server credentials, model/provider credentials, and any enabled integrations.
 - MCP: `MCP_AUTH_TOKEN` (at least 32 characters).
 - Redis: provisioned Key Value connection is wired by Blueprint service reference.
 
-The MCP tool allowlist defaults to empty. Enable individual tools only after reviewing their risk and runtime requirements. The API health URL uses Render private networking.
+The MCP tool allowlist defaults to empty. Enable individual tools only after reviewing their risk and runtime requirements. The API health URL uses Render private networking on the same region/workspace. The API explicitly listens on port `10000`, and the MCP health probe targets that internal port.
 
 ## Railway
 
