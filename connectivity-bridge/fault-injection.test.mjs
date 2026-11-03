@@ -77,22 +77,6 @@ async function issueTicket(port) {
   assert.equal(response.status, 201);
   return (await response.json()).ticket;
 }
-function nextMessage(socket, predicate, timeout = 8000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Timed out waiting for bridge frame')); }, timeout);
-    const onMessage = (raw) => {
-      let value;
-      try { value = JSON.parse(raw.toString()); } catch { return; }
-      if (!predicate(value)) return;
-      cleanup();
-      resolve(value);
-    };
-    const onClose = () => { cleanup(); reject(new Error('Bridge socket closed before expected frame')); };
-    function cleanup() { clearTimeout(timer); socket.off('message', onMessage); socket.off('close', onClose); }
-    socket.on('message', onMessage);
-    socket.once('close', onClose);
-  });
-}
 function createMessageQueue(socket) {
   const buffered = [];
   const waiters = [];
@@ -224,14 +208,14 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
     await t.test('Redis AOF recovery restores unacknowledged events after Redis restart', async () => {
       await publish(bridgePort, 'redis-restart-key', { sequence: 3 });
       const before = await openSocket(bridgePort);
-      const unacked = await nextMessage(before.socket, (value) => value.type === 'event' && value.data.sequence === 3);
+      const unacked = await before.next( (value) => value.type === 'event' && value.data.sequence === 3);
       before.socket.close();
       await stop(redis);
       await delay(500);
       redis = startRedis(redisPort, directory);
       await waitFor(() => isReady(bridgePort), 25000);
       const after = await openSocket(bridgePort);
-      const replay = await nextMessage(after.socket, (value) => value.type === 'event' && value.id === unacked.id, 15000);
+      const replay = await after.next( (value) => value.type === 'event' && value.id === unacked.id, 15000);
       assert.equal(replay.data.sequence, 3);
       after.socket.close();
     });
@@ -239,7 +223,7 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
     await t.test('application heartbeat receives an acknowledgement', async () => {
       const opened = await openSocket(bridgePort);
       opened.socket.send(JSON.stringify({ type: 'heartbeat', nonce: 'heartbeat-test-1' }));
-      const ack = await nextMessage(opened.socket, (value) => value.type === 'heartbeat_ack');
+      const ack = await opened.next( (value) => value.type === 'heartbeat_ack');
       assert.equal(ack.nonce, 'heartbeat-test-1');
       opened.socket.close();
     });
