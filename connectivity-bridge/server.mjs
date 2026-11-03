@@ -189,6 +189,7 @@ sockets.on('connection', (ws) => {
         void pump();
       } catch (error) {
         send({ type: 'degraded', dependency: 'redis', retryable: true });
+        ws.close(1011, 'Redis unavailable during resume');
       }
       return;
     }
@@ -204,6 +205,7 @@ sockets.on('connection', (ws) => {
         send({ type: 'acknowledged', id: acknowledgedCursor });
       } catch {
         send({ type: 'degraded', dependency: 'redis', retryable: true });
+        ws.close(1011, 'Acknowledgement persistence failed');
       }
       return;
     }
@@ -242,8 +244,7 @@ sockets.on('connection', (ws) => {
         console.error('[connectivity-bridge] Stream reader degraded:', error.message);
         cursor = acknowledgedCursor;
         send({ type: 'degraded', dependency: 'redis', retryable: true });
-        await delay(1000);
-        if (!closed) void pump();
+        setTimeout(() => { if (!closed) void pump(); }, 1000);
       }
     } finally {
       reading = false;
