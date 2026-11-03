@@ -35,7 +35,7 @@ Redis Streams use approximate max-length retention. If the stored cursor predate
 
 The API and MCP processes independently POST authenticated heartbeats to \`/internal/adapters/api/heartbeat\` and \`/internal/adapters/mcp/heartbeat\`. Heartbeats expire after 45 seconds. A missing adapter is reported as \`unavailable\` without taking the bridge offline.
 
-Trusted server-side publishers may POST \`{userId,idempotencyKey,payload}\` to \`/internal/events\` with the adapter token. The helper in \`src/server/connectivityBridgeAdapter.ts\` is used by the API. The MCP process currently registers availability only; it must not publish user-scoped events without a verified user identity.
+Trusted server-side publishers may POST \`{userId,idempotencyKey,payload}\` to \`/internal/events\` with the API adapter token. The MCP token cannot publish events. The helper in \`src/server/connectivityBridgeAdapter.ts\` is used by the API. The MCP process currently registers availability only; it must not publish user-scoped events without a verified user identity.
 
 For a Vercel-hosted backend, set \`BRIDGE_INTERNAL_URL\` to the bridge's HTTPS origin and \`BRIDGE_ADAPTER_TOKEN\` in the backend's server-only environment. For the Docker Compose network, the internal URL is \`http://connectivity-bridge:8787\`. The browser uses same-origin \`/bridge\` through Nginx; set \`VITE_BRIDGE_BASE_URL\` only when the browser must connect to a separate public bridge origin.
 
