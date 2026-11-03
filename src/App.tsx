@@ -143,7 +143,7 @@ export default function App() {
           {destinations
             .filter(({ id }) =>
               user
-                ? id !== 'signin' && id !== 'signup'
+                ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
                 : id === 'landing' || id === 'signin' || id === 'signup',
             )
             .map(({ id, path, label, icon: Icon }) => (
@@ -221,7 +221,7 @@ export default function App() {
         ) : (
           <>
             {route === 'dashboard' && <DashboardPage />}
-            {route === 'comms' && <CommunicationsCenter />}
+            {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
             {route === 'cockpit' && (
               <>
                 <RyanAICockpit />
