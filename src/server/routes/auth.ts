@@ -109,7 +109,23 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get('/api/auth/verify', { preHandler: requireUser }, async (request) => ({ authenticated: true, user: request.authUser }));
+  fastify.get('/api/auth/verify', { preHandler: requireUser }, async (request) => {
+    if (request.authUser) {
+      try {
+        await fastify.prisma.jarvisAuditEvent.create({
+          data: {
+            actorId: request.authUser.id,
+            eventType: 'auth.session.verified',
+            resourceId: request.authUser.id,
+            details: { provider: 'supabase', owner: request.authUser.isOwner, role: request.authUser.role },
+          },
+        });
+      } catch (error) {
+        request.log.error({ err: error }, 'Could not persist authentication audit event');
+      }
+    }
+    return { authenticated: true, user: request.authUser };
+  });
 
   for (const path of ['/api/auth/login', '/api/auth/logout']) {
     fastify.post(path, async (_request, reply) => reply.code(410).send({ error: 'Use the application sign-in and sign-out controls.' }));
