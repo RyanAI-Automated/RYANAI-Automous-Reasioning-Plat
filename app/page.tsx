@@ -2,13 +2,16 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Cpu, Send, Trash2 } from 'lucide-react';
 import { executeAgentReasoning } from '../src/services/api';
 import { useLogStore } from '../store/useLogStore';
+import { useAuth } from '../src/hooks/useAuth';
+import { ConnectivityBridgeClient } from '../src/api/connectivityBridge';
 
 /** Dashboard-side operator workspace for API requests and live telemetry. */
 export default function RyanAIWorkspace() {
   const { logs, appendLog, clearLogs } = useLogStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [socketStatus, setSocketStatus] = useState<'CONNECTING' | 'CONNECTED' | 'OFFLINE'>('CONNECTING');
+  const [socketStatus, setSocketStatus] = useState<'CONNECTING' | 'CONNECTED' | 'DEGRADED' | 'OFFLINE'>('CONNECTING');
+  const { session } = useAuth();
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
