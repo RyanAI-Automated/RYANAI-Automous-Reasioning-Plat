@@ -1,3 +1,4 @@
+import { postgresClientOptions } from '../db/postgresTls.js';
 import { randomUUID } from 'node:crypto';
 import { Client } from 'pg';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -441,7 +442,7 @@ export function startAgentTaskWorker(options: { concurrency?: number; recoveryIn
   const concurrency = Math.max(1, Math.min(8, Math.trunc(options.concurrency ?? Number(process.env.RYANAI_AGENT_WORKER_CONCURRENCY || 2))));
   const recoveryIntervalMs = Math.max(10_000, options.recoveryIntervalMs ?? 30_000);
   const workerId = randomUUID();
-  const listener = new Client({ connectionString: process.env.DATABASE_URL });
+  const listener = new Client(postgresClientOptions(process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/ryanai'));
   let stopped = false;
   let connected = false;
   let polling = false;
