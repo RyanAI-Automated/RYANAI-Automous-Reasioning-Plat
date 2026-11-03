@@ -106,9 +106,8 @@ httpServer.requestTimeout = 120_000;
 httpServer.headersTimeout = 10_000;
 httpServer.keepAliveTimeout = 5_000;
 
-startMcpBridgeHeartbeat();
-
 httpServer.listen(port, host, () => {
+  startMcpBridgeHeartbeat();
   console.error(`RyanAI MCP Manager listening at http://${host}:${port}/mcp`);
 });
 
