@@ -12,12 +12,13 @@ const port = Number(process.env.BRIDGE_PORT || 8787);
 const ticketTtl = Number(process.env.BRIDGE_TICKET_TTL_SECONDS || 30);
 const streamMaxLength = Number(process.env.BRIDGE_STREAM_MAX_LENGTH || 10000);
 const maxPayload = 256 * 1024;
-const adapterToken = process.env.BRIDGE_ADAPTER_TOKEN || '';
+const apiAdapterToken = process.env.BRIDGE_API_ADAPTER_TOKEN || '';
+const mcpAdapterToken = process.env.BRIDGE_MCP_ADAPTER_TOKEN || '';
 const origins = new Set((process.env.CORS_ORIGINS || '').split(',').map((v) => v.trim()).filter(Boolean));
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('BRIDGE_PORT must be a valid TCP port.');
 if (!Number.isInteger(ticketTtl) || ticketTtl < 5 || ticketTtl > 120) throw new Error('BRIDGE_TICKET_TTL_SECONDS must be between 5 and 120.');
 if (!Number.isInteger(streamMaxLength) || streamMaxLength < 100) throw new Error('BRIDGE_STREAM_MAX_LENGTH must be at least 100.');
-if (adapterToken && adapterToken.length < 32) throw new Error('BRIDGE_ADAPTER_TOKEN must contain at least 32 characters.');
+if ((apiAdapterToken && apiAdapterToken.length < 32) || (mcpAdapterToken && mcpAdapterToken.length < 32)) throw new Error('Bridge adapter tokens must each contain at least 32 characters.');
 
 const redis = createClient({
   url: process.env.REDIS_URL,
@@ -113,9 +114,9 @@ const server = createServer(async (request, response) => {
       return sendJson(response, 503, { error: 'Could not issue a connection ticket. Retry shortly.' });
     }
   }
-  if (url.pathname.startsWith('/internal/') && !adapterToken) return sendJson(response, 503, { error: 'Bridge adapter authentication is not configured.' });
-  if (url.pathname.startsWith('/internal/') && !safeEqual(getBearer(request), adapterToken)) return sendJson(response, 401, { error: 'Unauthorized.' });
   if (url.pathname === '/internal/events' && request.method === 'POST') {
+    if (!apiAdapterToken) return sendJson(response, 503, { error: 'API event publishing is not configured.' });
+    if (!safeEqual(getBearer(request), apiAdapterToken)) return sendJson(response, 401, { error: 'Unauthorized.' });
     try {
       const body = await readJson(request);
       const cursor = await publishUserEvent(redis, {
@@ -135,6 +136,9 @@ const server = createServer(async (request, response) => {
   if (url.pathname.startsWith('/internal/adapters/') && url.pathname.endsWith('/heartbeat') && request.method === 'POST') {
     const name = url.pathname.split('/')[3];
     if (!['api', 'mcp'].includes(name)) return sendJson(response, 400, { error: 'Unknown adapter.' });
+    const expectedToken = name === 'api' ? apiAdapterToken : mcpAdapterToken;
+    if (!expectedToken) return sendJson(response, 503, { error: name.toUpperCase() + ' adapter is not configured.' });
+    if (!safeEqual(getBearer(request), expectedToken)) return sendJson(response, 401, { error: 'Unauthorized.' });
     try {
       await redis.set('ryanai:connectivity:adapter:' + name, JSON.stringify({ status: 'ready', checkedAt: Date.now() }), { EX: 45 });
       return sendJson(response, 200, { accepted: true, adapter: name });
