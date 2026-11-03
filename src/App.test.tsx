@@ -70,7 +70,7 @@ async function mount(hash: string) {
 }
 
 describe('application authentication boundary', () => {
-  it.each(['dashboard', 'cockpit', 'workspace'])(
+  it.each(['dashboard', 'cockpit', 'workspace', 'admin'])(
     'blocks anonymous direct access to %s',
     async (route) => {
       await mount(`/${route}`);
