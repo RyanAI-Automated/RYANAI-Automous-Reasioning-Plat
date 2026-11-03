@@ -15,23 +15,21 @@ the project's Supabase PostgreSQL database and session pooler.
 
 ## Render outbound CIDRs
 
-The operator supplied these IPv4 ranges for the Render API service:
+The two IPv4 outbound CIDRs supplied for the **Render `ryanai-api` service in Oregon** are:
 
 ```text
 74.220.48.0/24
 74.220.56.0/24
 ```
 
-Before applying them, verify that the same two ranges are shown for
-`ryanai-api` in Render Dashboard → service → Connect → Outbound. Render's
-published guidance says outbound ranges vary by service region and are shared
-by services in the same region; the Connect → Outbound view for the individual
-service is the authoritative current list:
-https://render.com/docs/outbound-ip-addresses
+These are the API service's **outbound source ranges**. Render assigns regional
+outbound ranges to services; they are used when the API connects to external
+IP-restricted destinations. They do not need to be configured as inbound rules
+on the Render service and must not be placed in `DATABASE_URL`.
 
-These are **outbound source ranges** for connections initiated by the API.
-They are not inbound IP restrictions for the Render API and are not part of
-`DATABASE_URL`.
+Render documents the service-specific location as Dashboard → `ryanai-api` →
+Connect → Outbound:
+https://render.com/docs/outbound-ip-addresses
 
 ## Supabase network restriction steps
 
