@@ -128,15 +128,20 @@ jobs:
           docker compose --project-name mcpjungle-negative --env-file "$negative_env" --profile mcp-gateway up -d mcpjungle-db
           for attempt in $(seq 1 30); do
             state="$(docker inspect --format '{{.State.Status}}' ryanai-mcpjungle-db 2>/dev/null || true)"
-            if [ "$state" = "exited" ]; then break; fi
+            if [ "$state" = "exited" ] || [ "$state" = "restarting" ]; then break; fi
             sleep 1
           done
           state="$(docker inspect --format '{{.State.Status}}' ryanai-mcpjungle-db)"
-          if [ "$state" != "exited" ]; then
-            echo "Expected MCPJungle Postgres to exit when its password is unset; state=$state"
+          if [ "$state" != "exited" ] && [ "$state" != "restarting" ]; then
+            echo "Expected MCPJungle Postgres to fail closed when its password is unset; state=$state"
+            docker logs ryanai-mcpjungle-db 2>&1 || true
             exit 1
           fi
-          docker logs ryanai-mcpjungle-db 2>&1 | grep -qi 'superuser password is not specified'
+          if ! docker logs ryanai-mcpjungle-db 2>&1 | grep -qi 'superuser password is not specified'; then
+            echo "MCPJungle Postgres did not report the expected missing-password error"
+            docker logs ryanai-mcpjungle-db 2>&1 || true
+            exit 1
+          fi
           echo "PASS: gateway database refuses to initialize without a password"
       - name: Run isolated Enterprise gateway authentication and ACL tests
         shell: bash
