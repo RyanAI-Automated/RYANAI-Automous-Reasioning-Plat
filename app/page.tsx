@@ -15,6 +15,10 @@ export default function RyanAIWorkspace() {
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  useEffect(() => {
     if (!session?.access_token) {
       setSocketStatus('OFFLINE');
       return;
@@ -25,7 +29,12 @@ export default function RyanAIWorkspace() {
         const message = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
         appendLog('AGENT', message);
       },
-      onState: (state) => setSocketStatus(state === 'closed' ? 'OFFLINE' : state.toUpperCase() as 'CONNECTING' | 'CONNECTED' | 'DEGRADED'),
+      onState: (state) => {
+        if (state === 'closed') setSocketStatus('OFFLINE');
+        else if (state === 'connected') setSocketStatus('CONNECTED');
+        else if (state === 'degraded') setSocketStatus('DEGRADED');
+        else setSocketStatus('CONNECTING');
+      },
     });
     client.connect();
     return () => client.disconnect();
