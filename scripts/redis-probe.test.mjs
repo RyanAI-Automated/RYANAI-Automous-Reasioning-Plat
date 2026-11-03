@@ -15,7 +15,7 @@ test('Redis TLS probe sends exactly one PING after the secure handshake', async 
     execFileSync('openssl', [
       'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
       '-keyout', keyPath, '-out', certPath, '-days', '1',
-      '-subj', '/CN=localhost',
+      '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
     ], { stdio: 'ignore' });
 
     let requestCount = 0;
@@ -32,14 +32,14 @@ test('Redis TLS probe sends exactly one PING after the secure handshake', async 
 
     await new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(0, '127.0.0.1', resolve);
+      server.listen(0, 'localhost', resolve);
     });
     try {
       const address = server.address();
       assert.ok(address && typeof address !== 'string');
-      await redisPing(`rediss://127.0.0.1:${address.port}`, {
+      await redisPing(`rediss://localhost:${address.port}`, {
         timeoutMs: 3000,
-        tls: { rejectUnauthorized: false },
+        tls: { ca: readFileSync(certPath) },
       });
       assert.equal(requestCount, 1, 'TLS handshake must trigger exactly one RESP request');
     } finally {
