@@ -38,7 +38,7 @@ This README describes the current repository implementation and its intended loc
 
 ## Current implementation status
 
-**Checkpoint: 2 November 2026.** RyanAI is actively being developed. This section separates code that exists from capabilities that are still planned or awaiting end-to-end evidence.
+**Checkpoint: 3 November 2026 · `main` at `a0c42b65f4f1`.** RyanAI is actively being developed. The merged PRs establish useful foundations; they do not by themselves certify end-to-end operation or production readiness. This section separates code that exists from capabilities that are still awaiting independent validation.
 
 ### Available foundations
 
@@ -51,6 +51,20 @@ This README describes the current repository implementation and its intended loc
 - GitHub pull-request proposal flow for reviewed code changes.
 
 The presence of a client, route, schema, worker profile, or configuration entry does not by itself prove that the corresponding external service is connected or operational. Provider authentication, queue execution, recovery, and hosted-service health must be tested independently.
+
+### Governed engineering evidence workbench
+
+The merged engineering evidence workbench adds a governed record for engineering jobs. Its current foundations include:
+
+- New workbench jobs begin pending approval and are excluded from the worker claim path until separately approved.
+- Approval is bound to the recorded plan digest, base commit SHA, and proposed diff digest; the worker revalidates those bindings before claim.
+- Plan steering invalidates the previous approval. Rejection and cancellation are recorded, and running cancellation is observed through the worker lease heartbeat.
+- Execution events are appended to a per-job SHA-256 hash-chained evidence ledger. Evidence integrity can be checked and a JSON evidence bundle can be retrieved.
+- Evaluation and assurance receipts have separate author/approver/evaluator/reviewer identity constraints.
+
+**Important limits:** the existing worker is a durable reasoning worker, not yet a general-purpose isolated CLI coding executor. The workbench does not independently fetch a Git commit and diff from GitHub to prove their provenance. Check receipts submitted through the API are currently labelled `human-reported`; trusted GitHub Actions ingestion and signature/provenance verification are not yet implemented. A SHA-256 digest detects changes but is not a digital signature. The additive database migration has not been applied to production.
+
+The syntax correction for the workbench prompt construction was merged in PR #708. PR #707 remains unmerged because its branch cannot currently be cleanly merged; do not treat it as an accepted implementation or force it into `main`. Validate the merged correction with completed checks against the current commit before declaring the failure resolved.
 
 ### Worker execution status
 
@@ -76,6 +90,8 @@ Until these end-to-end acceptance tests pass, treat Studio as work in progress. 
 ### Security boundaries for coding workers
 
 Coding workers must run in isolated disposable environments with explicit CPU, memory, disk, process, and time limits. They must not inherit production credentials, mount a developer's home directory or production data, or receive unrestricted network access. Validate paths and commands at the execution boundary, redact secrets from logs, and keep code changes on reviewable branches. Human review and required CI/security checks remain mandatory; workers must not merge or deploy their own changes.
+
+The current repository checkpoint is a source-control checkpoint, not a live-service acceptance report. In particular, no claim is made here that all three model providers authenticate, that all queued jobs execute continuously, or that the web/API/MCP deployment is healthy.
 
 ### Release and verification status
 
