@@ -452,7 +452,7 @@ model ReasoningCache {
 
 model AgentMemory {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId String    @db.VarChar(255)
+  sessionId String    @map("session_id") @db.VarChar(255)
   role      String    @db.VarChar(50)
   content   String    @db.Text
   timestamp DateTime? @default(now()) @db.Timestamptz(6)
