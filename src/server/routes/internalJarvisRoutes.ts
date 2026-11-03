@@ -2,11 +2,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import { dispatchJarvisTask, listAgentRuns } from '../../agent/operations.js';
 import { authorizeJarvisCapability, getJarvisAgentRegistry, type JarvisCapability } from '../../agent/jarvisRegistry.js';
 import { prisma } from '../../lib/prisma.js';
+import { hasAdminAccess } from './auth.js';
 
 interface CreateTaskBody { objective: string; }
 
-function isAdmin(request: { authUser?: { id: string; role?: string } | null }) {
-  return Boolean(request.authUser && request.authUser.role === 'admin');
+function isAdmin(request: { authUser?: { role?: 'user' | 'admin'; isOwner?: boolean } | null }) {
+  return hasAdminAccess(request.authUser);
 }
 
 /** Internal Jarvis control-plane API. All writes are audited; privileged tools are never exposed here. */
