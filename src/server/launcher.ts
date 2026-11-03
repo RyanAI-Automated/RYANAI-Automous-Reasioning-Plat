@@ -23,7 +23,6 @@ import { API_ROUTES } from '../config/core.js';
 import { invokeReasoningAgent } from '../agent/invoke.js';
 import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
-import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
@@ -189,11 +188,6 @@ function registerCoreRoutes() {
   if ((API_ROUTES.healthPath as string) !== '/api/health') {
     fastify.get('/api/health', healthCheck);
   }
-
-  // Sentry integration test route
-  fastify.get('/debug-sentry', async () => {
-    throw new Error('RyanAI Sentry Integration Test Exception!');
-  });
 
   // Root
   fastify.get('/', async () => {
@@ -371,26 +365,6 @@ function registerCoreRoutes() {
     }
   });
 
-  // This legacy route previously echoed a requested tool/action and returned
-  // success without executing anything. Fail explicitly instead of reporting a
-  // false success; real MCP calls belong on the dedicated Streamable HTTP server.
-  fastify.post<{
-    Body: { action?: string; tool?: string; payload?: Record<string, unknown> };
-  }>('/api/mcp', async (request, reply) => {
-    const { action, tool } = request.body || {};
-
-    if (!action && !tool) {
-      return reply
-        .code(400)
-        .send({ success: false, error: 'Missing action or tool parameter' });
-    }
-
-    return reply.code(501).send({
-      success: false,
-      error: 'MCP tool execution is not available through this legacy API route. Use the dedicated Streamable HTTP MCP service at /mcp.',
-    });
-  });
-
   // System info
   fastify.get('/api/system', async () => {
     return {
@@ -482,9 +456,6 @@ async function registerPlugins() {
     timeWindow: '1 minute',
     redis: fastify.redis,
   });
-
-  // 2. Register WebSocket routes after rate-limiting and redis are fully decorated
-  await registerWebSocketRoutes(fastify);
 
   registerCoreRoutes();
 
