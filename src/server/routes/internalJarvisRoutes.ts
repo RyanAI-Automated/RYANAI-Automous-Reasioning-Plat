@@ -68,7 +68,16 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/jarvis/internal/tasks', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
     if (!isAdmin(request)) return reply.code(403).send({ error: 'Administrator access is required.' });
-    return { tasks: await listAgentRuns(request.authUser.id) };
+    const tasks = await prisma.agentRun.findMany({
+      where: { userId: request.authUser.id },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+      include: {
+        handoffs: { orderBy: { startedAt: 'asc' } },
+        evidence: { orderBy: { sequence: 'asc' } },
+      },
+    });
+    return { tasks };
   });
 
   // Scoped machine ingress: read and comment only. Worker claims and status transitions remain server-owned.
