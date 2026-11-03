@@ -42,8 +42,9 @@ WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    PUPPETEER_SKIP_DOWNLOAD=true
-RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    BACKUP_ON_STARTUP=false
+RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget postgresql-client \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
@@ -56,12 +57,13 @@ COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
+COPY --chown=node:node scripts/backup-on-startup.mjs ./scripts/backup-on-startup.mjs
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "dist/server/server/launcher.js"]
+CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]
 
 # Build-time Vite configuration contains public browser values only.
 FROM node:24-alpine AS web-builder

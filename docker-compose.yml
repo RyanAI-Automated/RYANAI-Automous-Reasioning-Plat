@@ -122,6 +122,37 @@ services:
       JARVIS_HEALTH_PATH: ${JARVIS_HEALTH_PATH:-/health}
       JARVIS_PATCH_PATH: ${JARVIS_PATCH_PATH:-/api/v1/patches}
       JARVIS_STACK_PATH: ${JARVIS_STACK_PATH:-/api/v1/stacks}
+      # Optional startup backup; disabled by default and non-blocking when enabled.
+      BACKUP_ON_STARTUP: "${BACKUP_ON_STARTUP:-false}"
+      SUPABASE_BACKUP_BUCKET: "${SUPABASE_BACKUP_BUCKET:-}"
+      RYANAI_BACKUP_STORAGE_BUCKETS: "${RYANAI_BACKUP_STORAGE_BUCKETS:-}"
+      # Twilio communications (credentials and exact webhook URLs are API-only).
+      TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID:-}"
+      TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN:-}"
+      TWILIO_PHONE_NUMBER: "${TWILIO_PHONE_NUMBER:-}"
+      TWILIO_WHATSAPP_NUMBER: "${TWILIO_WHATSAPP_NUMBER:-}"
+      TWILIO_WHATSAPP_CONTENT_SID: "${TWILIO_WHATSAPP_CONTENT_SID:-}"
+      TWILIO_WHATSAPP_WEBHOOK_URL: "${TWILIO_WHATSAPP_WEBHOOK_URL:-}"
+      TWILIO_SMS_WEBHOOK_URL: "${TWILIO_SMS_WEBHOOK_URL:-}"
+      TWILIO_VOICE_WEBHOOK_URL: "${TWILIO_VOICE_WEBHOOK_URL:-}"
+      TWILIO_VOICE_ACTION_URL: "${TWILIO_VOICE_ACTION_URL:-}"
+      TWILIO_STATUS_WEBHOOK_URL: "${TWILIO_STATUS_WEBHOOK_URL:-}"
+      TWILIO_STATUS_CALLBACK_URL: "${TWILIO_STATUS_CALLBACK_URL:-}"
+      RYANAI_TWILIO_VOICE: "${RYANAI_TWILIO_VOICE:-}"
+      # SMTP outbound email and Resend inbound email.
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      RESEND_API_KEY: "${RESEND_API_KEY:-}"
+      RESEND_WEBHOOK_SECRET: "${RESEND_WEBHOOK_SECRET:-}"
+      # Owner-specific destinations are private deployment settings, not frontend values.
+      RYANAI_OWNER_TITLE: "${RYANAI_OWNER_TITLE:-Sir G}"
+      RYANAI_OWNER_LANGUAGE: "${RYANAI_OWNER_LANGUAGE:-ve-ZA}"
+      RYANAI_OWNER_PHONE: "${RYANAI_OWNER_PHONE:-}"
+      RYANAI_OWNER_EMAIL: "${RYANAI_OWNER_EMAIL:-}"
     networks: [ryanai-net]
     depends_on:
       postgres:
