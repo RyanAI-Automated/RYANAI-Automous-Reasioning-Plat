@@ -22,7 +22,8 @@ const hasTaskBoardBridge = (() => {
   if (!taskApiBaseUrl || taskApiToken.length < 32) return false;
   try {
     const url = new URL(taskApiBaseUrl);
-    return url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1', 'api'].includes(url.hostname));
+    const safeOrigin = !url.username && !url.password && !url.search && !url.hash && (url.pathname === '/' || url.pathname === '');
+    return safeOrigin && (url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1', 'api'].includes(url.hostname)));
   } catch {
     return false;
   }
@@ -62,7 +63,7 @@ export function createMcpServer() {
     ...(hasTaskBoardBridge ? [
       {
         name: 'agent_tasks_list',
-        description: 'Read RyanAI tasks assigned to this configured agent identity. Task ownership and authorization are enforced by the API.',
+        description: 'Read tasks belonging to the owner configured for this agent runtime. The API limits returned fields and enforces owner isolation.',
         inputSchema: { type: 'object', properties: {} },
       },
       {
