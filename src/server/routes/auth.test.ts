@@ -81,6 +81,20 @@ afterEach(async () => {
 });
 
 describe('Supabase API authentication', () => {
+  it('retires local password endpoints without issuing a local session', async () => {
+    const app = await createApp();
+    for (const path of ['/api/auth/signin', '/api/auth/signup', '/api/auth/login', '/api/auth/logout']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: path,
+        payload: { email: 'member@example.test', password: 'not-a-real-password' },
+      });
+      expect(response.statusCode).toBe(410);
+      expect(response.json()).not.toHaveProperty('token');
+    }
+  });
+
+
   it.each([undefined, 'Basic password', 'Bearer', 'Bearer token extra'])(
     'rejects missing or malformed bearer credentials: %s',
     async (authorization) => {
