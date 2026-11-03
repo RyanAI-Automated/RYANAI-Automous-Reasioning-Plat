@@ -92,7 +92,9 @@ RUN apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0'
 ENV PORT=80 \
     API_HOST=api \
-    API_PORT=3000
+    API_PORT=3000 \
+    BRIDGE_HOST=bridge \
+    BRIDGE_PORT=8787
 COPY --from=web-builder /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/ryanai-web-entrypoint.sh

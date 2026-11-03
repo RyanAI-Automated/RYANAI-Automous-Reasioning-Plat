@@ -6,7 +6,9 @@ set -eu
 : "${PORT:=80}"
 : "${API_HOST:=api}"
 : "${API_PORT:=3000}"
-export PORT API_HOST API_PORT
+: "${BRIDGE_HOST:=bridge}"
+: "${BRIDGE_PORT:=8787}"
+export PORT API_HOST API_PORT BRIDGE_HOST BRIDGE_PORT
 
 validate_port() {
   name="$1"
@@ -25,6 +27,14 @@ validate_port() {
 
 validate_port PORT "$PORT"
 validate_port API_PORT "$API_PORT"
+validate_port BRIDGE_PORT "$BRIDGE_PORT"
+
+case "$BRIDGE_HOST" in
+  ""|*[!A-Za-z0-9._-]*)
+    echo "Invalid BRIDGE_HOST: use a DNS name, IPv4 address, or service name" >&2
+    exit 64
+    ;;
+esac
 
 case "$API_HOST" in
   ""|*[!A-Za-z0-9._-]*)
@@ -47,7 +57,7 @@ fi
 umask 077
 temporary_output="$(mktemp "${output}.XXXXXX")"
 trap 'rm -f "$temporary_output"' EXIT HUP INT TERM
-envsubst '${PORT} ${API_HOST} ${API_PORT}' < "$template" > "$temporary_output"
+envsubst '${PORT} ${API_HOST} ${API_PORT} ${BRIDGE_HOST} ${BRIDGE_PORT}' < "$template" > "$temporary_output"
 mv "$temporary_output" "$output"
 trap - EXIT HUP INT TERM
 

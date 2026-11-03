@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // Load local configuration before tracing and application imports.
 import '../loadEnv.js';
 
@@ -24,6 +25,8 @@ import { invokeReasoningAgent } from '../agent/invoke.js';
 import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
+import { ConnectivityBridgeAdapter } from './connectivityBridgeAdapter.js';
+import { bridgeTicketRoutes } from '../bridge/routes.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
@@ -46,6 +49,16 @@ import { startAttachmentScanner } from './attachments/scanner.js';
 import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 
 const { Pool } = pg;
+const bridgeAdapter = new ConnectivityBridgeAdapter();
+let bridgeHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
+let lastBridgeHeartbeatState: boolean | undefined;
+async function refreshBridgeHeartbeat() {
+  const ready = await bridgeAdapter.heartbeat();
+  if (ready !== lastBridgeHeartbeatState) {
+    lastBridgeHeartbeatState = ready;
+    fastify.log[ready ? 'info' : 'warn'](ready ? 'Connectivity bridge registered API adapter.' : 'Connectivity bridge API adapter is unavailable.');
+  }
+}
 
 console.log('🚀 RyanAI Platform Initialization');
 console.log('==================================\n');
@@ -217,7 +230,16 @@ function registerCoreRoutes() {
     language?: string,
     onProgress?: (event: AgentRunProgressEvent) => void,
   ) {
-    const result = await invokeReasoningAgent({ prompt, model, user, language, onProgress });
+    const publishProgress = (event: AgentRunProgressEvent) => {
+      onProgress?.(event);
+      const idempotencyKey = createHash('sha256').update(JSON.stringify(event)).digest('hex');
+      if (user?.id) {
+        void bridgeAdapter.publish(user.id, idempotencyKey, { type: 'agent.progress', ...event }).then((accepted) => {
+          if (!accepted) fastify.log.warn('Connectivity bridge did not accept an API progress event; API reasoning continues independently.');
+        });
+      }
+    };
+    const result = await invokeReasoningAgent({ prompt, model, user, language, onProgress: publishProgress });
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
@@ -490,6 +512,7 @@ async function registerPlugins() {
 
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
+  await fastify.register(bridgeTicketRoutes);
   await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
@@ -544,6 +567,12 @@ async function start() {
     await fastify.listen({ port: config.port, host: config.host });
 
     serviceStatus.api = true;
+    if (bridgeAdapter.configured) {
+      await refreshBridgeHeartbeat();
+      bridgeHeartbeatTimer = setInterval(() => void refreshBridgeHeartbeat(), 15000);
+    } else {
+      fastify.log.warn('Connectivity bridge adapter is not configured; bridge capability remains unavailable.');
+    }
 
     console.log(`\n✓ RyanAI API Gateway is running!`);
     console.log(`\n📍 Endpoints:`);
@@ -596,6 +625,7 @@ const shutdown = async () => {
   stopAttachmentScanner?.();
   stopAttachmentOrphanCleanup?.();
   stopAlerts?.();
+  if (bridgeHeartbeatTimer) clearInterval(bridgeHeartbeatTimer);
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
   await fastify.close();

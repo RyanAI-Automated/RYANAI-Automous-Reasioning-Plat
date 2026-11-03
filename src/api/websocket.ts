@@ -2,7 +2,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
-import { WebSocketMessage, AuthContext, ReasoningRequest } from '../shared/types.js';
+import { WebSocketMessage, AuthContext } from '../shared/types.js';
 import { createLogger } from '../shared/logger.js';
 import { requireAdmin } from '../server/routes/auth.js';
 
@@ -145,8 +145,10 @@ async function handleMessage(context: ConnectionContext, message: WebSocketMessa
         if (channel === 'auth.verify') {
           response.data = { authenticated: !!context.auth, userId: context.auth?.userId };
         } else if (channel === 'reasoning.start') {
-          handleReasoningRequest(context, data as ReasoningRequest);
-          response.data = { queued: true, sessionId: (data as ReasoningRequest).sessionId };
+          response.error = {
+            code: 'LEGACY_STREAM_RETIRED',
+            message: 'Simulated reasoning progress is disabled. Submit work through the authenticated reasoning API and receive persisted progress through the connectivity bridge.',
+          };
         } else if (channel === 'subscribe') {
           if (!data || typeof data !== 'object' || !('channel' in data) || typeof data.channel !== 'string') {
             throw new Error('A subscription channel is required');
@@ -177,35 +179,6 @@ async function handleMessage(context: ConnectionContext, message: WebSocketMessa
   }
 
   sendMessage(context.ws, response);
-}
-
-function handleReasoningRequest(context: ConnectionContext, request: ReasoningRequest) {
-  // Simulate streaming response
-  const { sessionId } = request;
-
-  // Send progress events
-  ['Parsing context...', 'Initializing LangGraph...', 'Processing...', 'Complete'].forEach(
-    (msg, idx) => {
-      setTimeout(() => {
-        const event: WebSocketMessage = {
-          id: uuid(),
-          type: 'stream',
-          channel: 'reasoning.stream',
-          data: {
-            type: msg === 'Complete' ? 'complete' : 'progress',
-            progress: ((idx + 1) / 4) * 100,
-            message: msg,
-            sessionId,
-          },
-          timestamp: Date.now(),
-        };
-
-        if (context.ws.readyState === context.ws.OPEN) {
-          sendMessage(context.ws, event);
-        }
-      }, idx * 400);
-    }
-  );
 }
 
 export function broadcast(channel: string, data: unknown) {

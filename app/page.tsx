@@ -1,35 +1,31 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, Cpu, Send, Trash2 } from 'lucide-react';
 import { executeAgentReasoning } from '../src/services/api';
 import { useLogStore } from '../store/useLogStore';
+import { useAuth } from '../src/hooks/useAuth';
+import { requestBridgeTicket } from '../src/bridge/client';
+import { useBridgeSocket } from '../src/bridge/useBridgeSocket';
+
+const BRIDGE_TOPICS = ['telemetry', 'logs', 'tasks', 'agent.status', 'notifications'];
 
 /** Dashboard-side operator workspace for API requests and live telemetry. */
 export default function RyanAIWorkspace() {
   const { logs, appendLog, clearLogs } = useLogStore();
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [socketStatus, setSocketStatus] = useState<'CONNECTING' | 'CONNECTED' | 'OFFLINE'>('CONNECTING');
+  const { session } = useAuth();
+  const getTicket = useCallback(() => requestBridgeTicket(async () => session?.access_token ?? null), [session?.access_token]);
+  const handleBridgeEvent = useCallback((event: { topic: string; payload: unknown }) => {
+    appendLog('AGENT', `[${event.topic}] ${typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload)}`);
+  }, [appendLog]);
+  const { state: socketStatus } = useBridgeSocket({ topics: BRIDGE_TOPICS, getTicket, onEvent: handleBridgeEvent, enabled: Boolean(session) });
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  useEffect(() => {
-    const configuredUrl = import.meta.env.VITE_TELEMETRY_WSS?.trim() || import.meta.env.VITE_WS_URL?.trim();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(configuredUrl || `${protocol}//${window.location.host}/ws`);
 
-    socket.onopen = () => {
-      setSocketStatus('CONNECTED');
-      appendLog('SYSTEM', 'Telemetry connection established.');
-    };
-    socket.onmessage = (event) => appendLog('AGENT', String(event.data));
-    socket.onerror = () => setSocketStatus('OFFLINE');
-    socket.onclose = () => setSocketStatus('OFFLINE');
-
-    return () => socket.close();
-  }, [appendLog]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,7 +60,7 @@ export default function RyanAIWorkspace() {
             <Trash2 className="inline h-4 w-4" /> Clear logs
           </button>
           <span aria-live="polite">
-            <Activity className="inline h-4 w-4" /> {socketStatus}
+            <Activity className="inline h-4 w-4" /> {socketStatus.toUpperCase()}
           </span>
         </div>
       </header>
