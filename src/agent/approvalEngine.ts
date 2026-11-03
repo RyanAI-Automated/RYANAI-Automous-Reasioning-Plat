@@ -3,13 +3,15 @@ import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { commsTools } from './tools/commsTools.js';
 import { sendWhatsAppTool } from './tools/whatsappTool.js';
 import { createChatModel } from '../config/llm.js';
+import { resolveDatabaseConnectionUrl } from '../server/databaseConnection.js';
 
 const llm = createChatModel();
 
 // Initialize PostgresSaver checkpointer using database connection string
-const databaseUrl =
-  process.env.DATABASE_URL ||
-  'postgresql://postgres:postgres@localhost:5432/ryanai';
+const databaseUrl = resolveDatabaseConnectionUrl(
+  process.env.NODE_ENV ?? 'development',
+  process.env.DATABASE_URL,
+);
 
 export const checkpointer = PostgresSaver.fromConnString(databaseUrl);
 
