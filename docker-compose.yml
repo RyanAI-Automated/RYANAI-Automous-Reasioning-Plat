@@ -39,6 +39,8 @@ services:
       - "yes"
       - --requirepass
       - ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      - --maxmemory-policy
+      - noeviction
     networks: [ryanai-net]
     ports:
       - "127.0.0.1:6379:6379"
