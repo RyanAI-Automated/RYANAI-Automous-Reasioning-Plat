@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 type Handoff = {
@@ -40,6 +40,7 @@ const columns = [
   { id: 'running', title: 'Doing', description: 'A worker has claimed the task' },
   { id: 'completed', title: 'Completed', description: 'Execution ended; acceptance is separate' },
   { id: 'failed', title: 'Blocked', description: 'Execution failed and needs attention' },
+  { id: 'cancelled', title: 'Cancelled', description: 'Execution was cancelled' },
 ] as const;
 
 async function readError(response: Response): Promise<string> {
@@ -82,7 +83,7 @@ export default function AgentTaskBoard() {
     columns.map((column) => [column.id, tasks.filter((task) => task.status === column.id)]),
   ) as Record<(typeof columns)[number]['id'], AgentTask[]>, [tasks]);
 
-  async function createTask(event: React.FormEvent<HTMLFormElement>) {
+  async function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanObjective = objective.trim();
     if (cleanObjective.length < 5) return;
