@@ -1,18 +1,13 @@
 name: CI - Build, Test, and Integrate
 
 on:
-  push:
-    branches: [main, master, dev, develop]
-  pull_request:
-    branches: [main, master, dev, develop]
+  push: {}
+  pull_request: {}
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) && github.sha || 'shared' }}
-  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
 
 env:
   NODE_OPTIONS: --max-old-space-size=6144
