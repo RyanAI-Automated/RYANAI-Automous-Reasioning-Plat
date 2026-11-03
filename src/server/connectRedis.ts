@@ -74,6 +74,26 @@ function redisFailureHint(code?: string): string {
  * Bound initial readiness while retaining Redis reconnection after startup.
  * ioredis interprets rediss:// as TLS and redis:// as plain TCP.
  */
+/** Format a Redis failure using only a safe error code and non-secret endpoint metadata. */
+export function redisFailureDiagnostic(error: unknown, url: string): string {
+  let target: RedisConnectionTarget;
+  try {
+    target = inspectRedisConnectionUrl(url);
+  } catch {
+    return 'Redis configuration is invalid. Check REDIS_URL; credentials and raw errors are omitted.';
+  }
+  const code = safeRedisErrorCode(error);
+  return [
+    'Redis connection failed:',
+    code ? `code=${code}` : 'code=not-exposed',
+    redisFailureHint(code),
+    `endpoint=${target.protocol}//${target.host}:${target.port}`,
+    `TLS=${target.tls ? 'enabled' : 'disabled'}`,
+    `authentication=${target.authenticated ? 'configured' : 'not configured'}`,
+    'Credentials and raw error messages are omitted.',
+  ].join(' ');
+}
+
 export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis> {
   const target = inspectRedisConnectionUrl(url);
   const client = new Redis(url, { lazyConnect: true, connectTimeout: timeoutMs });
