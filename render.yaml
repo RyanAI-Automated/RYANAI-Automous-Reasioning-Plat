@@ -26,7 +26,6 @@ services:
         value: production
 
   - type: web
-- type: web
     name: ryanai-api
     env: docker
     repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
@@ -41,17 +40,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        fromService:
-          name: ryanai-redis
-          type: keyvalue
-          property: connectionString
-      - key: SUPABASE_URL
-        value: https://narsvpwymvlrhurqbthu.supabase.co
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: REDIS_URL
         fromService:
