@@ -22,6 +22,11 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
   const [loading, setLoading] = useState(false);
   const isSignup = mode === 'signup';
 
+  const handleCaptchaToken = (token: string | null) => {
+    setCaptchaToken(token);
+    if (token) setError('');
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase || loading) return;
@@ -144,7 +149,7 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
               </label>
             )}
             <SupabaseCaptcha
-              onToken={setCaptchaToken}
+              onToken={handleCaptchaToken}
               resetKey={captchaResetKey}
             />
             {error && (
