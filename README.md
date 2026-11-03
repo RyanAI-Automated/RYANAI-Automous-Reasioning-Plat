@@ -389,7 +389,25 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
 
-Never place a service-role key, provider secret, GitHub token, or signing secret in a `VITE_*` variable. Frontend variables are bundled into browser-delivered assets.
+Never place a service-role key, provider secret, GitHub token, or signing secret in a `VITE_*` variable. Frontend variables are bundled into browser-delivered assets. The separate [`env.frontend.example`](env.frontend.example) contains browser-public values only.
+
+### Communications variables
+
+| Variable group | Purpose / handling |
+| --- | --- |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Server-side Twilio credentials. |
+| `TWILIO_PHONE_NUMBER`, `TWILIO_WHATSAPP_NUMBER` | Configured SMS/voice and WhatsApp senders. |
+| `TWILIO_*_WEBHOOK_URL`, `TWILIO_VOICE_ACTION_URL` | Exact public HTTPS callback URLs registered with Twilio. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Outbound email transport. |
+| `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` | Inbound email Receiving and webhook verification. |
+| `RYANAI_OWNER_PHONE`, `RYANAI_OWNER_EMAIL` | Private owner identity/destination, API runtime only. |
+| `RYANAI_OWNER_TITLE`, `RYANAI_OWNER_LANGUAGE` | Owner salutation and language defaults. |
+
+Communications configuration presence is not proof of provider authentication or delivery. Keep all provider credentials and owner contact values in the API deployment secret store. Follow [`docs/communications-gateway.md`](docs/communications-gateway.md) for callback registration and staged verification.
+
+### Hosted database networking
+
+For the Render API to connect to Supabase PostgreSQL or its session pooler, the Supabase database network restrictions must allow the API service's current Render outbound CIDRs. Follow [`docs/render-supabase-networking.md`](docs/render-supabase-networking.md); verify the service-specific ranges in Render Connect → Outbound before adding them. This is a network allowlist, not a `DATABASE_URL` value.
 
 ### MCP variables
 
