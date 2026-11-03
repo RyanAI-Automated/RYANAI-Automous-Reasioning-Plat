@@ -155,6 +155,13 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
   try {
     await waitFor(() => isReady(bridgePort));
 
+    await t.test('invalid Supabase sessions cannot mint connection tickets', async () => {
+      const response = await fetch('http://127.0.0.1:' + bridgePort + '/v1/ticket', {
+        method: 'POST', headers: { authorization: 'Bearer invalid-session-token' },
+      });
+      assert.equal(response.status, 401);
+    });
+
     await t.test('API and MCP capability heartbeats degrade independently', async () => {
       let opened = await openSocket(bridgePort);
       assert.equal(opened.capabilities.api, 'unavailable');
