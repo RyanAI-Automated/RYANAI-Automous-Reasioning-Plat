@@ -6,6 +6,9 @@ import {
   MessageSquareText,
   Mail,
   Orbit,
+  Network,
+  ShieldCheck,
+  Layers3,
   LogIn,
   UserPlus,
   type LucideIcon,
@@ -15,11 +18,12 @@ import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 const RyanAICockpit = lazy(() => import('@/components/dashboard/RyanAICockpit'));
 const AgentControlPanel = lazy(() => import('@/components/AgentControlPanel').then((module) => ({ default: module.AgentControlPanel })));
-const BrainKnowledgePanel = lazy(() => import('@/components/BrainKnowledgePanel'));
-const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const BaseboardPage = lazy(() => import('@/pages/BaseboardPage'));
+const LLMSystemDashboard = lazy(() => import('@/pages/LLMSystemDashboard'));
+const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
@@ -57,6 +61,9 @@ const routeIcons: Record<Route, LucideIcon> = {
   cockpit: Cpu,
   workspace: MessageSquareText,
   comms: Mail,
+  baseboard: Layers3,
+  llm: Network,
+  admin: ShieldCheck,
 };
 
 const destinations = appManifest.routes.map((route) => ({
@@ -143,7 +150,7 @@ export default function App() {
           {destinations
             .filter(({ id }) =>
               user
-                ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
+                ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin || isOwner)
                 : id === 'landing' || id === 'signin' || id === 'signup',
             )
             .map(({ id, path, label, icon: Icon }) => (
@@ -221,16 +228,13 @@ export default function App() {
         ) : (
           <>
             {route === 'dashboard' && <DashboardPage />}
+            {route === 'baseboard' && <BaseboardPage />}
+            {route === 'llm' && <LLMSystemDashboard />}
+            {route === 'admin' && ((isAdmin || isOwner) ? <AdminDashboard /> : <p role="alert" className="p-8 text-sm text-rose-200">Verified owner or administrator access is required.</p>)}
             {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
             {route === 'cockpit' && (
               <>
                 <RyanAICockpit />
-                {isAdmin && (
-                  <>
-                    <BrainKnowledgePanel />
-                    <SelfPatchPanel />
-                  </>
-                )}
                 {isTauri() && <AgentControlPanel />}
               </>
             )}
