@@ -39,6 +39,32 @@ The routes pass the verified user in `configurable.userId` and `configurable.rol
 
 To make an administrator, set `app_metadata.role` to `admin` for that user in Supabase.
 
+### Owner administrator bootstrap
+
+The application uses Supabase Auth as its identity provider. Frontend admin navigation
+and backend administrator guards both trust the verified `app_metadata.role=admin`
+claim; the owner flag is stored in server-controlled `app_metadata.owner`. Never
+grant either claim from browser-editable `user_metadata`.
+
+To create or promote the single configured owner account, run the one-time
+`npm run auth:provision-owner-admin` script from a trusted operator workstation.
+It is hard-scoped to `rmnganyane@gmail.com` and alias `sirg`, requires
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`RYANAI_OWNER_BOOTSTRAP_PASSWORD`, and the explicit
+`RYANAI_OWNER_BOOTSTRAP_CONFIRM=CREATE_RYANAI_OWNER_ADMIN` confirmation.
+Use a newly generated password of at least 16 characters; do not reuse a password
+shared in chat, commit it, place it in frontend variables, or add it to deployment
+configuration. The service-role key and bootstrap password are read only from the
+operator's environment and are never logged. The script creates the user if absent,
+or updates the exact matching email if it already exists, then verifies the
+server-controlled admin and owner claims. Re-authenticate after provisioning so
+the refreshed JWT carries the new claims.
+
+This script is a manual privileged operation. It is not run by application startup,
+CI, deployment, or migrations. Keep the service-role key off the frontend and out
+of source control. Provisioning a hosted account is not considered complete until
+the operator runs the script and verifies a successful sign-in.
+
 ### Memory
 
 Every request starts with the user's saved notes (up to 20) as a system message, so the agent knows the user without a tool call. `src/agent/invoke.ts` adds the message. The message is removed from the API response. The notes are marked as data, not instructions.
