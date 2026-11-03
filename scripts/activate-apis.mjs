@@ -48,6 +48,15 @@ function present(config, key) {
   return typeof value === 'string' && value.trim().length > 0 && !PLACEHOLDER.test(value.trim());
 }
 
+export function validateStartOptions(flags, configuration) {
+  if (!flags.has('--allow-committed-migrations') || !flags.has('--confirm-database-backup')) {
+    throw new Error('Start is blocked. Review and back up the target database, then pass --allow-committed-migrations --confirm-database-backup. Compose starts the committed migrate service before the API.');
+  }
+  if (configuration.core.status !== 'configured') {
+    throw new Error('Core configuration is incomplete. Run preflight and fix the reported missing values first.');
+  }
+}
+
 export function configurationReport(config) {
   const core = Object.fromEntries(CORE_REQUIRED.map((key) => [key, present(config, key)]));
   if (present(config, 'MCP_AUTH_TOKEN') && config.MCP_AUTH_TOKEN.trim().length < 32) core.MCP_AUTH_TOKEN = false;
@@ -137,7 +146,7 @@ export async function verifyRuntime(config = process.env, options = {}) {
 }
 
 function print(value) {
-  process.stdout.write(`${JSON.stringify(value, null, 2)}\\n`);
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
@@ -157,12 +166,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   }
 
   if (command === 'start') {
-    if (!flags.has('--allow-committed-migrations') || !flags.has('--confirm-database-backup')) {
-      throw new Error('Start is blocked. Review and back up the target database, then pass --allow-committed-migrations --confirm-database-backup. Compose starts the committed migrate service before the API.');
-    }
-    if (configuration.core.status !== 'configured') {
-      throw new Error('Core configuration is incomplete. Run preflight and fix the reported missing values first.');
-    }
+    validateStartOptions(flags, configuration);
     compose(['config', '--quiet']);
     compose(['up', '--build', '--detach', '--wait', ...CORE_SERVICES]);
     print({ command, status: 'compose_start_completed', services: CORE_SERVICES, migrations: 'committed migrations were allowed by explicit operator acknowledgement' });
@@ -182,7 +186,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().then((code) => { process.exitCode = code; }).catch((error) => {
-    process.stderr.write(`Activation controller: ${error instanceof Error ? error.message : 'operation failed'}\\n`);
+    process.stderr.write(`Activation controller: ${error instanceof Error ? error.message : 'operation failed'}\n`);
     process.exitCode = 1;
   });
 }
