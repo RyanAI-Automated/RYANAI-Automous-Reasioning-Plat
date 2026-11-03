@@ -147,11 +147,6 @@ export function installAuthentication(fastify: FastifyInstance) {
       return;
     }
 
-    // Public auth signin route
-    if (request.method === 'POST' && path === '/api/auth/signin') {
-      return;
-    }
-
     // Retired legacy login/logout routes
     if (
       request.method === 'POST' &&
@@ -180,7 +175,7 @@ export function installAuthentication(fastify: FastifyInstance) {
 export const authPlugin: FastifyPluginAsync = async (fastify) => {
   // Local-password endpoints are retained only as explicit retirement responses.
 
-  // 2. Session verification route
+  // 1. Verified Supabase session route
   fastify.get(
     '/api/auth/verify',
     { preHandler: requireUser },
@@ -190,7 +185,7 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
     }),
   );
 
-  // 3. Retire legacy shared-password/cookie endpoints
+  // 2. Retire legacy local-password endpoints
   for (const path of ['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout']) {
     fastify.post(path, async (_request, reply) =>
       reply.code(410).send({
