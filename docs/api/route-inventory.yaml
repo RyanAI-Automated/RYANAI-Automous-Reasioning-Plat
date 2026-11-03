@@ -9,7 +9,6 @@ runtime:
 route_sources:
   - src/server/launcher.ts
   - src/server/routes/auth.ts
-  - src/api/auth/signin.ts
   - src/server/comms/index.ts
   - src/server/routes/approvalRoutes.ts
   - src/server/routes/engineeringEvidenceRoutes.ts
@@ -30,13 +29,21 @@ derived_routes:
     source: src/server/launcher.ts
     expression: API_ROUTES.streamPath
   - method: POST
+    path: /signin
+    source: src/server/routes/auth.ts
+    expression: "for (const path of ['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout'])"
+  - method: POST
+    path: /api/auth/signin
+    source: src/server/routes/auth.ts
+    expression: "for (const path of ['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout'])"
+  - method: POST
     path: /api/auth/login
     source: src/server/routes/auth.ts
-    expression: "for (const path of ['/api/auth/login', '/api/auth/logout'])"
+    expression: "for (const path of ['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout'])"
   - method: POST
     path: /api/auth/logout
     source: src/server/routes/auth.ts
-    expression: "for (const path of ['/api/auth/login', '/api/auth/logout'])"
+    expression: "for (const path of ['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout'])"
 routes:
   - method: GET
     path: "/"
@@ -88,10 +95,10 @@ routes:
     note: "System/process diagnostics; global guard requires admin."
   - method: POST
     path: "/api/auth/signin"
-    access: legacy-local-password
+    access: public-retired
     source: src/server/routes/auth.ts
-    lifecycle: legacy
-    note: "Local Prisma/bcrypt sign-in is not compatible with Supabase bearer verification; remove in auth compatibility PR."
+    lifecycle: retired
+    note: "Legacy local-password endpoint returns HTTP 410; use Supabase Auth in the browser."
   - method: GET
     path: "/api/auth/verify"
     access: supabase-user
@@ -112,10 +119,10 @@ routes:
     note: "Returns 410; client-side Supabase sign-out is authoritative."
   - method: POST
     path: "/signin"
-    access: admin-current-legacy
-    source: src/api/auth/signin.ts
-    lifecycle: legacy
-    note: "Second local Prisma/bcrypt sign-in route; the launcher's default guard currently requires admin even on this path. Remove in auth compatibility PR."
+    access: public-retired
+    source: src/server/routes/auth.ts
+    lifecycle: retired
+    note: "Legacy local-password route now returns HTTP 410; use Supabase Auth in the browser."
   - method: POST
     path: "/api/comms/send"
     access: owner-or-admin
