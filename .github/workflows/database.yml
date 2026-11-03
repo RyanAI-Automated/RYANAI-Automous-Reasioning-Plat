@@ -6,7 +6,7 @@ on:
     paths:
       - 'prisma/**'
       - 'src/db/**'
-      - 'tests/fixtures/supabase-auth-ci-*.sql'
+      - 'tests/fixtures/*-ci-*.sql'
       - 'Dockerfile'
       - 'docker-compose.yml'
       - '.github/workflows/database.yml'
@@ -15,7 +15,7 @@ on:
     paths:
       - 'prisma/**'
       - 'src/db/**'
-      - 'tests/fixtures/supabase-auth-ci-*.sql'
+      - 'tests/fixtures/*-ci-*.sql'
       - 'Dockerfile'
       - '.github/workflows/database.yml'
   workflow_dispatch:
@@ -83,6 +83,13 @@ jobs:
             -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bridge-smoke.sql:/tmp/supabase-auth-ci-bridge-smoke.sql:ro" \
             postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_db \
               -v ON_ERROR_STOP=1 -f /tmp/supabase-auth-ci-bridge-smoke.sql
+
+      - name: Verify unmeasured runtime telemetry remains unknown
+        run: |
+          docker run --rm --network host -e PGPASSWORD=ci_password \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/runtime-ci-telemetry-smoke.sql:/tmp/runtime-ci-telemetry-smoke.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_db \
+              -v ON_ERROR_STOP=1 -f /tmp/runtime-ci-telemetry-smoke.sql
 
       - name: Create a second disposable database for the migration image
         env:
