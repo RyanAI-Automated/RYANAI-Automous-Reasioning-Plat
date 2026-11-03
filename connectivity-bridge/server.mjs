@@ -121,6 +121,8 @@ server.on('upgrade', async (request, socket, head) => {
 
 sockets.on('connection', (ws) => {
   let cursor = '0-0';
+  let acknowledgedCursor = '0-0';
+  const compareIds = (left, right) => { const a = left.split('-').map(BigInt); const b = right.split('-').map(BigInt); return a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : (a[0] < b[0] ? -1 : 1); };
   let closed = false;
   let reading = false;
   let requestedCursor = false;
@@ -142,10 +144,10 @@ sockets.on('connection', (ws) => {
     }
     if (message?.type === 'ack' && typeof message.id === 'string' && /^\d+-\d+$/.test(message.id)) {
       const acknowledged = message.id;
-      if (acknowledged > cursor) {
-        cursor = acknowledged;
-        await redis.set(cursorKey, cursor, { EX: 60 * 60 * 24 * 30 });
-        send({ type: 'acknowledged', id: cursor });
+      if (compareIds(acknowledged, acknowledgedCursor) > 0 && compareIds(acknowledged, cursor) <= 0) {
+        acknowledgedCursor = acknowledged;
+        await redis.set(cursorKey, acknowledgedCursor, { EX: 60 * 60 * 24 * 30 });
+        send({ type: 'acknowledged', id: acknowledgedCursor });
       }
       return;
     }
