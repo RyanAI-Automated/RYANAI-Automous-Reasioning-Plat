@@ -78,11 +78,12 @@ export class ConnectivityBridgeClient {
       socket.onmessage = (message) => {
         let payload: BridgeMessage;
         try { payload = JSON.parse(String(message.data)) as BridgeMessage; } catch { return; }
-        if (payload.type === 'event' && typeof payload.id === 'string') {
+        if (payload.type === 'acknowledged' && typeof (payload as { id?: unknown }).id === 'string') {
+          sessionStorage.setItem(this.cursorKey, (payload as { id: string }).id);
+        } else if (payload.type === 'event' && typeof payload.id === 'string') {
           Promise.resolve(this.options.onEvent({ id: payload.id, data: payload.data }))
             .then(() => {
               if (socket.readyState !== WebSocket.OPEN) return;
-              sessionStorage.setItem(this.cursorKey, payload.id);
               socket.send(JSON.stringify({ type: 'ack', id: payload.id }));
             })
             .catch(() => this.options.onState?.('degraded'));
