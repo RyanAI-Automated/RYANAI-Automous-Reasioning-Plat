@@ -89,6 +89,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   await fastify.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
 
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
     const { channel, recipient, message, subject, contentSid, contentVariables } = request.body ?? {};
     const target = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
     const messageBody = message?.trim() ?? '';
@@ -191,6 +192,35 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       request.log.error({ err: error, channel }, 'Communication provider rejected request');
       return reply.code(502).send({ success: false, error: 'Communication provider request failed.' });
     }
+  });
+
+  fastify.get('/api/comms/conversations', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
+    const rawLimit = Number((request.query as { limit?: string })?.limit ?? 50);
+    const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, Math.floor(rawLimit))) : 50;
+    const conversations = await fastify.prisma.communicationConversation.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      select: {
+        id: true, channel: true, externalAddress: true, updatedAt: true,
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+          select: {
+            id: true, direction: true, body: true, status: true,
+            providerMessageId: true, metadata: true, createdAt: true,
+          },
+        },
+      },
+    });
+    return {
+      status: 'history',
+      conversations: conversations.map((conversation) => ({
+        ...conversation,
+        messages: [...conversation.messages].reverse(),
+      })),
+      pagination: { limit, returned: conversations.length },
+    };
   });
 
   fastify.get('/api/comms/status', async () => ({
