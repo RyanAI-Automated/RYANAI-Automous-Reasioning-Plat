@@ -1,6 +1,14 @@
 name: Validate Docker Images
 
 on:
+  push:
+    branches: [fix/cloudflare-tunnel-secret-file-and-domain]
+    paths:
+      - 'docker-compose.yml'
+      - '.env.example'
+      - 'docs/CLOUDFLARE_MCP_INTEGRATION.md'
+      - 'tests/mcpjungle/**'
+      - '.github/workflows/docker-build.yml'
   pull_request:
     branches: [main, master]
     paths:
@@ -20,6 +28,7 @@ on:
       - 'prisma/**'
       - 'scripts/copy-server-assets.mjs'
       - 'mcp-server/**'
+      - 'tests/mcpjungle/**'
       - '.github/workflows/docker-build.yml'
   workflow_dispatch:
 
@@ -44,9 +53,14 @@ jobs:
           REDIS_PASSWORD=ci_redis_password_1234567890
           JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
           MCP_AUTH_TOKEN=ci_only_mcp_token_1234567890_abcdefgh
-          MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
+          CLOUDFLARE_MCP_HOSTNAME=mcp.ryanai.dev
           EOF
+          export CLOUDFLARE_TUNNEL_TOKEN=ci_only_cloudflare_tunnel_token_not_valid
+          # The default stack must validate without optional gateway credentials.
           docker compose config --quiet
+          # The optional profiles must also validate when explicitly configured.
+          export MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
+          docker compose --profile mcp-gateway --profile cloudflare-edge config --quiet
 
   build:
     name: Build ${{ matrix.image }} image
@@ -83,3 +97,72 @@ jobs:
           tags: ryanai-${{ matrix.image }}:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  mcpjungle-runtime-auth:
+    name: MCPJungle Enterprise runtime authentication
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      MCP_AUTH_TOKEN: ci_only_mcp_server_token_1234567890_abcdefgh
+      MCPJUNGLE_ALLOWED_CLIENT_TOKEN: ci_only_allowed_client_token_1234567890_abcdefgh
+      MCPJUNGLE_RESTRICTED_CLIENT_TOKEN: ci_only_restricted_client_token_1234567890_abcdefgh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify gateway database rejects an empty password
+        shell: bash
+        run: |
+          set -euo pipefail
+          negative_env="$(mktemp)"
+          trap 'docker compose --project-name mcpjungle-negative --env-file "$negative_env" --profile mcp-gateway down --volumes --remove-orphans >/dev/null 2>&1 || true; rm -f "$negative_env"' EXIT
+          cat > "$negative_env" <<'EOF'
+          DB_PASSWORD=ci_db_password_1234567890
+          REDIS_PASSWORD=ci_redis_password_1234567890
+          JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
+          MCP_AUTH_TOKEN=ci_only_mcp_token_1234567890_abcdefgh
+          EOF
+          docker compose --project-name mcpjungle-negative --env-file "$negative_env" --profile mcp-gateway up -d mcpjungle-db
+          for attempt in $(seq 1 30); do
+            state="$(docker inspect --format '{{.State.Status}}' ryanai-mcpjungle-db 2>/dev/null || true)"
+            if [ "$state" = "exited" ]; then break; fi
+            sleep 1
+          done
+          state="$(docker inspect --format '{{.State.Status}}' ryanai-mcpjungle-db)"
+          if [ "$state" != "exited" ]; then
+            echo "Expected MCPJungle Postgres to exit when its password is unset; state=$state"
+            exit 1
+          fi
+          docker logs ryanai-mcpjungle-db 2>&1 | grep -qi 'superuser password is not specified'
+          echo "PASS: gateway database refuses to initialize without a password"
+      - name: Run isolated Enterprise gateway authentication and ACL tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            docker compose --profile mcp-gateway down --volumes --remove-orphans >/dev/null 2>&1 || true
+            rm -f .env
+          }
+          trap cleanup EXIT
+          cat > .env <<'EOF'
+          DB_PASSWORD=ci_db_password_1234567890
+          REDIS_PASSWORD=ci_redis_password_1234567890
+          JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
+          MCP_AUTH_TOKEN=ci_only_mcp_server_token_1234567890_abcdefgh
+          MCP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1],mcp-server
+          RYANAI_MCP_ENABLED_TOOLS=platform_health
+          MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
+          MCPJUNGLE_IMAGE_TAG=0.4.6
+          EOF
+          docker compose --profile mcp-gateway up --build -d --wait api mcp-server mcpjungle
+          # Initialize the disposable Enterprise registry; its admin token stays inside the container.
+          docker compose exec -T mcpjungle /mcpjungle --registry http://127.0.0.1:8080 init-server
+          # Register only RyanAI's harmless health tool, using a CI-only upstream token.
+          docker compose exec -T -e MCP_AUTH_TOKEN="$MCP_AUTH_TOKEN" mcpjungle /mcpjungle --registry http://127.0.0.1:8080 register --name ryanai --url http://mcp-server:8765/mcp --bearer-token "$MCP_AUTH_TOKEN"
+          # The first client is allowlisted for the one test server; the second has no server access.
+          docker compose exec -T mcpjungle /mcpjungle create mcp-client ci-allowed --allow ryanai --access-token "$MCPJUNGLE_ALLOWED_CLIENT_TOKEN"
+          docker compose exec -T mcpjungle /mcpjungle create mcp-client ci-restricted --access-token "$MCPJUNGLE_RESTRICTED_CLIENT_TOKEN"
+          MCPJUNGLE_URL=http://127.0.0.1:8080/mcp node tests/mcpjungle/auth-smoke.mjs

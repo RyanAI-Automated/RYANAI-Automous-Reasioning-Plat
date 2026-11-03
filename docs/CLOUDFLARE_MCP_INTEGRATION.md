@@ -16,12 +16,17 @@ Cloudflare recommends OAuth for direct MCP clients. Its API MCP can also accept 
 
 ## Gateway compatibility constraint
 
-The currently pinned MCPJungle gateway is configured for Streamable HTTP upstreams and static bearer-token forwarding. Its published documentation states OAuth upstream flows are not supported yet. Therefore:
+MCPJungle distinguishes **upstream** authentication from **downstream client** authentication. Its current support matrix marks registration-time OAuth for upstream HTTP MCP servers as **beta** and gateway-scoped (not per downstream user). Enterprise-mode downstream clients authenticate with static bearer tokens; downstream OAuth, SSO and OIDC are not yet supported. Therefore:
 
-1. Do not assume Cloudflare OAuth can be passed through MCPJungle.
-2. For a unified MCPJungle route, use a dedicated, least-privilege Cloudflare API token only after confirming how the pinned MCPJungle release protects stored upstream credentials and backups.
-3. Until that storage review is accepted, connect to Cloudflare's managed MCP endpoint directly with OAuth from a trusted engineering client for read-only documentation and inspection. Do not route Cloudflare account write access through MCPJungle yet.
-4. Revisit gateway OAuth support before moving to per-user Cloudflare authorization.
+1. Do not describe upstream OAuth as wholly unsupported: it is available as a beta registration-time flow and must be tested against the pinned 0.4.6 release before relying on it.
+2. Do not assume Cloudflare OAuth authorization is passed through per RyanAI user. The upstream OAuth grant is gateway-scoped.
+3. For a unified MCPJungle route, use a dedicated, least-privilege Cloudflare API token only after confirming how the pinned MCPJungle release protects stored upstream credentials and backups, or separately validate its beta upstream OAuth flow.
+4. Until the credential-storage and OAuth tests pass, keep Cloudflare API access out of the gateway. Read-only Cloudflare documentation can be evaluated separately.
+5. Cloudflare Access remains an edge policy; MCPJungle downstream bearer-token authentication and per-client server allow-lists must remain enabled.
+
+## Domain and hostname
+
+The owner selected `ryanai.dev`; the intended gateway hostname is `mcp.ryanai.dev`. A registrar availability result is not a registration or proof of ownership. The domain has not been purchased, transferred, or added to Cloudflare. Do not create DNS or Tunnel routes until the owner separately authorizes registration/Cloudflare account changes and confirms the domain is active in the Cloudflare zone.
 
 ## Proposed service topology
 
@@ -44,7 +49,7 @@ MCPJungle Streamable HTTP gateway (/mcp)
         +--> approved future upstreams
 ```
 
-Cloudflare Tunnel and Access are the required edge path for the cloud-first gateway. The repository Compose file now has an opt-in `cloudflared` connector under the `cloudflare-edge` profile. It joins the private Docker network, has no published host port, and forwards through the named Tunnel. Configure the Tunnel's public hostname route to `http://mcpjungle:8080`; do not point it at a host-published port or expose MCPJungle directly.
+Cloudflare Tunnel and Access are the required edge path for the cloud-first gateway. The repository Compose file now has an opt-in `cloudflared` connector under the `cloudflare-edge` profile. It joins the private Docker network, has no published host port, and forwards through the named Tunnel. Configure the Tunnel's public hostname route for `mcp.ryanai.dev` to `http://mcpjungle:8080`; do not point it at a host-published port or expose MCPJungle directly.
 
 Require both Cloudflare Access and the MCPJungle client token. For non-interactive agents, issue a distinct Cloudflare Access service token per agent and keep its client ID/secret in that agent's secret store; the agent must also send its individual MCPJungle bearer token. For human operators, use an approved identity-provider Access policy. Do not enable Access Managed OAuth for this MCPJungle origin unless the origin is updated to validate the Access JWT as Cloudflare requires. Access edge enforcement is not a substitute for MCPJungle tool authorization.
 
@@ -57,9 +62,9 @@ If later approved write operations are needed, create a separate token for a nar
 ## Registration and activation sequence
 
 1. Confirm the pinned MCPJungle version and inspect its upstream credential storage, database encryption, backup, access-control, and audit behavior.
-2. In Cloudflare Zero Trust, create a named Tunnel and a published-application route for the chosen MCP hostname, targeting `http://mcpjungle:8080` on the private Docker network. Do not create a public origin IP or direct port-forward.
+2. After the owner has separately registered `ryanai.dev` and added it to the Cloudflare zone, create a named Tunnel and a published-application route for `mcp.ryanai.dev`, targeting `http://mcpjungle:8080` on the private Docker network. Do not create a public origin IP or direct port-forward.
 3. Create a Cloudflare Access application for that hostname. Add an operator identity policy and separate service-token policies for each non-interactive agent. Keep Access Managed OAuth disabled unless the origin validates Access JWTs.
-4. Set `CLOUDFLARE_TUNNEL_TOKEN` in the private runtime secret store. Override the development image default with a reviewed immutable `cloudflare/cloudflared` image digest before any shared/cloud activation. Do not put the token in source control or shell history.
+4. Set `CLOUDFLARE_TUNNEL_TOKEN` in the private runtime environment/secret manager. Compose mounts this environment-backed secret as `/run/secrets/cloudflare_tunnel_token`, and cloudflared reads it using `--token-file`; the token is not passed as a command-line argument. Override the versioned development image default with a reviewed immutable `cloudflare/cloudflared` image digest before any shared/cloud activation. Do not put the token in source control, shell history, image build arguments, or process arguments.
 5. Start MCPJungle, its dedicated PostgreSQL service, and the connector using both opt-in profiles: `docker compose --profile mcp-gateway --profile cloudflare-edge up -d mcpjungle-db mcpjungle cloudflared`.
 6. Initialize the enterprise gateway from an authorized operator workstation; retain the admin credential in a secret manager.
 7. Register RyanAI's local MCP server as a Streamable HTTP upstream. Verify it with a read-only `tools/list`.
@@ -89,6 +94,7 @@ The MCPJungle CLI's exact registration and enterprise-client syntax must be chec
 - [ ] Each agent has an individual gateway identity and explicitly assigned tool group.
 - [ ] Anonymous and unauthorized requests are denied.
 - [ ] Compose starts the `cloudflared` connector only when the `cloudflare-edge` profile is explicitly enabled; no host port is published for the connector.
+- [ ] Tunnel token is delivered through an environment-backed Compose secret file and is not present in the process command line.
 - [ ] Tunnel hostname routes to the private `mcpjungle:8080` service; no direct public origin port exists.
 - [ ] Operator Access policy and per-agent service-token policies are tested; unauthenticated requests are denied.
 - [ ] MCPJungle bearer-token authentication remains required after Cloudflare Access succeeds.
@@ -99,4 +105,4 @@ The MCPJungle CLI's exact registration and enterprise-client syntax must be chec
 
 ## Current status
 
-The repository includes an opt-in cloudflared Compose connector and this activation runbook. This is implementation scaffolding, not proof that Cloudflare is connected: no Tunnel, DNS route, Access application, service token, or Cloudflare API credential has been provisioned. Those account-side actions require the account owner's authorization and Cloudflare dashboard access. The connector remains stopped unless both opt-in profiles are explicitly enabled and its runtime secrets are supplied.
+The repository includes an opt-in cloudflared Compose connector that consumes its token through a Compose secret file and this activation runbook. The environment-backed Compose secret source requires Docker Compose v2.6.0 or later; the `--token-file` option requires cloudflared v2025.4.0 or later. This is implementation scaffolding, not proof that Cloudflare is connected: no domain registration, Cloudflare zone, Tunnel, DNS route, Access application, service token, or Cloudflare API credential has been provisioned. Those account-side actions require the account owner's authorization and Cloudflare dashboard access. The connector remains stopped unless both opt-in profiles are explicitly enabled and its runtime secrets are supplied.
