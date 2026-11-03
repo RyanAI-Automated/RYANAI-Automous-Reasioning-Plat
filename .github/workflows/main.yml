@@ -45,7 +45,7 @@ jobs:
         run: test -s dist/index.html
 
       - name: Upload web build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ryanai-web-dist
           path: dist/

@@ -144,7 +144,7 @@ jobs:
 
       - name: Preserve Trivy SARIF artifact
         if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-${{ matrix.image }}-sarif
           path: trivy-${{ matrix.image }}.sarif

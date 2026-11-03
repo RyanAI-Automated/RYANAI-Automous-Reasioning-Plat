@@ -57,7 +57,7 @@ jobs:
       # Preserve the original report even when splitting or uploading fails.
       - name: Preserve raw Codacy SARIF report
         if: always() && hashFiles('results.sarif') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: codacy-raw-sarif
           path: results.sarif

@@ -61,7 +61,7 @@ jobs:
 
       - name: Preserve Trivy filesystem SARIF for remediation
         if: always() && hashFiles('trivy-results.sarif') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-filesystem-sarif
           path: trivy-results.sarif
