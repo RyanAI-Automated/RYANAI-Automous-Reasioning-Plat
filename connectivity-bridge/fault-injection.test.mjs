@@ -130,7 +130,7 @@ async function publish(port, idempotencyKey, payload) {
 }
 async function heartbeat(port, name) {
   const response = await fetch('http://127.0.0.1:' + port + '/internal/adapters/' + name + '/heartbeat', {
-    method: 'POST', headers: { authorization: 'Bearer ' + (name === 'api' ? API_ADAPTER : MCP_ADAPTER) },
+    method: 'POST', headers: { authorization: 'Bearer ' + (name === 'api' ? API_ADAPTER : name === 'vercel' ? VERCEL_ADAPTER : MCP_ADAPTER) },
   });
   assert.equal(response.status, 200);
 }
@@ -174,6 +174,10 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
         method: 'POST', headers: { authorization: 'Bearer ' + MCP_ADAPTER },
       });
       assert.equal(wrongApiHeartbeat.status, 401);
+      const wrongVercelHeartbeat = await fetch('http://127.0.0.1:' + bridgePort + '/internal/adapters/vercel/heartbeat', {
+        method: 'POST', headers: { authorization: 'Bearer ' + MCP_ADAPTER },
+      });
+      assert.equal(wrongVercelHeartbeat.status, 401);
       const deniedMcpPublish = await fetch('http://127.0.0.1:' + bridgePort + '/internal/events', {
         method: 'POST',
         headers: { authorization: 'Bearer ' + MCP_ADAPTER, 'content-type': 'application/json' },
