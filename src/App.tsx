@@ -4,6 +4,7 @@ import {
   Cpu,
   LayoutDashboard,
   MessageSquareText,
+  Mail,
   Orbit,
   LogIn,
   UserPlus,
@@ -17,6 +18,7 @@ const AgentControlPanel = lazy(() => import('@/components/AgentControlPanel').th
 const BrainKnowledgePanel = lazy(() => import('@/components/BrainKnowledgePanel'));
 const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
+const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
@@ -54,6 +56,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   dashboard: LayoutDashboard,
   cockpit: Cpu,
   workspace: MessageSquareText,
+  comms: Mail,
 };
 
 const destinations = appManifest.routes.map((route) => ({
@@ -218,6 +221,7 @@ export default function App() {
         ) : (
           <>
             {route === 'dashboard' && <DashboardPage />}
+            {route === 'comms' && <CommunicationsCenter />}
             {route === 'cockpit' && (
               <>
                 <RyanAICockpit />
