@@ -27,6 +27,7 @@ This README describes the current repository implementation and its intended loc
 - [AI brains and provider connectivity](#ai-brains-and-provider-connectivity)
 - [Autonomous tasks, persistence, and recovery](#autonomous-tasks-persistence-and-recovery)
 - [MCP service](#mcp-service)
+- [Agent task board and MCP integration](docs/architecture/agent-task-board-and-mcp-integration.md)
 - [Self-patching and change safety](#self-patching-and-change-safety)
 - [Database operations](#database-operations)
 - [Commands and validation](#commands-and-validation)
