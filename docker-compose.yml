@@ -169,7 +169,7 @@ services:
       TORCHTPU_API_KEY: ${TORCHTPU_API_KEY:-}
       TORCHTPU_API_ENDPOINT: ${TORCHTPU_API_ENDPOINT:-http://127.0.0.1:8000/v1}
       TORCHTPU_MODEL: ${TORCHTPU_MODEL:-}
-      RYANAI_MCP_ENABLED_TOOLS: ${RYANAI_MCP_ENABLED_TOOLS:-platform_health,repository_status,ryanai_stack_manifest,reasoning_route}
+      RYANAI_MCP_ENABLED_TOOLS: ${RYANAI_MCP_ENABLED_TOOLS:-platform_health,ryanai_stack_manifest,reasoning_route}
     networks: [ryanai-net]
     depends_on:
       api:
