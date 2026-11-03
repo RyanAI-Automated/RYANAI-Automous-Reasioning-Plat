@@ -42,9 +42,9 @@ Every callback URL must exactly match its configured environment value because T
 
 ## API
 
-Administrator-authenticated `POST /api/comms/send` accepts `{ "channel": "whatsapp|sms|voice|email", "recipient": "...", "message": "...", "subject": "..." }`. A 202 response means the provider accepted the request, not that the recipient received it. Use the provider ID and status callbacks to reconcile delivery.
+Owner-authenticated `POST /api/comms/send` accepts `{ "channel": "whatsapp|sms|voice|email", "recipient": "...", "message": "...", "subject": "..." }`. The server requires a verified Supabase session and the configured owner identity; administrator role alone is not sufficient for outbound sends. A 202 response means the provider accepted the request, not that the recipient received it. Use the provider ID and status callbacks to reconcile delivery.
 
-`GET /api/comms/status` reports configuration presence only, not live connectivity.
+`GET /api/comms/status` is available to a verified owner or administrator and reports configuration presence only, not live connectivity. `GET /api/comms/conversations` is owner-only and returns bounded durable history.
 
 ## Personalized greetings and South African English
 
