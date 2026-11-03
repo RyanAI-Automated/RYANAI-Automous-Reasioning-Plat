@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { dispatchJarvisTask, listAgentRuns } from '../../agent/operations.js';
+import { dispatchJarvisTask } from '../../agent/operations.js';
 import { authorizeJarvisCapability, getJarvisAgentRegistry, type JarvisCapability } from '../../agent/jarvisRegistry.js';
 import { prisma } from '../../lib/prisma.js';
 import { appendRunEvidence } from '../../agent/engineeringEvidence.js';
