@@ -90,5 +90,5 @@ jobs:
             and ([.rules[].type] | index("required_status_checks") != null)
             and ([.rules[].type] | index("non_fast_forward") != null)
             and ([.rules[].type] | index("deletion") != null)
-            and ([.bypass_actors // []] | length == 0)
+            and ((.bypass_actors // []) | length == 0)
           ' ruleset-final.json
