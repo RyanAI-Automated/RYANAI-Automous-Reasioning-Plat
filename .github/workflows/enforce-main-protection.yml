@@ -62,7 +62,17 @@ jobs:
                   { context: "Analyze (javascript-typescript)" },
                   { context: "Analyze (python)" },
                   { context: "TruffleHog secret audit" },
-                  { context: "Codacy Security Scan" }
+                  { context: "Codacy Security Scan" },
+                  { context: "Integration and end-to-end checks" },
+                  { context: "Review dependency changes" },
+                  { context: "Audit GitHub workflows" },
+                  { context: "Frontend, API, and workflow builds" },
+                  { context: "Inspect release quality" },
+                  { context: "Generate & Upload SBOMs" },
+                  { context: "Scan api image" },
+                  { context: "Scan web image" },
+                  { context: "Scan mcp image" },
+                  { context: "Scan migrate image" }
                 ]
               }},
               { type: "non_fast_forward" },
