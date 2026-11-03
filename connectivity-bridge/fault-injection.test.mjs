@@ -1,0 +1,223 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import net from 'node:net';
+import { setTimeout as delay } from 'node:timers/promises';
+import WebSocket from 'ws';
+
+const ADAPTER = 'bridge-test-adapter-token-32-characters-minimum';
+const SESSION = 'mock-supabase-session-token';
+const hasRedisServer = spawnSync('redis-server', ['--version'], { stdio: 'ignore' }).status === 0;
+
+async function freePort() {
+  return await new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      server.close(() => resolve(address.port));
+    });
+  });
+}
+async function waitFor(fn, timeout = 15000) {
+  const until = Date.now() + timeout;
+  let last;
+  while (Date.now() < until) {
+    try { const value = await fn(); if (value) return value; } catch (error) { last = error; }
+    await delay(150);
+  }
+  throw last || new Error('Timed out waiting for service readiness');
+}
+function startRedis(port, directory) {
+  return spawn('redis-server', [
+    '--bind', '127.0.0.1', '--port', String(port), '--protected-mode', 'no',
+    '--dir', directory, '--appendonly', 'yes', '--appendfsync', 'always',
+    '--save', '', '--daemonize', 'no',
+  ], { stdio: 'ignore' });
+}
+function startBridge(port, redisPort, authPort) {
+  return spawn(process.execPath, ['connectivity-bridge/server.mjs'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      BRIDGE_PORT: String(port),
+      REDIS_URL: 'redis://127.0.0.1:' + redisPort,
+      SUPABASE_URL: 'http://127.0.0.1:' + authPort,
+      SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+      BRIDGE_ADAPTER_TOKEN: ADAPTER,
+      BRIDGE_TICKET_TTL_SECONDS: '5',
+      BRIDGE_STREAM_MAX_LENGTH: '1000',
+      CORS_ORIGINS: '',
+    },
+    stdio: 'ignore',
+  });
+}
+async function stop(child) {
+  if (!child || child.exitCode !== null) return;
+  child.kill('SIGTERM');
+  await Promise.race([new Promise((resolve) => child.once('exit', resolve)), delay(5000)]);
+  if (child.exitCode === null) child.kill('SIGKILL');
+}
+async function isReady(port) {
+  const response = await fetch('http://127.0.0.1:' + port + '/readyz', { signal: AbortSignal.timeout(1200) });
+  return response.ok;
+}
+async function issueTicket(port) {
+  const response = await fetch('http://127.0.0.1:' + port + '/v1/ticket', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + SESSION },
+  });
+  assert.equal(response.status, 201);
+  return (await response.json()).ticket;
+}
+function nextMessage(socket, predicate, timeout = 8000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Timed out waiting for bridge frame')); }, timeout);
+    const onMessage = (raw) => {
+      let value;
+      try { value = JSON.parse(raw.toString()); } catch { return; }
+      if (!predicate(value)) return;
+      cleanup();
+      resolve(value);
+    };
+    const onClose = () => { cleanup(); reject(new Error('Bridge socket closed before expected frame')); };
+    function cleanup() { clearTimeout(timer); socket.off('message', onMessage); socket.off('close', onClose); }
+    socket.on('message', onMessage);
+    socket.once('close', onClose);
+  });
+}
+async function openSocket(port) {
+  const ticket = await issueTicket(port);
+  const socket = new WebSocket('ws://127.0.0.1:' + port + '/v1/socket?ticket=' + encodeURIComponent(ticket));
+  await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+  socket.send(JSON.stringify({ type: 'resume' }));
+  const resumed = await nextMessage(socket, (value) => value.type === 'resumed');
+  return { socket, capabilities: resumed.capabilities };
+}
+async function publish(port, idempotencyKey, payload) {
+  const response = await fetch('http://127.0.0.1:' + port + '/internal/events', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + ADAPTER, 'content-type': 'application/json' },
+    body: JSON.stringify({ userId: 'bridge-test-user', idempotencyKey, payload }),
+  });
+  assert.equal(response.status, 202);
+  return response.json();
+}
+async function heartbeat(port, name) {
+  const response = await fetch('http://127.0.0.1:' + port + '/internal/adapters/' + name + '/heartbeat', {
+    method: 'POST', headers: { authorization: 'Bearer ' + ADAPTER },
+  });
+  assert.equal(response.status, 200);
+}
+
+test('connectivity bridge recovers across adapter, process, Redis and ticket failures', {
+  skip: !hasRedisServer && 'redis-server is required for bridge integration tests',
+  timeout: 120000,
+}, async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'ryanai-connectivity-bridge-'));
+  const redisPort = await freePort();
+  const authPort = await freePort();
+  const bridgePort = await freePort();
+  const authServer = createServer((request, response) => {
+    if (request.url !== '/auth/v1/user' || request.headers.authorization !== 'Bearer ' + SESSION ||
+        request.headers.apikey !== 'test-publishable-key') {
+      response.writeHead(401); response.end(); return;
+    }
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ id: 'bridge-test-user', is_anonymous: false }));
+  });
+  await new Promise((resolve) => authServer.listen(authPort, '127.0.0.1', resolve));
+  let redis = startRedis(redisPort, directory);
+  let bridge = startBridge(bridgePort, redisPort, authPort);
+  try {
+    await waitFor(() => isReady(bridgePort));
+
+    await t.test('API and MCP capability heartbeats degrade independently', async () => {
+      let opened = await openSocket(bridgePort);
+      assert.equal(opened.capabilities.api, 'unavailable');
+      assert.equal(opened.capabilities.mcp, 'unavailable');
+      opened.socket.close();
+      await heartbeat(bridgePort, 'api');
+      opened = await openSocket(bridgePort);
+      assert.equal(opened.capabilities.api, 'ready');
+      assert.equal(opened.capabilities.mcp, 'unavailable');
+      opened.socket.close();
+      await heartbeat(bridgePort, 'mcp');
+      opened = await openSocket(bridgePort);
+      assert.equal(opened.capabilities.api, 'ready');
+      assert.equal(opened.capabilities.mcp, 'ready');
+      opened.socket.close();
+    });
+
+    await t.test('duplicate publish is idempotent and acknowledgements advance in order', async () => {
+      const opened = await openSocket(bridgePort);
+      const first = await publish(bridgePort, 'duplicate-key', { sequence: 1 });
+      const duplicate = await publish(bridgePort, 'duplicate-key', { sequence: 1 });
+      assert.equal(first.cursor, duplicate.cursor);
+      const event = await nextMessage(opened.socket, (value) => value.type === 'event');
+      assert.equal(event.data.sequence, 1);
+      opened.socket.send(JSON.stringify({ type: 'ack', id: event.id }));
+      await nextMessage(opened.socket, (value) => value.type === 'acknowledged' && value.id === event.id);
+      opened.socket.close();
+    });
+
+    await t.test('bridge restart replays unacknowledged events from Redis', async () => {
+      await publish(bridgePort, 'bridge-restart-key', { sequence: 2 });
+      const before = await openSocket(bridgePort);
+      const unacked = await nextMessage(before.socket, (value) => value.type === 'event' && value.data.sequence === 2);
+      assert.ok(unacked.id);
+      await stop(bridge);
+      before.socket.close();
+      bridge = startBridge(bridgePort, redisPort, authPort);
+      await waitFor(() => isReady(bridgePort));
+      const after = await openSocket(bridgePort);
+      const replay = await nextMessage(after.socket, (value) => value.type === 'event' && value.id === unacked.id);
+      assert.equal(replay.data.sequence, 2);
+      after.socket.close();
+    });
+
+    await t.test('Redis AOF recovery restores unacknowledged events after Redis restart', async () => {
+      await publish(bridgePort, 'redis-restart-key', { sequence: 3 });
+      const before = await openSocket(bridgePort);
+      const unacked = await nextMessage(before.socket, (value) => value.type === 'event' && value.data.sequence === 3);
+      before.socket.close();
+      await stop(redis);
+      await delay(500);
+      redis = startRedis(redisPort, directory);
+      await waitFor(() => isReady(bridgePort), 25000);
+      const after = await openSocket(bridgePort);
+      const replay = await nextMessage(after.socket, (value) => value.type === 'event' && value.id === unacked.id, 15000);
+      assert.equal(replay.data.sequence, 3);
+      after.socket.close();
+    });
+
+    await t.test('application heartbeat receives an acknowledgement', async () => {
+      const opened = await openSocket(bridgePort);
+      opened.socket.send(JSON.stringify({ type: 'heartbeat', nonce: 'heartbeat-test-1' }));
+      const ack = await nextMessage(opened.socket, (value) => value.type === 'heartbeat_ack');
+      assert.equal(ack.nonce, 'heartbeat-test-1');
+      opened.socket.close();
+    });
+
+    await t.test('expired one-time tickets cannot open a socket', async () => {
+      const expired = await issueTicket(bridgePort);
+      await delay(5500);
+      const socket = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket?ticket=' + encodeURIComponent(expired));
+      const status = await new Promise((resolve, reject) => {
+        socket.once('unexpected-response', (_request, response) => resolve(response.statusCode));
+        socket.once('error', reject);
+      });
+      assert.equal(status, 401);
+    });
+  } finally {
+    await stop(bridge);
+    await stop(redis);
+    await new Promise((resolve) => authServer.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
