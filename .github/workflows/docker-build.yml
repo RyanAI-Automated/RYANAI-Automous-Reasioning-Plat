@@ -162,7 +162,15 @@ jobs:
           MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
           MCPJUNGLE_IMAGE_TAG=0.4.6
           EOF
-          docker compose --profile mcp-gateway up --build -d --wait api mcp-server mcpjungle
+          if ! docker compose --profile mcp-gateway up --build -d --wait api mcp-server mcpjungle; then
+            echo "::group::Compose service state after startup failure"
+            docker compose --profile mcp-gateway ps -a || true
+            echo "::endgroup::"
+            echo "::group::PostgreSQL and migration service logs"
+            docker compose --profile mcp-gateway logs --no-color --tail=200 postgres migrate api || true
+            echo "::endgroup::"
+            exit 1
+          fi
           # Initialize the disposable Enterprise registry; its admin token stays inside the container.
           docker compose exec -T mcpjungle /mcpjungle --registry http://127.0.0.1:8080 init-server
           # Register only RyanAI's harmless health tool, using a CI-only upstream token.
