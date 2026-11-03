@@ -121,3 +121,30 @@ test('TorchTPU requires an explicit model id and never claims hardware is presen
     fetch: async () => { throw new Error('fetch must not be called'); },
   }), /requires its model id to be set/);
 });
+
+
+test('OpenAI MCP requests use the authenticated RyanAI API gateway', async () => {
+  let request;
+  const result = await routeReasoning('Hello from MCP', 'openai', {
+    env: { RYANAI_OPENAI_GATEWAY_URL: 'http://api:3000/api/internal/openai/chat', RYANAI_OPENAI_GATEWAY_TOKEN: 'a'.repeat(40) },
+    fetch: async (url, init) => {
+      request = { url: String(url), headers: init.headers, body: JSON.parse(init.body) };
+      return new Response(JSON.stringify({ success: true, response: 'central response' }), { status: 200 });
+    },
+  });
+  assert.equal(request.url, 'http://api:3000/api/internal/openai/chat');
+  assert.equal(request.headers.authorization, 'Bearer ' + 'a'.repeat(40));
+  assert.deepEqual(request.body, { prompt: 'Hello from MCP' });
+  assert.equal(result.mode, 'gateway'); assert.equal(result.response, 'central response');
+});
+
+test('OpenAI MCP route fails closed without the gateway token', async () => {
+  await assert.rejects(routeReasoning('Hello', 'openai', { env: {}, fetch: async () => { throw new Error('fetch must not be called'); } }), /service token is not configured/);
+});
+
+test('OpenAI MCP route rejects untrusted HTTP gateway URLs before fetch', async () => {
+  await assert.rejects(routeReasoning('Hello', 'openai', {
+    env: { RYANAI_OPENAI_GATEWAY_URL: 'http://public.example/api/internal/openai/chat', RYANAI_OPENAI_GATEWAY_TOKEN: 'a'.repeat(40) },
+    fetch: async () => { throw new Error('fetch must not be called'); },
+  }), /must use HTTPS/);
+});

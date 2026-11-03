@@ -60,12 +60,12 @@ export function createMcpServer() {
     },
     {
       name: 'reasoning_route',
-      description: 'Send a prompt to Nemotron, Qwen, optional DeepSeek Flash, or a separately hosted TorchTPU-backed OpenAI-compatible serving endpoint. Remote endpoints require HTTPS and a bearer key.',
+      description: 'Send a prompt through the central OpenAI API gateway by default, or explicitly select Nemotron, Qwen, DeepSeek, or TorchTPU.',
       inputSchema: {
         type: 'object',
         properties: {
           prompt: { type: 'string', description: 'Prompt to process, up to 20,000 characters.' },
-          brain: { type: 'string', enum: ['nemotron', 'qwen', 'deepseek', 'torch_tpu'], description: 'Provider brain; defaults to nemotron. DeepSeek defaults to http://127.0.0.1:8888/v1; torch_tpu requires TORCHTPU_MODEL and defaults to http://127.0.0.1:8000/v1.' },
+          brain: { type: 'string', enum: ['openai', 'nemotron', 'qwen', 'deepseek', 'torch_tpu'], description: 'Provider brain; defaults to the authenticated RyanAI OpenAI API gateway. DeepSeek defaults to http://127.0.0.1:8888/v1; torch_tpu requires TORCHTPU_MODEL and defaults to http://127.0.0.1:8000/v1.' },
           response_format: { type: 'string', enum: ['text', 'json_object'], description: 'Request plain text (default) or validated JSON object output.' },
         },
         required: ['prompt'],
@@ -120,10 +120,10 @@ export function createMcpServer() {
 
       if (request.params.name === 'reasoning_route') {
         const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
-        const brain = typeof args.brain === 'string' ? args.brain : 'nemotron';
+        const brain = typeof args.brain === 'string' ? args.brain : 'openai';
         if (!prompt) throw new Error('prompt is required.');
         if (prompt.length > 20_000) throw new Error('prompt must be 20,000 characters or fewer.');
-        if (!['nemotron', 'qwen', 'deepseek', 'torch_tpu'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
+        if (!['openai', 'nemotron', 'qwen', 'deepseek', 'torch_tpu'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
         const responseFormat = typeof args.response_format === 'string' ? args.response_format : 'text';
         const result = await routeReasoning(prompt, brain, { responseFormat });
         return textResult(JSON.stringify(result, null, 2));

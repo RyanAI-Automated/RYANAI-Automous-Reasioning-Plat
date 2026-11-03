@@ -123,6 +123,8 @@ export function installAuthentication(fastify: FastifyInstance) {
   fastify.addHook('preValidation', async (request, reply) => {
     const path = request.url.split('?')[0];
     if (request.method === 'OPTIONS') return;
+    // Machine-to-machine routes authenticate their own dedicated bearer tokens.
+    if (request.method === 'POST' && path === '/api/internal/openai/chat') return;
     // This machine-to-machine route verifies JARVIS_INGRESS_TOKEN in its own preHandler.
     if (request.method === 'POST' && path === '/api/jarvis/patches/apply') return;
     
