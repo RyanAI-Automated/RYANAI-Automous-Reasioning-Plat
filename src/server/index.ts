@@ -78,10 +78,10 @@ const healthCheck = async () => {
     service: 'ryanai-api-gateway',
     database: process.env.DATABASE_URL ? 'configured' : 'not-configured',
     redis: redisStatus,
-    cudaDevice: process.env.CUDA_DEVICE_ID || '0',
+    cudaDevice: process.env.CUDA_DEVICE_ID || null,
     engine: 'LangGraph ReAct',
     architect: 'RyanAI',
-    cudaActive: false,
+    cudaActive: null,
     activeGraph: 'reasoning-agent',
     timestamp: new Date().toISOString(),
   };
