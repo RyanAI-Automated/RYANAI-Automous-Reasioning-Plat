@@ -1,3 +1,4 @@
+import { prismaTlsOptions } from '../db/postgresTls.js';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -7,7 +8,7 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const db = globalForPrisma.prisma ?? new PrismaClient();
+export const db = globalForPrisma.prisma ?? new PrismaClient(prismaTlsOptions());
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db;
