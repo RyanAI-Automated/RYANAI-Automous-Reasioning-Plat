@@ -56,6 +56,14 @@ const server = createServer(async (request, response) => {
     return;
   }
   try {
+    const rateKey = `ryanai:connectivity:ticket-rate:${request.socket.remoteAddress || 'unknown'}`;
+    const attempts = await redis.incr(rateKey);
+    if (attempts === 1) await redis.expire(rateKey, 60);
+    if (attempts > 20) {
+      response.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });
+      response.end(JSON.stringify({ error: 'Too many ticket requests. Retry shortly.' }));
+      return;
+    }
     const authResponse = await fetch(`${process.env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/user`, {
       headers: { apikey: process.env.SUPABASE_PUBLISHABLE_KEY, authorization: `Bearer ${bearer}` },
       signal: AbortSignal.timeout(5000),
