@@ -37,8 +37,8 @@ async function post(method, id, token, sessionId) {
   let payload = null;
   if (raw.trim()) {
     if (response.headers.get("content-type")?.includes("text/event-stream")) {
-      const data = raw.split(/\\r?\\n/).filter((line) => line.startsWith("data:"));
-      if (data.length) payload = JSON.parse(data.map((line) => line.slice(5).trim()).join("\\n"));
+      const data = raw.split(/\r?\n/).filter((line) => line.startsWith("data:"));
+      if (data.length) payload = JSON.parse(data.map((line) => line.slice(5).trim()).join("\n"));
     } else {
       try { payload = JSON.parse(raw); } catch { /* preserve status for assertion */ }
     }
