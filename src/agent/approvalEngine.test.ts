@@ -3,7 +3,8 @@ import { resolveConnectionUrls } from '../server/startupConfig.js';
 
 const state = vi.hoisted(() => {
   const setup = vi.fn();
-  const saver = { setup };
+  const getTuple = vi.fn(async () => undefined);
+  const saver = { setup, getTuple };
   const fromConnString = vi.fn(() => saver);
   const createReactAgent = vi.fn(() => ({}));
   return { setup, saver, fromConnString, createReactAgent };
@@ -23,7 +24,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('agent checkpointer initialization', () => {
   it('constructs the saver without running schema DDL during module initialization', async () => {
-    const { checkpointer, humanInTheLoopAgent } = await import('./approvalEngine.js');
+    const { checkpointer, humanInTheLoopAgent, verifyCheckpointerConnection } = await import('./approvalEngine.js');
 
     expect(state.fromConnString).toHaveBeenCalledOnce();
     // The API pool and LangGraph saver must resolve the same configured URL.
@@ -35,9 +36,27 @@ describe('agent checkpointer initialization', () => {
     );
     expect(checkpointer).toBe(state.saver);
     expect(state.setup).not.toHaveBeenCalled();
+    await expect(verifyCheckpointerConnection()).resolves.toBeUndefined();
+    expect(state.getTuple).toHaveBeenCalledWith({
+      configurable: { thread_id: 'ryanai-startup-readiness-probe' },
+    });
     expect(state.createReactAgent).toHaveBeenCalledWith(
       expect.objectContaining({ checkpointSaver: state.saver }),
     );
     expect(humanInTheLoopAgent).toBeDefined();
+  });
+});
+
+
+describe('LangGraph checkpointer connection probe', () => {
+  it('returns a sanitised failure when the saver cannot query PostgreSQL', async () => {
+    state.getTuple.mockRejectedValueOnce(
+      new Error('connection failed: postgresql://user:secret@db.example/app'),
+    );
+    const { verifyCheckpointerConnection } = await import('./approvalEngine.js');
+
+    await expect(verifyCheckpointerConnection()).rejects.toThrow(
+      'LangGraph checkpointer connection probe failed.',
+    );
   });
 });
