@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // Load local configuration before tracing and application imports.
 import '../loadEnv.js';
 
@@ -229,7 +230,18 @@ function registerCoreRoutes() {
     language?: string,
     onProgress?: (event: AgentRunProgressEvent) => void,
   ) {
-    const result = await invokeReasoningAgent({ prompt, model, user, language, onProgress });
+    const publishProgress = (event: AgentRunProgressEvent) => {
+      onProgress?.(event);
+      const idempotencyKey = createHash('sha256').update(JSON.stringify(event)).digest('hex');
+      void bridgeAdapter.publish({
+        topic: 'tasks',
+        idempotencyKey,
+        payload: { type: 'agent.progress', ...event },
+      }).catch(() => {
+        fastify.log.warn('Connectivity bridge did not accept an API progress event; API reasoning continues independently.');
+      });
+    };
+    const result = await invokeReasoningAgent({ prompt, model, user, language, onProgress: publishProgress });
     const reasoningTrace = result.messages.map(
       (message: { content: unknown }) => contentToText(message.content),
     );
