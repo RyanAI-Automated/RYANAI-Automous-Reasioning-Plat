@@ -30,7 +30,9 @@ Do not run multiple writable API stacks against separate databases and present t
 
 ## Render
 
-The root `render.yaml` defines the Docker API, Redis-compatible Key Value, and an authenticated MCP service in Oregon. Vercel owns the browser frontend. Git auto-deploy is intentionally off; CI and an explicit operator action remain the release gates.
+The root `render.yaml` defines the Docker API, Redis-compatible Key Value, and an authenticated MCP service in Oregon. Vercel owns the browser frontend.
+
+The current Blueprint keeps Render compute on the free plan for validation and cost control. Free web services can spin down when idle and are not an always-on production availability tier. Before describing the API or MCP as continuously available, select an always-on plan and approve its cost; no upgrade is authorized by this configuration. The primary API `DATABASE_URL` is supplied externally (the current architecture uses the existing Supabase PostgreSQL database); this Blueprint deliberately does not provision a second writable Render database. Verify the `vector` extension and clean migration path before release. Git auto-deploy is intentionally off; CI and an explicit operator action remain the release gates.
 
 Required operator-supplied values are intentionally unresolved in source:
 - API: `DATABASE_URL`, Supabase server credentials, model/provider credentials, and any enabled integrations.
