@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resolveConnectionUrls } from '../server/startupConfig.js';
 
 const state = vi.hoisted(() => {
   const setup = vi.fn();
@@ -25,6 +26,13 @@ describe('agent checkpointer initialization', () => {
     const { checkpointer, humanInTheLoopAgent } = await import('./approvalEngine.js');
 
     expect(state.fromConnString).toHaveBeenCalledOnce();
+    // The API pool and LangGraph saver must resolve the same configured URL.
+    expect(state.fromConnString).toHaveBeenCalledWith(
+      resolveConnectionUrls(
+        process.env.NODE_ENV ?? 'test',
+        process.env.DATABASE_URL,
+      ).databaseUrl,
+    );
     expect(checkpointer).toBe(state.saver);
     expect(state.setup).not.toHaveBeenCalled();
     expect(state.createReactAgent).toHaveBeenCalledWith(
