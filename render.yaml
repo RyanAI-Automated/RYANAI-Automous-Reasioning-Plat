@@ -26,6 +26,7 @@ services:
         value: production
 
   - type: web
+- type: web
     name: ryanai-api
     env: docker
     repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
@@ -34,19 +35,23 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile.api
     healthCheckPath: /health
+    preDeployCommand: npx prisma migrate deploy
     autoDeployTrigger: off
     envVars:
       - key: NODE_ENV
         value: production
-      - key: HOST
-        value: 0.0.0.0
-      - key: PORT
-        value: 10000
-      - key: CORS_ORIGINS
-        value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
-      - key: JWT_SECRET
-        generateValue: true
       - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: ryanai-redis
+          type: keyvalue
+          property: connectionString
+      - key: SUPABASE_URL
+        value: https://narsvpwymvlrhurqbthu.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: REDIS_URL
         fromService:
