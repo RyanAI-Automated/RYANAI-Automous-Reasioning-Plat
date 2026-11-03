@@ -246,8 +246,9 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       first.socket.close();
       const replay = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket');
       await new Promise((resolve, reject) => { replay.once('open', resolve); replay.once('error', reject); });
+      const closed = new Promise((resolve) => replay.once('close', (code) => resolve(code)));
       replay.send(JSON.stringify({ type: 'hello', ticket }));
-      const closeCode = await new Promise((resolve) => replay.once('close', (code) => resolve(code)));
+      const closeCode = await closed;
       assert.equal(closeCode, 1008);
     });
 
@@ -256,8 +257,9 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       await delay(5500);
       const socket = new WebSocket('ws://127.0.0.1:' + bridgePort + '/v1/socket');
       await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+      const closed = new Promise((resolve) => socket.once('close', (code) => resolve(code)));
       socket.send(JSON.stringify({ type: 'hello', ticket: expired }));
-      const closeCode = await new Promise((resolve) => socket.once('close', (code) => resolve(code)));
+      const closeCode = await closed;
       assert.equal(closeCode, 1008);
     });
   } finally {
