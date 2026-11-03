@@ -5,7 +5,6 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
-
 const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
   signOut: vi.fn(),
