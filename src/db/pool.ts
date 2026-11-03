@@ -1,3 +1,4 @@
+import { postgresClientOptions } from './postgresTls.js';
 // File path: ./src/db/pool.ts
 
 import { Pool } from "pg";
@@ -5,7 +6,7 @@ import { Pool } from "pg";
 const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/ryanai";
 
 export const dbPool = new Pool({
-  connectionString,
+  ...postgresClientOptions(connectionString),
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
