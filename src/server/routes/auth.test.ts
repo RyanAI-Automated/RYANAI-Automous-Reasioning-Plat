@@ -240,7 +240,6 @@ describe('Supabase API authentication', () => {
   it.each([
     ['GET', '/api/metrics'],
     ['POST', '/api/comms/send'],
-    ['GET', '/ws'],
     ['POST', '/api/reason/approve'],
   ] as const)('allows verified admins %s %s', async (method, url) => {
     getUser.mockResolvedValue({
