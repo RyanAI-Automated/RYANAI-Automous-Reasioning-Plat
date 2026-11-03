@@ -46,3 +46,11 @@ For a Vercel-hosted backend, set \`BRIDGE_INTERNAL_URL\` to the bridge's HTTPS o
 ## Operational boundary
 
 A permanent no-disconnect guarantee is impossible across host and network failures. The acceptance target is automatic reconnection with exponential backoff and jitter, heartbeat-based half-open detection, durable replay, explicit degraded state and reproducible fault-injection evidence.
+
+## Railway service configuration
+
+The repository includes `railway.bridge.json` for a dedicated Railway service. Create a separate service linked to the official repository, keep its root directory at the repository root, and set that service's custom config file path to `railway.bridge.json`. The config selects `connectivity-bridge/Dockerfile`, probes `/readyz`, and uses an on-failure restart policy. Railway supplies `PORT`; the bridge listens on it when `BRIDGE_PORT` is not set.
+
+Configure these service variables in Railway's masked variable UI (do not commit values): `REDIS_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CORS_ORIGINS`, `BRIDGE_API_ADAPTER_TOKEN`, `BRIDGE_MCP_ADAPTER_TOKEN`, and optionally `BRIDGE_STREAM_MAX_LENGTH` / `BRIDGE_TICKET_TTL_SECONDS`. The Redis endpoint must be reachable from this Railway service. Configure the API's `BRIDGE_INTERNAL_URL` to the bridge's private Railway address when both services share a Railway project; for a Vercel-hosted API, use the bridge's HTTPS domain. Configure the browser's `VITE_BRIDGE_BASE_URL` and the exact frontend origin in `CORS_ORIGINS` when the browser connects cross-origin.
+
+This is deployment configuration only: it does not create a Railway service, set secrets, provision Redis, assign a domain, or deploy anything.
