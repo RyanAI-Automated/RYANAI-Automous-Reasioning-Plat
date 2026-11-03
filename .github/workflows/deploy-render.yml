@@ -1,7 +1,7 @@
 name: Deploy API to Render
 
-# Trigger only after the actual container publishing workflow succeeds.
-# Render remains opt-in and requires an explicit gate plus a configured deploy hook.
+# Manual production trigger only; require an explicit boolean confirmation,
+# the repository opt-in variable, and the protected production environment.
 on:
   workflow_dispatch:
     inputs:
