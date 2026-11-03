@@ -17,7 +17,7 @@ export const adminUserRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/api/admin/users', {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-  }, async (_request, reply) => {
+  }, async (request, reply) => {
     const admin = getSupabaseAdmin();
     if (!admin) return reply.code(503).send({ error: 'Server-side identity administration is not configured.' });
     const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 100 });
@@ -40,6 +40,7 @@ export const adminUserRoutes: FastifyPluginAsync = async (fastify) => {
       })),
       pageSize: 100,
       hasMore: Boolean(data.nextPage),
+      canManageRoles: request.authUser?.isOwner === true,
     };
   });
 
