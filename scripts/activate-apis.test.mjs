@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { configurationReport, parseArgs } from './activate-apis.mjs';
+import { configurationReport, parseArgs, validateStartOptions } from './activate-apis.mjs';
 
 test('defaults to read-only preflight', () => {
   assert.deepEqual(parseArgs([]), { command: 'preflight', flags: new Set() });
@@ -57,4 +57,27 @@ test('includes all communications channels without sending anything', () => {
     assert.equal(report.communications[channel].status, 'configured_unverified');
   }
   assert.match(report.integrationsNote, /Authentication/);
+});
+
+test('start requires explicit migration and backup acknowledgements', () => {
+  const configured = configurationReport({
+    DB_PASSWORD: 'a'.repeat(64),
+    REDIS_PASSWORD: 'b'.repeat(64),
+    JWT_SECRET: 'c'.repeat(48),
+    MCP_AUTH_TOKEN: 'd'.repeat(48),
+  });
+  assert.throws(() => validateStartOptions(new Set(), configured), /allow-committed-migrations/);
+  assert.throws(() => validateStartOptions(new Set(['--allow-committed-migrations']), configured), /confirm-database-backup/);
+  assert.doesNotThrow(() => validateStartOptions(
+    new Set(['--allow-committed-migrations', '--confirm-database-backup']),
+    configured,
+  ));
+});
+
+test('start remains blocked when core secrets are incomplete even with flags', () => {
+  const incomplete = configurationReport({});
+  assert.throws(() => validateStartOptions(
+    new Set(['--allow-committed-migrations', '--confirm-database-backup']),
+    incomplete,
+  ), /configuration is incomplete/);
 });
