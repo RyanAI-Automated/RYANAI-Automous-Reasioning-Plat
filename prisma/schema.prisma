@@ -435,3 +435,27 @@ model JarvisAuditEvent {
   @@index([actorId, createdAt(sort: Desc)], map: "jarvis_audit_events_actor_created_idx")
   @@map("jarvis_audit_events")
 }
+
+// Legacy vector-memory tables are created by the ordered SQL migration.
+// Prisma represents the table/column structure for drift checks; pgvector's
+// HNSW operator-class index remains managed by the SQL migration.
+model ReasoningCache {
+  id        String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prompt    String                       @db.Text
+  response  String                       @db.Text
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime?                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("reasoning_cache")
+}
+
+model AgentMemory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String    @map("session_id") @db.VarChar(255)
+  role      String    @db.VarChar(50)
+  content   String    @db.Text
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([sessionId, timestamp], map: "idx_agent_session")
+  @@map("agent_memory")
+}
