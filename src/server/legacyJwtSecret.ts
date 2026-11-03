@@ -18,8 +18,8 @@ export function resolveLegacyJwtSecret(
     return secret;
   }
 
-  if (nodeEnv === 'production') {
-    throw new Error('JWT_SECRET is required in production; refusing to use an insecure fallback.');
+  if (nodeEnv !== 'development' && nodeEnv !== 'test') {
+    throw new Error('JWT_SECRET is required unless NODE_ENV is explicitly development or test.');
   }
 
   return randomBytes(32).toString('base64url');
