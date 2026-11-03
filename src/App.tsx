@@ -28,6 +28,7 @@ import { Analytics } from '@vercel/analytics/react';
 import RyanWelcome from '@/components/RyanWelcome';
 import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
+import ConnectivityBridgeRuntime from '@/components/ConnectivityBridgeRuntime';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -186,6 +187,7 @@ export default function App() {
         tabIndex={-1}
         className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
       >
+        {user && <ConnectivityBridgeRuntime userId={user.id} />}
         {user && (
           <RyanWelcome
             userId={user.id}
