@@ -125,8 +125,16 @@ export function installAuthentication(fastify: FastifyInstance) {
     if (request.method === 'OPTIONS') return;
     // Machine-to-machine routes authenticate their own dedicated bearer tokens.
     if (request.method === 'POST' && path === '/api/internal/openai/chat') return;
-    // Comms browser routes require a verified Supabase user; the plugin enforces owner scope.
-    if (path.startsWith('/api/comms/')) return requireUser(request, reply);
+    // Comms browser routes require a verified session and an owner/admin identity.
+    // The Comms plugin narrows outbound sends and history to the configured owner.
+    if (path.startsWith('/api/comms/')) {
+      await requireUser(request, reply);
+      if (reply.sent) return;
+      if (request.authUser?.role !== 'admin' && !request.authUser?.isOwner) {
+        return reply.code(403).send({ error: 'Owner or administrator access is required.' });
+      }
+      return;
+    }
     // This machine-to-machine route verifies JARVIS_INGRESS_TOKEN in its own preHandler.
     if (request.method === 'POST' && path === '/api/jarvis/patches/apply') return;
     
