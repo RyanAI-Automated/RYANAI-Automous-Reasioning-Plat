@@ -23,7 +23,8 @@ beforeAll(async () => {
   app.addHook('onRequest', async (request) => {
     const id = request.headers['x-test-user'];
     const role = request.headers['x-test-role'];
-    (request as unknown as { authUser: unknown }).authUser = id ? { id: String(id), role: role === 'admin' ? 'admin' : 'user' } : null;
+    const isOwner = request.headers['x-test-owner'] === 'true';
+    (request as unknown as { authUser: unknown }).authUser = id ? { id: String(id), role: role === 'admin' ? 'admin' : 'user', isOwner } : null;
   });
   await app.register(agentOperationsRoutes);
 });
@@ -39,6 +40,15 @@ describe('agent operations routes', () => {
     });
     expect(response.statusCode).toBe(403);
     expect(operations.publishBrainKnowledge).not.toHaveBeenCalled();
+  });
+  it('allows the server-verified owner to read shared knowledge without an admin app_metadata role', async () => {
+    operations.listBrainKnowledge.mockResolvedValue([{ id: 'knowledge-owner' }]);
+    const response = await app.inject({
+      method: 'GET', url: '/api/agent/ops/knowledge',
+      headers: { 'x-test-user': 'owner-1', 'x-test-owner': 'true' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().knowledge).toHaveLength(1);
   });
   it('allows admins to publish knowledge for all reasoning brains', async () => {
     operations.publishBrainKnowledge.mockResolvedValue({ id: 'knowledge-1', title: 'Platform policy' });
