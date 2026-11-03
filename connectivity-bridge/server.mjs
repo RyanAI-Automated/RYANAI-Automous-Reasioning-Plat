@@ -8,7 +8,7 @@ const required = ['REDIS_URL', 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'];
 for (const key of required) {
   if (!process.env[key]?.trim()) throw new Error('Missing required connectivity bridge setting: ' + key);
 }
-const port = Number(process.env.BRIDGE_PORT || 8787);
+const port = Number(process.env.BRIDGE_PORT || process.env.PORT || 8787);
 const ticketTtl = Number(process.env.BRIDGE_TICKET_TTL_SECONDS || 30);
 const streamMaxLength = Number(process.env.BRIDGE_STREAM_MAX_LENGTH || 10000);
 const maxPayload = 256 * 1024;
