@@ -162,6 +162,8 @@ jobs:
           MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
           MCPJUNGLE_IMAGE_TAG=0.4.6
           EOF
+          # Start from a genuinely fresh PostgreSQL and gateway volume on every CI run.
+          docker compose --profile mcp-gateway down --volumes --remove-orphans >/dev/null 2>&1 || true
           if ! docker compose --profile mcp-gateway up --build -d --wait api mcp-server mcpjungle; then
             echo "::group::Compose service state after startup failure"
             docker compose --profile mcp-gateway ps -a || true
