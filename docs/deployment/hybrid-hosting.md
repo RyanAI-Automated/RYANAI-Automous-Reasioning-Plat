@@ -22,7 +22,9 @@ Do not run multiple writable API stacks against separate databases and present t
 - Install: `npm ci --legacy-peer-deps`.
 - Build: `npm run build:web`.
 - Output: `dist`.
-- Set `VITE_API_BASE_URL` to the Render API's HTTPS origin in Vercel project settings. Do not point the primary frontend at Railway unless an approved cutover is in progress.
+- `VITE_API_BASE_URL` is present in the linked Vercel project and currently points to `https://ryanai-api.onrender.com` for production and preview.
+- The verified Vercel project domains include `ryan.co.za`, `www.ryan.co.za`, and `ryanai-automous-reasioning-plat.vercel.app`; Render API CORS is restricted to these browser origins.
+- Do not point the primary frontend at Railway unless an approved cutover is in progress.
 - Only browser-public values may use `VITE_*`. Never place provider keys, service-role keys, database URLs, JWT secrets, or MCP tokens in Vite variables.
 - The Vercel config includes SPA fallback rewrites. Vercel is used here for the web client, not as a replacement for the persistent Fastify API, MCP listener, or background workers.
 
