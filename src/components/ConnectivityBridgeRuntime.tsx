@@ -70,6 +70,7 @@ export default function ConnectivityBridgeRuntime({ userId }: ConnectivityBridge
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-2 text-xs">
       <span className={stateColor}>Bridge: {stateLabel}</span>
       <span className={capabilities.api === 'ready' ? 'text-emerald-400' : 'text-slate-400'}>API: {capabilities.api ?? 'unknown'}</span>
+      <span className={capabilities.vercel === 'ready' ? 'text-emerald-400' : 'text-slate-400'}>Vercel: {capabilities.vercel ?? 'unknown'}</span>
       <span className={capabilities.mcp === 'ready' ? 'text-emerald-400' : 'text-slate-400'}>MCP: {capabilities.mcp ?? 'unknown'}</span>
       {replayGap && <span className="text-amber-400">History gap: reconciliation required</span>}
     </div>
