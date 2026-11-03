@@ -140,7 +140,7 @@ export function installAuthentication(fastify: FastifyInstance) {
     
     if (
       ['GET', 'HEAD'].includes(request.method) &&
-      ['/', '/health', '/api/health'].includes(path)
+      ['/', '/health', '/api/health', '/livez', '/readyz'].includes(path)
     ) {
       return;
     }
@@ -166,7 +166,13 @@ export function installAuthentication(fastify: FastifyInstance) {
       return;
     }
 
+    // User-scoped agent operations are available to verified members.
+    // Their handlers scope reads and writes by request.authUser.id; sensitive
+    // provider probes and knowledge publication remain admin-only below.
     if (
+      (request.method === 'GET' &&
+        ['/api/agent/ops/brains', '/api/agent/ops/tasks'].includes(path)) ||
+      (request.method === 'POST' && path === '/api/agent/ops/tasks') ||
       (request.method === 'POST' &&
         ['/api/reason', '/api/reasoning/stream', '/api/v1/realtime/voice-ticket'].includes(path)) ||
       (request.method === 'GET' && path === '/api/auth/verify')
