@@ -29,7 +29,7 @@ export default function ConnectivityBridgeRuntime({ userId }: ConnectivityBridge
       },
       onCapabilities: (nextCapabilities) => {
         setCapabilities(nextCapabilities);
-        window.dispatchEvent(new CustomEvent('ryanai-bridge-capabilities', { detail: { capabilities, userId } }));
+        window.dispatchEvent(new CustomEvent('ryanai-bridge-capabilities', { detail: { capabilities: nextCapabilities, userId } }));
       },
       onReplayGap: (gap) => {
         setReplayGap(true);
