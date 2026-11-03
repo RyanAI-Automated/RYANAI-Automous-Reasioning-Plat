@@ -2,7 +2,7 @@
 
 # Targets: api (production API), web (nginx frontend), migrate (one-shot Prisma deploy).
 # Keep Node 24 and the root lockfile consistent across build and runtime stages.
-FROM node:24-alpine AS api-deps
+FROM node:26-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache libc6-compat \
@@ -37,7 +37,7 @@ RUN npm run db:generate \
     && npm prune --omit=dev --legacy-peer-deps
 
 # Minimal API runtime; the npm CLI is not needed after the build.
-FROM node:24-alpine AS api
+FROM node:26-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
@@ -64,7 +64,7 @@ ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "dist/server/server/launcher.js"]
 
 # Build-time Vite configuration contains public browser values only.
-FROM node:24-alpine AS web-builder
+FROM node:26-alpine AS web-builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json ./
