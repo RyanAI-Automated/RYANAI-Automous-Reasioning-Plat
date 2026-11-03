@@ -1,59 +1,94 @@
 const connectionHints: Record<string, string> = {
-  ECONNREFUSED:
-    'Connection refused. Check that PostgreSQL is running and the configured host and port are reachable.',
-  ENOTFOUND:
-    'Database hostname could not be resolved. Check the host in DATABASE_URL.',
-  EAI_AGAIN:
-    'Database hostname lookup temporarily failed. Check DNS and retry.',
-  ETIMEDOUT:
-    'Connection timed out. Check database reachability and network rules.',
-  ECONNRESET:
-    'Connection was reset. Check database availability and TLS settings.',
-  '28P01':
-    'Password authentication failed. Check the database credentials in DATABASE_URL.',
-  '28000':
-    'Database authorization failed. Check the database user and server access rules.',
-  '3D000':
-    'The configured database does not exist. Check the database name in DATABASE_URL.',
-  '53300':
-    'PostgreSQL has too many connections. Check server connection capacity.',
-  '57P03':
-    'PostgreSQL is not accepting connections yet. Check server readiness and retry.',
+  ECONNREFUSED: 'Connection refused. Check the PostgreSQL host and port.',
+  ENETUNREACH: 'The API runtime has no route to the PostgreSQL network. Check network reachability and the selected endpoint.',
+  EHOSTUNREACH: 'The PostgreSQL host is unreachable from the API runtime.',
+  ENOTFOUND: 'The PostgreSQL hostname could not be resolved. Check the host in DATABASE_URL.',
+  EAI_AGAIN: 'PostgreSQL hostname lookup temporarily failed. Check DNS and retry.',
+  ETIMEDOUT: 'The PostgreSQL connection timed out. Check reachability, firewall rules and pooler status.',
+  ECONNRESET: 'The PostgreSQL connection was reset. Check database availability and TLS settings.',
+  EADDRNOTAVAIL: 'The runtime could not allocate a local network address for PostgreSQL.',
+  ECONNABORTED: 'The PostgreSQL connection was aborted.',
+  EPIPE: 'The PostgreSQL connection closed while data was being sent.',
+  '08001': 'The client could not establish a PostgreSQL connection. Check host, port and network path.',
+  '08004': 'The PostgreSQL server rejected the connection.',
+  '08006': 'The PostgreSQL connection failed after being established.',
+  '28P01': 'PostgreSQL password authentication failed. Check the database credentials in DATABASE_URL.',
+  '28000': 'PostgreSQL authorization failed. Check the database user and server access rules.',
+  '3D000': 'The configured PostgreSQL database does not exist. Check the database name.',
+  '53300': 'PostgreSQL has too many connections. Check the project connection limit and pool sizing.',
+  '57P03': 'PostgreSQL is not accepting connections yet. Check server readiness and retry.',
+  'ERR_TLS_CERT_ALTNAME_INVALID': 'TLS certificate hostname validation failed. Use the official Supabase connection string and TLS settings.',
+  'CERT_HAS_EXPIRED': 'The PostgreSQL TLS certificate has expired.',
+  'DEPTH_ZERO_SELF_SIGNED_CERT': 'The PostgreSQL TLS certificate is not trusted by the runtime.',
 };
 
+function safePostgresTarget(connectionUrl?: string): string {
+  if (!connectionUrl) return 'target=DATABASE_URL (not provided)';
+  try {
+    const parsed = new URL(connectionUrl);
+    if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+      return 'target=DATABASE_URL (not a PostgreSQL URL)';
+    }
+    const database = parsed.pathname.replace(/^\\//, '').replace(/[^a-zA-Z0-9_.-]/g, '');
+    return `target=${parsed.hostname}:${parsed.port || '5432'}/${database || '(default)'}`;
+  } catch {
+    return 'target=DATABASE_URL (invalid URL format)';
+  }
+}
+
 /**
- * Summarize recognized database failures without exposing raw error details.
- * Traversal is bounded and handles cyclic causes and aggregate errors.
+ * Report only allow-listed error metadata and the non-secret database endpoint.
+ * Never log connection URLs, usernames, passwords, query parameters, or raw messages.
+ * Traversal is bounded and handles nested causes and AggregateError instances.
  */
-export function databaseFailureDiagnostic(error: unknown): string {
+export function databaseFailureDiagnostic(error: unknown, connectionUrl?: string): string {
   const pending: unknown[] = [error];
   const seen = new Set<object>();
   const codes = new Set<string>();
+  const types = new Set<string>();
+  const syscalls = new Set<string>();
+
   for (let visited = 0; pending.length && visited < 32; visited++) {
     const current = pending.shift();
     if (!current || typeof current !== 'object' || seen.has(current)) continue;
     seen.add(current);
     const detail = current as {
+      name?: unknown;
       code?: unknown;
+      syscall?: unknown;
       cause?: unknown;
       errors?: unknown;
     };
-    if (
-      typeof detail.code === 'string' &&
-      Object.hasOwn(connectionHints, detail.code)
-    ) {
+
+    if (typeof detail.name === 'string' && /^[A-Za-z][A-Za-z0-9]{0,39}$/.test(detail.name)) {
+      types.add(detail.name);
+    }
+    if (typeof detail.code === 'string' && /^[A-Z0-9_]{2,64}$/.test(detail.code)) {
       codes.add(detail.code);
     }
+    if (typeof detail.syscall === 'string' && /^[a-zA-Z0-9_]{2,32}$/.test(detail.syscall)) {
+      syscalls.add(detail.syscall);
+    }
     if (detail.cause) pending.push(detail.cause);
-    if (Array.isArray(detail.errors))
-      pending.push(...detail.errors.slice(0, 16));
+    if (Array.isArray(detail.errors)) pending.push(...detail.errors.slice(0, 16));
   }
-  if (!codes.size) {
-    return 'Cause unavailable. Check DATABASE_URL, PostgreSQL availability, and database server logs. Raw error details are omitted to protect credentials.';
-  }
-  return [...codes]
-    .map((code) => `${code}: ${connectionHints[code]}`)
+
+  const typeSummary = types.size ? `type=${[...types].join(',')}` : 'type=unknown';
+  const codeSummary = codes.size ? `code=${[...codes].join(',')}` : 'code=not-exposed';
+  const syscallSummary = syscalls.size ? `syscall=${[...syscalls].join(',')}` : '';
+  const hints = [...codes]
+    .map((code) => connectionHints[code] ?? 'Check PostgreSQL connection details, credentials, network reachability and server logs.')
     .join(' ');
+
+  return [
+    'PostgreSQL connection failed:',
+    typeSummary,
+    codeSummary,
+    syscallSummary,
+    safePostgresTarget(connectionUrl),
+    hints || 'No recognized connection code was exposed. Check the Supabase Connect string and database logs.',
+    'Credentials and raw error messages are omitted.',
+  ].filter(Boolean).join(' ');
 }
 
 export interface StartupServices {
