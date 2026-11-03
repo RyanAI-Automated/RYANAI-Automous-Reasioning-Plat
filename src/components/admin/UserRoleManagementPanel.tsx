@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { KeyRound, RefreshCw, ShieldCheck } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { API_BASE_URL } from '@/lib/apiBaseUrl';
-import { useAuth } from '@/hooks/useAuth';
 
 type ManagedUser = {
   id: string;
@@ -12,11 +11,10 @@ type ManagedUser = {
   lastSignInAt: string | null;
   isConfiguredOwner: boolean;
 };
-type UsersPayload = { users?: ManagedUser[]; error?: string; hasMore?: boolean };
+type UsersPayload = { users?: ManagedUser[]; error?: string; hasMore?: boolean; canManageRoles?: boolean };
 
 export default function UserRoleManagementPanel() {
-  const { session } = useAuth();
-  const canManageRoles = session?.user.app_metadata?.owner === true;
+  const [canManageRoles, setCanManageRoles] = useState(false);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
@@ -31,6 +29,7 @@ export default function UserRoleManagementPanel() {
       const data = await response.json().catch(() => ({})) as UsersPayload;
       if (!response.ok) throw new Error(data.error || 'User directory request failed.');
       setUsers(Array.isArray(data.users) ? data.users : []);
+      setCanManageRoles(data.canManageRoles === true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load the user directory.');
     } finally {
