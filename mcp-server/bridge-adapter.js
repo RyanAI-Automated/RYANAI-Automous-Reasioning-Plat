@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 const bridgeUrl = process.env.BRIDGE_INTERNAL_URL?.replace(/\/+$/, '');
 const bridgeToken = process.env.BRIDGE_MCP_ADAPTER_TOKEN || '';
 let heartbeatTimer;
@@ -14,22 +12,6 @@ export async function heartbeatMcpAdapter() {
     });
     return response.ok;
   } catch {
-    return false;
-  }
-}
-
-export async function publishMcpBridgeEvent({ topic, idempotencyKey = randomUUID(), payload }) {
-  if (!bridgeUrl || bridgeToken.length < 32) return false;
-  try {
-    const response = await fetch(`${bridgeUrl}/internal/events`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${bridgeToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ topic, idempotencyKey, payload }),
-      signal: AbortSignal.timeout(4000),
-    });
-    return response.ok;
-  } catch {
-    // MCP execution is not coupled to the optional realtime adapter.
     return false;
   }
 }
