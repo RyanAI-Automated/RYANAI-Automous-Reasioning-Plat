@@ -1,5 +1,6 @@
-# RyanAI Production Blueprint
-# Dedicated static frontend and API; credentials remain outside source control.
+# RyanAI Production Blueprint — reviewed, cost-neutral configuration
+# Existing frontend remains a Render Static Site; API remains Dockerfile-based.
+# Secrets use sync:false and must be configured privately in Render.
 version: "1"
 
 projects:
@@ -7,27 +8,38 @@ projects:
     environments:
       - name: Production
         services:
+          # Existing ryanai-web resource is a Static Site. Do not change its
+          # immutable runtime to Docker as part of this update.
           - type: web
             name: ryanai-web
             runtime: static
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
             plan: free
             autoDeployTrigger: "off"
+            previews:
+              generation: manual
             buildCommand: npm ci --legacy-peer-deps && npm run build
             staticPublishPath: ./dist
             envVars:
+              - key: VITE_API_BASE_URL
+                value: https://ryanai-api.onrender.com
               - key: VITE_SUPABASE_URL
                 value: https://narsvpwymvlrhurqbthu.supabase.co
               - key: VITE_SUPABASE_PUBLISHABLE_KEY
                 sync: false
-              - key: VITE_API_BASE_URL
-                value: https://ryanai-api.onrender.com
+              - key: VITE_SUPABASE_ANON_KEY
+                sync: false
               - key: VITE_APP_ENV
                 value: production
             routes:
               - type: rewrite
                 source: /*
                 destination: /index.html
+
+          # Existing ryanai-api resource uses the dedicated API Dockerfile.
+          # Render injects PORT, currently 10000; set it explicitly to match
+          # the observed service configuration and launcher binding.
           - type: web
             name: ryanai-api
             runtime: docker
@@ -38,14 +50,18 @@ projects:
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
             autoDeployTrigger: "off"
+            previews:
+              generation: manual
             healthCheckPath: /health
             envVars:
               - key: NODE_ENV
                 value: production
               - key: HOST
                 value: 0.0.0.0
+              - key: PORT
+                value: "10000"
               - key: CORS_ORIGINS
-                value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
+                value: "https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app"
               - key: JWT_SECRET
                 generateValue: true
               - key: DATABASE_URL
@@ -55,12 +71,19 @@ projects:
                   name: ryanai-redis
                   type: keyvalue
                   property: connectionString
+
+              # Supabase — publishable/anon values are not service-role secrets.
+              # The service-role key remains API-only and must never use VITE_*.
               - key: SUPABASE_URL
                 value: https://narsvpwymvlrhurqbthu.supabase.co
+              - key: SUPABASE_ANON_KEY
+                sync: false
               - key: SUPABASE_PUBLISHABLE_KEY
                 sync: false
               - key: SUPABASE_SERVICE_ROLE_KEY
                 sync: false
+
+              # Attachment scanner remains disabled until ClamAV is provisioned.
               - key: ATTACHMENT_SCANNER_ENABLED
                 value: "false"
               - key: CLAMAV_HOST
@@ -69,6 +92,8 @@ projects:
                 value: "3310"
               - key: CLAMAV_TIMEOUT_MS
                 value: "60000"
+
+              # AI providers — all credentials remain server-side.
               - key: OPENAI_API_KEY
                 sync: false
               - key: NVIDIA_API_KEY
@@ -89,12 +114,16 @@ projects:
                 value: https://api.openai.com/v1
               - key: LOGIC_REASONING_MODEL
                 value: gpt-4o-mini
+
+              # GitHub access — use a repository-scoped fine-grained token.
               - key: RYANAI_GITHUB_TOKEN
                 sync: false
               - key: RYANAI_GITHUB_REPOSITORY
                 value: RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
               - key: RYANAI_GITHUB_BASE_BRANCH
                 value: main
+
+              # Twilio — WhatsApp, SMS, voice, signature verification and status.
               - key: TWILIO_ACCOUNT_SID
                 sync: false
               - key: TWILIO_AUTH_TOKEN
@@ -117,10 +146,18 @@ projects:
                 sync: false
               - key: TWILIO_STATUS_CALLBACK_URL
                 sync: false
+              - key: RYANAI_TWILIO_VOICE
+                sync: false
+
+              # Resend — inbound email.
               - key: RESEND_API_KEY
                 sync: false
               - key: RESEND_WEBHOOK_SECRET
                 sync: false
+
+              # SMTP — configure the port and TLS mode as a matching pair.
+              # For example, 465 normally uses secure=true; 587 normally uses
+              # STARTTLS with secure=false. Leave these operator-supplied.
               - key: SMTP_HOST
                 sync: false
               - key: SMTP_PORT
@@ -133,6 +170,8 @@ projects:
                 sync: false
               - key: SMTP_FROM
                 sync: false
+
+              # Sir G owner preferences; personal destinations stay private.
               - key: RYANAI_OWNER_TITLE
                 value: Sir G
               - key: RYANAI_OWNER_LANGUAGE
@@ -141,9 +180,15 @@ projects:
                 sync: false
               - key: RYANAI_OWNER_EMAIL
                 sync: false
+
+              # Optional startup backup is deliberately disabled by default.
+              - key: BACKUP_ON_STARTUP
+                value: "false"
+
+          # Existing managed Redis Key Value resource; internal-only allow list.
           - type: keyvalue
             name: ryanai-redis
             plan: free
             region: oregon
             maxmemoryPolicy: noeviction
-            ipAllowList: [] # Internal access only
+            ipAllowList: []
