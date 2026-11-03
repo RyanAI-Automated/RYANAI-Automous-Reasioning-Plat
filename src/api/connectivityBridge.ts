@@ -97,6 +97,7 @@ export class ConnectivityBridgeClient {
       const socket = new WebSocket(socketUrl.toString());
       this.socket = socket;
       let eventQueue = Promise.resolve();
+      const ackWaiters = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
       socket.onopen = () => {
         if (this.stopped || this.socket !== socket) return socket.close();
         socket.send(JSON.stringify({ type: 'resume' }));
@@ -116,10 +117,25 @@ export class ConnectivityBridgeClient {
           if (this.heartbeatDeadline) clearTimeout(this.heartbeatDeadline);
           this.heartbeatDeadline = undefined;
           this.pendingNonce = null;
+        } else if (payload.type === 'acknowledged' && typeof payload.id === 'string') {
+          const waiter = ackWaiters.get(payload.id);
+          if (waiter) {
+            clearTimeout(waiter.timer);
+            ackWaiters.delete(payload.id);
+            waiter.resolve();
+          }
         } else if (payload.type === 'event' && typeof payload.id === 'string') {
           eventQueue = eventQueue.then(async () => {
             await this.options.onEvent({ id: payload.id, data: payload.data });
-            if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ack', id: payload.id }));
+            if (socket.readyState !== WebSocket.OPEN) throw new Error('Bridge socket closed before acknowledgement');
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(() => {
+                ackWaiters.delete(payload.id);
+                reject(new Error('Bridge acknowledgement timed out'));
+              }, 10000);
+              ackWaiters.set(payload.id, { resolve, reject, timer });
+              socket.send(JSON.stringify({ type: 'ack', id: payload.id }));
+            });
           }).catch(() => {
             this.options.onState?.('degraded');
             if (socket.readyState === WebSocket.OPEN) socket.close(1011, 'Event handler failed; replay required');
@@ -130,6 +146,11 @@ export class ConnectivityBridgeClient {
       };
       socket.onerror = () => this.options.onState?.('degraded');
       socket.onclose = () => {
+        for (const waiter of ackWaiters.values()) {
+          clearTimeout(waiter.timer);
+          waiter.reject(new Error('Bridge connection closed before acknowledgement'));
+        }
+        ackWaiters.clear();
         if (this.socket === socket) this.socket = null;
         this.stopHeartbeat();
         this.scheduleReconnect();
