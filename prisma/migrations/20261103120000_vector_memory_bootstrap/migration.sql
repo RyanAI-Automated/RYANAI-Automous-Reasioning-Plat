@@ -21,6 +21,28 @@ CREATE TABLE IF NOT EXISTS public.agent_memory (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Older local init volumes used the quoted camelCase column. After an
+-- operator-reviewed Prisma baseline, rename it in place rather than dropping
+-- or recreating the existing table and its data.
+DO $
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'agent_memory'
+          AND column_name = 'sessionId'
+    ) AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'agent_memory'
+          AND column_name = 'session_id'
+    ) THEN
+        ALTER TABLE public.agent_memory RENAME COLUMN "sessionId" TO session_id;
+    END IF;
+END $;
+
 CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
     ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops);
 
