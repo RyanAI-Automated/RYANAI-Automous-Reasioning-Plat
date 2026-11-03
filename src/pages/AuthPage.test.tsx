@@ -14,6 +14,25 @@ vi.mock('@/lib/supabase', () => ({
     return mock.configured ? { auth: mock } : null;
   },
 }));
+vi.mock('@/components/CaptchaChallenge', async () => {
+  const { createElement } = await import('react');
+  return {
+    default: ({
+      onToken,
+    }: {
+      onToken: (token: string | null) => void;
+    }) =>
+      createElement(
+        'button',
+        {
+          type: 'button',
+          'data-testid': 'captcha-challenge',
+          onClick: () => onToken('captcha-test-token'),
+        },
+        'Complete CAPTCHA',
+      ),
+  };
+});
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let container: HTMLDivElement;
 let root: Root;
@@ -38,6 +57,13 @@ async function fill(selector: string, value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
+async function completeCaptcha() {
+  const challenge =
+    container.querySelector<HTMLButtonElement>('[data-testid="captcha-challenge"]')!;
+  await act(async () => {
+    challenge.dispatchEvent(new Event('click', { bubbles: true }));
+  });
+}
 async function submit() {
   await act(async () => {
     container
@@ -45,7 +71,7 @@ async function submit() {
       .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
 }
-it('authenticates with normalized email and password', async () => {
+it('authenticates with normalized email, password, and CAPTCHA token', async () => {
   mock.signInWithPassword.mockResolvedValue({
     data: { session: {} },
     error: null,
@@ -53,10 +79,12 @@ it('authenticates with normalized email and password', async () => {
   await act(async () => root.render(<AuthPage />));
   await fill('[type=email]', 'Alice@Example.com');
   await fill('[type=password]', 'correct-password');
+  await completeCaptcha();
   await submit();
   expect(mock.signInWithPassword).toHaveBeenCalledWith({
     email: 'alice@example.com',
     password: 'correct-password',
+    options: { captchaToken: 'captcha-test-token' },
   });
 });
 it('shows server rejection and never offers demo authentication', async () => {
@@ -67,6 +95,7 @@ it('shows server rejection and never offers demo authentication', async () => {
   await act(async () => root.render(<AuthPage />));
   await fill('[type=email]', 'alice@example.com');
   await fill('[type=password]', 'wrong-password');
+  await completeCaptcha();
   await submit();
   expect(container.querySelector('[role=alert]')?.textContent).toContain(
     'Invalid login credentials',
@@ -74,18 +103,23 @@ it('shows server rejection and never offers demo authentication', async () => {
   expect(container.textContent).not.toContain('Try Demo');
   expect(container.textContent).not.toContain('GitHub');
 });
-it('keeps confirmation-required signups on the public screen', async () => {
+it('keeps confirmation-required signups on the public screen and uses the current origin', async () => {
   mock.signUp.mockResolvedValue({ data: { session: null }, error: null });
   await act(async () => root.render(<AuthPage mode="signup" />));
   await fill('[type=email]', 'alice@example.com');
   await fill('[autocomplete=name]', 'Alice');
   await fill('[type=password]', 'correct-password');
   await fill('label:last-of-type input', 'correct-password');
+  await completeCaptcha();
   await submit();
   expect(mock.signUp).toHaveBeenCalledWith({
     email: 'alice@example.com',
     password: 'correct-password',
-    options: { data: { full_name: 'Alice' } },
+    options: {
+      captchaToken: 'captcha-test-token',
+      emailRedirectTo: window.location.origin,
+      data: { full_name: 'Alice' },
+    },
   });
   expect(container.querySelector('[role=status]')?.textContent).toContain(
     'Check your email',
@@ -103,6 +137,16 @@ it('rejects mismatched passwords without calling the provider', async () => {
   expect(mock.signUp).not.toHaveBeenCalled();
   expect(container.querySelector('[role=alert]')?.textContent).toContain(
     'Passwords do not match',
+  );
+});
+it('rejects authentication without a verified CAPTCHA token', async () => {
+  await act(async () => root.render(<AuthPage />));
+  await fill('[type=email]', 'alice@example.com');
+  await fill('[type=password]', 'correct-password');
+  await submit();
+  expect(mock.signInWithPassword).not.toHaveBeenCalled();
+  expect(container.querySelector('[role=alert]')?.textContent).toContain(
+    'Complete the CAPTCHA challenge',
   );
 });
 it('disables authentication when configuration is absent', async () => {

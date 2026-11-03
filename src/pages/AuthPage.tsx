@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import CaptchaChallenge from '@/components/CaptchaChallenge';
 import { supabase } from '@/lib/supabase';
 
 interface AuthPageProps {
@@ -6,38 +7,61 @@ interface AuthPageProps {
 }
 
 /**
- * Render Supabase sign-in or signup, including provider errors and email confirmation.
- * Authentication is disabled without a configured client; access follows session state.
+ * Render Supabase sign-in or signup, including CAPTCHA, provider errors,
+ * and email confirmation. Access follows the authenticated session listener.
  */
 export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const isSignup = mode === 'signup';
+  const captchaProvider =
+    import.meta.env.VITE_SUPABASE_CAPTCHA_PROVIDER?.trim() ?? '';
+  const captchaSiteKey =
+    import.meta.env.VITE_SUPABASE_CAPTCHA_SITE_KEY?.trim() ?? '';
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!supabase || loading) return;
     setError('');
     setSuccess('');
+
     if (isSignup && password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
+    if (!captchaToken) {
+      setError('Complete the CAPTCHA challenge before continuing.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const credentials = { email: email.trim().toLowerCase(), password };
+      const credentials = {
+        email: email.trim().toLowerCase(),
+        password,
+      };
       const { data, error: authError } = isSignup
         ? await supabase.auth.signUp({
             ...credentials,
-            options: { data: { full_name: fullName.trim() || undefined } },
+            options: {
+              captchaToken,
+              emailRedirectTo: window.location.origin,
+              data: { full_name: fullName.trim() || undefined },
+            },
           })
-        : await supabase.auth.signInWithPassword(credentials);
+        : await supabase.auth.signInWithPassword({
+            ...credentials,
+            options: { captchaToken },
+          });
       if (authError) throw authError;
+
       // Access is granted only by the session listener, never by form submission.
       if (isSignup && !data.session) {
         setSuccess('Check your email to confirm your account, then sign in.');
@@ -52,6 +76,8 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
       );
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaResetSignal((current) => current + 1);
     }
   };
 
@@ -125,6 +151,12 @@ export default function AuthPage({ mode = 'signin' }: AuthPageProps) {
                 />
               </label>
             )}
+            <CaptchaChallenge
+              provider={captchaProvider}
+              siteKey={captchaSiteKey}
+              onToken={setCaptchaToken}
+              resetSignal={captchaResetSignal}
+            />
             {error && (
               <p role="alert" className="text-sm text-rose-300">
                 {error}
