@@ -52,6 +52,7 @@ export class RyanAIBridgeClient {
   private heartbeatDeadline: ReturnType<typeof setTimeout> | null = null;
   private pendingNonce: string | null = null;
   private readonly random: () => number;
+  private eventChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: BridgeClientOptions) {
     if (!options.topics.length || !options.getTicket) throw new Error('Bridge topics and ticket provider are required.');
@@ -120,7 +121,8 @@ export class RyanAIBridgeClient {
           this.pendingNonce = null;
         } else if (type === 'event') {
           const delivered = data as unknown as BridgeEvent;
-          Promise.resolve(this.options.onEvent(delivered)).then(() => {
+          this.eventChain = this.eventChain.then(async () => {
+            await this.options.onEvent(delivered);
             this.send('ack', { eventId: delivered.eventId, cursor: delivered.cursor });
           }).catch(() => {
             this.options.onState?.('degraded', 'Event handler failed; event will be replayed');
