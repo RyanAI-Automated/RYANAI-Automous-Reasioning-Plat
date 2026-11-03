@@ -9,6 +9,8 @@ const connectionHints: Record<string, string> = {
     'Connection timed out. Check database reachability and network rules.',
   ECONNRESET:
     'Connection was reset. Check database availability and TLS settings.',
+  ESSLREQUIRED:
+    'The PostgreSQL server requires TLS. Verify the Supabase CA configuration and use certificate validation; do not disable TLS verification.',
   '28P01':
     'Password authentication failed. Check the database credentials in DATABASE_URL.',
   '28000':
