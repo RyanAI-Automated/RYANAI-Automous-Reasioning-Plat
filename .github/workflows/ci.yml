@@ -367,7 +367,7 @@ jobs:
           eval "$(supabase status -o env)"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/supabase-anonymous-policy-ci-smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $anonymous_policy_gate_check$
           DECLARE target text;
           BEGIN
             FOREACH target IN ARRAY ARRAY[
@@ -401,7 +401,7 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'Missing restrictive Realtime registered-user policy';
             END IF;
-          END $;
+          END $anonymous_policy_gate_check$;
           SQL
       - name: Simulate recorded far-future legacy migration and apply corrective migration
         run: |
