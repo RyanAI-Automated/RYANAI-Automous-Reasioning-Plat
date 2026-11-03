@@ -261,8 +261,8 @@ describe('Supabase API authentication', () => {
     ).toBe(200);
   });
 
-  it.each(['/api/auth/login', '/api/auth/logout'])(
-    'retires the old shared-password identity at %s',
+  it.each(['/signin', '/api/auth/signin', '/api/auth/login', '/api/auth/logout'])(
+    'retires legacy local-password identity at %s',
     async (url) => {
       const app = await createApp();
       const response = await app.inject({
@@ -272,6 +272,7 @@ describe('Supabase API authentication', () => {
       });
       expect(response.statusCode).toBe(410);
       expect(response.headers['set-cookie']).toBeUndefined();
+      expect(response.json().token).toBeUndefined();
       expect(getUser).not.toHaveBeenCalled();
     },
   );
