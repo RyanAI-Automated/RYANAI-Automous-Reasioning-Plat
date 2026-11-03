@@ -165,7 +165,7 @@ export default defineConfig(({ command, mode }) => {
           target: env.VITE_BRIDGE_PROXY_URL || process.env.VITE_BRIDGE_PROXY_URL || 'http://127.0.0.1:8787',
           changeOrigin: true,
           ws: true,
-          rewrite: (path) => path.replace(/^\\/bridge/, ''),
+          rewrite: (path) => path.replace(/^\/bridge/, ''),
         },
         '/ws': {
           target: targetWsUrl,
