@@ -140,7 +140,7 @@ export function installAuthentication(fastify: FastifyInstance) {
     // Scoped MCP task ingress authenticates its own dedicated token and never inherits user/admin sessions.
     if (
       (request.method === 'GET' && path === '/api/jarvis/agent/tasks') ||
-      (request.method === 'POST' && /^\\/api\\/jarvis\\/agent\\/tasks\\/[0-9a-f-]+\\/comments$/i.test(path))
+      (request.method === 'POST' && /^\/api\/jarvis\/agent\/tasks\/[0-9a-f-]+\/comments$/i.test(path))
     ) return;
     
     if (
