@@ -87,6 +87,35 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  # Independent browser-facing connectivity plane; Redis is its only hard dependency.
+  bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    container_name: ryanai-bridge
+    environment:
+      NODE_ENV: production
+      BRIDGE_HOST: 0.0.0.0
+      BRIDGE_PORT: 8787
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+      BRIDGE_TICKET_SECRET: ${BRIDGE_TICKET_SECRET:?Set BRIDGE_TICKET_SECRET in .env}
+      BRIDGE_ISSUER_TOKEN: ${BRIDGE_ISSUER_TOKEN:?Set BRIDGE_ISSUER_TOKEN in .env}
+      BRIDGE_ADAPTER_TOKEN: ${BRIDGE_ADAPTER_TOKEN:?Set BRIDGE_ADAPTER_TOKEN in .env}
+      BRIDGE_ALLOWED_ORIGINS: ${BRIDGE_ALLOWED_ORIGINS:-http://localhost:9090}
+    networks: [ryanai-net]
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8787/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 30s
   # Apply committed Prisma migrations once; API startup is blocked on success.
   migrate:
     build:
@@ -121,6 +150,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
       REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
+      BRIDGE_INTERNAL_URL: http://bridge:8787
+      BRIDGE_ISSUER_TOKEN: ${BRIDGE_ISSUER_TOKEN:?Set BRIDGE_ISSUER_TOKEN in .env}
+      BRIDGE_ADAPTER_TOKEN: ${BRIDGE_ADAPTER_TOKEN:?Set BRIDGE_ADAPTER_TOKEN in .env}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
       SUPABASE_URL: ${SUPABASE_URL:-https://narsvpwymvlrhurqbthu.supabase.co}
@@ -188,6 +220,8 @@ services:
       RYANAI_API_HEALTH_URL: http://api:3000/health
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8765
+      BRIDGE_INTERNAL_URL: http://bridge:8787
+      BRIDGE_ADAPTER_TOKEN: ${BRIDGE_ADAPTER_TOKEN:?Set BRIDGE_ADAPTER_TOKEN in .env}
       MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env (at least 32 characters)}
       RYANAI_OPENAI_GATEWAY_URL: ${RYANAI_OPENAI_GATEWAY_URL:-http://api:3000/api/internal/openai/chat}
       RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
@@ -206,9 +240,6 @@ services:
       TORCHTPU_MODEL: ${TORCHTPU_MODEL:-}
       RYANAI_MCP_ENABLED_TOOLS: ${RYANAI_MCP_ENABLED_TOOLS:-platform_health,ryanai_stack_manifest,reasoning_route}
     networks: [ryanai-net]
-    depends_on:
-      api:
-        condition: service_healthy
     ports:
       - "127.0.0.1:8765:8765"
     healthcheck:
@@ -300,6 +331,8 @@ services:
       PORT: 80
       API_HOST: api
       API_PORT: 3000
+      BRIDGE_HOST: bridge
+      BRIDGE_PORT: 8787
     networks: [ryanai-net]
     ports:
       - "127.0.0.1:9090:80"
