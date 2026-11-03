@@ -1,6 +1,6 @@
 # Standalone API image for Render and other Dockerfile-based platforms.
 # Keep this build contract aligned with the "api" target in ./Dockerfile.
-FROM node:26-alpine AS api-deps
+FROM node:24-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache libc6-compat \
@@ -20,7 +20,7 @@ RUN npm run db:generate \
     && npm run build:server \
     && npm prune --omit=dev --legacy-peer-deps
 
-FROM node:26-alpine AS api
+FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
