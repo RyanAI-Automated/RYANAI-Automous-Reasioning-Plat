@@ -16,9 +16,9 @@ import { connectRedis } from './connectRedis.js';
 import {
   databaseConnectionTarget,
   databaseFailureDiagnostic,
+  startupSummary,
 } from './startupDiagnostics.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
-import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
 
 import { API_ROUTES } from '../config/core.js';
