@@ -12,6 +12,14 @@ const channels: { id: CommsChannel; label: string; icon: typeof MessageCircle }[
   { id: 'email', label: 'Email', icon: Mail },
 ];
 
+const statusChannels = [
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+  { id: 'sms', label: 'SMS', icon: MessageCircle },
+  { id: 'voice', label: 'Voice call', icon: Phone },
+  { id: 'email', label: 'Outbound email (SMTP)', icon: Mail },
+  { id: 'inboundEmail', label: 'Inbound email (Resend)', icon: Mail },
+];
+
 function dateLabel(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Unknown time' : date.toLocaleString();
@@ -97,8 +105,8 @@ export default function CommunicationsCenter() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {channels.map(({ id, label, icon: Icon }) => {
-          const configured = status?.channels?.[id] === true || (id === 'email' && status?.channels?.inboundEmail === true);
+        {statusChannels.map(({ id, label, icon: Icon }) => {
+          const configured = status?.channels?.[id] === true;
           return (
             <div key={id} className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
               <div className="flex items-center justify-between">
