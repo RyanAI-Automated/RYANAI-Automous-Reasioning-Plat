@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaClient as AuditPrismaClient } from '@prisma/audit-client';
 import twilio from 'twilio';
 import Redis from 'ioredis';
+import { getMasterAdminCredentials, requireJwtSecret } from './authConfig.js';
 
 const prisma = new PrismaClient();
 const auditDb = new AuditPrismaClient();
@@ -13,7 +14,8 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'SUPER_SECRET_RYAN_KEY_2026';
+// Authentication fails closed rather than issuing tokens with a public fallback key.
+const JWT_SECRET = requireJwtSecret();
 
 /**
  * Register domain, Google, WhatsApp OTP, and administrator sign-in routes.
@@ -41,7 +43,8 @@ export async function authGatewayRoutes(fastify: FastifyInstance) {
             username,
             passwordHash,
             provider: 'RYAN_DOMAIN',
-            role: username === 'administrator' ? 'ADMIN' : 'USER',
+            // Public registration must never grant administrator privileges.
+            role: 'USER',
           },
         });
 
@@ -129,7 +132,7 @@ export async function authGatewayRoutes(fastify: FastifyInstance) {
     if (!phoneNumber) return reply.status(400).send({ error: 'Phone number is required.' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const redisKey = `otp:${phoneNumber.replace(/\D/g, '')}`;
+    const redisKey = `otp:${phoneNumber.replace(/\\D/g, '')}`;
 
     await redis.set(redisKey, otp, 'EX', 300);
 
@@ -154,7 +157,7 @@ export async function authGatewayRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Phone number and verification code are required.' });
     }
 
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const cleanPhone = phoneNumber.replace(/\\D/g, '');
     const redisKey = `otp:${cleanPhone}`;
     const storedOtp = await redis.get(redisKey);
 
@@ -196,10 +199,12 @@ export async function authGatewayRoutes(fastify: FastifyInstance) {
   // 4. Master Administrator Sign In
   fastify.post('/api/v1/auth/master-admin', async (req: FastifyRequest, reply: FastifyReply) => {
     const { username, password } = req.body as { username: string; password: string };
-    const adminUser = process.env.MASTER_ADMIN_USER || 'administrator';
-    const adminPass = process.env.MASTER_ADMIN_PASS || 'RyanAI_Master_2026!#';
+    const credentials = getMasterAdminCredentials();
+    if (!credentials) {
+      return reply.status(503).send({ error: 'Master administrator authentication is not configured.' });
+    }
 
-    if (username === adminUser && password === adminPass) {
+    if (username === credentials.username && password === credentials.password) {
       await auditDb.systemLoginLog.create({
         data: { userId: 'MASTER_ADMIN', identifier: username, authType: 'MASTER_ADMIN', ipAddress: req.ip, userAgent: req.headers['user-agent'] || '', success: true }
       });
