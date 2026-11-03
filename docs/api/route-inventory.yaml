@@ -112,10 +112,10 @@ routes:
     note: "Returns 410; client-side Supabase sign-out is authoritative."
   - method: POST
     path: "/signin"
-    access: legacy-local-password
+    access: admin-current-legacy
     source: src/api/auth/signin.ts
     lifecycle: legacy
-    note: "Second local Prisma/bcrypt sign-in route; remove in auth compatibility PR."
+    note: "Second local Prisma/bcrypt sign-in route; the launcher's default guard currently requires admin even on this path. Remove in auth compatibility PR."
   - method: POST
     path: "/api/comms/send"
     access: owner-or-admin
