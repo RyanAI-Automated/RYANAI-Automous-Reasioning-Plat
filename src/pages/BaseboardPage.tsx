@@ -1,9 +1,10 @@
-import { Activity, BrainCircuit, Boxes, MessageSquare, Network, Server, ShieldCheck, Workflow } from 'lucide-react';
+import { Activity, BrainCircuit, Boxes, MessageSquare, Network, Server, ShieldCheck, Workflow, Wrench } from 'lucide-react';
 
 const areas = [
   { title: 'System dashboard', detail: 'Infrastructure health, service signals and runtime freshness.', href: '#/dashboard', icon: Server },
   { title: 'Command cockpit', detail: 'Authenticated reasoning, orchestration activity and brain handoffs.', href: '#/cockpit', icon: Workflow },
   { title: 'LLM operations', detail: 'Provider readiness, model identity, latency and reported errors.', href: '#/llm', icon: BrainCircuit },
+  { title: 'MCP Tools', detail: 'Tool catalogue, risk classifications and operator-managed allowlist policy.', href: '#/tools', icon: Wrench },
   { title: 'Workspace', detail: 'Conversations, models, voice and private attachments.', href: '#/workspace', icon: MessageSquare },
   { title: 'Communications', detail: 'Owner communications across WhatsApp, SMS, voice and email.', href: '#/comms', icon: Activity },
   { title: 'Administration', detail: 'Owner controls, knowledge operations and CI-gated patch proposals.', href: '#/admin', icon: ShieldCheck },
