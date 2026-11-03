@@ -25,8 +25,7 @@ import { invokeReasoningAgent } from '../agent/invoke.js';
 import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
-import { bridgeTicketRoutes } from '../bridge/routes.js';
-import { RyanAIBridgeAdapter } from '../bridge/adapter.js';
+import { ConnectivityBridgeAdapter } from './connectivityBridgeAdapter.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
@@ -49,11 +48,11 @@ import { startAttachmentScanner } from './attachments/scanner.js';
 import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 
 const { Pool } = pg;
-const bridgeAdapter = new RyanAIBridgeAdapter();
+const bridgeAdapter = new ConnectivityBridgeAdapter();
 let bridgeHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
 let lastBridgeHeartbeatState: boolean | undefined;
 async function refreshBridgeHeartbeat() {
-  const ready = await bridgeAdapter.heartbeat('api');
+  const ready = await bridgeAdapter.heartbeat();
   if (ready !== lastBridgeHeartbeatState) {
     lastBridgeHeartbeatState = ready;
     fastify.log[ready ? 'info' : 'warn'](ready ? 'Connectivity bridge registered API adapter.' : 'Connectivity bridge API adapter is unavailable.');
@@ -514,7 +513,6 @@ async function registerPlugins() {
 
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
-  await fastify.register(bridgeTicketRoutes);
   await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
