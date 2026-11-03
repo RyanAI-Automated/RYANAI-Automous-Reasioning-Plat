@@ -35,11 +35,11 @@ tokens. The stale local-token `authClient` methods for `/api/auth/signup`,
 `/api/auth/signin` and `/api/auth/me` have been removed from the frontend API
 service. Signup and sign-in remain Supabase client operations.
 
-The current global authentication hook also makes some route groups more
+The current global authentication hook still makes some route groups more
 restrictive than their own handlers and comments suggest (notably user task
-history and dispatch). The route inventory marks the *effective* global policy.
-The next authentication PR should align the allowlist and tests without
-weakening administrative, owner, webhook or machine-token boundaries.
+history and dispatch). This PR deliberately preserves that effective restriction.
+A separate authorization-policy change should align the allowlist and tests
+without weakening administrative, owner, webhook or machine-token boundaries.
 
 ## Validation
 
