@@ -81,3 +81,20 @@ test('start remains blocked when core secrets are incomplete even with flags', (
     incomplete,
   ), /configuration is incomplete/);
 });
+
+test('keeps cloud and agent integrations disabled unless explicitly configured', () => {
+  const report = configurationReport({
+    JARVIS_SYNC_ENABLED: 'false',
+    MCPJUNGLE_DB_PASSWORD: '',
+    CLOUDFLARE_TUNNEL_TOKEN: '',
+  });
+  assert.equal(report.integrations.jarvis.status, 'disabled');
+  assert.equal(report.integrations.mcpjungle.status, 'disabled');
+  assert.equal(report.integrations.cloudflareTunnel.status, 'disabled');
+});
+
+test('reports optional model runtimes without claiming authentication', () => {
+  const report = configurationReport({ DEEPSEEK_API_KEY: 'deepseek-key', TORCHTPU_API_KEY: '' });
+  assert.equal(report.providers.DEEPSEEK.status, 'configured_unverified');
+  assert.equal(report.providers.TORCHTPU.status, 'missing_credentials');
+});

@@ -15,7 +15,7 @@ Use `--skip-compose-check` with preflight only when Docker Compose is unavailabl
 
 ## Provider and communications semantics
 
-Provider keys are reported as `configured_unverified`; missing keys are `missing_credentials`. The controller does not make provider API calls. Use the existing manually dispatched **Isolated Provider Verification** workflow for independent NVIDIA, Qwen and Logic brain challenge tests and persisted evidence.
+NVIDIA, Qwen, Logic, DeepSeek and TorchTPU keys are reported as `configured_unverified`; missing keys are `missing_credentials`. Supabase and GitHub configuration, plus Jarvis, MCPJungle and Cloudflare opt-in state, are also included in the report. A configured Cloudflare token is reported as not started; this controller never starts the Tunnel. The controller does not make provider API calls. Use the existing manually dispatched **Isolated Provider Verification** workflow for independent NVIDIA, Qwen and Logic brain challenge tests and persisted evidence.
 
 Communications channels are reported from the existing `/api/comms/status` configuration snapshot: Twilio WhatsApp, SMS, voice, SMTP outbound email and Resend inbound email. A configured channel is not authenticated or delivery-tested. The controller never invokes `POST /api/comms/send`, sends email, places calls, sends SMS/WhatsApp, or fabricates delivery evidence.
 
