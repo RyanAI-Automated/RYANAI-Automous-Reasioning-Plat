@@ -14,7 +14,6 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./prisma/migrations/init_vector_memory.sql:/docker-entrypoint-initdb.d/001-init-vector-memory.sql:ro
     healthcheck:
       test:
         - CMD-SHELL
@@ -37,6 +36,8 @@ services:
       - redis-server
       - --appendonly
       - "yes"
+      - --maxmemory-policy
+      - noeviction
       - --requirepass
       - ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     networks: [ryanai-net]
