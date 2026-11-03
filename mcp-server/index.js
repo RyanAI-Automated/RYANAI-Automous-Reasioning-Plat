@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import process from 'node:process';
+import { publishMcpBridgeEvent } from './bridge-adapter.js';
 import { routeReasoning } from './provider-router.js';
 import { resolveHealthUrl } from './health-url.js';
 import { resolveToolRegistry } from './tool-registry.js';
@@ -126,6 +127,11 @@ export function createMcpServer() {
         if (!['openai', 'nemotron', 'qwen', 'deepseek', 'torch_tpu'].includes(brain)) throw new Error(`Unsupported reasoning provider: ${brain}`);
         const responseFormat = typeof args.response_format === 'string' ? args.response_format : 'text';
         const result = await routeReasoning(prompt, brain, { responseFormat });
+        const delivered = await publishMcpBridgeEvent({
+          topic: 'tasks',
+          payload: { type: 'mcp.reasoning.completed', brain, completedAt: Date.now() },
+        });
+        if (!delivered) console.warn('MCP reasoning completed; optional bridge delivery is unavailable.');
         return textResult(JSON.stringify(result, null, 2));
       }
 
