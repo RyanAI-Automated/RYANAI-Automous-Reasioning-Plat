@@ -98,7 +98,6 @@
     "src/routes/agentExecute.ts",
     "src/test/**",
     "src/utils/nodeSupport.ts",
-    "src/api/auth/signin.ts",
     "src/lib/supabase/server.ts",
     "src/lib/supabase/middleware.ts"
   ]
