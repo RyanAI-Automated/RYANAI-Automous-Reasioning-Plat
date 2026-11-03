@@ -7,6 +7,7 @@ describe('durable agent-run execution planning', () => {
     expect(planQueuedAgentRun(null).kind).toBe('full');
     expect(planQueuedAgentRun('not-json-object').kind).toBe('full');
     expect(planQueuedAgentRun({ resourceKeys: ['one'] }).kind).toBe('full');
+    expect(planQueuedAgentRun({ eventKnown: true, snapshotFresh: true, resourceKeys: { api: true } }).kind).toBe('full');
     expect(planQueuedAgentRun({ eventKnown: true, snapshotFresh: false, resourceKeys: ['one'] }).kind).toBe('full');
   });
 

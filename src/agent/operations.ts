@@ -268,7 +268,6 @@ async function processAgentRun(run: ClaimedAgentRun) {
     await prisma.$transaction((tx) => persistAgentRunCompletion(tx, run, rows, plan, executionPlan));
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
-    const retry = shouldRetryAgentRun(run.attempts, run.max_attempts);
     const nextAttemptAt = new Date(Date.now() + getAgentRunRetryDelayMs(run.attempts));
     const current = await prisma.agentRun.findUnique({ where: { id: run.id }, select: { cancelRequestedAt: true } });
     const cancelled = Boolean(current?.cancelRequestedAt);

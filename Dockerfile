@@ -2,11 +2,12 @@
 
 # Targets: api (production API), web (nginx frontend), migrate (one-shot Prisma deploy).
 # Keep Node 24 and the root lockfile consistent across build and runtime stages.
-FROM node:26-alpine AS api-deps
+FROM node:24-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache libc6-compat \
-    && apk upgrade --no-cache
+    && apk upgrade --no-cache \
+    && apk add --no-cache 'libexpat>=2.10.0-r0'
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
@@ -36,7 +37,7 @@ RUN npm run db:generate \
     && npm prune --omit=dev --legacy-peer-deps
 
 # Minimal API runtime; the npm CLI is not needed after the build.
-FROM node:26-alpine AS api
+FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
@@ -44,6 +45,7 @@ ENV NODE_ENV=production \
     PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
     && apk upgrade --no-cache \
+    && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /app/logs \
@@ -62,7 +64,7 @@ ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "dist/server/server/launcher.js"]
 
 # Build-time Vite configuration contains public browser values only.
-FROM node:26-alpine AS web-builder
+FROM node:24-alpine AS web-builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json ./
@@ -86,7 +88,8 @@ RUN npm run build
 # nginx serves the SPA and proxies API/WebSocket requests to the API service.
 FROM nginx:alpine AS web
 # Pull patched packages from the current Alpine repository before shipping nginx.
-RUN apk upgrade --no-cache
+RUN apk upgrade --no-cache \
+    && apk add --no-cache 'libexpat>=2.10.0-r0'
 ENV PORT=80 \
     API_HOST=api \
     API_PORT=3000

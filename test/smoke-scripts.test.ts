@@ -199,10 +199,10 @@ describe('live smoke script contracts', () => {
     expect(result.stdout).toContain(
       'PASS Authenticated admin WebSocket accepts upgrades',
     );
-    expect(result.stdout).toContain('FAIL PostgreSQL connection:');
-    expect(result.stdout).toContain('FAIL Redis connection:');
-    expect(result.stdout).toContain('FAIL Web document and built assets:');
-    expect(result.stdout).toContain('FAIL MCP health endpoint:');
+    expect(result.stderr).toContain('FAIL PostgreSQL connection:');
+    expect(result.stderr).toContain('FAIL Redis connection:');
+    expect(result.stderr).toContain('FAIL Web document and built assets:');
+    expect(result.stderr).toContain('FAIL MCP health endpoint:');
     expect(result.stdout).toContain(
       'Integration checks: 3/7 passed; 0 skipped',
     );

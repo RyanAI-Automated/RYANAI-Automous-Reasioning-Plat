@@ -119,3 +119,31 @@ Nothing in the production path imports these files. Remove them after you confir
 - The agent cannot run commands. It cannot use a calendar, because that needs OAuth credentials for each user.
 - There is no wake word. The voice stream goes to the OpenAI Realtime API.
 - The agent does not start work by itself. Scheduled tasks start a run on a timer. Alerts only send you a message, and they do not start a run or fix anything.
+
+
+## Shared OpenAI API gateway and MCP
+
+The API process is the sole owner of `OPENAI_API_KEY`. Agent model creation
+uses `src/config/llm.ts`; communications agents and realtime voice use the
+same server-side credential. Dedicated NVIDIA and Qwen credentials continue
+to take precedence when explicitly configured; the Logic brain uses the
+shared OpenAI credential when no dedicated Logic key is supplied.
+
+MCP's `reasoning_route` defaults to `openai` and calls the private
+`POST /api/internal/openai/chat` route over the Docker network. The route
+requires the separate `RYANAI_OPENAI_GATEWAY_TOKEN` bearer credential,
+applies rate limiting and request schema limits, and hides provider errors.
+MCP receives this service token, not the OpenAI provider key. Keep both
+credentials in the private runtime secret store.
+
+Set `RYANAI_OPENAI_GATEWAY_URL` only when the API service has a different
+private address. Plain HTTP is accepted only for the private Compose service
+name `api` or loopback; remote gateway URLs must use HTTPS. The OpenAI key
+must be configured on the API service. It is never copied to MCP or browser
+build variables.
+
+Supabase remains the connected persistence/API project. The frontend uses
+only its publishable key; privileged Supabase credentials remain server-side.
+This integration does not create tables, alter RLS policies, run migrations,
+or change the existing Prisma/Postgres persistence path. Supabase security
+advisor findings are a separate least-privilege database workstream.
