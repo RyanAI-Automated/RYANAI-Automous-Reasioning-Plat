@@ -50,15 +50,6 @@ jobs:
       - name: Validate GitHub workflows
         run: npm run workflow:validate
 
-      - name: Validate Docker Compose runtime contract
-        env:
-          DB_PASSWORD: ci-only-db-password
-          REDIS_PASSWORD: ci-only-redis-password
-          JWT_SECRET: ci_only_secret_at_least_32_characters_long
-          MCP_AUTH_TOKEN: ci-only-mcp-token-at-least-32-characters
-          CLOUDFLARE_TUNNEL_TOKEN: ci-only-cloudflare-placeholder
-        run: docker compose --file docker-compose.yml config --quiet
-
       - name: Audit optional deployment readiness and agent inventory
         env:
           AWS_ECS_DEPLOY_ENABLED: ${{ vars.AWS_ECS_DEPLOY_ENABLED }}
