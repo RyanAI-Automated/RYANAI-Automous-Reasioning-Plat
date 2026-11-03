@@ -10,7 +10,7 @@ const apiConfig = readFileSync(new URL('../../supabase/config.toml', import.meta
 describe('private room policy helper migration', () => {
   it('moves SECURITY DEFINER helpers out of the exposed public schema', () => {
     expect(migration).toContain('CREATE SCHEMA IF NOT EXISTS private');
-    expect(migration).toContain('SET search_path = ''');
+    expect(migration).toContain("SET search_path = ''");
     expect(migration).toContain('REVOKE ALL ON SCHEMA private FROM PUBLIC, anon');
     expect(migration).toContain('GRANT USAGE ON SCHEMA private TO authenticated');
     for (const signature of [
