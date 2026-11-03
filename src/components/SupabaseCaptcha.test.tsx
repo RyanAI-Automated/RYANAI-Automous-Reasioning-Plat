@@ -66,10 +66,10 @@ it('renders Turnstile, passes its token, clears expired tokens, resets, and remo
   await vi.waitFor(() => expect(render).toHaveBeenCalledOnce());
   expect(render.mock.calls[0][1].sitekey).toBe('public-test-site-key');
 
-  await act(async () => options?.callback('turnstile-token'));
+  await act(async () => (options as CaptchaTestOptions | null)?.callback('turnstile-token'));
   expect(onToken).toHaveBeenLastCalledWith('turnstile-token');
 
-  await act(async () => options?.['expired-callback']());
+  await act(async () => (options as CaptchaTestOptions | null)?.['expired-callback']());
   expect(onToken).toHaveBeenLastCalledWith(null);
 
   await act(async () => {
@@ -98,7 +98,7 @@ it('supports hCaptcha using its numeric widget identifier', async () => {
     root?.render(<SupabaseCaptcha onToken={onToken} resetKey={0} />);
   });
   await vi.waitFor(() => expect(render).toHaveBeenCalledOnce());
-  await act(async () => options?.callback('hcaptcha-token'));
+  await act(async () => (options as CaptchaTestOptions | null)?.callback('hcaptcha-token'));
   expect(onToken).toHaveBeenLastCalledWith('hcaptcha-token');
 
   await act(async () => {
