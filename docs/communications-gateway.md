@@ -66,3 +66,28 @@ The browser's selected voice and Twilio's telephony voice are separate provider/
 - The owner default is `ve-ZA` (Tshivenda); `RYANAI_OWNER_LANGUAGE` can be changed in deployment settings. The owner salutation defaults to `Sir G` via `RYANAI_OWNER_TITLE`.
 - Browser speech uses the selected locale and an installed device voice when available. Browser speech voice availability varies by operating system/browser; the UI reports when a matching voice is not installed.
 - Twilio currently documents Afrikaans (`af-ZA`) and South African English (`en-ZA`) voices, including Polly Ayanda, but does not list Tshivenda. Therefore phone-call TTS and speech recognition remain on the supported `en-ZA` path unless a future configured speech provider explicitly supports Venda. Text replies and language-aware reasoning can use Tshivenda; do not advertise Venda phone audio as verified until a real provider voice is added and tested.
+
+
+## Authenticated Comms workspace API
+
+The owner-only workspace uses the same API and durable PostgreSQL communication history as inbound provider webhooks and outbound sends:
+
+- `GET /api/comms/status` returns configuration presence only.
+- `GET /api/comms/conversations?limit=50` returns the most recently updated conversations and their latest 30 messages, in chronological order. The limit is clamped to 1–100.
+- `POST /api/comms/send` sends through the existing Twilio/SMTP adapters and persists provider acceptance; delivery callbacks reconcile later status.
+- Inbound Twilio and Resend webhooks continue to verify provider signatures and persist inbound events before/while processing them.
+
+All `/api/comms/*` browser requests require a verified Supabase session. History and outbound send additionally require the server-verified owner identity; no owner phone/email is sent to the browser. A provider acceptance response is not a delivery receipt. No live provider calls or messages are part of CI.
+
+
+## Frontend-to-backend chain
+
+The authenticated frontend route is `/#/comms`. It uses the Supabase session access token through `authenticatedFetch` and calls only the configured RyanAI API origin:
+
+1. `GET /api/comms/status` — channel configuration plus central OpenAI configuration state. This is presence-only and never returns provider credentials.
+2. `GET /api/comms/conversations` — owner-scoped history from the shared Prisma/PostgreSQL communication tables.
+3. `POST /api/comms/send` — owner-authenticated request into the existing Twilio or SMTP adapter.
+4. Provider webhooks — Twilio WhatsApp/SMS/voice/status and Resend inbound email verify signatures, process inbound events, and reconcile provider status into the same history.
+5. The Comms screen refreshes the timeline periodically and after a send. It displays provider acceptance separately from confirmed delivery.
+
+The browser never receives `OPENAI_API_KEY`, Twilio credentials, SMTP credentials, Resend credentials, or owner contact configuration. The Comms agent runs server-side through the shared `createChatModel()` configuration; MCP and other server agents use the same API-owned OpenAI key via their authenticated gateway path.
