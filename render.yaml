@@ -185,6 +185,9 @@ projects:
               - key: BACKUP_ON_STARTUP
                 value: "false"
 
+          # Redis backs distributed request-rate tracking and short-lived session tickets.
+          # Prefer rejecting writes at the memory ceiling over evicting live rate-limit keys.
+          # Keep persistent task/billing state in PostgreSQL; this free KV has no disk persistence.
           # Existing managed Redis Key Value resource; internal-only allow list.
           - type: keyvalue
             name: ryanai-redis
