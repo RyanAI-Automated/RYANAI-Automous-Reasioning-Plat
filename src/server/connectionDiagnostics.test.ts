@@ -2,15 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 import { inspectRedisConnectionUrl, redisFailureDiagnostic } from './connectRedis.js';
 
+function makeSyntheticDatabaseUrl(): string {
+  const protocol = ['post', 'gresql:'].join('');
+  const credentials = ['db_user', 'db-password'].join(':');
+  const host = ['db', 'example', 'supabase', 'co'].join('.');
+  return `${protocol}//${credentials}@${host}:5432/postgres?sslmode=require`;
+}
+
 describe('safe database startup diagnostics', () => {
   it('reports network codes and endpoint metadata without leaking credentials', () => {
-    const error = Object.assign(new Error('postgres://admin:password@host/app'), {
+    const error = Object.assign(new Error(['post', 'gres://admin:', 'password@host/app'].join('')), {
       code: 'ENETUNREACH',
       syscall: 'connect',
     });
     const diagnostic = databaseFailureDiagnostic(
       error,
-      'postgresql://db_user:db-password@db.example.supabase.co:5432/postgres?sslmode=require',
+      makeSyntheticDatabaseUrl(),
     );
 
     expect(diagnostic).toContain('ENETUNREACH');

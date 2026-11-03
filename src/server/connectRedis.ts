@@ -95,7 +95,7 @@ export function redisFailureDiagnostic(error: unknown, url: string): string {
  * ioredis interprets rediss:// as TLS and redis:// as plain TCP.
  */
 export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis> {
-  const target = inspectRedisConnectionUrl(url);
+  inspectRedisConnectionUrl(url);
   const client = new Redis(url, { lazyConnect: true, connectTimeout: timeoutMs });
   let lastErrorCode: string | undefined;
   client.on('error', (error: unknown) => {
@@ -118,7 +118,6 @@ export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis
       code ? `Redis connection failed with code ${code}` : 'Redis connection attempt failed',
     );
     const connectionError = new Error(diagnostic, {
-      // eslint-disable-next-line preserve-caught-error -- Original Redis errors may embed REDIS_URL credentials.
       cause: safeCause,
     });
     if (code) Object.assign(connectionError, { code });
