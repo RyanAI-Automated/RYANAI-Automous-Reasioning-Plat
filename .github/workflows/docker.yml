@@ -149,6 +149,9 @@ jobs:
           - image: api
             file: Dockerfile
             target: api
+          - image: render-api
+            file: Dockerfile.api
+            target: ''
           - image: web
             file: Dockerfile
             target: web
