@@ -29,6 +29,7 @@ const envKeys = [
   'SUPABASE_PUBLISHABLE_KEY',
   'BRIDGE_INTERNAL_URL',
   'BRIDGE_VERCEL_ADAPTER_TOKEN',
+  'NODE_ENV',
 ];
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 
@@ -76,5 +77,17 @@ describe('Vercel bridge adapter function', () => {
     const response = responseMock();
     await handler(requestMock({ headers: { origin: 'https://attacker.example', host: 'app.example.com' } }) as unknown as IncomingMessage, response as unknown as ServerResponse);
     expect(response.statusCode).toBe(403);
+
+    process.env.NODE_ENV = 'production';
+    process.env.SUPABASE_URL = 'https://project.supabase.co';
+    process.env.SUPABASE_PUBLISHABLE_KEY = 'publishable-test-key';
+    process.env.BRIDGE_INTERNAL_URL = 'http://bridge.internal';
+    process.env.BRIDGE_VERCEL_ADAPTER_TOKEN = 'vercel-adapter-token-with-at-least-32-characters';
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const productionResponse = responseMock();
+    await handler(requestMock() as unknown as IncomingMessage, productionResponse as unknown as ServerResponse);
+    expect(productionResponse.statusCode).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
