@@ -1,5 +1,4 @@
 import { createHash, X509Certificate } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   loadSupabaseRootCa,
