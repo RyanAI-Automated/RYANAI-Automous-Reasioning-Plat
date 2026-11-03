@@ -7,6 +7,11 @@
       "path": "/"
     },
     {
+      "id": "baseboard",
+      "label": "Baseboard",
+      "path": "/baseboard"
+    },
+    {
       "id": "dashboard",
       "label": "Dashboard",
       "path": "/dashboard"
@@ -17,14 +22,24 @@
       "path": "/cockpit"
     },
     {
-      "id": "comms",
-      "label": "Comms",
-      "path": "/comms"
+      "id": "llm",
+      "label": "LLM Ops",
+      "path": "/llm"
     },
     {
       "id": "workspace",
       "label": "Workspace",
       "path": "/workspace"
+    },
+    {
+      "id": "comms",
+      "label": "Comms",
+      "path": "/comms"
+    },
+    {
+      "id": "admin",
+      "label": "Admin",
+      "path": "/admin"
     },
     {
       "id": "signin",
