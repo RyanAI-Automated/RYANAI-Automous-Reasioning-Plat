@@ -70,10 +70,6 @@ function redisFailureHint(code?: string): string {
   }
 }
 
-/**
- * Bound initial readiness while retaining Redis reconnection after startup.
- * ioredis interprets rediss:// as TLS and redis:// as plain TCP.
- */
 /** Format a Redis failure using only a safe error code and non-secret endpoint metadata. */
 export function redisFailureDiagnostic(error: unknown, url: string): string {
   let target: RedisConnectionTarget;
@@ -94,6 +90,10 @@ export function redisFailureDiagnostic(error: unknown, url: string): string {
   ].join(' ');
 }
 
+/**
+ * Bound initial readiness while retaining Redis reconnection after startup.
+ * ioredis interprets rediss:// as TLS and redis:// as plain TCP.
+ */
 export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis> {
   const target = inspectRedisConnectionUrl(url);
   const client = new Redis(url, { lazyConnect: true, connectTimeout: timeoutMs });
@@ -113,20 +113,16 @@ export async function connectRedis(url: string, timeoutMs = 5000): Promise<Redis
   } catch (error) {
     client.disconnect();
     const code = lastErrorCode ?? safeRedisErrorCode(error);
-    const detail = code
-      ? ` (${code})`
-      : error instanceof Error && error.message === 'Redis readiness timeout'
-        ? ` (initial connection exceeded ${timeoutMs}ms)`
-        : '';
-    throw new Error(
-      `Redis is unavailable${detail}. ${redisFailureHint(code)} ` +
-      `Endpoint: ${target.protocol}//${target.host}:${target.port}; TLS: ${target.tls ? 'enabled' : 'disabled'}; ` +
-      `authentication: ${target.authenticated ? 'configured' : 'not configured'}. Credentials and raw server errors are omitted.`,
-      {
-        // eslint-disable-next-line preserve-caught-error -- Redis errors may embed REDIS_URL credentials.
-        cause: new Error(code ? `Redis connection failed with code ${code}` : 'Redis connection attempt failed'),
-      },
+    const diagnostic = redisFailureDiagnostic(code ? { code } : error, url);
+    const safeCause = new Error(
+      code ? `Redis connection failed with code ${code}` : 'Redis connection attempt failed',
     );
+    const connectionError = new Error(diagnostic, {
+      // eslint-disable-next-line preserve-caught-error -- Original Redis errors may embed REDIS_URL credentials.
+      cause: safeCause,
+    });
+    if (code) Object.assign(connectionError, { code });
+    throw connectionError;
   } finally {
     clearTimeout(timeout);
   }
