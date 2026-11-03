@@ -4,8 +4,7 @@ FROM node:24-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache libc6-compat \
-    && apk upgrade --no-cache \
-    && apk add --no-cache 'libexpat>=2.10.0-r0'
+    && apk upgrade --no-cache
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
@@ -29,7 +28,6 @@ ENV NODE_ENV=production \
     PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget postgresql-client \
     && apk upgrade --no-cache \
-    && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /app/logs \
