@@ -17,7 +17,7 @@ async function requireJarvisTaskAgentAuth(request: FastifyRequest, reply: Fastif
   const expected = process.env.JARVIS_TASK_INGRESS_TOKEN?.trim() ?? '';
   const agentId = process.env.JARVIS_TASK_AGENT_ID?.trim() ?? '';
   const ownerId = process.env.JARVIS_TASK_OWNER_ID?.trim() ?? '';
-  if (expected.length < 32 || !agentId || !ownerId) {
+  if (expected.length < 32 || !/^[a-z0-9][a-z0-9._:-]{0,63}$/i.test(agentId) || !UUID_PATTERN.test(ownerId)) {
     return reply.code(503).send({ error: 'Scoped agent task ingress is not fully configured.' });
   }
   const supplied = /^Bearer ([^\s]+)$/i.exec(request.headers.authorization ?? '')?.[1] ?? '';
