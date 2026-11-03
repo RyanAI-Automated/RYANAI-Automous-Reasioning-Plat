@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { authPlugin, installAuthentication } from './auth.js';
 import { agentOperationsRoutes } from './agentOperations.js';
+import { inspectReadiness } from '../readiness.js';
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -11,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   probeAllBrains: vi.fn(),
   listBrainKnowledge: vi.fn(),
   publishBrainKnowledge: vi.fn(),
+  databaseProbe: vi.fn(),
+  redisProbe: vi.fn(),
 }));
 
 vi.mock('@supabase/server/core', () => ({
@@ -44,9 +47,22 @@ async function productionRouteApp() {
   await app.register(authPlugin);
   await app.register(agentOperationsRoutes);
 
-  // These are the same probe paths registered by the production launcher.
+  // Exercise the same readiness evaluator used by the production launcher;
+  // only the external dependency probes are replaced with deterministic mocks.
   app.get('/livez', async () => ({ status: 'alive' }));
-  app.get('/readyz', async () => ({ status: 'ready' }));
+  app.get('/readyz', async (_request, reply) => {
+    const readiness = await inspectReadiness({
+      database: mocks.databaseProbe,
+      redis: mocks.redisProbe,
+      agentCheckpointerInitialized: true,
+      apiListening: true,
+    });
+    reply.code(readiness.ready ? 200 : 503);
+    return {
+      status: readiness.ready ? 'online' : 'degraded',
+      services: readiness.services,
+    };
+  });
   await app.ready();
   return app;
 }
@@ -64,6 +80,8 @@ beforeEach(() => {
   mocks.listBrainHealth.mockResolvedValue([{ id: 'primary', status: 'unknown' }]);
   mocks.probeAllBrains.mockResolvedValue([]);
   mocks.listBrainKnowledge.mockResolvedValue([]);
+  mocks.databaseProbe.mockResolvedValue(undefined);
+  mocks.redisProbe.mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -133,11 +151,36 @@ describe('production authentication and agent route integration', () => {
     expect(mocks.listBrainKnowledge).not.toHaveBeenCalled();
   });
 
-  it('keeps liveness and readiness probes reachable without a browser session', async () => {
+  it('keeps liveness and a genuinely ready service reachable without a browser session', async () => {
     const app = await productionRouteApp();
 
-    expect((await app.inject({ method: 'GET', url: '/livez' })).statusCode).toBe(200);
-    expect((await app.inject({ method: 'GET', url: '/readyz' })).statusCode).toBe(200);
+    const live = await app.inject({ method: 'GET', url: '/livez' });
+    const ready = await app.inject({ method: 'GET', url: '/readyz' });
+
+    expect(live.statusCode).toBe(200);
+    expect(live.json()).toMatchObject({ status: 'alive' });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json()).toMatchObject({
+      status: 'online',
+      services: { database: true, redis: true, agentCheckpointer: true, api: true },
+    });
+    expect(mocks.databaseProbe).toHaveBeenCalledOnce();
+    expect(mocks.redisProbe).toHaveBeenCalledOnce();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 from readiness when a live dependency probe fails, without requiring a session', async () => {
+    const app = await productionRouteApp();
+    mocks.redisProbe.mockRejectedValueOnce(new Error('redis://private-password@host'));
+
+    const response = await app.inject({ method: 'GET', url: '/readyz' });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({
+      status: 'degraded',
+      services: { database: true, redis: false, agentCheckpointer: true, api: true },
+    });
+    expect(response.body).not.toContain('private-password');
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
