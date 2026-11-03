@@ -15,7 +15,7 @@ export class AgentOrchestrator {
   }
 
   async initializeSession(sessionId: string): Promise<AgentState> {
-    const query = `SELECT role, content FROM agent_memory WHERE "sessionId" = $1 ORDER BY timestamp ASC;`;
+    const query = `SELECT role, content FROM agent_memory WHERE session_id = $1 ORDER BY timestamp ASC;`;
     const result = await this.pgPool.query(query, [sessionId]);
     
     return {
@@ -30,7 +30,7 @@ export class AgentOrchestrator {
   }
 
   async persistMemory(sessionId: string, role: string, content: string): Promise<void> {
-    const query = `INSERT INTO agent_memory ("sessionId", role, content) VALUES ($1, $2, $3);`;
+    const query = `INSERT INTO agent_memory (session_id, role, content) VALUES ($1, $2, $3);`;
     await this.pgPool.query(query, [sessionId, role, content]);
   }
 
