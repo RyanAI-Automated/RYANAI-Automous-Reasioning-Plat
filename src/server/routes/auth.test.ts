@@ -184,7 +184,7 @@ describe('Supabase API authentication', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       authenticated: true,
-      user: { id: user.id, email: user.email, role: 'user', isOwner: false },
+      user: { id: user.id, email: user.email, role: 'user', isOwner: false, sessionId: '00000000-0000-4000-8000-000000000099' },
     });
     expect(getUser).toHaveBeenCalledExactlyOnceWith(bearerToken);
     expect(createContextClient).toHaveBeenCalledWith(
