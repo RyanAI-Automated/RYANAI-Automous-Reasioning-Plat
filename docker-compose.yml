@@ -295,6 +295,7 @@ services:
       target: web
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_BRIDGE_BASE_URL: ${VITE_BRIDGE_BASE_URL:-}
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-https://narsvpwymvlrhurqbthu.supabase.co}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
@@ -303,7 +304,7 @@ services:
       PORT: 80
       API_HOST: api
       API_PORT: 3000
-      BRIDGE_HOST: bridge
+      BRIDGE_HOST: connectivity-bridge
       BRIDGE_PORT: 8787
     networks: [ryanai-net]
     ports:
