@@ -5,7 +5,7 @@ import { API_BASE_URL } from '@/lib/apiBaseUrl';
 
 type BrainConfig = { brain: string; model: string; endpointHost: string; credentialConfigured: boolean; configurationSource: string; mutableAtRuntime: boolean };
 type ModelPayload = { brains?: BrainConfig[]; configurationPolicy?: string };
-type UsagePayload = { windowDays?: number; totalRuns?: number; runsLast30Days?: number; runsByStatus?: Array<{ status: string; count: number }>; usageAccounting?: { providerRequests?: string; inputTokens?: string; outputTokens?: string; estimatedCost?: string; note?: string } };
+type UsagePayload = { windowDays?: number; totalRuns?: number; runsLast30Days?: number; runsByStatus?: Array<{ status: string; count: number }>; handoffsByAgent?: Array<{ agent: string; status: string; count: number }>; usageAccounting?: { providerRequests?: string; inputTokens?: string; outputTokens?: string; estimatedCost?: string; note?: string } };
 
 export default function ModelUsagePanel() {
   const [models, setModels] = useState<BrainConfig[]>([]);
@@ -53,6 +53,7 @@ export default function ModelUsagePanel() {
         <article className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><div className="flex items-center gap-2 text-cyan-200"><Activity className="h-4 w-4" /><span className="text-xs">Persisted executions</span></div><p className="mt-2 text-2xl font-bold tabular-nums text-white">{usage.totalRuns ?? '—'}</p><p className="text-xs text-slate-400">Total runs · {usage.runsLast30Days ?? '—'} in the last 30 days</p></article>
         <article className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><p className="text-xs text-slate-400">Run status breakdown</p><div className="mt-2 flex flex-wrap gap-2">{(usage.runsByStatus ?? []).map((item) => <span key={item.status} className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300">{item.status}: {item.count}</span>)}</div></article>
       </div>}
+      {!loading && usage && <article className="rounded-xl border border-white/10 bg-slate-900/70 p-4"><p className="text-xs font-semibold text-white">Persisted brain handoffs</p><div className="mt-3 flex flex-wrap gap-2">{(usage.handoffsByAgent ?? []).map((item) => <span key={item.agent + ':' + item.status} className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300">{item.agent} · {item.status}: {item.count}</span>)}</div>{(usage.handoffsByAgent ?? []).length === 0 && <p className="mt-2 text-xs text-slate-500">No persisted handoffs recorded yet.</p>}</article>}
       {!loading && usage?.usageAccounting && <p className="flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs leading-5 text-amber-100/80"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />Token counts, provider request counts and billing cost are not yet instrumented. This dashboard reports persisted run counts only; it does not invent token or cost estimates.</p>}
     </section>
   );
