@@ -1,18 +1,13 @@
 name: AI Inspector & Audit
 
 on:
-  pull_request:
-    branches: [main, master]
-  push:
-    branches: [main, master]
+  pull_request: {}
+  push: {}
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ai-inspector-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   inspect:
