@@ -91,13 +91,43 @@ function nextMessage(socket, predicate, timeout = 8000) {
     socket.once('close', onClose);
   });
 }
+function createMessageQueue(socket) {
+  const buffered = [];
+  const waiters = [];
+  socket.on('message', (raw) => {
+    let value;
+    try { value = JSON.parse(raw.toString()); } catch { return; }
+    const index = waiters.findIndex((waiter) => waiter.predicate(value));
+    if (index >= 0) {
+      const [waiter] = waiters.splice(index, 1);
+      clearTimeout(waiter.timer);
+      waiter.resolve(value);
+    } else buffered.push(value);
+  });
+  return (predicate, timeout = 8000) => {
+    const index = buffered.findIndex(predicate);
+    if (index >= 0) return Promise.resolve(buffered.splice(index, 1)[0]);
+    return new Promise((resolve, reject) => {
+      const waiter = {
+        predicate, resolve, reject,
+        timer: setTimeout(() => {
+          const index = waiters.indexOf(waiter);
+          if (index >= 0) waiters.splice(index, 1);
+          reject(new Error('Timed out waiting for bridge frame'));
+        }, timeout),
+      };
+      waiters.push(waiter);
+    });
+  };
+}
 async function openSocket(port) {
   const ticket = await issueTicket(port);
   const socket = new WebSocket('ws://127.0.0.1:' + port + '/v1/socket?ticket=' + encodeURIComponent(ticket));
+  const next = createMessageQueue(socket);
   await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
   socket.send(JSON.stringify({ type: 'resume' }));
-  const resumed = await nextMessage(socket, (value) => value.type === 'resumed');
-  return { socket, capabilities: resumed.capabilities };
+  const resumed = await next((value) => value.type === 'resumed');
+  return { socket, capabilities: resumed.capabilities, next };
 }
 async function publish(port, idempotencyKey, payload) {
   const response = await fetch('http://127.0.0.1:' + port + '/internal/events', {
@@ -159,7 +189,7 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       const first = await publish(bridgePort, 'duplicate-key', { sequence: 1 });
       const duplicate = await publish(bridgePort, 'duplicate-key', { sequence: 1 });
       assert.equal(first.cursor, duplicate.cursor);
-      const event = await nextMessage(opened.socket, (value) => value.type === 'event');
+      const event = await opened.next( (value) => value.type === 'event');
       assert.equal(event.data.sequence, 1);
       opened.socket.send(JSON.stringify({ type: 'ack', id: event.id }));
       await nextMessage(opened.socket, (value) => value.type === 'acknowledged' && value.id === event.id);
@@ -169,14 +199,14 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
     await t.test('bridge restart replays unacknowledged events from Redis', async () => {
       await publish(bridgePort, 'bridge-restart-key', { sequence: 2 });
       const before = await openSocket(bridgePort);
-      const unacked = await nextMessage(before.socket, (value) => value.type === 'event' && value.data.sequence === 2);
+      const unacked = await before.next( (value) => value.type === 'event' && value.data.sequence === 2);
       assert.ok(unacked.id);
       await stop(bridge);
       before.socket.close();
       bridge = startBridge(bridgePort, redisPort, authPort);
       await waitFor(() => isReady(bridgePort));
       const after = await openSocket(bridgePort);
-      const replay = await nextMessage(after.socket, (value) => value.type === 'event' && value.id === unacked.id);
+      const replay = await after.next( (value) => value.type === 'event' && value.id === unacked.id);
       assert.equal(replay.data.sequence, 2);
       after.socket.close();
     });
