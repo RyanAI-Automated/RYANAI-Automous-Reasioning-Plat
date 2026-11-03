@@ -11,6 +11,7 @@ import WebSocket from 'ws';
 
 const API_ADAPTER = 'bridge-test-api-adapter-token-32-characters-minimum';
 const MCP_ADAPTER = 'bridge-test-mcp-adapter-token-32-characters-minimum';
+const VERCEL_ADAPTER = 'bridge-test-vercel-adapter-token-32-characters-minimum';
 const SESSION = 'mock-supabase-session-token';
 const hasRedisServer = spawnSync('redis-server', ['--version'], { stdio: 'ignore' }).status === 0;
 
@@ -52,6 +53,7 @@ function startBridge(port, redisPort, authPort) {
       SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
       BRIDGE_API_ADAPTER_TOKEN: API_ADAPTER,
       BRIDGE_MCP_ADAPTER_TOKEN: MCP_ADAPTER,
+      BRIDGE_VERCEL_ADAPTER_TOKEN: VERCEL_ADAPTER,
       BRIDGE_TICKET_TTL_SECONDS: '5',
       BRIDGE_STREAM_MAX_LENGTH: '1000',
       CORS_ORIGINS: '',
@@ -166,6 +168,7 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       let opened = await openSocket(bridgePort);
       assert.equal(opened.capabilities.api, 'unavailable');
       assert.equal(opened.capabilities.mcp, 'unavailable');
+      assert.equal(opened.capabilities.vercel, 'unavailable');
       opened.socket.close();
       const wrongApiHeartbeat = await fetch('http://127.0.0.1:' + bridgePort + '/internal/adapters/api/heartbeat', {
         method: 'POST', headers: { authorization: 'Bearer ' + MCP_ADAPTER },
@@ -183,9 +186,11 @@ test('connectivity bridge recovers across adapter, process, Redis and ticket fai
       assert.equal(opened.capabilities.mcp, 'unavailable');
       opened.socket.close();
       await heartbeat(bridgePort, 'mcp');
+      await heartbeat(bridgePort, 'vercel');
       opened = await openSocket(bridgePort);
       assert.equal(opened.capabilities.api, 'ready');
       assert.equal(opened.capabilities.mcp, 'ready');
+      assert.equal(opened.capabilities.vercel, 'ready');
       opened.socket.close();
     });
 
