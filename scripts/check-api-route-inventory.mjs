@@ -63,7 +63,7 @@ for (const routeKey of declared.keys()) {
   if (!discovered.has(routeKey)) errors.push(`Inventory route is not registered by the launcher: ${routeKey}`);
 }
 
-const pathToRuntime = (value) => value.replace(/\\{([^}]+)\\}/g, ':$1');
+const pathToRuntime = (value) => value.replace(/\{([^}]+)\\}/g, ':$1');
 for (const [routePath, operations] of Object.entries(openapi.paths ?? {})) {
   for (const method of Object.keys(operations ?? {})) {
     if (!methods.has(method)) continue;
@@ -75,7 +75,7 @@ if (openapi.openapi !== '3.1.0') errors.push('OpenAPI contract must use version 
 if (openapi.info?.title !== 'RyanAI Gateway API') errors.push('Unexpected OpenAPI API title.');
 
 if (errors.length) {
-  console.error(errors.map((error) => `ERROR ${error}`).join('\\n'));
+  console.error(errors.map((error) => `ERROR ${error}`).join('\n'));
   process.exit(1);
 }
 console.log(`PASS API route inventory: ${declared.size} routes across ${inventory.route_sources.length} runtime modules; OpenAPI operations are registered.`);
