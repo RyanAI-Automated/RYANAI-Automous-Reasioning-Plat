@@ -29,7 +29,8 @@ function safePostgresTarget(connectionUrl?: string): string {
     if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
       return 'target=DATABASE_URL (not a PostgreSQL URL)';
     }
-    const database = parsed.pathname.replace(/^\\//, '').replace(/[^a-zA-Z0-9_.-]/g, '');
+    const path = parsed.pathname.startsWith('/') ? parsed.pathname.slice(1) : parsed.pathname;
+    const database = path.replace(/[^a-zA-Z0-9_.-]/g, '');
     return `target=${parsed.hostname}:${parsed.port || '5432'}/${database || '(default)'}`;
   } catch {
     return 'target=DATABASE_URL (invalid URL format)';
