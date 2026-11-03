@@ -14,7 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { assertSameDatabaseBackend, resolveDatabaseConnectionUrl } from './databaseConnection.js';
+import { assertSameDatabaseBackend, describeDatabaseBackend, resolveDatabaseConnectionUrl } from './databaseConnection.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
@@ -416,6 +416,7 @@ async function initializeDatabase() {
       process.env.DATABASE_URL,
     );
     assertSameDatabaseBackend(config.database.url, checkpointerDatabaseUrl);
+    console.info('PostgreSQL backend identity (sanitised):', describeDatabaseBackend(config.database.url));
     dbPool = new Pool({
       connectionString: config.database.url,
       max: 20,
