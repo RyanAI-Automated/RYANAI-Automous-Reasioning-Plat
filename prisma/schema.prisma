@@ -277,6 +277,7 @@ model AgentRun {
   @@index([status, createdAt])
   @@index([status, lockedAt])
   @@index([status, nextAttemptAt])
+  @@index([approvalStatus, createdAt], map: "agent_runs_approval_status_created_idx")
   @@map("agent_runs")
 }
 model AgentRunEvidence {
@@ -290,8 +291,8 @@ model AgentRunEvidence {
   previousHash String? @map("previous_hash")
   hash String @unique
   createdAt DateTime @default(now()) @map("created_at")
-  @@unique([runId, sequence])
-  @@index([runId, sequence])
+  @@unique([runId, sequence], map: "agent_run_evidence_run_sequence_key")
+  @@index([runId, sequence], map: "agent_run_evidence_run_sequence_idx")
   @@map("agent_run_evidence")
 }
 model AgentHandoff {
@@ -431,6 +432,6 @@ model JarvisAuditEvent {
   createdAt  DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
   @@index([createdAt(sort: Desc)])
-  @@index([actorId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)], map: "jarvis_audit_events_actor_created_idx")
   @@map("jarvis_audit_events")
 }
