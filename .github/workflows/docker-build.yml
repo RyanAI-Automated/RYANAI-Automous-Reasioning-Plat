@@ -1,6 +1,13 @@
 name: Validate Docker Images
 
 on:
+  push:
+    branches: [fix/cloudflare-tunnel-secret-file-and-domain]
+    paths:
+      - 'docker-compose.yml'
+      - '.env.example'
+      - 'docs/CLOUDFLARE_MCP_INTEGRATION.md'
+      - '.github/workflows/docker-build.yml'
   pull_request:
     branches: [main, master]
     paths:
@@ -44,11 +51,14 @@ jobs:
           REDIS_PASSWORD=ci_redis_password_1234567890
           JWT_SECRET=ci_only_jwt_secret_1234567890_abcdefgh
           MCP_AUTH_TOKEN=ci_only_mcp_token_1234567890_abcdefgh
-          MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
           CLOUDFLARE_MCP_HOSTNAME=mcp.ryanai.dev
           EOF
           export CLOUDFLARE_TUNNEL_TOKEN=ci_only_cloudflare_tunnel_token_not_valid
+          # The default stack must validate without optional gateway credentials.
           docker compose config --quiet
+          # The optional profiles must also validate when explicitly configured.
+          export MCPJUNGLE_DB_PASSWORD=ci_only_mcpjungle_db_password_1234567890
+          docker compose --profile mcp-gateway --profile cloudflare-edge config --quiet
 
   build:
     name: Build ${{ matrix.image }} image
