@@ -69,6 +69,8 @@ projects:
                   property: connectionString
               - key: SUPABASE_URL
                 value: https://narsvpwymvlrhurqbthu.supabase.co
+              - key: SUPABASE_DB_POOLER_HOST
+                value: aws-1-eu-west-1.pooler.supabase.com
               - key: SUPABASE_PUBLISHABLE_KEY
                 sync: false
               - key: SUPABASE_SERVICE_ROLE_KEY
