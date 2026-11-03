@@ -49,16 +49,41 @@ export async function requireUser(request: FastifyRequest, reply: FastifyReply) 
       return reply.code(status).send({ error: status === 503 ? 'Authentication is temporarily unavailable.' : 'Invalid or expired session. Please sign in again.' });
     }
     const ownerEmail = process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase();
+    const sessionId = getVerifiedSessionId(token);
+    if (request.server.hasDecorator('prisma')) {
+      const session = await request.server.prisma.apiAuthSession.upsert({
+        where: { sessionId },
+        create: { sessionId, userId: data.user.id, email: data.user.email ?? null },
+        update: {},
+      });
+      if (session.revokedAt) return reply.code(401).send({ error: 'This RyanAI API session has been revoked. Sign in again.' });
+      await request.server.prisma.apiAuthSession.updateMany({
+        where: { sessionId, revokedAt: null, lastSeenAt: { lt: new Date(Date.now() - 60_000) } },
+        data: { lastSeenAt: new Date(), email: data.user.email ?? null },
+      });
+    }
     request.authUser = {
       id: data.user.id,
       email: data.user.email,
       role: data.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
       displayName: typeof data.user.user_metadata?.full_name === 'string' ? data.user.user_metadata.full_name : undefined,
       isOwner: Boolean(data.user.email && ownerEmail && data.user.email.toLowerCase() === ownerEmail),
+      sessionId,
     };
   } catch {
     return reply.code(503).send({ error: 'Authentication is temporarily unavailable.' });
   }
+}
+
+function getVerifiedSessionId(token: string): string {
+  try {
+    const encoded = token.split('.')[1];
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as { session_id?: unknown };
+    if (typeof payload.session_id === 'string' && payload.session_id.length > 0 && payload.session_id.length <= 128) return payload.session_id;
+  } catch {
+    // Supabase verified the token already; fall back to a token-specific revocation key.
+  }
+  return createHash('sha256').update(token).digest('hex');
 }
 
 /** Owner identity is resolved only from the server-side configured owner email. */
