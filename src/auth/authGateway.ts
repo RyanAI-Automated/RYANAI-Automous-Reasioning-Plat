@@ -1,3 +1,4 @@
+import { prismaTlsOptions } from '../db/postgresTls.js';
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -7,8 +8,8 @@ import { PrismaClient as AuditPrismaClient } from '@prisma/audit-client';
 import twilio from 'twilio';
 import Redis from 'ioredis';
 
-const prisma = new PrismaClient();
-const auditDb = new AuditPrismaClient();
+const prisma = new PrismaClient(prismaTlsOptions());
+const auditDb = new AuditPrismaClient(prismaTlsOptions());
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
