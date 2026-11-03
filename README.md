@@ -388,8 +388,30 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 | `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-only credential. Never expose to the browser. |
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
+| `VITE_SUPABASE_CAPTCHA_PROVIDER` | `turnstile` or `hcaptcha`; must match the provider enabled in Supabase Auth. |
+| `VITE_SUPABASE_CAPTCHA_SITE_KEY` | Public CAPTCHA site key compiled into the frontend. Never use the provider secret here. |
 
 Never place a service-role key, provider secret, GitHub token, or signing secret in a `VITE_*` variable. Frontend variables are bundled into browser-delivered assets.
+
+#### Supabase Auth CAPTCHA and confirmation redirects
+
+The frontend submits the CAPTCHA response token with both password sign-in and sign-up. Set
+`VITE_SUPABASE_CAPTCHA_PROVIDER` and `VITE_SUPABASE_CAPTCHA_SITE_KEY` in each frontend
+build environment (Vercel and Render). The provider must match the selection under Supabase
+Auth → Bot and Abuse Protection. Supported values are `turnstile` and `hcaptcha`.
+The site key is public; keep the provider secret only in Supabase Auth settings. These are
+Vite build-time variables, so rebuild the frontend after changing them.
+
+Signup sets `emailRedirectTo` to the root URL of the origin where the user registered.
+The Supabase Auth URL allow-list must therefore contain these exact production URLs:
+
+- `https://ryanai-automous-reasoning-plat-uss1632.vercel.app/`
+- `https://ryanai-web.onrender.com/`
+
+Also allow the corresponding `/oauth/consent` paths when using RyanAI's OAuth consent
+route. Review the Supabase confirmation email template: use `{{ .ConfirmationURL }}`,
+or construct links using `{{ .RedirectTo }}`; do not hard-code `{{ .SiteURL }}` into
+a confirmation link when the signup origin must be preserved.
 
 ### MCP variables
 
