@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { containsTaskCommentSecretMaterial } from './taskCommentSecurity.js';
+import { buildAgentTaskScope, containsTaskCommentSecretMaterial } from './taskCommentSecurity.js';
 
 describe('task comment credential screening', () => {
   it.each([
@@ -21,5 +21,15 @@ describe('task comment credential screening', () => {
     'The prefix sk- is used by some API credentials.',
   ])('allows ordinary progress text: %s', (value) => {
     expect(containsTaskCommentSecretMaterial(value)).toBe(false);
+  });
+});
+
+
+describe('scoped agent task ownership', () => {
+  it('limits machine reads to the configured owner and explicit handoff recipient', () => {
+    expect(buildAgentTaskScope('owner-uuid', 'primary')).toEqual({
+      userId: 'owner-uuid',
+      handoffs: { some: { toAgent: 'primary' } },
+    });
   });
 });
