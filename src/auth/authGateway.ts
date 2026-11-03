@@ -132,7 +132,7 @@ export async function authGatewayRoutes(fastify: FastifyInstance) {
     if (!phoneNumber) return reply.status(400).send({ error: 'Phone number is required.' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const redisKey = `otp:${phoneNumber.replace(/\\D/g, '')}`;
+    const redisKey = `otp:${phoneNumber.replace(/\D/g, '')}`;
 
     await redis.set(redisKey, otp, 'EX', 300);
 
@@ -157,7 +157,7 @@ export async function authGatewayRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Phone number and verification code are required.' });
     }
 
-    const cleanPhone = phoneNumber.replace(/\\D/g, '');
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
     const redisKey = `otp:${cleanPhone}`;
     const storedOtp = await redis.get(redisKey);
 
