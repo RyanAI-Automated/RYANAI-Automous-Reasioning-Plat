@@ -17,9 +17,9 @@ interface AuditResponse {
 }
 
 /**
- * Read-only viewer for the existing internal Jarvis audit stream.
- * This is intentionally not presented as a complete platform security log:
- * authentication, session and provider events are not yet unified here.
+ * Read-only viewer for the shared Jarvis audit stream. Authentication
+ * verification, role changes and API-session revocations are recorded in this
+ * stream; provider configuration and external identity-provider activity are not.
  */
 export default function AuditLogPanel() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
