@@ -23,6 +23,7 @@ vi.mock('@/pages/LandingPage', () => ({
 vi.mock('@/pages/Dashboard', () => ({ default: () => <div>Private dashboard</div> }));
 vi.mock('@/pages/BaseboardPage', () => ({ default: () => <div>Private Baseboard</div> }));
 vi.mock('@/pages/LLMSystemDashboard', () => ({ default: () => <div>Private LLM operations</div> }));
+vi.mock('@/pages/ToolsDashboard', () => ({ default: () => <div>Private MCP tools</div> }));
 vi.mock('@/pages/AdminDashboard', () => ({ default: () => <div>Private administration</div> }));
 vi.mock('@/components/dashboard/RyanAICockpit', () => ({
   default: () => <div>Private cockpit</div>,
@@ -95,7 +96,7 @@ describe('application authentication boundary', () => {
     await expectContent('Sign in to RYANAI');
     expect(container.textContent).not.toContain('Private dashboard');
   });
-  it.each(['baseboard', 'llm'])(
+  it.each(['baseboard', 'llm', 'tools'])(
     'requires authentication before rendering %s',
     async (route) => {
       await mount(`/${route}`);
