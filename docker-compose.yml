@@ -294,10 +294,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-        VITE_BRIDGE_BASE_URL: ${VITE_BRIDGE_BASE_URL:-}
-        VITE_VERCEL_BRIDGE_ADAPTER_ENABLED: ${VITE_VERCEL_BRIDGE_ADAPTER_ENABLED:-false}
       target: web
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
