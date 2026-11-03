@@ -152,7 +152,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     if (!isAdmin(request)) return reply.code(403).send({ error: 'Administrator access is required.' });
     const comment = request.body.comment.trim();
     if (!comment) return reply.code(400).send({ error: 'A non-empty comment is required.' });
-    if (containsSecretMaterial(comment)) {
+    if (containsTaskCommentSecretMaterial(comment)) {
       return reply.code(400).send({ error: 'Potential credential material detected. Remove secrets before commenting.' });
     }
     const result = await prisma.$transaction(async (tx) => {
