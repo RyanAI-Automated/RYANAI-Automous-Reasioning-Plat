@@ -121,6 +121,21 @@ export const jarvisRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: PatchApplyBody }>(
     '/api/jarvis/patches/apply',
     {
+      preValidation: async (request, reply) => {
+        const body = request.body;
+        const allowedFields = new Set(['filePath', 'patchContent', 'testScript']);
+        if (
+          !body ||
+          typeof body !== 'object' ||
+          Array.isArray(body) ||
+          Object.keys(body).some((key) => !allowedFields.has(key))
+        ) {
+          return reply.code(400).send({
+            success: false,
+            error: 'Patch payload must contain only filePath, patchContent, and optional testScript.',
+          });
+        }
+      },
       preHandler: requireJarvisIngressAuth,
       schema: {
         body: {
