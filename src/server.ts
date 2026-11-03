@@ -158,7 +158,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(fastifyJwt, {
     secret: process.env.JWT_SECRET || "ryanai-secure-jwt-secret-key-2026",
   });
-  await registerAuthRoutes(app);
+  // Local password/JWT routes are retired; Supabase Auth is the only session authority.
   await app.register(nativeInferencePlugin);
 
   await app.register(transcendPlugin, {
