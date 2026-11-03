@@ -50,9 +50,9 @@ server {
         proxy_read_timeout 86400;
     }
 
-    # WebSocket upgrade support for legacy API streams
+    # WebSocket upgrade support for the standalone bridge service
     location /ws {
-        proxy_pass http://${API_HOST}:${API_PORT};
+        proxy_pass http://${BRIDGE_HOST}:${BRIDGE_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
