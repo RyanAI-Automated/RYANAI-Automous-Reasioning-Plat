@@ -228,6 +228,26 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  # Cloudflare-first edge connector. No host port is published.
+  # Configure the named Tunnel's public hostname to route to http://mcpjungle:8080.
+  # Start with BOTH profiles enabled after the Tunnel and Access policies are configured.
+  cloudflared:
+    profiles: [cloudflare-edge]
+    image: ${CLOUDFLARED_IMAGE:?​Set CLOUDFLARED_IMAGE to a reviewed, pinned cloudflare/cloudflared image}
+    container_name: ryanai-cloudflared
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - "${CLOUDFLARE_TUNNEL_TOKEN:?​Set CLOUDFLARE_TUNNEL_TOKEN in the private runtime environment}"
+    networks: [ryanai-net]
+    depends_on:
+      mcpjungle:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 30s
+
   web:
     build:
       context: .
