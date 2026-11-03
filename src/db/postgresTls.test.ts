@@ -30,7 +30,7 @@ describe('Supabase PostgreSQL TLS policy', () => {
     );
     expect(result.connectionString).not.toContain('sslmode');
     expect(result.connectionString).not.toContain('sslrootcert');
-    expect(result.ssl).toEqual({
+    expect((result as { ssl?: unknown }).ssl).toEqual({
       ca: expect.stringContaining('-----BEGIN CERTIFICATE-----'),
       rejectUnauthorized: true,
     });
