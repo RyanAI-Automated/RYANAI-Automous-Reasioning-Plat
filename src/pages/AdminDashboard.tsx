@@ -3,6 +3,7 @@ import BrainKnowledgePanel from '@/components/BrainKnowledgePanel';
 import SelfPatchPanel from '@/components/SelfPatchPanel';
 import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import ModelUsagePanel from '@/components/admin/ModelUsagePanel';
+import McpRegistryPanel from '@/components/admin/McpRegistryPanel';
 import SessionControlPanel from '@/components/admin/SessionControlPanel';
 import UserRolePanel from '@/components/admin/UserRolePanel';
 import UserRoleManagementPanel from '@/components/admin/UserRoleManagementPanel';
@@ -29,6 +30,7 @@ export default function AdminDashboard() {
       <UserRolePanel />
       <SessionControlPanel />
       <ModelUsagePanel />
+      <McpRegistryPanel />
       <AuditLogPanel />
       <section className="space-y-3"><h2 className="flex items-center gap-2 text-lg font-semibold text-white"><Wrench className="h-5 w-5 text-cyan-300" /> Knowledge operations</h2><BrainKnowledgePanel /></section>
       <section className="space-y-3"><h2 className="text-lg font-semibold text-white">CI-gated self-patch proposals</h2><SelfPatchPanel /></section>
