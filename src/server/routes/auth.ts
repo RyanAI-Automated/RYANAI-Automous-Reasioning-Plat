@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   FastifyInstance,
   FastifyPluginAsync,
@@ -16,6 +17,7 @@ export interface AuthenticatedUser {
   role: 'user' | 'admin';
   displayName?: string;
   isOwner: boolean;
+  sessionId: string;
 }
 
 export function hasAdminAccess(user?: Pick<AuthenticatedUser, 'role' | 'isOwner'> | null): boolean {
@@ -30,7 +32,7 @@ declare module 'fastify' {
 /** Verify the bearer token with Supabase; never trust browser-editable role metadata. */
 export async function requireUser(request: FastifyRequest, reply: FastifyReply) {
   if (request.authUser) return;
-  const token = /^Bearer ([^\\s]+)$/i.exec(request.headers.authorization || '')?.[1];
+  const token = /^Bearer ([^\s]+)$/i.exec(request.headers.authorization || '')?.[1];
   if (!token) return reply.code(401).send({ error: 'Sign in to continue.' });
 
   const url = process.env.SUPABASE_URL?.trim();
