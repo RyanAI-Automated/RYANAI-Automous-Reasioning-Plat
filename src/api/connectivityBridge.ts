@@ -22,7 +22,7 @@ type BridgeMessage =
   | { type: 'degraded'; retryable?: boolean; dependency?: string }
   | { type: 'resumed'; cursor?: string; capabilities?: BridgeCapabilities }
   | { type: 'replay_gap'; requestedCursor: string; oldestAvailable: string; reconcileRequired: boolean }
-  | { type: 'heartbeat_ack'; nonce: string; at: number }
+  | { type: 'heartbeat_ack'; nonce: string; at: number; capabilities?: BridgeCapabilities }
   | { type: 'acknowledged'; id: string }
   | { type: 'error'; error?: string };
 
@@ -116,6 +116,7 @@ export class ConnectivityBridgeClient {
           this.options.onReplayGap?.({ requestedCursor: payload.requestedCursor, oldestAvailable: payload.oldestAvailable });
           this.options.onState?.('degraded');
         } else if (payload.type === 'heartbeat_ack' && payload.nonce === this.pendingNonce) {
+          if (payload.capabilities) this.options.onCapabilities?.(payload.capabilities);
           if (this.heartbeatDeadline) clearTimeout(this.heartbeatDeadline);
           this.heartbeatDeadline = undefined;
           this.pendingNonce = null;
