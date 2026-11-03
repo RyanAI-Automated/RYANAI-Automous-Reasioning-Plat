@@ -59,8 +59,9 @@ export function resolveSupabaseSessionPoolerUrl(
   // Keep the configured role and password, but add the project ref required
   // by Supavisor's shared pooler username format.
   const configuredUser = decodeURIComponent(connection.username);
-  const role = configuredUser.endsWith(\`.\${projectRef}\`)
-    ? configuredUser.slice(0, -(projectRef.length + 1))
+  const projectSuffix = '.' + projectRef;
+  const role = configuredUser.endsWith(projectSuffix)
+    ? configuredUser.slice(0, -projectSuffix.length)
     : configuredUser;
 
   if (!role) {
@@ -69,7 +70,7 @@ export function resolveSupabaseSessionPoolerUrl(
 
   connection.hostname = host;
   connection.port = '5432';
-  connection.username = \`\${role}.\${projectRef}\`;
+  connection.username = role + projectSuffix;
   connection.searchParams.set('sslmode', 'require');
 
   return connection.toString();
