@@ -59,6 +59,7 @@ describe('safe database diagnostics', () => {
     ['ENOTFOUND', 'hostname could not be resolved'],
     ['3D000', 'database does not exist'],
     ['ETIMEDOUT', 'Connection timed out'],
+    ['ESSLREQUIRED', 'requires TLS'],
   ])('provides actionable guidance for %s', (code, hint) => {
     expect(
       databaseFailureDiagnostic(new Error('', { cause: { code } })),
