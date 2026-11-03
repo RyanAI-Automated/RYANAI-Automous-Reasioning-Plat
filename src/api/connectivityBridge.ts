@@ -10,6 +10,7 @@ type BridgeMessage =
   | { type: 'event'; id: string; data: unknown }
   | { type: 'degraded'; retryable?: boolean }
   | { type: 'resumed'; cursor?: string }
+  | { type: 'acknowledged'; id: string }
   | { type: 'error'; error?: string };
 
 export function reconnectDelay(attempt: number, maxDelayMs = 30_000, random = Math.random): number {
