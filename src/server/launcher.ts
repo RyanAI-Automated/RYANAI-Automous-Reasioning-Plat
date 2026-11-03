@@ -1,3 +1,4 @@
+import { postgresClientOptions, prismaTlsOptions } from '../db/postgresTls.js';
 // Load local configuration before tracing and application imports.
 import '../loadEnv.js';
 
@@ -96,7 +97,7 @@ const fastify = Fastify({
 });
 
 // Initialize and decorate Prisma Client
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(prismaTlsOptions());
 fastify.decorate('prisma', prisma);
 
 // Register CORS with an explicit origin allowlist. Reflecting every Origin while
@@ -411,7 +412,7 @@ async function initializeDatabase() {
   console.log('📡 Initializing Database...');
   try {
     dbPool = new Pool({
-      connectionString: config.database.url,
+      ...postgresClientOptions(config.database.url),
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
