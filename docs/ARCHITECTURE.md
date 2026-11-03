@@ -43,7 +43,7 @@ To make an administrator, set `app_metadata.role` to `admin` for that user in Su
 
 The application uses Supabase Auth as its identity provider. Frontend admin navigation
 and backend administrator guards both trust the verified `app_metadata.role=admin`
-claim; the owner flag is stored in server-controlled `app_metadata.owner`. Never
+claim; the frontend owner flag is stored in server-controlled `app_metadata.owner`. The API separately derives `isOwner` from the server-only `RYANAI_OWNER_EMAIL` environment variable, so configure that exact email on the API service as well; the admin role itself is sufficient for the administrator guards. Never
 grant either claim from browser-editable `user_metadata`.
 
 To create or promote the single configured owner account, run the one-time
