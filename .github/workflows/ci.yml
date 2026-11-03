@@ -361,6 +361,37 @@ jobs:
             END IF;
           END $$;
           SQL
+      - name: Verify room RLS helpers are no longer exposed through public RPC
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $room_helper_check$
+          BEGIN
+            IF to_regprocedure('public.is_room_member(uuid)') IS NOT NULL
+               OR to_regprocedure('public.is_room_owner(uuid)') IS NOT NULL
+               OR to_regprocedure('public.is_room_member_topic(text)') IS NOT NULL THEN
+              RAISE EXCEPTION 'A room RLS helper remains exposed in public';
+            END IF;
+
+            IF to_regclass('public.rooms') IS NOT NULL
+               AND to_regclass('public.room_members') IS NOT NULL THEN
+              IF to_regprocedure('private.is_room_member(uuid)') IS NULL
+                 OR to_regprocedure('private.is_room_owner(uuid)') IS NULL
+                 OR to_regprocedure('private.is_room_member_topic(text)') IS NULL THEN
+                RAISE EXCEPTION 'Private room RLS helper functions are incomplete';
+              END IF;
+              IF NOT has_schema_privilege('authenticated', 'private', 'USAGE')
+                 OR has_schema_privilege('anon', 'private', 'USAGE') THEN
+                RAISE EXCEPTION 'Private helper schema grants are incorrect';
+              END IF;
+              IF NOT has_function_privilege('authenticated', 'private.is_room_member(uuid)', 'EXECUTE')
+                 OR has_function_privilege('anon', 'private.is_room_member(uuid)', 'EXECUTE') THEN
+                RAISE EXCEPTION 'Private helper function grants are incorrect';
+              END IF;
+            END IF;
+          END $room_helper_check$;
+          SQL
       - name: Simulate recorded far-future legacy migration and apply corrective migration
         run: |
           set -euo pipefail
