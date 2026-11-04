@@ -445,6 +445,8 @@ model ReasoningCache {
   embedding Unsupported("vector(1536)")?
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  // Preserve the SQL-defined HNSW index in Prisma drift comparisons.
+  @@index([embedding], map: "idx_reasoning_embedding")
   @@map("reasoning_cache")
 }
 
