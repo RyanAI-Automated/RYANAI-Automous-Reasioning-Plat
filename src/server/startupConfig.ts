@@ -6,8 +6,8 @@ export interface ConnectionUrls {
 /**
  * Trust only the configured number of reverse-proxy hops when resolving client
  * IPs. A finite hop count prevents arbitrary client-supplied X-Forwarded-For
- * entries from being treated as authoritative. Render's standard ingress uses
- * one proxy hop; deployments with a different topology must set this explicitly.
+ * entries from being treated as authoritative. The default is one hop; set
+ * TRUST_PROXY_HOPS only after verifying the deployment's proxy topology.
  */
 export function resolveTrustedProxyHops(raw?: string): number {
   if (raw === undefined || raw.trim() === '') return 1;
