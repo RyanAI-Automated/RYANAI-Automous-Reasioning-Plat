@@ -90,6 +90,27 @@ jobs:
           done
           [[ "$ready" == true ]] || { echo "::error::Required checks did not all complete successfully within 10 minutes"; exit 1; }
 
+      - name: Require isolated provider verification for the exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 40); do
+            gh run list --workflow provider-verification.yml --commit "$TARGET_SHA" --json databaseId,status,conclusion,event,headSha --limit 20 > provider-runs.json
+            matching="$(jq '[.[] | select(.headSha == env.TARGET_SHA and .event == "push")]' provider-runs.json)"
+            count="$(jq 'length' <<<"$matching")"
+            if [[ "$count" -gt 0 ]]; then
+              failed="$(jq '[.[] | select(.status == "completed" and .conclusion != "success")] | length' <<<"$matching")"
+              [[ "$failed" -eq 0 ]] || { echo "::error::Isolated provider verification failed for $TARGET_SHA"; jq '[.[] | {databaseId,status,conclusion}]' <<<"$matching"; exit 1; }
+              completed="$(jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$matching")"
+              if [[ "$completed" -gt 0 ]]; then ready=true; break; fi
+            fi
+            echo "Waiting for isolated provider verification for $TARGET_SHA (attempt $attempt/40)"
+            sleep 15
+          done
+          [[ "$ready" == true ]] || { echo "::error::No successful isolated provider verification found for exact commit $TARGET_SHA"; exit 1; }
+
       - name: Validate Render API credential
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
