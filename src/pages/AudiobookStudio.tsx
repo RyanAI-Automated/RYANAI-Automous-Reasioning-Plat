@@ -109,7 +109,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     if (chapter.text.length > 4000) { setError('Render one segment at a time. Each narration request is limited to 4,000 characters.'); return; }
     setBusy('render'); setError(''); setStatus('Generating narration…');
     try {
-      const response = await authenticatedFetch('/api/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: chapter.text, voice: chapter.voice, style: chapter.style, speed: chapter.speed }) });
+      const response = await authenticatedFetch('/api/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: chapter.text, language: project.language, voice: chapter.voice, style: chapter.style, speed: chapter.speed }) });
       const result = await response.json() as { audioBase64?: string; mimeType?: string; error?: string };
       if (!response.ok || !result.audioBase64) throw new Error(result.error || 'Narration generation failed.');
       const url = URL.createObjectURL(decodeAudioBase64(result.audioBase64, result.mimeType || 'audio/mpeg'));
@@ -136,7 +136,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
           setStatus(`Rendering ${item.title}: segment ${index + 1} of ${chunks.length}…`);
           const response = await authenticatedFetch('/api/v1/audio/speech', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: chunks[index], voice: item.voice, style: item.style, speed: item.speed }),
+            body: JSON.stringify({ text: chunks[index], language: project.language, voice: item.voice, style: item.style, speed: item.speed }),
           });
           const result = await response.json() as { audioBase64?: string; mimeType?: string; error?: string };
           if (!response.ok || !result.audioBase64) throw new Error(result.error || `Could not render ${item.title}.`);
