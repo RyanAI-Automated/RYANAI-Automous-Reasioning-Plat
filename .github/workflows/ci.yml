@@ -2,7 +2,7 @@ name: CI - Build, Test, and Integrate
 
 on:
   push:
-    branches: [main, master, dev, develop]
+    branches: [main, master, dev, develop, feat/railway-deployment-support]
   pull_request:
     branches: [main, master, dev, develop]
   workflow_dispatch:
