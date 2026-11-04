@@ -50,7 +50,17 @@ export async function inspectDatabaseSchema(
       to_regclass('public.jarvis_audit_events') IS NOT NULL AS jarvis_audit_events,
       to_regclass('public.reasoning_cache') IS NOT NULL AS reasoning_cache,
       EXISTS (SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'reasoning_cache' AND a.attname = 'embedding' AND format_type(a.atttypid, a.atttypmod) = 'vector(1536)') AS reasoning_embedding_type,
+      (
+        SELECT count(*) = 5 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'reasoning_cache'
+          AND column_name IN ('id', 'prompt', 'response', 'embedding', 'created_at')
+      ) AS reasoning_cache_columns,
       to_regclass('public.agent_memory') IS NOT NULL AS agent_memory,
+      (
+        SELECT count(*) = 5 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'agent_memory'
+          AND column_name IN ('id', 'session_id', 'role', 'content', 'timestamp')
+      ) AS agent_memory_columns,
       EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'agent_memory' AND column_name = 'session_id') AS agent_memory_session_id,
       EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') AS vector_extension,
       EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_reasoning_embedding' AND indexdef ILIKE '%USING hnsw%' AND indexdef ILIKE '%vector_cosine_ops%') AS reasoning_embedding_index,
@@ -78,8 +88,10 @@ export async function inspectDatabaseSchema(
     row.agent_run_evidence === true &&
     row.jarvis_audit_events === true &&
     row.reasoning_cache === true &&
+    row.reasoning_cache_columns === true &&
     row.reasoning_embedding_type === true &&
     row.agent_memory === true &&
+    row.agent_memory_columns === true &&
     row.agent_memory_session_id === true &&
     row.vector_extension === true &&
     row.reasoning_embedding_index === true &&
