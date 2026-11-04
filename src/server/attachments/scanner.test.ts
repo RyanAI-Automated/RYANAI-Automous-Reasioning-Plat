@@ -1,10 +1,16 @@
 import net from 'node:net';
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { quarantinePurgeCutoff, scanWithClamAv } from './scanner';
 
 const originalHost = process.env.CLAMAV_HOST;
 const originalPort = process.env.CLAMAV_PORT;
 const originalTimeout = process.env.CLAMAV_TIMEOUT_MS;
+
+const leaseMigration = readFileSync(
+  new URL('../../../supabase/migrations/20261104100000_attachment_scan_lease_fencing.sql', import.meta.url),
+  'utf8',
+);
 
 afterEach(() => {
   if (originalHost === undefined) delete process.env.CLAMAV_HOST;
@@ -95,5 +101,21 @@ describe('quarantine retention policy', () => {
       'ATTACHMENT_QUARANTINE_RETENTION_DAYS must be an integer between 1 and 3650.',
     );
     expect(() => quarantinePurgeCutoff(new Date('invalid'), 30)).toThrow('A valid current date is required.');
+  });
+});
+
+
+describe('attachment scan lease fencing', () => {
+  it('requires the current claim attempt when completing a scan', () => {
+    expect(leaseMigration).toContain('AND attempts = p_attempt');
+    expect(leaseMigration).toContain('AND status = \'scanning\'');
+    expect(leaseMigration).toContain('Attachment scan lease was lost or superseded');
+    expect(leaseMigration).toContain('REVOKE ALL ON FUNCTION public.finish_ryanai_attachment_scan');
+    expect(leaseMigration).toContain('TO service_role');
+  });
+
+  it('removes the unfenced completion signature', () => {
+    expect(leaseMigration).toContain('DROP FUNCTION IF EXISTS public.finish_ryanai_attachment_scan(text, text, text, text)');
+    expect(leaseMigration).toContain('p_attempt integer');
   });
 });
