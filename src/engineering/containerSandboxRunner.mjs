@@ -61,7 +61,6 @@ export function createContainerSandboxRunner({
       }
       if (cwd.includes(',') || cwd.includes('\n')) throw new Error('Workspace path contains unsupported mount characters.');
 
-      const relative = path.relative(root, cwd).split(path.sep).join('/');
       const workdir = '/workspace';
       const containerName = 'ryanai-genai-' + randomUUID();
       const env = safeEnvironment(options.env);
@@ -116,7 +115,7 @@ export const containerSandboxPolicy = Object.freeze({
   imageMustBeDigestPinned: true,
   network: 'none',
   rootFilesystem: 'read-only',
-  workspaceMount: 'single-approved-root',
+  workspaceMount: 'single-approved-workspace',
   linuxCapabilities: 'drop-all',
   noNewPrivileges: true,
   user: '10001:10001',

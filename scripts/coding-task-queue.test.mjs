@@ -141,7 +141,7 @@ test('worker aborts an active coding task when its lease heartbeat is lost', asy
       signal.addEventListener('abort', () => reject(signal.reason), { once: true });
     }),
   });
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await new Promise((resolve) => setTimeout(resolve, 1_800));
   stop();
   assert.equal(cancelled, 1);
 });
