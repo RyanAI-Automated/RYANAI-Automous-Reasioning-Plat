@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { compareMigrationState, assessSchema } from './audit-prisma-migration-readiness.mjs';
 
 const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
@@ -93,6 +94,25 @@ test('rejects same-named indexes with incompatible vector or memory definitions'
 });
 
 test('vector session migration preserves both historical column spellings', () => {
+  const migration = readFileSync(
+    new URL('../prisma/migrations/20261104120000_agent_memory_session_id/migration.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /RENAME COLUMN "sessionId" TO session_id/);
+  assert.match(migration, /RENAME COLUMN sessionid TO session_id/);
+});
+
+test('vector migration safely indexes either historical session column spelling', () => {
+  const migration = readFileSync(
+    new URL('../prisma/migrations/20261104100000_vector_memory/migration.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /column_name = 'sessionId'/);
+  assert.match(migration, /column_name = 'sessionid'/);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS idx_agent_session/);
+});
+
+test('session normalization migration preserves both historical column spellings', () => {
   const migration = readFileSync(
     new URL('../prisma/migrations/20261104120000_agent_memory_session_id/migration.sql', import.meta.url),
     'utf8',
