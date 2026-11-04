@@ -154,9 +154,10 @@ jobs:
               -c "SELECT 1 FROM public.agent_run_evidence LIMIT 0" \
               -c "SELECT 1 FROM public.jarvis_audit_events LIMIT 0" \
               -c "SELECT 1 FROM public.reasoning_cache LIMIT 0" \
-              -c "SELECT 1 FROM public.agent_memory LIMIT 0" \
+              -c "SELECT session_id FROM public.agent_memory LIMIT 0" \
               -c "SELECT extname FROM pg_extension WHERE extname='vector'" \
-              -c "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname IN ('idx_reasoning_embedding','idx_agent_session') ORDER BY indexname"
+              -c "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname IN ('idx_reasoning_embedding','idx_agent_session') ORDER BY indexname" \
+              -c "DO \\\$\\\$ BEGIN IF NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE session_id='legacy-session' AND content='preserve me') THEN RAISE EXCEPTION 'legacy agent memory row was not preserved'; END IF; END \\\$\\\$;"
 
       - name: Verify migrations match the Prisma data model
         run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
