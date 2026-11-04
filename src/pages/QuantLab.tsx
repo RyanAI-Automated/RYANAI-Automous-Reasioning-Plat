@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, BarChart3, BrainCircuit, History, Play, ShieldCheck, TrendingUp, type LucideIcon } from 'lucide-react';
+import { Activity, BarChart3, BrainCircuit, History, Play, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 type EquityPoint = { date: string; equity: number };
@@ -22,7 +22,7 @@ type Experiment = {
   result?: { metrics?: BacktestResult['metrics']; period?: BacktestResult['period'] } | null;
 };
 
-const sampleShape = '[\\n  { "date": "YYYY-MM-DD", "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1200 }\\n]';
+const sampleShape = '[{"date":"YYYY-MM-DD","open":100,"high":102,"low":99,"close":101,"volume":1200}]';
 
 export default function QuantLabPage() {
   const [barsJson, setBarsJson] = useState('');
@@ -48,9 +48,9 @@ export default function QuantLabPage() {
     } finally {
       setHistoryLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { void loadHistory(); }, []);
+  useEffect(() => { void loadHistory(); }, [loadHistory]);
 
   const chartPoints = useMemo(() => {
     const values = result?.equity_curve ?? [];
