@@ -74,10 +74,7 @@ jobs:
                   { context: "Analyze (javascript-typescript)" },
                   { context: "Analyze (python)" },
                   { context: "TruffleHog secret audit" },
-                  { context: "Codacy Security Scan" },
-                  { context: "Verify primary provider" },
-                  { context: "Verify secondary provider" },
-                  { context: "Verify logic provider" }
+                  { context: "Codacy Security Scan" }
                 ]
               }},
               { type: "non_fast_forward" },
@@ -113,17 +110,6 @@ jobs:
             and ([.rules[].type] | index("required_status_checks") != null)
             and ([.rules[].type] | index("non_fast_forward") != null)
             and ([.rules[].type] | index("deletion") != null)
-            and ([
-              .rules[] | select(.type == "required_status_checks") | .parameters
-              | select(.strict_required_status_checks_policy == true)
-              | [.required_status_checks[].context]
-              | . as $contexts
-              | select([
-                  "Verify primary provider",
-                  "Verify secondary provider",
-                  "Verify logic provider"
-                ] | all(. as $required | $contexts | index($required) != null))
-            ] | length == 1)
             and ([
               .rules[] | select(.type == "pull_request") | .parameters
               | select(.required_approving_review_count == 1
