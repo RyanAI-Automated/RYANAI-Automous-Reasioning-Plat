@@ -7,7 +7,7 @@ const renderConfig = parseYaml(render);
 const renderServices = renderConfig.projects?.[0]?.environments?.[0]?.services ?? [];
 const renderApi = renderServices.find((service) => service.name === 'RYANAI-Automous-Reasioning-Plat');
 const renderWeb = renderServices.find((service) => service.name === 'ryanai-web');
-const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis');
+const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis-virginia');
 const vercel = JSON.parse(read('vercel.json'));
 const railway = JSON.parse(read('railway.json'));
 const renderRepair = read('.github/workflows/guarded-render-api-source-repair.yml');
@@ -26,8 +26,9 @@ const checks = [
   ['Render frontend targets the official API origin', renderWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL' && item.value === 'https://ryanai-automous-reasioning-plat.onrender.com')],
   ['Render repair targets the official service ID only', renderRepair.includes('srv-dafvs4ht0dsc7380mapg') && !renderRepair.includes('srv-dbk4giu7bikc7394a4r0')],
   ['Render repair checks the official health endpoint', renderRepair.includes('https://ryanai-automous-reasioning-plat.onrender.com/health') && !renderRepair.includes('ryanai-api.onrender.com')],
-  ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('red-dbk4miff3r2c738mecpg') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "virginia"')],
-  ['Render auto-deploy targets the official service after successful CI', renderDeploy.includes('srv-dafvs4ht0dsc7380mapg') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
+  ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('ryanai-redis-virginia') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "virginia"')],
+  ['Render production deployment is explicitly approval-gated', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
+  ['Render deploy targets the official service after successful CI', renderDeploy.includes('srv-dafvs4ht0dsc7380mapg') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
   ['Render readiness audit requires the API key, not a deploy hook', read('scripts/audit-deployment-readiness.mjs').includes("name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY']")],
   ['Deployment audit treats false secret-presence flags as missing', read('scripts/audit-deployment-readiness.mjs').includes("normalized !== 'false'")],
   ['Vercel builds the Vite frontend to dist', vercel.framework === 'vite' && vercel.outputDirectory === 'dist' && vercel.buildCommand.includes('build:web')],

@@ -54,7 +54,7 @@ projects:
                 sync: false
               - key: REDIS_URL
                 fromService:
-                  name: ryanai-redis
+                  name: ryanai-redis-virginia
                   type: keyvalue
                   property: connectionString
               - key: SUPABASE_URL
@@ -144,7 +144,7 @@ projects:
               - key: RYANAI_OWNER_EMAIL
                 sync: false
           - type: keyvalue
-            name: ryanai-redis
+            name: ryanai-redis-virginia
             plan: free
             region: virginia
             maxmemoryPolicy: noeviction

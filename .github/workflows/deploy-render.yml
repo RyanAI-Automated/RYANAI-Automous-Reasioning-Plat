@@ -21,7 +21,9 @@ jobs:
       ${{
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main'
+        github.event.workflow_run.head_branch == 'main' &&
+        vars.RENDER_DEPLOY_ENABLED == 'true' &&
+        vars.RENDER_DEPLOY_APPROVED == 'true'
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -29,6 +31,8 @@ jobs:
     env:
       TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
       RENDER_SERVICE_ID: srv-dafvs4ht0dsc7380mapg
+      RENDER_WORKSPACE_ID: tea-d5ogqtcoud1c73b266f0
+      RENDER_REDIS_NAME: ryanai-redis-virginia
       RENDER_API_URL: https://ryanai-automous-reasioning-plat.onrender.com
 
     steps:
@@ -93,19 +97,19 @@ jobs:
           set -euo pipefail
           [[ -n "$RENDER_API_KEY" ]] || { echo "::error::RENDER_API_KEY is missing"; exit 1; }
 
-      - name: Require production Redis to be available in Virginia
+      - name: Require replacement Redis to be available in Virginia
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
-            --url "https://api.render.com/v1/key-value/red-dbk4miff3r2c738mecpg" \
+            --url "https://api.render.com/v1/key-value?ownerId=$RENDER_WORKSPACE_ID&name=$RENDER_REDIS_NAME&region=virginia&limit=100" \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
-            --output render-redis-status.json
-          jq -e '.status == "available" and .region == "virginia" and .name == "ryanai-redis"' render-redis-status.json || {
-            echo "::error::Production Redis is not available in Virginia. Restore the existing Redis dependency or approve a replacement before deploying the API."
-            jq '{name,status,region,plan}' render-redis-status.json
+            --output render-redis-list.json
+          jq -e --arg name "$RENDER_REDIS_NAME" '[.[] | .keyValue | select(.name == $name and .status == "available" and .region == "virginia")] | length == 1' render-redis-list.json || {
+            echo "::error::Virginia Redis is not available. The API deploy remains blocked until the approved replacement resource exists and is available."
+            jq '[.[] | .keyValue | {name,status,region,plan}]' render-redis-list.json
             exit 1
           }
 
