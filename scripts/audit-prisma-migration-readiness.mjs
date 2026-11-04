@@ -20,7 +20,7 @@ export function compareMigrationState(localNames, appliedRows) {
   };
 }
 
-export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, cacheColumnTypes = new Map(), indexDefinitions = new Map(), quantColumns = new Set() }) {
+export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, cacheColumnTypes = new Map(), indexDefinitions = new Map(), quantColumns = new Set(), constraints = new Set() }) {
   const requiredColumns = [
     'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
@@ -58,6 +58,7 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
     missingColumns,
     missingTables,
     missingQuantColumns,
+    quantUserForeignKeyPresent: constraints.has('quant_experiments_user_id_fkey'),
     vector: {
       extensionPresent: extensions.has('vector'),
       missingTables: missingVectorTables,
@@ -88,7 +89,7 @@ async function main() {
       'SELECT migration_name, finished_at, rolled_back_at FROM public._prisma_migrations ORDER BY migration_name',
     );
     const state = compareMigrationState(localNames, migrationResult.rows);
-    const [columnResult, tableResult, indexResult, extensionResult, memoryColumnResult, cacheColumnResult, quantColumnResult] = await Promise.all([
+    const [columnResult, tableResult, indexResult, extensionResult, memoryColumnResult, cacheColumnResult, quantColumnResult, constraintResult] = await Promise.all([
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_runs'"),
       pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
       pool.query("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'"),
@@ -96,6 +97,7 @@ async function main() {
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_memory'"),
       pool.query("SELECT a.attname AS column_name, format_type(a.atttypid, a.atttypmod) AS formatted_type FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'reasoning_cache' AND a.attnum > 0 AND NOT a.attisdropped"),
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='quant_experiments'"),
+      pool.query("SELECT conname FROM pg_constraint WHERE conrelid = to_regclass('public.quant_experiments') AND contype = 'f'"),
     ]);
     const schema = assessSchema({
       columns: new Set(columnResult.rows.map((row) => row.column_name)),
@@ -107,6 +109,7 @@ async function main() {
       cacheColumns: new Set(cacheColumnResult.rows.map((row) => row.column_name)),
       cacheColumnTypes: new Map(cacheColumnResult.rows.map((row) => [row.column_name, row.formatted_type])),
       quantColumns: new Set(quantColumnResult.rows.map((row) => row.column_name)),
+      constraints: new Set(constraintResult.rows.map((row) => row.conname)),
     });
     console.log(JSON.stringify({
       mode: 'read-only',
@@ -115,7 +118,7 @@ async function main() {
       remediation: 'Review each pending migration against live schema before applying. This command never applies DDL.',
     }, null, 2));
     if (state.pending.length || state.databaseOnly.length ||
-        schema.missingColumns.length || schema.missingTables.length || schema.missingQuantColumns.length ||
+        schema.missingColumns.length || schema.missingTables.length || schema.missingQuantColumns.length || !schema.quantUserForeignKeyPresent ||
         !schema.vector.extensionPresent || schema.vector.missingTables.length ||
         schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length || !schema.vector.embeddingTypeValid ||
         schema.vector.missingIndexes.length || schema.vector.invalidIndexes.length) {
