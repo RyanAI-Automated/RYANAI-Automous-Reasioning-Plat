@@ -43,7 +43,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true
-RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget \
+RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget python3 \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
@@ -56,6 +56,7 @@ COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
+COPY --chown=node:node quant-engine ./quant-engine
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

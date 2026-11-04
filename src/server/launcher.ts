@@ -32,6 +32,7 @@ import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
+import { quantRoutes } from './routes/quantRoutes.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
@@ -497,6 +498,7 @@ async function registerPlugins() {
   await fastify.register(slackInteractionsPlugin);
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
+  await fastify.register(quantRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
   await fastify.register(realtimeVoiceRoutes);

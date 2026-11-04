@@ -129,6 +129,13 @@ if (!app.includes("{route === 'dashboard' && <DashboardPage />}")) {
 if (!app.includes("lazy(() => import('@/pages/QuantLab'))") || !app.includes("{route === 'quant' && <QuantLabPage />}")) {
   fail('Quant Lab route must lazy-load and render the QuantLab page');
 }
+const auth = readText('src/server/routes/auth.ts');
+if (!auth.includes("path.startsWith('/api/quant/')")) {
+  fail('Quant API paths must require a verified signed-in user');
+}
+if (!readText('Dockerfile').includes('python3') || !readText('Dockerfile').includes('quant-engine ./quant-engine')) {
+  fail('Production API image must include the isolated Python quant runtime');
+}
 if (!app.includes("(route === 'workspace' || isAuthRoute)")) {
   fail('Workspace route must remain connected to the authenticated CommandCenter');
 }
