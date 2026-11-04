@@ -24,6 +24,7 @@ const makeBars = (count = 80) => {
 };
 
 describe('Quant API routes', () => {
+  afterEach(() => vi.clearAllMocks());
   it('runs an isolated Python backtest and persists the user-scoped result', async () => {
     const app = Fastify();
     app.decorateRequest('authUser', null);
