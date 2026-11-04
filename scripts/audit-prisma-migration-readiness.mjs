@@ -34,7 +34,7 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
   const requiredQuantColumns = ['id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at'];
   const missingQuantColumns = requiredQuantColumns.filter((name) => !quantColumns.has(name));
   const missingVectorTables = requiredVector.filter((name) => !tables.has(name));
-  const requiredMemoryColumns = ['session_id', 'role', 'content', 'timestamp'];
+  const requiredMemoryColumns = ['id', 'session_id', 'role', 'content', 'timestamp'];
   const requiredCacheColumns = ['id', 'prompt', 'response', 'embedding', 'created_at'];
   const missingMemoryColumns = requiredMemoryColumns.filter((name) => !memoryColumns.has(name));
   const missingCacheColumns = requiredCacheColumns.filter((name) => !cacheColumns.has(name));
