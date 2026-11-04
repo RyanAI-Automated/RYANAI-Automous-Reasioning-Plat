@@ -116,3 +116,23 @@ test('cancellation awaits successful Docker termination before stopping the clie
   await child.terminate();
   assert.ok(invocations.some(([binary, args]) => binary === 'docker' && args[0] === 'kill' && args[1].startsWith('ryanai-genai-')));
 });
+
+test('expired container cleanup inspects, kills and removes the task-scoped container', async () => {
+  const invocations = [];
+  const runner = createContainerSandboxRunner({
+    image: IMAGE,
+    spawn: (...args) => {
+      invocations.push(args[1]);
+      const child = fakeChild();
+      setImmediate(() => {
+        if (args[1][0] === 'inspect') child.stdout.end('true');
+        child.emit('close', 0, null);
+      });
+      return child;
+    },
+  });
+  const name = 'ryanai-genai-' + 'a'.repeat(32) + '-1';
+  assert.equal(await runner.stopContainer(name), true);
+  assert.deepEqual(invocations.map((args) => args[0]), ['inspect', 'kill', 'rm']);
+  assert.equal(await runner.stopContainer('unsafe-name'), false);
+});

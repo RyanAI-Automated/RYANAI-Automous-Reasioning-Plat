@@ -85,16 +85,33 @@ test('running task cancellation is persisted and lease heartbeat stops', async (
   assert.equal(calls[1].data.status, 'cancel_requested');
 });
 
-test('expired leases are recovered into retry, failed or cancelled states by one SQL transition', async () => {
+test('expired leases requeue only after the deterministic container is confirmed stopped', async () => {
   let query = '';
+  const updates = [];
   const queue = createCodingTaskQueue({
-    $queryRawUnsafe: async (sql) => { query = sql; return [{ id: 'coding-1', status: 'queued', attempts: 1 }]; },
-  });
+    $queryRawUnsafe: async (sql) => {
+      query = sql;
+      return [{ id: 'coding-1', containerName: 'ryanai-genai-' + 'a'.repeat(32) + '-1', attempts: 1, maxAttempts: 3, cancelRequestedAt: null }];
+    },
+    codingTask: { updateMany: async (args) => { updates.push(args); return { count: 1 }; } },
+  }, { stopContainer: async (name) => name.endsWith('-1') });
   const recovered = await queue.recoverExpired();
   assert.equal(recovered[0].status, 'queued');
-  assert.match(query, /UPDATE public\.coding_tasks/);
+  assert.equal(updates[0].where.status, 'recovering');
+  assert.equal(updates[0].data.status, 'queued');
+  assert.match(query, /SET status = 'recovering'/);
   assert.match(query, /lease_expires_at < NOW\(\)/);
-  assert.match(query, /cancel_requested_at IS NOT NULL/);
+});
+
+test('expired leases become orphaned rather than retried when Docker cannot confirm termination', async () => {
+  let update;
+  const queue = createCodingTaskQueue({
+    $queryRawUnsafe: async () => [{ id: 'coding-2', containerName: 'ryanai-genai-' + 'b'.repeat(32) + '-2', attempts: 1, maxAttempts: 3, cancelRequestedAt: null }],
+    codingTask: { updateMany: async (args) => { update = args; return { count: 1 }; } },
+  }, { stopContainer: async () => false });
+  const recovered = await queue.recoverExpired();
+  assert.equal(recovered[0].status, 'orphaned');
+  assert.equal(update.data.status, 'orphaned');
 });
 
 test('worker executes a claimed task and records durable completion', async () => {
