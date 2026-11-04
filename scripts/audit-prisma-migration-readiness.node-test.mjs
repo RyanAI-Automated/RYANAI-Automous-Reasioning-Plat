@@ -46,7 +46,10 @@ test('accepts a complete schema and vector-memory installation', () => {
     indexes: new Set(['idx_reasoning_embedding', 'idx_agent_session']),
     extensions: new Set(['vector']),
     agentMemoryColumns: new Set(['session_id']),
-    indexDefinitions: new Map([['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)']]),
+    indexDefinitions: new Map([
+      ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)'],
+      ['idx_agent_session', 'CREATE INDEX idx_agent_session ON public.agent_memory (session_id, timestamp)'],
+    ]),
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
