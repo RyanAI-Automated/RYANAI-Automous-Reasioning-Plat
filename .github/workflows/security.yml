@@ -29,18 +29,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install verified Trivy release
+        env:
+          TRIVY_VERSION: 0.70.0
+        run: |
+          set -euo pipefail
+          archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          release_url="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+
+          # Download the official release assets directly from GitHub. This
+          # avoids the get.trivy.dev redirect host used by setup-trivy.
+          curl --fail --show-error --location --retry 5 --retry-all-errors \
+            --connect-timeout 20 --max-time 300 \
+            "$release_url/$archive" -o "$workdir/$archive"
+          curl --fail --show-error --location --retry 5 --retry-all-errors \
+            --connect-timeout 20 --max-time 120 \
+            "$release_url/trivy_${TRIVY_VERSION}_checksums.txt" \
+            -o "$workdir/checksums.txt"
+
+          expected="$(awk -v file="$archive" '$2 == file || $2 == "*"file { print $1; exit }' "$workdir/checksums.txt")"
+          test -n "$expected" || { echo "Official checksum missing for $archive" >&2; exit 1; }
+          printf '%s  %s\n' "$expected" "$workdir/$archive" | sha256sum --check --strict -
+
+          tar -xzf "$workdir/$archive" -C "$workdir" trivy
+          sudo install -m 0755 "$workdir/trivy" /usr/local/bin/trivy
+          trivy --version
+
       - name: Generate complete Trivy SARIF report
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-          # Keep every severity in SARIF; the explicit CLI gate below enforces
-          # the blocking threshold without hiding MEDIUM/LOW findings.
-          exit-code: '0'
-          skip-dirs: node_modules,**/node_modules,.cache,src-tauri/target
-          scanners: vuln
+        run: |
+          set -euo pipefail
+          trivy fs \
+            --scanners vuln \
+            --format sarif \
+            --output trivy-results.sarif \
+            --exit-code 0 \
+            --skip-dirs node_modules,**/node_modules,.cache,src-tauri/target \
+            .
 
       - name: Fail only on HIGH or CRITICAL vulnerabilities
         run: |
