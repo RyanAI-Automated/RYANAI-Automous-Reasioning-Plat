@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   TrendingUp,
   MessageSquareText,
+  BookAudio,
   Mail,
   Orbit,
   LogIn,
@@ -20,6 +21,7 @@ const BrainKnowledgePanel = lazy(() => import('@/components/BrainKnowledgePanel'
 const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
+const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const QuantLabPage = lazy(() => import('@/pages/QuantLab'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
@@ -60,6 +62,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   cockpit: Cpu,
   workspace: MessageSquareText,
   comms: Mail,
+  audiobook: BookAudio,
 };
 
 const destinations = appManifest.routes.map((route) => ({
@@ -226,6 +229,7 @@ export default function App() {
             {route === 'dashboard' && <DashboardPage />}
             {route === 'quant' && <QuantLabPage />}
             {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
+            {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
             {route === 'cockpit' && (
               <>
                 <RyanAICockpit />
