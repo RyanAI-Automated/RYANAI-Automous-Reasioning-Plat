@@ -35,7 +35,7 @@ The worker refuses to start if any required credential is missing or if the buck
 - Monitor worker logs and queued/running/failed job counts. Never log manuscript text, audio bytes, signed URLs, or provider credentials.
 - If a worker is stopped abruptly, the job remains durable and can be reclaimed after its lease expires. A graceful shutdown waits for the active job to finish.
 - A missing provider credential, storage bucket, or migration must be treated as a configuration failure, not as a successful render.
-- Deleting a project cascades its chapter and job rows. Storage artifact retention/deletion needs a separate, audited cleanup policy before it is enabled.
+- A project deletion endpoint is intentionally not exposed yet. Storage artifact retention/deletion needs a separate, audited cleanup policy before deletion is enabled.
 
 ## Current scope and known limitations
 

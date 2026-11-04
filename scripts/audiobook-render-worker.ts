@@ -27,9 +27,7 @@ function splitText(value: string): string[] {
   let rest = value.trim();
   while (rest.length > MAX_SEGMENT_CHARS) {
     const sample = rest.slice(0, MAX_SEGMENT_CHARS + 1);
-    const boundary = Math.max(sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('
-
-'));
+    const boundary = Math.max(sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf(String.fromCharCode(10, 10)));
     const cut = boundary > MAX_SEGMENT_CHARS * 0.45 ? boundary + 1 : sample.lastIndexOf(' ');
     const length = cut > 0 ? cut : MAX_SEGMENT_CHARS;
     chunks.push(rest.slice(0, length).trim());
@@ -44,7 +42,8 @@ function backoff(attempt: number): Date {
 }
 
 async function claimJob(): Promise<ClaimedJob | null> {
-  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW() WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
+  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW(), error = 'Cancellation finalized after worker lease expiry.' WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
+  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END, worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = CASE WHEN attempts >= max_attempts THEN NOW() ELSE NULL END, updated_at = NOW(), error = 'Worker lease expired; job recovered by queue supervisor.' WHERE status = 'running' AND lease_expires_at < NOW()`;
   const rows = await prisma.$queryRaw<ClaimedJob[]> `
     UPDATE audiobook_render_jobs
     SET status = 'running',
@@ -58,7 +57,7 @@ async function claimJob(): Promise<ClaimedJob | null> {
       WHERE cancel_requested_at IS NULL
         AND attempts < max_attempts
         AND next_attempt_at <= NOW()
-        AND (status = 'queued' OR (status = 'running' AND lease_expires_at < NOW()))
+        AND status = 'queued'
       ORDER BY created_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED
@@ -109,6 +108,7 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
     throw new PermanentRenderError('Persisted render request is invalid.');
   }
   const artifacts: Array<{ chapterId: string; chapterTitle: string; path: string; mimeType: string }> = [];
+  try {
   for (let chapterIndex = 0; chapterIndex < snapshot.chapters.length; chapterIndex += 1) {
     const chapter = snapshot.chapters[chapterIndex];
     if (!chapter || typeof chapter.text !== 'string' || !chapter.text.trim() || chapter.text.length > 200_000 || typeof chapter.title !== 'string' || chapter.title.length > 120 || !VOICES.has(chapter.voice) || typeof chapter.style !== 'string' || chapter.style.length > 500 || !Number.isFinite(chapter.speed) || chapter.speed < 0.8 || chapter.speed > 1.2) {
@@ -128,9 +128,10 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
       });
       rendered.push(await renderSegment(segments[segmentIndex], chapter, snapshot.language, apiKey));
     }
+    if (await isCancelled(job)) throw new Error('CANCELLED');
     const path = `${job.userId}/${job.projectId}/${job.id}/chapter-${String(chapterIndex + 1).padStart(4, '0')}.mp3`;
     const { error } = await storage.storage.from(BUCKET).upload(path, Buffer.concat(rendered), {
-      contentType: 'audio/mpeg', cacheControl: 'private, max-age=0', upsert: true,
+      contentType: 'audio/mpeg', cacheControl: '0', upsert: true,
     });
     if (error) throw new Error(`Private audio artifact upload failed: ${error.message}`);
     artifacts.push({ chapterId: chapter.id, chapterTitle: chapter.title, path, mimeType: 'audio/mpeg' });
@@ -152,6 +153,13 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
     },
   });
   if (completed.count !== 1) throw new Error('Render job could not commit completion because its lease was lost.');
+  } catch (error) {
+    if (artifacts.length) {
+      const { error: cleanupError } = await storage.storage.from(BUCKET).remove(artifacts.map(artifact => artifact.path));
+      if (cleanupError) console.error('[audiobook-worker] partial artifact cleanup failed', { jobId: job.id, count: artifacts.length });
+    }
+    throw error;
+  }
 }
 
 async function markCancelled(job: ClaimedJob) {
@@ -200,7 +208,7 @@ async function run() {
       if (!job) return;
       const heartbeat = setInterval(() => {
         void prisma.audiobookRenderJob.updateMany({
-          where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null },
+          where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null, leaseExpiresAt: { gt: new Date() } },
           data: { lockedAt: new Date(), leaseExpiresAt: new Date(Date.now() + LEASE_MS), updatedAt: new Date() },
         }).catch(error => console.error('[audiobook-worker] heartbeat failed', error instanceof Error ? error.message : 'unknown'));
       }, Math.floor(LEASE_MS / 3));

@@ -89,4 +89,49 @@ describe('RyanAI audiobook persistence routes', () => {
     expect(findUnique).toHaveBeenCalledWith({ where: { userId_idempotencyKey: { userId, idempotencyKey: 'render-request-001' } } });
     expect(create).not.toHaveBeenCalled();
   });
+  it('preserves stable chapter UUIDs when creating a project', async () => {
+    const chapterId = '7f7a4d4e-4a76-4a2b-9e4a-1d3d8f12a4f0';
+    const create = vi.fn().mockResolvedValue({ id: 'project-new' });
+    const app = await createApp({ audiobookProject: { create } });
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/audiobooks',
+      headers: { authorization: 'Bearer test-user' },
+      payload: { title: 'Stable IDs', language: 'en-ZA', chapters: [{ id: chapterId, title: 'Chapter 1', text: 'Hello.', voice: 'coral', speed: 1, style: '' }] },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ chapters: { create: [expect.objectContaining({ id: chapterId })] } }),
+    }));
+  });
+
+  it('rejects a second render while a different project render is active', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-provider-key');
+    vi.stubEnv('SUPABASE_URL', 'https://storage.example.test');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role');
+    const project = {
+      id: 'project-a', title: 'Test book', language: 'en-ZA', userId,
+      chapters: [{ id: 'chapter-a', title: 'Chapter 1', content: 'Hello world.', narrationSettings: { voice: 'coral', speed: 1, style: '' } }],
+    };
+    const activeJob = { id: 'job-active', status: 'running', userId };
+    const projectFind = vi.fn().mockResolvedValue(project);
+    const jobFindUnique = vi.fn().mockResolvedValue(null);
+    const jobFindFirst = vi.fn().mockResolvedValue(activeJob);
+    const create = vi.fn();
+    const app = await createApp({
+      audiobookProject: { findFirst: projectFind },
+      audiobookRenderJob: { findUnique: jobFindUnique, findFirst: jobFindFirst, create },
+    });
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/audiobooks/project-a/render',
+      headers: { authorization: 'Bearer test-user' },
+      payload: { idempotencyKey: 'another-render-request' },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ jobId: 'job-active' });
+    expect(jobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId, projectId: 'project-a', status: { in: ['queued', 'running', 'cancel_requested'] } },
+    }));
+    expect(create).not.toHaveBeenCalled();
+  });
+
 });
