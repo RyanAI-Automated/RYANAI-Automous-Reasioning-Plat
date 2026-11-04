@@ -114,6 +114,9 @@ jobs:
             and ([.rules[].type] | index("required_status_checks") != null)
             and ([.rules[].type] | index("non_fast_forward") != null)
             and ([.rules[].type] | index("deletion") != null)
+            and ([.rules[].type] | index("copilot_code_review") != null)
+            and ([.conditions.ref_name.include[]] | index("refs/heads/main") != null)
+            and ([.rules[] | select(.type == "copilot_code_review") | .parameters | select(.review_on_push == true and .review_draft_pull_requests == true)] | length == 1)
             and ([
               .rules[] | select(.type == "required_status_checks") | .parameters
               | select(.strict_required_status_checks_policy == true)
