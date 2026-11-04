@@ -150,6 +150,8 @@ if (!statSafe(renderDeployPath)) {
     "vars.RENDER_DEPLOY_ENABLED == 'true'",
     "secrets.RENDER_API_DEPLOY_HOOK_URL",
     "secrets.RENDER_WEB_DEPLOY_HOOK_URL",
+    "github.event.workflow_run.head_sha",
+    "ref=${VALIDATED_SHA}",
   ]) {
     if (!renderText.includes(required)) {
       fail(renderDeployPath, 'Render production deployment is missing required gate/configuration: ' + required);
