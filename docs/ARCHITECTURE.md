@@ -244,3 +244,14 @@ No production activation, deployment, paid infrastructure upgrade, secret change
 - No benchmark score without workload, hardware, revision, and dataset provenance.
 
 **RyanAI owns its intelligence. Models serve it. Gen-X protects it. Human authority governs it.**
+
+
+## 13. Universal model governance contract (RIIP)
+
+The machine-readable source of truth for model onboarding and engineering acceptance is `governance/model-governance.yaml`. The full operational lifecycle is documented in [RIIP Universal Model Governance](architecture/RIIP-UNIVERSAL-MODEL-GOVERNANCE.md), with registry semantics in [RIIP Model Registry](architecture/RIIP-MODEL-REGISTRY.md).
+
+Every reasoning provider, local inference adapter, and specialist must be registered with an explicit task-family allowlist, truthful verification status, and evaluation requirement. Provider configuration and merged adapter code are not runtime health evidence. Candidate specialists remain offline/evaluation-only until their exact revision, licence, representative workload, security, language, ZAR economics, fallback, and rollback are independently evidenced.
+
+RIIP makes the governing boundary machine-checkable: model outputs are untrusted; models cannot authorize actions, alter their own permissions, approve their own changes, merge, deploy, or promote themselves. Gen-X remains the independent authorization enforcement point, and consequential actions remain subject to human approval. The policy validator and regression tests are included in the repository validation pipeline.
+
+This policy baseline does not itself implement runtime routing, enable specialist models, download weights, alter production configuration, or certify live provider health.
