@@ -61,23 +61,27 @@ jobs:
         run: npm ci --legacy-peer-deps
       - name: Generate Prisma client
         run: npm run db:generate
-      - name: Apply the non-vector migration history to the disposable database
+      - name: Prepare the minimal Supabase Auth compatibility surface
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/prepare-disposable-supabase-auth-fixture.sql
+      - name: Apply the historical eight-migration database baseline
         run: |
           set -euo pipefail
-          cp -a prisma/migrations /tmp/prisma-migrations-full
-          restore_migrations() {
-            rm -rf prisma/migrations
-            cp -a /tmp/prisma-migrations-full prisma/migrations
-          }
-          trap restore_migrations EXIT
-          # First migrate a clean database through all non-vector migrations.
-          # Then recreate the legacy Compose-created pgvector objects before
-          # applying the new ordered vector migrations.
-          rm -rf prisma/migrations/20261104100000_vector_memory
-          rm -rf prisma/migrations/20261104120000_agent_memory_session_id
-          npx prisma migrate deploy
-          restore_migrations
-          trap - EXIT
+          baseline=/tmp/ryanai-prisma-baseline
+          mkdir -p "$baseline/migrations"
+          cp prisma/schema.prisma "$baseline/schema.prisma"
+          cp prisma/migrations/migration_lock.toml "$baseline/migrations/migration_lock.toml"
+          for migration in \
+            20261015081513_init_reasoning_platform \
+            20261030120000_agent_operations \
+            20261030130000_brain_knowledge \
+            20261030130500_agent_task_queue \
+            20261030153000_agent_run_retry_backoff \
+            20261101110000_communications_and_langgraph_checkpoint \
+            20261101111500_complete_supabase_models \
+            20261102123000_supabase_auth_identity_bridge; do
+            cp -a "prisma/migrations/$migration" "$baseline/migrations/"
+          done
+          npx prisma migrate deploy --schema "$baseline/schema.prisma"
       - name: Recreate the legacy Docker pgvector bootstrap after Prisma baseline
         run: node scripts/test-legacy-pgvector-upgrade.mjs prepare
       - name: Apply vector-memory and compatibility migrations
