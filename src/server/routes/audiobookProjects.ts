@@ -9,6 +9,7 @@ const VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'ony
 const MAX_CHAPTERS = 200;
 const MAX_CHAPTER_CHARS = 200_000;
 const MAX_BOOK_CHARS = 300_000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type ChapterInput = { id?: string; title: string; text: string; voice?: string; style?: string; speed?: number };
 type ProjectInput = { title?: string; language?: string; chapters?: ChapterInput[] };
@@ -28,7 +29,7 @@ function validateProject(body: ProjectInput): { title: string; language: string;
     if (!VOICES.has(voice) || style.length > 500 || !Number.isFinite(speed) || speed < 0.8 || speed > 1.2) return null;
     total += chapter.text.length;
     if (total > MAX_BOOK_CHARS) return null;
-    chapters.push({ title: chapter.title.trim(), content: chapter.text, position: index, narrationSettings: { voice, style, speed } });
+    chapters.push({ ...(typeof chapter.id === 'string' && UUID.test(chapter.id) ? { id: chapter.id } : {}), title: chapter.title.trim(), content: chapter.text, position: index, narrationSettings: { voice, style, speed } });
   }
   return { title, language, chapters };
 }
@@ -46,7 +47,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
     const projects = await fastify.prisma.audiobookProject.findMany({
       where: { userId }, orderBy: { updatedAt: 'desc' }, take: 1,
-      include: { chapters: { orderBy: { position: 'asc' } }, renderJobs: { orderBy: { createdAt: 'desc' }, take: 5 } },
+      include: { chapters: { orderBy: { position: 'asc' } } },
     });
     return { projects };
   });
@@ -68,7 +69,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
     const project = await fastify.prisma.audiobookProject.findFirst({
       where: { id: request.params.projectId, userId },
-      include: { chapters: { orderBy: { position: 'asc' } }, renderJobs: { orderBy: { createdAt: 'desc' }, take: 10 } },
+      include: { chapters: { orderBy: { position: 'asc' } } },
     });
     if (!project) return reply.code(404).send({ error: 'Audiobook project not found.' });
     return { project };
@@ -88,14 +89,6 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
       return tx.audiobookProject.findUnique({ where: { id: exists.id }, include: { chapters: { orderBy: { position: 'asc' } } } });
     });
     return { project };
-  });
-
-  fastify.delete<{ Params: { projectId: string } }>('/api/v1/audiobooks/:projectId', { preHandler: requireUser }, async (request, reply) => {
-    const userId = request.authUser?.id;
-    if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
-    const deleted = await fastify.prisma.audiobookProject.deleteMany({ where: { id: request.params.projectId, userId } });
-    if (!deleted.count) return reply.code(404).send({ error: 'Audiobook project not found.' });
-    return { deleted: true };
   });
 
   fastify.post<{ Params: { projectId: string }; Body: { idempotencyKey?: string } }>('/api/v1/audiobooks/:projectId/render', {
@@ -179,7 +172,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.log.error({ errorName: error?.name ?? 'unknown' }, 'Unable to create audiobook download link');
         return reply.code(502).send({ error: 'Could not prepare a secure audiobook download.' });
       }
-      downloads.push({ chapterTitle: artifact.chapterTitle, url: data.signedUrl, expiresInSeconds: 300 });
+      downloads.push({ chapterId: (artifact as { chapterId?: string }).chapterId, chapterTitle: artifact.chapterTitle, url: data.signedUrl, expiresInSeconds: 300 });
     }
     return { downloads };
   });
