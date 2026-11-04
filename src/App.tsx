@@ -3,6 +3,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import {
   Cpu,
   LayoutDashboard,
+  TrendingUp,
   MessageSquareText,
   Mail,
   Orbit,
@@ -20,6 +21,7 @@ const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const QuantLabPage = lazy(() => import('@/pages/QuantLab'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
@@ -54,6 +56,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   signin: LogIn,
   signup: UserPlus,
   dashboard: LayoutDashboard,
+  quant: TrendingUp,
   cockpit: Cpu,
   workspace: MessageSquareText,
   comms: Mail,
@@ -221,6 +224,7 @@ export default function App() {
         ) : (
           <>
             {route === 'dashboard' && <DashboardPage />}
+            {route === 'quant' && <QuantLabPage />}
             {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
             {route === 'cockpit' && (
               <>
