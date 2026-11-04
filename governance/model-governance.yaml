@@ -128,3 +128,19 @@ model_registry:
     authority: none
     activation: disabled_pending_legal_and_baseline_review
     evaluation_required: true
+  - id: specialist.hydrogen
+    provider: deep_principle
+    role: scientific_discovery
+    status: evaluation_only
+    task_families: [scientific_reasoning, chemistry, materials_science, life_sciences]
+    authority: none
+    activation: offline_benchmark_only_pending_six_gate_review
+    evaluation_required: true
+  - id: specialist.nemotron_orchestrator
+    provider: nvidia
+    role: orchestration_research
+    status: disabled
+    task_families: [orchestration_research]
+    authority: none
+    activation: disabled_research_only_pending_licence_and_security_review
+    evaluation_required: true

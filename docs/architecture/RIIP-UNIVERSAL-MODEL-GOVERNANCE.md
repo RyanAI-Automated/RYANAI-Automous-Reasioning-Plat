@@ -23,6 +23,17 @@ The registry distinguishes configuration from verification:
 
 A model name, environment variable, health route, or successful configuration parse is never sufficient evidence of model health.
 
+## Registered model families
+
+- Core reasoning: NVIDIA, Qwen, and Logic retain separate primary, secondary, and structured-verification roles.
+- Local inference: Ollama remains a runtime/adapter, not an additional provider brain. Explicit local mode is required; no silent cloud fallback is permitted.
+- Local specialists: GLiNER for entity extraction, EmbeddingGemma for embeddings/retrieval, PaddleOCR-VL for document understanding, Parakeet for speech recognition, and Kokoro for speech generation remain evaluation-only until their exact revisions and workloads pass review.
+- Routing research: Arch-Router remains disabled pending licence and baseline review.
+- Scientific discovery: Hydrogen-1.0 is registered as an evaluation-only candidate for scientific reasoning, chemistry, materials science, and life sciences. Its vendor-reported scores are hypotheses to reproduce, not accepted evidence. No weights are downloaded and no API is invoked by this registration.
+- Orchestration research: Nemotron-Orchestrator-8B is explicitly disabled and research-only pending licence, security, and baseline review. It is not granted orchestration authority.
+
+Registration does not enable a model, install weights, configure credentials, or establish runtime health.
+
 ## Authority and execution
 
 1. Authenticate the requesting principal and establish tenant/resource scope.
