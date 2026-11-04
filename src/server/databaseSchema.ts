@@ -50,6 +50,7 @@ export async function inspectDatabaseSchema(
       to_regclass('public.jarvis_audit_events') IS NOT NULL AS jarvis_audit_events,
       to_regclass('public.reasoning_cache') IS NOT NULL AS reasoning_cache,
       to_regclass('public.agent_memory') IS NOT NULL AS agent_memory,
+      EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'agent_memory' AND column_name = 'session_id') AS agent_memory_session_id,
       EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') AS vector_extension,
       EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_reasoning_embedding') AS reasoning_embedding_index,
       EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_agent_session') AS agent_session_index
@@ -77,6 +78,7 @@ export async function inspectDatabaseSchema(
     row.jarvis_audit_events === true &&
     row.reasoning_cache === true &&
     row.agent_memory === true &&
+    row.agent_memory_session_id === true &&
     row.vector_extension === true &&
     row.reasoning_embedding_index === true &&
     row.agent_session_index === true;
