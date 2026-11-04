@@ -56,9 +56,26 @@ jobs:
         run: npm ci --legacy-peer-deps
       - name: Generate Prisma client
         run: npm run db:generate
-      - name: Recreate the legacy Docker pgvector bootstrap
+      - name: Apply the non-vector migration history to the disposable database
+        run: |
+          set -euo pipefail
+          cp -a prisma/migrations /tmp/prisma-migrations-full
+          restore_migrations() {
+            rm -rf prisma/migrations
+            cp -a /tmp/prisma-migrations-full prisma/migrations
+          }
+          trap restore_migrations EXIT
+          # First migrate a clean database through all non-vector migrations.
+          # Then recreate the legacy Compose-created pgvector objects before
+          # applying the new ordered vector migrations.
+          rm -rf prisma/migrations/20261104100000_vector_memory
+          rm -rf prisma/migrations/20261104120000_agent_memory_session_id
+          npx prisma migrate deploy
+          restore_migrations
+          trap - EXIT
+      - name: Recreate the legacy Docker pgvector bootstrap after Prisma baseline
         run: node scripts/test-legacy-pgvector-upgrade.mjs prepare
-      - name: Apply the complete ordered Prisma migration history
+      - name: Apply vector-memory and compatibility migrations
         run: npx prisma migrate deploy
       - name: Verify legacy data survived the migration
         run: node scripts/test-legacy-pgvector-upgrade.mjs verify
