@@ -118,13 +118,16 @@ if (!importsOrLazyLoads(
 )) {
   fail('Desktop cockpit must import or lazy-load AgentControlPanel');
 }
-for (const id of ['dashboard', 'cockpit', 'workspace']) {
+for (const id of ['dashboard', 'quant', 'cockpit', 'workspace']) {
   if (!routes.routes?.some((route) => route.id === id)) {
     fail(`app/routes.json is missing the ${id} route`);
   }
 }
 if (!app.includes("{route === 'dashboard' && <DashboardPage />}")) {
   fail('Dashboard route must render the focused DashboardPage');
+}
+if (!app.includes("lazy(() => import('@/pages/QuantLab'))") || !app.includes("{route === 'quant' && <QuantLabPage />}")) {
+  fail('Quant Lab route must lazy-load and render the QuantLab page');
 }
 if (!app.includes("(route === 'workspace' || isAuthRoute)")) {
   fail('Workspace route must remain connected to the authenticated CommandCenter');

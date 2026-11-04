@@ -12,6 +12,11 @@
       "path": "/dashboard"
     },
     {
+      "id": "quant",
+      "label": "Quant Lab",
+      "path": "/quant"
+    },
+    {
       "id": "cockpit",
       "label": "Cockpit",
       "path": "/cockpit"
