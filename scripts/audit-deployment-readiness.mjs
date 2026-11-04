@@ -52,6 +52,7 @@ export function auditDeploymentTargets(env = process.env, root = process.cwd()) 
   if (!web) renderErrors.push('Render Blueprint is missing ryanai-web');
   else {
     if (!officialRepo(web.repo)) renderErrors.push('Render web must use the official GitHub repository');
+    if (web.branch !== 'main') renderErrors.push('Render web must deploy from main');
     if (web.runtime !== 'static') renderErrors.push('Render web must use the static runtime');
     if (web.rootDir && web.rootDir !== '.') renderErrors.push('Render web rootDir must be the repository root');
     if (web.staticPublishPath !== './dist') renderErrors.push('Render web staticPublishPath must be ./dist');
