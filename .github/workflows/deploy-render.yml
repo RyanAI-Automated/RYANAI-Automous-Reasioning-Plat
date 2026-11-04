@@ -1,13 +1,10 @@
-name: Deploy API to Render
+name: Deploy Render Production
 
-# Trigger only after the actual container publishing workflow succeeds.
-# Render remains opt-in and requires an explicit gate plus a configured deploy hook.
 on:
   workflow_run:
-    workflows: ['Build and Publish RyanAI Containers']
+    workflows: ["CI - Build, Test, and Integrate"]
     branches: [main, master]
     types: [completed]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,14 +15,13 @@ concurrency:
 
 jobs:
   deploy:
-    name: Trigger Render deploy
+    name: Deploy validated API and web services to Render
     if: >-
       ${{
         vars.RENDER_DEPLOY_ENABLED == 'true' &&
-        (
-          github.event_name == 'workflow_dispatch' ||
-          (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-        )
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -34,19 +30,32 @@ jobs:
     steps:
       - name: Validate Render deployment configuration
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_DEPLOY_HOOK_URL: ${{ secrets.RENDER_API_DEPLOY_HOOK_URL }}
+          RENDER_WEB_DEPLOY_HOOK_URL: ${{ secrets.RENDER_WEB_DEPLOY_HOOK_URL }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$RENDER_DEPLOY_HOOK_URL" ]]; then
-            echo "::error::RENDER_DEPLOY_ENABLED is true but RENDER_DEPLOY_HOOK_URL is missing."
-            exit 1
-          fi
+          for key in RENDER_API_DEPLOY_HOOK_URL RENDER_WEB_DEPLOY_HOOK_URL; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::RENDER_DEPLOY_ENABLED is true but $key is missing."
+              exit 1
+            fi
+          done
 
-      - name: Trigger Render deploy
+      - name: Trigger Render API deployment
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_DEPLOY_HOOK_URL: ${{ secrets.RENDER_API_DEPLOY_HOOK_URL }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
-          echo "Render deploy hook accepted the request."
+          curl --fail --silent --show-error --max-time 30 -X POST "${RENDER_API_DEPLOY_HOOK_URL}&ref=${VALIDATED_SHA}" > /dev/null
+          echo "Render API deploy hook accepted the request."
+
+      - name: Trigger Render web deployment
+        env:
+          RENDER_WEB_DEPLOY_HOOK_URL: ${{ secrets.RENDER_WEB_DEPLOY_HOOK_URL }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 -X POST "${RENDER_WEB_DEPLOY_HOOK_URL}&ref=${VALIDATED_SHA}" > /dev/null
+          echo "Render web deploy hook accepted the request."
