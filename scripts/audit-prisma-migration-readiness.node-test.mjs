@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { compareMigrationState, assessSchema } from './audit-prisma-migration-readiness.mjs';
 
 const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
 const cacheColumns = new Set(['id', 'prompt', 'response', 'embedding', 'created_at']);
+const cacheColumnTypes = new Map([['embedding', 'vector(1536)']]);
 const vectorIndexes = new Set(['idx_reasoning_embedding', 'idx_agent_session']);
+const vectorIndexDefinitions = new Map([
+  ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)'],
+  ['idx_agent_session', 'CREATE INDEX idx_agent_session ON public.agent_memory (session_id, timestamp)'],
+]);
 
 test('reports source migrations absent from the applied ledger without mutating either input', () => {
   const names = ['20261102150000_agent_run_execution_scope', '20261102210000_internal_jarvis_audit'];
@@ -54,6 +60,8 @@ test('accepts a complete schema and vector-memory installation', () => {
     extensions: new Set(['vector']),
     memoryColumns,
     cacheColumns,
+    cacheColumnTypes,
+    indexDefinitions: vectorIndexDefinitions,
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
@@ -61,6 +69,52 @@ test('accepts a complete schema and vector-memory installation', () => {
   assert.deepEqual(result.vector.missingTables, []);
   assert.deepEqual(result.vector.missingMemoryColumns, []);
   assert.deepEqual(result.vector.missingCacheColumns, []);
+  assert.equal(result.vector.embeddingTypeValid, true);
   assert.deepEqual(result.vector.missingIndexes, []);
+  assert.deepEqual(result.vector.invalidIndexes, []);
   assert.equal(result.vector.indexPresent, true);
+});
+
+test('rejects same-named indexes with incompatible vector or memory definitions', () => {
+  const result = assessSchema({
+    columns: new Set(),
+    tables: new Set(['reasoning_cache', 'agent_memory']),
+    indexes: vectorIndexes,
+    extensions: new Set(['vector']),
+    memoryColumns,
+    cacheColumns,
+    cacheColumnTypes,
+    indexDefinitions: new Map([
+      ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING btree (embedding)'],
+      ['idx_agent_session', 'CREATE INDEX idx_agent_session ON public.agent_memory (sessionid, timestamp)'],
+    ]),
+  });
+  assert.deepEqual(result.vector.invalidIndexes, [
+    'idx_reasoning_embedding (requires HNSW vector_cosine_ops)',
+    'idx_agent_session (requires session_id, timestamp)',
+  ]);
+  assert.equal(result.vector.indexPresent, false);
+});
+
+test('rejects an embedding column with a different vector dimension', () => {
+  const result = assessSchema({
+    columns: new Set(),
+    tables: new Set(['reasoning_cache', 'agent_memory']),
+    indexes: vectorIndexes,
+    extensions: new Set(['vector']),
+    memoryColumns,
+    cacheColumns,
+    cacheColumnTypes: new Map([['embedding', 'vector(768)']]),
+    indexDefinitions: vectorIndexDefinitions,
+  });
+  assert.equal(result.vector.embeddingTypeValid, false);
+});
+
+test('vector session migration preserves both historical column spellings', () => {
+  const migration = readFileSync(
+    new URL('../prisma/migrations/20261104120000_agent_memory_session_id/migration.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /RENAME COLUMN "sessionId" TO session_id/);
+  assert.match(migration, /RENAME COLUMN sessionid TO session_id/);
 });
