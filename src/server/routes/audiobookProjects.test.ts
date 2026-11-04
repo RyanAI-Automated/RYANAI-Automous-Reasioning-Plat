@@ -5,10 +5,10 @@ import { audiobookProjectRoutes } from './audiobookProjects.js';
 const apps: FastifyInstance[] = [];
 const userId = 'audiobook-test-user';
 
-async function createApp(prisma: Record<string, any>) {
+async function createApp(prisma: Record<string, unknown>) {
   const app = Fastify();
   apps.push(app);
-  app.decorate('prisma', prisma);
+  app.decorate('prisma', prisma as never);
   app.decorateRequest('authUser', null);
   app.addHook('onRequest', async (request) => {
     if (request.headers.authorization === 'Bearer test-user') {
