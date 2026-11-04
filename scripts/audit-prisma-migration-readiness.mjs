@@ -38,10 +38,11 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
   const requiredCacheColumns = ['id', 'prompt', 'response', 'embedding', 'created_at'];
   const missingMemoryColumns = requiredMemoryColumns.filter((name) => !memoryColumns.has(name));
   const missingCacheColumns = requiredCacheColumns.filter((name) => !cacheColumns.has(name));
-  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session'];
+  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session', 'quant_experiments_user_created_idx'];
   const missingIndexes = requiredIndexes.filter((name) => !indexes.has(name));
   const reasoningIndexDefinition = (indexDefinitions.get('idx_reasoning_embedding') ?? '').toLowerCase();
   const agentSessionIndexDefinition = (indexDefinitions.get('idx_agent_session') ?? '').toLowerCase();
+  const quantIndexDefinition = (indexDefinitions.get('quant_experiments_user_created_idx') ?? '').toLowerCase();
   const invalidIndexes = [
     ...(indexes.has('idx_reasoning_embedding') &&
       (!reasoningIndexDefinition.includes('using hnsw') || !reasoningIndexDefinition.includes('vector_cosine_ops'))
@@ -49,6 +50,9 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
     ...(indexes.has('idx_agent_session') &&
       (!agentSessionIndexDefinition.includes('session_id') || !agentSessionIndexDefinition.includes('timestamp'))
       ? ['idx_agent_session (requires session_id, timestamp)'] : []),
+    ...(indexes.has('quant_experiments_user_created_idx') &&
+      (!quantIndexDefinition.includes('user_id') || !quantIndexDefinition.includes('created_at'))
+      ? ['quant_experiments_user_created_idx (requires user_id, created_at)'] : []),
   ];
   return {
     missingColumns,
