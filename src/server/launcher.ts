@@ -138,6 +138,7 @@ const serviceStatus = {
   database: false,
   redis: false,
   agentCheckpointer: false,
+  applicationSchema: false,
   api: false,
 };
 
@@ -156,6 +157,7 @@ function registerCoreRoutes() {
         await fastify.redis.ping();
       },
       agentCheckpointerInitialized: serviceStatus.agentCheckpointer,
+      applicationSchemaInitialized: serviceStatus.applicationSchema,
       apiListening: serviceStatus.api,
     });
     reply.code(readiness.ready ? 200 : 503);
@@ -429,6 +431,11 @@ async function initializeDatabase() {
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
     serviceStatus.agentCheckpointer = schema.agentCheckpointer;
+    serviceStatus.applicationSchema = schema.applicationSchema;
+
+    if (!schema.applicationSchema) {
+      console.warn('⚠️ Required Prisma application migrations are missing. Run npm run db:migrate before enabling production API traffic.');
+    }
 
     if (!schema.agentCheckpointer) {
       console.warn(
@@ -534,6 +541,7 @@ async function start() {
       database: databaseReady,
       redis: redisReady,
       agentCheckpointer: serviceStatus.agentCheckpointer,
+      applicationSchema: serviceStatus.applicationSchema,
     });
     if (!redisReady) {
       throw new Error('Startup blocked: Redis did not pass its live connectivity check.');
