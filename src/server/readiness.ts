@@ -4,6 +4,7 @@ export interface ReadinessProbeSet {
   database: ReadinessProbe;
   redis: ReadinessProbe;
   agentCheckpointerInitialized: boolean;
+  applicationSchemaInitialized: boolean;
   apiListening: boolean;
 }
 
@@ -13,6 +14,7 @@ export interface ReadinessResult {
     database: boolean;
     redis: boolean;
     agentCheckpointer: boolean;
+    applicationSchema: boolean;
     api: boolean;
   };
 }
@@ -63,6 +65,7 @@ export async function inspectReadiness(
     database,
     redis,
     agentCheckpointer: probes.agentCheckpointerInitialized && database,
+    applicationSchema: probes.applicationSchemaInitialized && database,
     api: probes.apiListening,
   };
 
