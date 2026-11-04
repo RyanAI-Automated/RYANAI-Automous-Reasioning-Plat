@@ -45,13 +45,13 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
     const projects = await fastify.prisma.audiobookProject.findMany({
-      where: { userId }, orderBy: { updatedAt: 'desc' },
+      where: { userId }, orderBy: { updatedAt: 'desc' }, take: 1,
       include: { chapters: { orderBy: { position: 'asc' } }, renderJobs: { orderBy: { createdAt: 'desc' }, take: 5 } },
     });
     return { projects };
   });
 
-  fastify.post<{ Body: ProjectInput }>('/api/v1/audiobooks', { preHandler: requireUser }, async (request, reply) => {
+  fastify.post<{ Body: ProjectInput }>('/api/v1/audiobooks', { bodyLimit: 3 * 1024 * 1024, preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
     const input = validateProject(request.body ?? {});
@@ -74,7 +74,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     return { project };
   });
 
-  fastify.put<{ Params: { projectId: string }; Body: ProjectInput }>('/api/v1/audiobooks/:projectId', { preHandler: requireUser }, async (request, reply) => {
+  fastify.put<{ Params: { projectId: string }; Body: ProjectInput }>('/api/v1/audiobooks/:projectId', { bodyLimit: 3 * 1024 * 1024, preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
     const input = validateProject(request.body ?? {});
@@ -174,12 +174,12 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     if (!storage) return reply.code(503).send({ error: 'Private audiobook storage is not configured.' });
     const downloads = [];
     for (const artifact of artifacts) {
-      const { data, error } = await storage.storage.from(BUCKET).createSignedUrl(artifact.path, 60);
+      const { data, error } = await storage.storage.from(BUCKET).createSignedUrl(artifact.path, 300);
       if (error || !data?.signedUrl) {
         fastify.log.error({ errorName: error?.name ?? 'unknown' }, 'Unable to create audiobook download link');
         return reply.code(502).send({ error: 'Could not prepare a secure audiobook download.' });
       }
-      downloads.push({ chapterTitle: artifact.chapterTitle, url: data.signedUrl, expiresInSeconds: 60 });
+      downloads.push({ chapterTitle: artifact.chapterTitle, url: data.signedUrl, expiresInSeconds: 300 });
     }
     return { downloads };
   });
