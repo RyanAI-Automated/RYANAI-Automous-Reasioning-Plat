@@ -5,7 +5,7 @@ import { auditAgentReadiness } from './audit-agent-readiness.mjs';
 
 test('deployment targets remain disabled unless explicitly enabled', () => {
   const results = auditDeploymentTargets({});
-  assert.equal(results.length, 5);
+  assert.equal(results.length, 6);
   assert.ok(results.every((target) => target.status === 'DISABLED'));
   assert.ok(results.every((target) => target.deploymentAttempted === false));
 });
@@ -146,4 +146,42 @@ test('provider verification supports one brain or all three isolated brains in p
   assert.ok(workflow.includes("matrix.provider == 'primary' && secrets.NVIDIA_API_KEY"));
   assert.ok(workflow.includes("matrix.provider == 'secondary' && secrets.QWEN_API_KEY"));
   assert.ok(workflow.includes("matrix.provider == 'logic' && (secrets.LOGIC_API_KEY || secrets.OPENAI_API_KEY)"));
+});
+
+
+test('deployment configuration points at the official Render API and aligned three-platform stack', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const workflow = await readFile(new URL('../.github/workflows/guarded-render-api-source-repair.yml', import.meta.url), 'utf8');
+  const blueprint = await readFile(new URL('../render.yaml', import.meta.url), 'utf8');
+  assert.ok(workflow.includes('srv-dafvs4ht0dsc7380mapg'));
+  assert.ok(workflow.includes('https://ryanai-automous-reasoning-plat.onrender.com/health'));
+  assert.ok(workflow.includes('"dockerfilePath":"./Dockerfile.api"'));
+  assert.ok(workflow.includes('"healthCheckPath":"/health"'));
+  assert.ok(!workflow.includes('srv-dbk4giu7bikc7394a4r0'));
+  assert.ok(!workflow.includes('ryanai-api.onrender.com'));
+  assert.ok(blueprint.includes('name: RYANAI-Automous-Reasioning-Plat'));
+  assert.ok(blueprint.includes('dockerfilePath: ./Dockerfile.api'));
+  assert.ok(blueprint.includes('healthCheckPath: /health'));
+  assert.ok(blueprint.includes('value: https://ryanai-automous-reasoning-plat.onrender.com'));
+  assert.ok(blueprint.includes('region: virginia'));
+});
+
+
+test('Render production deployment requires the API credential, not a stale deploy hook', () => {
+  const missing = auditDeploymentTargets({ RENDER_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Render');
+  assert.equal(missing.status, 'BLOCKED');
+  assert.deepEqual(missing.missing, ['RENDER_API_KEY']);
+  const ready = auditDeploymentTargets({ RENDER_DEPLOY_ENABLED: 'true', RENDER_API_KEY: 'present-for-test-only' }).find((target) => target.name === 'Render');
+  assert.equal(ready.status, 'READY');
+  assert.equal(ready.deploymentAttempted, false);
+});
+
+
+test('boolean false secret-presence indicators are treated as missing', () => {
+  const result = auditDeploymentTargets({
+    RENDER_DEPLOY_ENABLED: 'true',
+    RENDER_API_KEY: 'false',
+  }).find((target) => target.name === 'Render');
+  assert.equal(result.status, 'BLOCKED');
+  assert.deepEqual(result.missing, ['RENDER_API_KEY']);
 });
