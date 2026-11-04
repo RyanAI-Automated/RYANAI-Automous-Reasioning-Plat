@@ -1,0 +1,44 @@
+name: Update patch log after merged PR
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: patch-update-main
+  cancel-in-progress: false
+
+jobs:
+  record-merged-pr:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the current main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Record the confirmed merge
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_MERGED_AT: ${{ github.event.pull_request.merged_at }}
+          PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/update-patch-log.mjs
+      - name: Commit patch log update
+        run: |
+          if git diff --quiet -- patch_update.md; then
+            echo "No patch log change required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add patch_update.md
+          git commit -m "docs: record merged PR #${{ github.event.pull_request.number }}"
+          git push origin HEAD:main
