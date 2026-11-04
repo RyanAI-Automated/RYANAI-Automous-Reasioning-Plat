@@ -11,7 +11,7 @@ def bars(count=80):
     price = 100.0
     for index in range(count):
         # Deterministic uptrend followed by a downtrend to exercise both sides.
-        price += 1.1 if index < 45 else -1.4
+        price += -1.0 if index < 20 else 1.4 if index < 50 else -1.6
         result.append({
             "date": f"2026-01-{index + 1:02d}" if index < 28 else f"2026-02-{index - 27:02d}" if index < 56 else f"2026-03-{index - 55:02d}",
             "open": price - 0.2, "high": price + 0.5,
