@@ -43,6 +43,7 @@ type ScannerDatabase = {
           p_bucket_id: string;
           p_object_name: string;
           p_status: ScanResult | 'failed';
+          p_attempt: number;
           p_error: string | null;
         };
         Returns: undefined;
@@ -244,6 +245,7 @@ export function startAttachmentScanner(): () => void {
           p_bucket_id: job.bucket_id,
           p_object_name: job.object_name,
           p_status: result,
+          p_attempt: job.attempt,
           p_error: null,
         });
         if (finishError) throw finishError;
@@ -254,6 +256,7 @@ export function startAttachmentScanner(): () => void {
           p_bucket_id: job.bucket_id,
           p_object_name: job.object_name,
           p_status: 'failed',
+          p_attempt: job.attempt,
           p_error: message,
         });
         if (finishError) console.error('[attachment-scanner] unable to persist failure state', finishError.message);
