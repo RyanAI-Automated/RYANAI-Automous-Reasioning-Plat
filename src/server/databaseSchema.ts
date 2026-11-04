@@ -55,6 +55,7 @@ export async function inspectDatabaseSchema(
           AND column_name IN ('id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at')
       ) AS quant_experiment_columns,
       EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'quant_experiments_user_created_idx' AND indexdef ILIKE '%user_id%' AND indexdef ILIKE '%created_at%') AS quant_experiment_index,
+      EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.quant_experiments') AND conname = 'quant_experiments_user_id_fkey' AND contype = 'f') AS quant_experiment_user_fk,
       to_regclass('public.reasoning_cache') IS NOT NULL AS reasoning_cache,
       EXISTS (SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'reasoning_cache' AND a.attname = 'embedding' AND format_type(a.atttypid, a.atttypmod) = 'vector(1536)') AS reasoning_embedding_type,
       (
@@ -97,6 +98,7 @@ export async function inspectDatabaseSchema(
     row.quant_experiments === true &&
     row.quant_experiment_columns === true &&
     row.quant_experiment_index === true &&
+    row.quant_experiment_user_fk === true &&
     row.reasoning_cache === true &&
     row.reasoning_cache_columns === true &&
     row.reasoning_embedding_type === true &&
