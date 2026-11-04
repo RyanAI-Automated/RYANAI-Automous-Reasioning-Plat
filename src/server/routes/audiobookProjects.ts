@@ -14,7 +14,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 type ChapterInput = { id?: string; title: string; text: string; voice?: string; style?: string; speed?: number };
 type ProjectInput = { title?: string; language?: string; chapters?: ChapterInput[] };
 
-function validateProject(body: ProjectInput): { title: string; language: string; chapters: Array<{ id?: string; title: string; content: string; position: number; narrationSettings: Record<string, unknown> }> } | null {
+function validateProject(body: ProjectInput): { title: string; language: string; chapters: Array<{ id?: string; title: string; content: string; position: number; narrationSettings: { voice: string; style: string; speed: number } }> } | null {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const language = typeof body.language === 'string' ? body.language : 'en-ZA';
   if (!title || title.length > 120 || !isRyanLanguage(language) || !Array.isArray(body.chapters) || body.chapters.length < 1 || body.chapters.length > MAX_CHAPTERS) return null;
