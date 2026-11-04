@@ -548,7 +548,7 @@ async function start() {
     console.log(`    - Root: http://${config.host}:${config.port}/`);
     console.log(`    - Health: http://${config.host}:${config.port}/health`);
     console.log(`    - System: http://${config.host}:${config.port}/api/system`);
-    console.log(`    - Signin: http://${config.host}:${config.port}/signin`);
+    console.log(`    - Authentication: Supabase Auth`);
     console.log(`\n${startupSummary(serviceStatus)}\n`);
     stopBrainMonitor = startBrainHealthMonitor();
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
