@@ -108,7 +108,7 @@ describe('RyanAI GenAIcode adapter authorization and isolation', () => {
   it('runs through the isolated runner, passes only safe env and never claims verification', async () => {
     const { root, work } = await workspace();
     let launch;
-    const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: HASH, proposedDiffHash: HASH };
+    const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: COMMIT_SHA, proposedDiffHash: HASH };
     const result = await runGenAICodeTask(task(root, work), {
       authorizeTask: async (received) => {
         assert.deepEqual(received, binding);
