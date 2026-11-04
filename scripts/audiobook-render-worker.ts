@@ -44,7 +44,8 @@ function backoff(attempt: number): Date {
 }
 
 async function claimJob(): Promise<ClaimedJob | null> {
-  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW() WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
+  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW(), error = 'Cancellation finalized after worker lease expiry.' WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
+  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END, worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = CASE WHEN attempts >= max_attempts THEN NOW() ELSE NULL END, updated_at = NOW(), error = 'Worker lease expired; job recovered by queue supervisor.' WHERE status = 'running' AND lease_expires_at < NOW()`;
   const rows = await prisma.$queryRaw<ClaimedJob[]> `
     UPDATE audiobook_render_jobs
     SET status = 'running',
@@ -58,7 +59,7 @@ async function claimJob(): Promise<ClaimedJob | null> {
       WHERE cancel_requested_at IS NULL
         AND attempts < max_attempts
         AND next_attempt_at <= NOW()
-        AND (status = 'queued' OR (status = 'running' AND lease_expires_at < NOW()))
+        AND status = 'queued'
       ORDER BY created_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED
@@ -201,7 +202,7 @@ async function run() {
       if (!job) return;
       const heartbeat = setInterval(() => {
         void prisma.audiobookRenderJob.updateMany({
-          where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null },
+          where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null, leaseExpiresAt: { gt: new Date() } },
           data: { lockedAt: new Date(), leaseExpiresAt: new Date(Date.now() + LEASE_MS), updatedAt: new Date() },
         }).catch(error => console.error('[audiobook-worker] heartbeat failed', error instanceof Error ? error.message : 'unknown'));
       }, Math.floor(LEASE_MS / 3));
