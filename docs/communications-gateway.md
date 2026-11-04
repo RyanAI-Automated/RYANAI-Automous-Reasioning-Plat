@@ -107,9 +107,12 @@ They do not have Twilio/SMTP credentials or provider dispatch tools. The main re
 Cross-channel context is restricted to the configured owner phone/email addresses and reads only bounded recent rows from PostgreSQL communication history. Contact addresses and provider identifiers are omitted from the model context. Because conversation bodies are sensitive, this context tool returns no message content unless both conditions are true:
 
 - `RYANAI_COMMS_MEMORY_LOCAL_ONLY=true`
-- `OPENAI_BASE_URL` points to the local Ollama-compatible endpoint on port `11434` (for example, `http://ollama:11434/v1` inside a Docker network or `http://localhost:11434/v1` when the API shares the host network).
+- `RYANAI_INFERENCE_MODE=local` and `OLLAMA_URL` point to an approved local Ollama endpoint on port `11434` (for example, `http://ollama:11434/v1` inside a Docker network or `http://localhost:11434/v1` when the API shares the host network).
+- `OLLAMA_MODEL` names a model that has already been pulled into the local Ollama runtime.
 
-If the endpoint is remote, malformed, or not explicitly enabled, the tool returns a blocked status without querying PostgreSQL. Do not enable this setting until the local Ollama endpoint is actually running and verified. The shared `createChatModel()` currently uses an OpenAI-compatible interface; this configuration alone is not proof that Ollama or a Qwen model is installed or healthy.
+In explicit local mode, `createChatModel()` uses only `OLLAMA_URL` and the non-secret Ollama-compatible placeholder key; it does not read `OPENAI_API_KEY` or fall back to a cloud endpoint. The endpoint is rejected unless it uses HTTP, an approved local hostname, port `11434`, and an optional `/v1` path. Unsupported inference modes fail closed. In cloud mode or when no mode is selected, the existing OpenAI-compatible configuration remains unchanged.
+
+If the endpoint is remote, malformed, or local-only memory is not explicitly enabled, the context tool returns a blocked status without querying PostgreSQL. Do not enable this setting until the local Ollama endpoint is actually running and verified. Configuration is not proof that Ollama or the selected model is installed or healthy; runtime health must be tested separately.
 
 ## Attachment and multimodal status
 
@@ -119,7 +122,7 @@ Do not pass provider media URLs or unscanned bytes to an AI model. Multimodal pr
 
 ## Python communications orchestration contracts
 
-The optional standard-library package in `comms-orchestration/` defines typed contracts for durable task persistence, atomic claiming, agent execution and task completion/failure. It is an interface layer, not a database adapter or a live worker. The orchestrator persists each task before considering execution, requires an explicit approved flag, and permits only `analyse` and `draft` actions. It has no provider dispatch interface. A production adapter must implement idempotent persistence, owner-scoped authorization, atomic claims/leases, bounded retries and audit events before worker activation.
+The optional standard-library package in `comms-orchestration/` defines typed contracts for durable task persistence, atomic claiming, agent execution and task completion/failure. It is an interface layer, not a database adapter or a live worker. The orchestrator persists each task before considering execution, requires an explicit approved flag, checks the task owner against a trusted authenticated owner ID, and permits only `analyse` and `draft` actions. It has no provider dispatch interface. A production adapter must implement idempotent persistence, owner-scoped authorization, atomic claims/leases, bounded retries and audit events before worker activation.
 
 ## Communications MCP contracts
 
