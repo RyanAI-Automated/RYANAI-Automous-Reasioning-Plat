@@ -14,7 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls, resolveTrustedProxyHops } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
 
@@ -25,7 +25,6 @@ import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
-import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js';
@@ -68,6 +67,7 @@ const config = {
   nodeEnv,
   database: { url: connectionUrls.databaseUrl },
   redis: { url: connectionUrls.redisUrl },
+  trustedProxyHops: resolveTrustedProxyHops(process.env.TRUST_PROXY_HOPS),
 };
 
 console.log(`📋 Configuration:`);
@@ -80,9 +80,9 @@ console.log(
   `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)\n`,
 );
 
-// Initialize Fastify instance with trustProxy and telemetry-aware logger
+// Trust a finite number of ingress proxies; never trust arbitrary forwarded chains.
 const fastify = Fastify({
-  trustProxy: true,
+  trustProxy: config.trustedProxyHops,
   logger: {
     level: config.nodeEnv === 'production' ? 'info' : 'debug',
     ...(config.nodeEnv !== 'production' && {
@@ -139,6 +139,7 @@ const serviceStatus = {
   database: false,
   redis: false,
   agentCheckpointer: false,
+  applicationSchema: false,
   api: false,
 };
 
@@ -157,6 +158,7 @@ function registerCoreRoutes() {
         await fastify.redis.ping();
       },
       agentCheckpointerInitialized: serviceStatus.agentCheckpointer,
+      applicationSchemaInitialized: serviceStatus.applicationSchema,
       apiListening: serviceStatus.api,
     });
     reply.code(readiness.ready ? 200 : 503);
@@ -430,6 +432,11 @@ async function initializeDatabase() {
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
     serviceStatus.agentCheckpointer = schema.agentCheckpointer;
+    serviceStatus.applicationSchema = schema.applicationSchema;
+
+    if (!schema.applicationSchema) {
+      console.warn('⚠️ Required Prisma application migrations are missing. Run npm run db:migrate before enabling production API traffic.');
+    }
 
     if (!schema.agentCheckpointer) {
       console.warn(
@@ -491,7 +498,6 @@ async function registerPlugins() {
 
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
-  await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
   await fastify.register(engineeringEvidenceRoutes);
@@ -537,6 +543,7 @@ async function start() {
       database: databaseReady,
       redis: redisReady,
       agentCheckpointer: serviceStatus.agentCheckpointer,
+      applicationSchema: serviceStatus.applicationSchema,
     });
     if (!redisReady) {
       throw new Error('Startup blocked: Redis did not pass its live connectivity check.');
@@ -552,7 +559,7 @@ async function start() {
     console.log(`    - Root: http://${config.host}:${config.port}/`);
     console.log(`    - Health: http://${config.host}:${config.port}/health`);
     console.log(`    - System: http://${config.host}:${config.port}/api/system`);
-    console.log(`    - Signin: http://${config.host}:${config.port}/signin`);
+    console.log(`    - Authentication: Supabase Auth`);
     console.log(`\n${startupSummary(serviceStatus)}\n`);
     stopBrainMonitor = startBrainHealthMonitor();
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
