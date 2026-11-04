@@ -435,3 +435,27 @@ model JarvisAuditEvent {
   @@index([actorId, createdAt(sort: Desc)], map: "jarvis_audit_events_actor_created_idx")
   @@map("jarvis_audit_events")
 }
+
+/// Legacy vector-backed cache. The pgvector column is accessed through raw SQL;
+/// Prisma intentionally treats the extension type as unsupported.
+model ReasoningCache {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prompt    String    @db.Text
+  response  String    @db.Text
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("reasoning_cache")
+}
+
+/// Session-scoped memory retained from the original vector bootstrap.
+model AgentMemory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String    @map("sessionid") @db.VarChar(255)
+  role      String    @db.VarChar(50)
+  content   String    @db.Text
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([sessionId, timestamp], map: "idx_agent_session")
+  @@map("agent_memory")
+}
