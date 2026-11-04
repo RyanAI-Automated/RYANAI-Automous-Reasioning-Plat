@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertProductionDependencies, resolveConnectionUrls, resolveTrustedProxyHops } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls, resolveRateLimitClientIp } from './startupConfig.js';
 
 const expectedLocalDatabaseUrl = () => {
   const url = new URL('postgresql://localhost:5432/ryanai');
@@ -100,26 +100,17 @@ describe('production agent checkpointer readiness', () => {
 });
 
 
-describe('trusted reverse proxy configuration', () => {
-  it('does not trust forwarded addresses by default in development', () => {
-    expect(resolveTrustedProxyHops()).toBe(false);
-    expect(resolveTrustedProxyHops('', 'development')).toBe(false);
+describe('rate-limit client IP resolution', () => {
+  it('uses a valid Cloudflare client IP only when a Cloudflare Ray ID is present', () => {
+    expect(resolveRateLimitClientIp('203.0.113.9', 'ray-id-123', '10.0.0.4')).toBe('203.0.113.9');
+    expect(resolveRateLimitClientIp('2001:db8::9', 'ray-id-123', '10.0.0.4')).toBe('2001:db8::9');
   });
 
-  it('defaults production to one ingress hop when no override is supplied', () => {
-    expect(resolveTrustedProxyHops(undefined, 'production')).toBe(1);
-  });
-
-  it('allows explicitly disabling proxy trust or setting a bounded hop count', () => {
-    expect(resolveTrustedProxyHops('0')).toBe(false);
-    expect(resolveTrustedProxyHops('2')).toBe(2);
-    expect(resolveTrustedProxyHops('5')).toBe(5);
-  });
-
-  it.each(['-1', '6', '1.5', 'all', 'NaN'])('rejects unsafe proxy hop configuration %s', (value) => {
-    expect(() => resolveTrustedProxyHops(value)).toThrow(
-      'TRUST_PROXY_HOPS must be 0 or an integer between 1 and 5.',
-    );
+  it('falls back to the socket peer when the Cloudflare headers are absent or malformed', () => {
+    expect(resolveRateLimitClientIp(undefined, undefined, '10.0.0.4')).toBe('10.0.0.4');
+    expect(resolveRateLimitClientIp('203.0.113.9', undefined, '10.0.0.4')).toBe('10.0.0.4');
+    expect(resolveRateLimitClientIp('not-an-ip', 'ray-id-123', '10.0.0.4')).toBe('10.0.0.4');
+    expect(resolveRateLimitClientIp(['203.0.113.9'], 'ray-id-123', '10.0.0.4')).toBe('10.0.0.4');
   });
 });
 
