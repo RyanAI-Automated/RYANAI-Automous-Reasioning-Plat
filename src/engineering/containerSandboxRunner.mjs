@@ -59,10 +59,10 @@ export function createContainerSandboxRunner({
       if (!isWithinRoot(root, cwd) || !(await stat(cwd)).isDirectory()) {
         throw new Error('Sandbox working directory must resolve inside the approved workspace root.');
       }
-      if (root.includes(',') || root.includes('\n')) throw new Error('Workspace path contains unsupported mount characters.');
+      if (cwd.includes(',') || cwd.includes('\n')) throw new Error('Workspace path contains unsupported mount characters.');
 
       const relative = path.relative(root, cwd).split(path.sep).join('/');
-      const workdir = relative ? '/workspace/' + relative : '/workspace';
+      const workdir = '/workspace';
       const containerName = 'ryanai-genai-' + randomUUID();
       const env = safeEnvironment(options.env);
       const dockerArgs = [
@@ -77,7 +77,7 @@ export function createContainerSandboxRunner({
         '--cpus=2',
         '--user=10001:10001',
         '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=256m',
-        '--mount', 'type=bind,src=' + root + ',dst=/workspace',
+        '--mount', 'type=bind,src=' + cwd + ',dst=/workspace',
         '--workdir', workdir,
         ...Object.entries(env).flatMap(([key, value]) => ['--env', key + '=' + value]),
         '--entrypoint', options.command,

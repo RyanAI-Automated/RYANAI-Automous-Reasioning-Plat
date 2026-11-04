@@ -42,6 +42,7 @@ model User {
   memories      MemoryVault[]
   agents        AgentInstance[]
   agentRuns     AgentRun[]
+  codingTasks   CodingTask[]
   quantExperiments QuantExperiment[]
 
   @@map("users")
@@ -274,6 +275,8 @@ model AgentRun {
   completedAt DateTime? @map("completed_at")
   handoffs AgentHandoff[]
   evidence AgentRunEvidence[]
+  codingTasks CodingTask[]
+  queueType String @default("reasoning") @map("queue_type")
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([status, lockedAt])
@@ -475,4 +478,38 @@ model QuantExperiment {
 
   @@index([userId, createdAt(sort: Desc)], map: "quant_experiments_user_created_idx")
   @@map("quant_experiments")
+}
+
+model CodingTask {
+  id String @id @default(uuid())
+  userId String @map("user_id")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workbenchRunId String @map("workbench_run_id")
+  workbenchRun AgentRun @relation(fields: [workbenchRunId], references: [id], onDelete: Cascade)
+  approvalId String @map("approval_id")
+  planHash String @map("plan_hash")
+  baseCommitSha String @map("base_commit_sha")
+  proposedDiffHash String @map("proposed_diff_hash")
+  agent String
+  prompt String @db.Text
+  workspaceKey String @map("workspace_key")
+  status String @default("queued")
+  attempts Int @default(0)
+  maxAttempts Int @default(3) @map("max_attempts")
+  workerId String? @map("worker_id")
+  lockedAt DateTime? @map("locked_at") @db.Timestamptz(6)
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  cancelRequestedAt DateTime? @map("cancel_requested_at") @db.Timestamptz(6)
+  result Json?
+  error String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt, createdAt], map: "coding_tasks_status_next_attempt_idx")
+  @@index([status, leaseExpiresAt], map: "coding_tasks_status_lease_expiry_idx")
+  @@index([userId, createdAt(sort: Desc)], map: "coding_tasks_user_created_idx")
+  @@index([workbenchRunId, createdAt(sort: Desc)], map: "coding_tasks_workbench_run_idx")
+  @@map("coding_tasks")
 }

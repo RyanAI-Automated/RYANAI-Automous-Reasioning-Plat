@@ -198,6 +198,7 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
         "worker_id" = NULL,
         "locked_at" = NULL
     WHERE "status" = 'running'
+      AND "queue_type" = 'reasoning'
       AND "approval_status" = 'approved'
       AND "locked_at" < NOW() - INTERVAL '3 minutes'
       AND "attempts" >= "max_attempts"
