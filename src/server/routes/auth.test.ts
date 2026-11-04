@@ -267,6 +267,18 @@ describe('Supabase API authentication', () => {
     ).toBe(200);
   });
 
+  it('returns Gone for the retired local sign-in endpoint without authenticating', async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/signin',
+      payload: { email: 'member@example.test', password: 'not-used' },
+    });
+    expect(response.statusCode).toBe(410);
+    expect(response.json()).toMatchObject({ error: 'Legacy sign-in endpoint retired.' });
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
   it.each(['/api/auth/login', '/api/auth/logout'])(
     'retires the old shared-password identity at %s',
     async (url) => {
