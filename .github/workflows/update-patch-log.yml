@@ -26,8 +26,12 @@ jobs:
         run: node scripts/update-patch-log.mjs
       - name: Open a patch-log update pull request
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PATCH_LOG_GH_TOKEN }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Configure the PATCH_LOG_GH_TOKEN Actions secret with contents:write and pull_requests:write permissions. GITHUB_TOKEN cannot reliably trigger the follow-up PR checks."
+            exit 1
+          fi
           PR_NUMBER="$(node -p "JSON.parse(require('fs').readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')).pull_request.number")"
           branch="patch-log/pr-$PR_NUMBER"
           git switch --create "$branch"
