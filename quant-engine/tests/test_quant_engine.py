@@ -28,7 +28,8 @@ class QuantEngineTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first["execution_mode"], "historical_simulation_only")
         self.assertGreaterEqual(first["metrics"]["max_drawdown_pct"], 0)
-        self.assertTrue(all(t["side"] in ("buy", "sell") for t in first["trades"]))
+        sides = {trade["side"] for trade in first["trades"]}
+        self.assertEqual(sides, {"buy", "sell"})
         self.assertEqual(first["period"]["bars"], 80)
 
     def test_rejects_non_monotonic_dates(self):
