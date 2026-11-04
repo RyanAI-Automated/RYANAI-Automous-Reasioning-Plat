@@ -1,0 +1,48 @@
+name: Validate Render Blueprint
+
+on:
+  pull_request:
+    paths:
+      - "render.yaml"
+      - ".github/workflows/render-blueprint-validation.yml"
+  push:
+    branches:
+      - fix/render-redis-region-validation-gate-20261104
+    paths:
+      - "render.yaml"
+      - ".github/workflows/render-blueprint-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Authenticated Render Blueprint validation (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out Blueprint
+        uses: actions/checkout@v4
+
+      - name: Validate against the actual Render workspace
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_WORKSPACE_ID: tea-d5ogqtcoud1c73b266f0
+        run: |
+          set -euo pipefail
+          [[ -n "$RENDER_API_KEY" ]] || {
+            echo "::error::RENDER_API_KEY Actions secret is missing. Configure it in repository secrets; never paste it into logs or chat."
+            exit 1
+          }
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.render.com/v1/blueprints/validate" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --form "ownerId=$RENDER_WORKSPACE_ID" \
+            --form "file=@render.yaml;type=application/x-yaml" \
+            --output render-blueprint-validation.json
+          jq . render-blueprint-validation.json
+          jq -e '.valid == true' render-blueprint-validation.json
+          jq -r '"Total Render actions: " + (.plan.totalActions|tostring), "New services: " + ((.plan.services // [])|join(", ")), "New Key Value resources: " + ((.plan.keyValue // [])|join(", ")), "New Postgres databases: " + ((.plan.databases // [])|join(", "))' render-blueprint-validation.json
