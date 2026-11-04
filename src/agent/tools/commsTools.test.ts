@@ -6,6 +6,7 @@ vi.mock('../../lib/prisma.js', () => ({
 }));
 
 import {
+  commsTools,
   getCommunicationPolicyTool,
   prepareCommunicationDraftTool,
 } from './commsTools.js';
@@ -31,7 +32,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('restricted communications tool registry', () => {
   it('exposes only policy lookup, owner history and draft preparation', () => {
-    expect(commsToolNames()).toEqual([
+    expect(commsTools.map((entry) => entry.name)).toEqual([
       'get_communication_policy',
       'get_recent_owner_communications',
       'prepare_communication_draft',
@@ -101,8 +102,3 @@ describe('restricted communications tool registry', () => {
     expect(store.findMany).not.toHaveBeenCalled();
   });
 });
-
-function commsToolNames(): string[] {
-  // Importing the registry here keeps the assertion against the exact agent-facing list.
-  return ['get_communication_policy', 'get_recent_owner_communications', 'prepare_communication_draft'];
-}
