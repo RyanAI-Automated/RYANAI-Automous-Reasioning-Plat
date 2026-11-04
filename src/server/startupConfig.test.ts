@@ -101,19 +101,24 @@ describe('production agent checkpointer readiness', () => {
 
 
 describe('trusted reverse proxy configuration', () => {
-  it('defaults to one ingress proxy hop rather than trusting every forwarded address', () => {
-    expect(resolveTrustedProxyHops()).toBe(1);
-    expect(resolveTrustedProxyHops('')).toBe(1);
+  it('does not trust forwarded addresses by default in development', () => {
+    expect(resolveTrustedProxyHops()).toBe(false);
+    expect(resolveTrustedProxyHops('', 'development')).toBe(false);
   });
 
-  it('accepts a bounded explicit proxy hop count', () => {
+  it('defaults production to one ingress hop when no override is supplied', () => {
+    expect(resolveTrustedProxyHops(undefined, 'production')).toBe(1);
+  });
+
+  it('allows explicitly disabling proxy trust or setting a bounded hop count', () => {
+    expect(resolveTrustedProxyHops('0')).toBe(false);
     expect(resolveTrustedProxyHops('2')).toBe(2);
     expect(resolveTrustedProxyHops('5')).toBe(5);
   });
 
-  it.each(['0', '6', '-1', '1.5', 'all', 'NaN'])('rejects unsafe proxy hop configuration %s', (value) => {
+  it.each(['-1', '6', '1.5', 'all', 'NaN'])('rejects unsafe proxy hop configuration %s', (value) => {
     expect(() => resolveTrustedProxyHops(value)).toThrow(
-      'TRUST_PROXY_HOPS must be an integer between 1 and 5.',
+      'TRUST_PROXY_HOPS must be 0 or an integer between 1 and 5.',
     );
   });
 });
