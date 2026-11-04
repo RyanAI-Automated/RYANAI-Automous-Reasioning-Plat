@@ -13,6 +13,7 @@ const readyTables = {
   agent_run_evidence: true,
   jarvis_audit_events: true,
   reasoning_cache: true,
+  reasoning_embedding_type: true,
   agent_memory: true,
   agent_memory_session_id: true,
   vector_extension: true,
@@ -92,7 +93,7 @@ describe('application Prisma schema readiness', () => {
 
   it('requires the vector extension, both vector tables, and their indexes', async () => {
     const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ ...readyTables, vector_extension: false, agent_memory: false, agent_memory_session_id: false, reasoning_embedding_index: false }] })
+      .mockResolvedValueOnce({ rows: [{ ...readyTables, vector_extension: false, reasoning_cache: false, reasoning_embedding_type: false, agent_memory: false, agent_memory_session_id: false, reasoning_embedding_index: false }] })
       .mockResolvedValueOnce({ rows: [{ version: 5 }] });
 
     await expect(inspectDatabaseSchema(query)).resolves.toMatchObject({
