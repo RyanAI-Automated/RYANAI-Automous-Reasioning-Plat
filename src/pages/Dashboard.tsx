@@ -14,13 +14,57 @@ import { usePlatformHealth } from '@/hooks/usePlatformHealth';
 
 const STALE_AFTER_MS = 90_000;
 
+type PAStatus = {
+  active: boolean;
+  workState: 'stopped' | 'monitoring' | 'degraded';
+  lastHeartbeat: string;
+  lastReport: string;
+  lastError: string | null;
+  observationsCompleted: number;
+  health: { api: boolean; database: boolean; redis: boolean };
+};
+
 export default function DashboardPage() {
   const { health, error, checking, refresh } = usePlatformHealth();
   const [now, setNow] = useState(() => Date.now());
+  const [paStatus, setPaStatus] = useState<PAStatus | null>(null);
+  const [paError, setPaError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    const controller = new AbortController();
+    const loadPAStatus = async () => {
+      try {
+        const response = await fetch('/api/agent/ops/pa/status', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        const payload = await response.json() as { pa?: PAStatus; error?: string };
+        if (!response.ok || !payload.pa) throw new Error(payload.error || 'PA status is not available.');
+        if (!disposed) {
+          setPaStatus(payload.pa);
+          setPaError(null);
+        }
+      } catch (cause) {
+        if (!disposed && !(cause instanceof DOMException && cause.name === 'AbortError')) {
+          setPaStatus(null);
+          setPaError(cause instanceof Error ? cause.message : 'PA status could not be loaded.');
+        }
+      }
+    };
+    void loadPAStatus();
+    const timer = window.setInterval(() => void loadPAStatus(), 15_000);
+    return () => {
+      disposed = true;
+      controller.abort();
+      window.clearInterval(timer);
+    };
   }, []);
 
   const reportedAt = health?.timestamp ? Date.parse(health.timestamp) : Number.NaN;
@@ -54,6 +98,28 @@ export default function DashboardPage() {
 
       {error && <div role="alert" className="mt-6 flex items-start gap-3 rounded-xl border border-rose-400/20 bg-rose-400/5 p-4 text-sm text-rose-200"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
       {isStale && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">The API timestamp is more than 90 seconds old. Treat this snapshot as stale until a fresh health response is received.</div>}
+
+      <article className="mt-6 rounded-2xl border border-cyan-300/20 bg-slate-900/70 p-5" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Personal Assistant</p>
+            <h2 className="mt-1 text-lg font-semibold text-white">PA Agent observer</h2>
+          </div>
+          <span className={`rounded-full border px-3 py-1 text-xs ${paStatus?.workState === 'monitoring' ? 'border-emerald-300/30 text-emerald-200' : paStatus?.workState === 'degraded' ? 'border-amber-300/30 text-amber-200' : 'border-slate-500/30 text-slate-300'}`}>
+            {paStatus?.workState ?? 'Not reporting'}
+          </span>
+        </div>
+        <p className="mt-3 text-sm text-slate-300">{paStatus?.lastReport ?? paError ?? 'Waiting for an authenticated PA observer report.'}</p>
+        <div className="mt-4 grid gap-3 text-xs sm:grid-cols-4">
+          <InfoRow label="API probe" value={paStatus ? (paStatus.health.api ? 'Healthy' : 'Unhealthy') : 'Unknown'} />
+          <InfoRow label="PostgreSQL probe" value={paStatus ? (paStatus.health.database ? 'Healthy' : 'Unhealthy') : 'Unknown'} />
+          <InfoRow label="Redis probe" value={paStatus ? (paStatus.health.redis ? 'Healthy' : 'Unhealthy') : 'Unknown'} />
+          <InfoRow label="Observations" value={paStatus ? String(paStatus.observationsCompleted) : '—'} />
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Last heartbeat: {paStatus?.lastHeartbeat ? new Date(paStatus.lastHeartbeat).toLocaleString() : 'Not received'} · Read-only monitoring; no messages, calls, file edits or privileged actions.
+        </p>
+      </article>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatusCard title="API gateway" value={isStale ? 'Stale signal' : health?.status === 'online' ? 'Online' : checking ? 'Checking' : 'Unavailable'} icon={Server} healthy={isStale ? undefined : health?.status === 'online'} />

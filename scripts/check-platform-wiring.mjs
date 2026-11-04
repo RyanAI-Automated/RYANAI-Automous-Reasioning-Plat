@@ -146,6 +146,25 @@ if (!app.includes('{isTauri() && <AgentControlPanel />}')) {
   fail('AgentControlPanel must be limited to the native Tauri runtime');
 }
 
+const paScript = readText('src/skills/agentPAScript.ts');
+const launcher = readText('src/server/launcher.ts');
+const agentOps = readText('src/server/routes/agentOperations.ts');
+const dashboard = readText('src/pages/Dashboard.tsx');
+if (!launcher.includes('await paObserver.start()') || !launcher.includes('stopAgentPA?.()')) {
+  fail('API launcher must start and gracefully stop the PA observer');
+}
+if (!launcher.includes('dbPool.query(\'SELECT 1\')') || !launcher.includes('fastify.redis.ping()')) {
+  fail('PA observer must use real PostgreSQL and Redis health probes');
+}
+if (!paScript.includes('Read-only monitoring continues') || !paScript.includes('healthCheck')) {
+  fail('PA observer must report real probe status and remain read-only');
+}
+if (!agentOps.includes("'/api/agent/ops/pa/status'") || !agentOps.includes('getAgentPAStatus()')) {
+  fail('Authenticated agent operations API must expose PA observer status');
+}
+if (!dashboard.includes('PA Agent observer') || !dashboard.includes('/api/agent/ops/pa/status')) {
+  fail('System dashboard must display PA observer reports and heartbeat');
+}
 const bridge = readText('src/services/tauriBridge.ts');
 const commands = readText('src-tauri/src/commands.rs');
 const registration = readText('src-tauri/src/lib.rs');
