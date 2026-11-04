@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   group: patch-update-main
@@ -14,31 +14,39 @@ concurrency:
 
 jobs:
   record-merged-pr:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'patch-log/')
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the current main branch
+      - name: Check out current main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-      - name: Record the confirmed merge
+      - name: Record confirmed merge
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_MERGED_AT: ${{ github.event.pull_request.merged_at }}
-          PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          PR_BODY: ${{ github.event.pull_request.body }}
+          GITHUB_EVENT_PATH: \${{ github.event_path }}
         run: node scripts/update-patch-log.mjs
-      - name: Commit patch log update
+      - name: Open a patch-log update pull request
+        env:
+          GH_TOKEN: \${{ github.token }}
+          PR_NUMBER: \${{ github.event.pull_request.number }}
         run: |
-          if git diff --quiet -- patch_update.md; then
-            echo "No patch log change required."
-            exit 0
-          fi
+          branch="patch-log/pr-$PR_NUMBER"
+          git switch --create "$branch"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add patch_update.md
-          git commit -m "docs: record merged PR #${{ github.event.pull_request.number }}"
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            echo "PR #$PR_NUMBER is already recorded."
+            exit 0
+          fi
+          git commit -m "docs: record merged PR #$PR_NUMBER"
+          git push --force-with-lease origin "$branch"
+          existing_pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$existing_pr" ]; then
+            gh pr create --base main --head "$branch" \
+              --title "docs: record merged PR #$PR_NUMBER" \
+              --body "Automated, idempotent patch log entry for confirmed merged PR #$PR_NUMBER. This PR does not deploy applications."
+          else
+            echo "Patch-log update PR #$existing_pr already exists."
+          fi
