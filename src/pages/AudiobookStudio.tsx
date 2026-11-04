@@ -39,8 +39,9 @@ function toBase64(file: File): Promise<string> {
 }
 
 export default function AudiobookStudio({ userId }: { userId: string }) {
-  const [project, setProject] = useState<Project>(() => loadProject(userId));
-  const [activeId, setActiveId] = useState(() => loadProject(userId).chapters[0].id);
+  const [initialProject] = useState(() => loadProject(userId));
+  const [project, setProject] = useState<Project>(initialProject);
+  const [activeId, setActiveId] = useState(initialProject.chapters[0].id);
   const [busy, setBusy] = useState<'transcribe' | 'render' | null>(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
