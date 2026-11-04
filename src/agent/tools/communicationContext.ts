@@ -14,11 +14,38 @@ function ownerAddressCandidates(): string[] {
 }
 
 /**
+ * Conversation text is sensitive. Do not make it available to a remote model.
+ * This feature is opt-in and accepts only the configured local Ollama endpoint.
+ */
+export function isLocalCommsMemoryModelConfigured(): boolean {
+  if (process.env.RYANAI_COMMS_MEMORY_LOCAL_ONLY !== 'true') return false;
+  const endpoint = process.env.OPENAI_BASE_URL?.trim();
+  if (!endpoint) return false;
+  try {
+    const url = new URL(endpoint);
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1', 'ollama', 'host.docker.internal']);
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && localHosts.has(url.hostname.toLowerCase())
+      && url.port === '11434';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Read a small, owner-scoped cross-channel history window from PostgreSQL.
  * The tool deliberately omits external addresses and provider identifiers.
  */
 export const getRecentOwnerCommunicationsTool = tool(
   async ({ limit }) => {
+    if (!isLocalCommsMemoryModelConfigured()) {
+      return JSON.stringify({
+        status: 'blocked',
+        reason: 'Cross-channel message content is available only when explicit local-only memory mode is enabled and Ollama is configured on the local 11434 endpoint.',
+        conversations: [],
+      });
+    }
+
     const addresses = ownerAddressCandidates();
     if (addresses.length === 0) {
       return JSON.stringify({
@@ -62,7 +89,7 @@ export const getRecentOwnerCommunicationsTool = tool(
   },
   {
     name: 'get_recent_owner_communications',
-    description: 'Read recent WhatsApp, SMS, voice and email history belonging only to the configured RyanAI owner identity. Use this when a follow-up may refer to another channel or an earlier interaction. Read-only; contact addresses and provider identifiers are not returned.',
+    description: 'Read recent WhatsApp, SMS, voice and email history belonging only to the configured RyanAI owner identity. Use this when a follow-up may refer to another channel or an earlier interaction. Read-only; contact addresses and provider identifiers are not returned. Message content is returned only to an explicitly enabled local Ollama model.',
     schema: z.object({
       limit: z.number().int().min(1).max(8).optional().default(5),
     }),
