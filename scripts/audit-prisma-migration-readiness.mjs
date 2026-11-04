@@ -43,7 +43,10 @@ export function assessSchema({ columns, tables, indexes, extensions, agentMemory
         const definition = (indexDefinitions.get('idx_reasoning_embedding') ?? '').toLowerCase();
         return definition.includes('using hnsw') && definition.includes('vector_cosine_ops');
       })(),
-      agentSessionIndexPresent: indexes.has('idx_agent_session'),
+      agentSessionIndexPresent: (() => {
+        const definition = (indexDefinitions.get('idx_agent_session') ?? '').toLowerCase();
+        return indexes.has('idx_agent_session') && definition.includes('session_id') && definition.includes('timestamp');
+      })(),
       sessionIdColumnPresent: agentMemoryColumns.has('session_id'),
     },
   };
