@@ -908,3 +908,5 @@ RyanAI uses the **RyanAI Intelligence Improvement Protocol (RIIP)** as its share
 - Specialist candidates remain evaluation-only until their exact checkpoint, workload, security, language, licence, operational, and economic gates are independently satisfied.
 
 Run `npm run model-governance:validate` and `npm run test:model-governance` to validate the policy contract. These checks validate policy structure and invariants; they do not prove provider connectivity, model quality, production isolation, or live rollback.
+
+copyright ©️ 2026 RMN Ganyane Uncle Security Services _ rmnganyane-dev _ SirG's 2024-26
