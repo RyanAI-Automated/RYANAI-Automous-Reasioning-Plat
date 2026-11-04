@@ -42,6 +42,7 @@ model User {
   memories      MemoryVault[]
   agents        AgentInstance[]
   agentRuns     AgentRun[]
+  quantExperiments QuantExperiment[]
 
   @@map("users")
 }
@@ -460,4 +461,18 @@ model AgentMemory {
 
   @@index([sessionId, timestamp], map: "idx_agent_session")
   @@map("agent_memory")
+}
+
+model QuantExperiment {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy  String
+  status    String
+  input     Json
+  result    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)], map: "quant_experiments_user_created_idx")
+  @@map("quant_experiments")
 }
