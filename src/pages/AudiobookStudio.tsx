@@ -24,6 +24,27 @@ function loadProject(userId: string): Project {
     return { title: typeof parsed.title === 'string' ? parsed.title.slice(0, 120) : fallback.title, language: typeof parsed.language === 'string' && isRyanLanguage(parsed.language) ? parsed.language : DEFAULT_LANGUAGE, chapters: chapters.length ? chapters : fallback.chapters };
   } catch { return fallback; }
 }
+function splitForRender(value: string, limit = 4000): string[] {
+  let rest = value.trim();
+  const chunks: string[] = [];
+  while (rest.length > limit) {
+    const sample = rest.slice(0, limit + 1);
+    const candidates = [sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('\\n\\n')];
+    const sentenceBoundary = Math.max(...candidates);
+    const boundary = sentenceBoundary > limit * 0.45 ? sentenceBoundary + 1 : sample.lastIndexOf(' ');
+    const cut = boundary > 0 ? boundary : limit;
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+function decodeAudioBase64(value: string, mimeType = 'audio/mpeg'): Blob {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mimeType });
+}
 function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -42,11 +63,13 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
   const [initialProject] = useState(() => loadProject(userId));
   const [project, setProject] = useState<Project>(initialProject);
   const [activeId, setActiveId] = useState(initialProject.chapters[0].id);
-  const [busy, setBusy] = useState<'transcribe' | 'render' | null>(null);
+  const [busy, setBusy] = useState<'transcribe' | 'render' | 'book' | null>(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioName, setAudioName] = useState('chapter.mp3');
+  const [renderedFiles, setRenderedFiles] = useState<Record<string, { url: string; name: string }>>({});
+  const renderedUrls = useRef(new Set<string>());
   const uploadRef = useRef<HTMLInputElement>(null);
   const chapter = useMemo(() => project.chapters.find(c => c.id === activeId) ?? project.chapters[0], [project.chapters, activeId]);
 
@@ -54,7 +77,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     try { localStorage.setItem(KEY + userId, JSON.stringify(project)); }
     catch { setError('Browser storage is full. Export your manuscript before continuing.'); }
   }, [project, userId]);
-  useEffect(() => () => { if (audioUrl) URL.revokeObjectURL(audioUrl); }, [audioUrl]);
+  useEffect(() => () => { renderedUrls.current.forEach(url => URL.revokeObjectURL(url)); }, []);
 
   const updateChapter = useCallback((patch: Partial<Chapter>) => {
     setProject(current => ({ ...current, chapters: current.chapters.map(c => c.id === activeId ? { ...c, ...patch } : c) }));
@@ -88,21 +111,54 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
       const response = await authenticatedFetch('/api/v1/audio/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: chapter.text, voice: chapter.voice, style: chapter.style, speed: chapter.speed }) });
       const result = await response.json() as { audioBase64?: string; mimeType?: string; error?: string };
       if (!response.ok || !result.audioBase64) throw new Error(result.error || 'Narration generation failed.');
-      const binary = atob(result.audioBase64); const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const url = URL.createObjectURL(new Blob([bytes], { type: result.mimeType || 'audio/mpeg' }));
-      setAudioUrl(current => { if (current) URL.revokeObjectURL(current); return url; });
-      setAudioName(`${chapter.title.replace(/[^a-z0-9-_]/gi, '-').slice(0, 60) || 'chapter'}.mp3`);
+      const url = URL.createObjectURL(decodeAudioBase64(result.audioBase64, result.mimeType || 'audio/mpeg'));
+      renderedUrls.current.add(url);
+      const name = `${chapter.title.replace(/[^a-z0-9-_]/gi, '-').slice(0, 60) || 'chapter'}.mp3`;
+      setRenderedFiles(current => ({ ...current, [chapter.id]: { url, name } }));
+      setAudioUrl(url);
+      setAudioName(name);
       setStatus('Narration generated. Listen and review before exporting.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Narration generation failed.'); setStatus(''); }
     finally { setBusy(null); }
+  };
+
+  const renderEntireBook = async () => {
+    const chapters = project.chapters;
+    if (chapters.some(item => !item.text.trim())) { setError('Every chapter needs manuscript text before rendering the entire audiobook.'); return; }
+    setBusy('book'); setError(''); setStatus('Preparing audiobook render…');
+    let completed = 0;
+    try {
+      for (const item of chapters) {
+        const chunks = splitForRender(item.text);
+        const parts: BlobPart[] = [];
+        for (let index = 0; index < chunks.length; index += 1) {
+          setStatus(`Rendering ${item.title}: segment ${index + 1} of ${chunks.length}…`);
+          const response = await authenticatedFetch('/api/v1/audio/speech', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: chunks[index], voice: item.voice, style: item.style, speed: item.speed }),
+          });
+          const result = await response.json() as { audioBase64?: string; mimeType?: string; error?: string };
+          if (!response.ok || !result.audioBase64) throw new Error(result.error || `Could not render ${item.title}.`);
+          parts.push(decodeAudioBase64(result.audioBase64, result.mimeType || 'audio/mpeg'));
+        }
+        const url = URL.createObjectURL(new Blob(parts, { type: 'audio/mpeg' }));
+        renderedUrls.current.add(url);
+        const name = `${item.title.replace(/[^a-z0-9-_]/gi, '-').slice(0, 60) || 'chapter'}.mp3`;
+        setRenderedFiles(current => ({ ...current, [item.id]: { url, name } }));
+        completed += 1;
+      }
+      setStatus(`Audiobook rendering completed: ${completed} chapter MP3 files are ready to review and download.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Audiobook rendering stopped after an error.');
+      setStatus(`Rendered ${completed} of ${chapters.length} chapters. Retry after resolving the issue.`);
+    } finally { setBusy(null); }
   };
 
   const addChapter = () => { const next = newChapter(project.chapters.length + 1); setProject(p => ({ ...p, chapters: [...p.chapters, next] })); setActiveId(next.id); setAudioUrl(null); };
   const deleteChapter = () => {
     if (!chapter || project.chapters.length < 2) return;
     const rest = project.chapters.filter(c => c.id !== chapter.id);
-    setProject(p => ({ ...p, chapters: rest })); setActiveId(rest[0].id); setAudioUrl(null);
+    setProject(p => ({ ...p, chapters: rest })); setActiveId(rest[0].id); setAudioUrl(renderedFiles[rest[0].id]?.url ?? null);
   };
   const exportText = () => {
     const text = project.chapters.map(c => `# ${c.title}\n\n${c.text}`).join('\n\n---\n\n');
@@ -120,7 +176,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
         <label className="block text-xs text-slate-400">Project title<input value={project.title} maxLength={120} onChange={e => setProject(p => ({ ...p, title: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label>
         <label className="block text-xs text-slate-400">Language<select value={project.language} onChange={e => setProject(p => ({ ...p, language: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{RYANAI_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select></label>
         <div className="flex items-center justify-between pt-2"><span className="text-xs font-semibold uppercase text-slate-400">Chapters</span><button onClick={addChapter} aria-label="Add chapter" className="rounded p-2 text-cyan-200"><Plus size={17} /></button></div>
-        {project.chapters.map((c, i) => <button key={c.id} onClick={() => { setActiveId(c.id); setAudioUrl(null); setError(''); setStatus(''); }} className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${c.id === chapter?.id ? 'bg-cyan-400/15 text-cyan-100' : 'text-slate-400 hover:bg-white/5'}`}><span className="block text-[10px] uppercase opacity-60">Chapter {i + 1}</span><span className="block truncate">{c.title || 'Untitled'}</span></button>)}
+        {project.chapters.map((c, i) => <button key={c.id} onClick={() => { setActiveId(c.id); setAudioUrl(renderedFiles[c.id]?.url ?? null); setAudioName(renderedFiles[c.id]?.name ?? 'chapter.mp3'); setError(''); setStatus(''); }} className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${c.id === chapter?.id ? 'bg-cyan-400/15 text-cyan-100' : 'text-slate-400 hover:bg-white/5'}`}><span className="block text-[10px] uppercase opacity-60">Chapter {i + 1}</span><span className="block truncate">{c.title || 'Untitled'}</span></button>)}
         <button onClick={deleteChapter} disabled={project.chapters.length < 2} className="flex items-center gap-2 px-2 py-2 text-xs text-rose-300 disabled:opacity-40"><Trash2 size={14} /> Delete chapter</button>
         <p className="border-t border-slate-800 pt-3 text-[11px] text-slate-500">Manuscript settings save in this browser for this account. Audio files are temporary until downloaded.</p>
       </aside>
@@ -134,7 +190,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
             <button onClick={() => uploadRef.current?.click()} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-100 disabled:opacity-50"><FileAudio size={16} /> Transcribe recording</button>
             <input ref={uploadRef} type="file" accept="audio/*,video/mp4" className="hidden" onChange={e => void transcribe(e.target.files?.[0])} />
             <button onClick={recognition.toggle} disabled={!recognition.isSupported || busy !== null} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50 ${recognition.isListening ? 'border-rose-400/50 text-rose-200' : 'border-slate-700 text-slate-200'}`}>{recognition.isListening ? <MicOff size={16} /> : <Mic size={16} />}{recognition.isListening ? 'Stop live S2T' : 'Start live S2T'}</button>
-            <button onClick={() => void render()} disabled={busy !== null || !chapter.text.trim()} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"><WandSparkles size={16} />{busy === 'render' ? 'Generating…' : 'Generate narration'}</button>
+            <button onClick={() => void render()} disabled={busy !== null || !chapter.text.trim()} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"><WandSparkles size={16} />{busy === 'render' ? 'Generating…' : 'Generate chapter'}</button><button onClick={() => void renderEntireBook()} disabled={busy !== null || project.chapters.some(c => !c.text.trim())} className="rounded-lg border border-violet-400/40 px-3 py-2 text-sm text-violet-200 disabled:opacity-50">{busy === 'book' ? 'Rendering book…' : 'Render entire audiobook'}</button>
           </div>
           {recognition.isListening && <p role="status" className="text-xs text-emerald-300">Microphone active. Final speech segments are appended to this chapter.</p>}
           {recognition.interimText && <p className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-2 text-sm text-emerald-100">Hearing: {recognition.interimText}</p>}
@@ -147,7 +203,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
           {busy === 'transcribe' && <p role="status" className="text-sm text-cyan-200">Transcribing recording…</p>}
           {status && <p role="status" className="text-sm text-emerald-300">{status}</p>}
           {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
-          {audioUrl && <div className="space-y-3 rounded-xl border border-cyan-400/20 bg-slate-900/70 p-4"><p className="text-sm font-semibold text-white">Generated narration</p><audio controls src={audioUrl} className="w-full" /><a href={audioUrl} download={audioName} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-100"><Download size={16} /> Download MP3</a></div>}
+          {audioUrl && <div className="space-y-3 rounded-xl border border-cyan-400/20 bg-slate-900/70 p-4"><p className="text-sm font-semibold text-white">Generated narration</p><audio controls src={audioUrl} className="w-full" /><a href={audioUrl} download={audioName} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-100"><Download size={16} /> Download MP3</a></div>}{Object.keys(renderedFiles).length > 0 && <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-4"><h2 className="text-sm font-semibold text-white">Rendered audiobook chapters</h2>{project.chapters.filter(c => renderedFiles[c.id]).map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="text-slate-300">{c.title}</span><a href={renderedFiles[c.id].url} download={renderedFiles[c.id].name} className="inline-flex items-center gap-1 text-cyan-200"><Download size={14} /> Download MP3</a></div>)}</div>}
         </>}
         <p className="text-[11px] leading-relaxed text-slate-500">Server-side OPENAI_API_KEY is required for cloud transcription and narration; provider calls may incur usage charges. The key is never sent to the browser. Browser S2T support depends on device/browser. Tshivenda capability is not guaranteed until separately verified.</p>
       </div>
