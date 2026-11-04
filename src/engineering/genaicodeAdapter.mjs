@@ -1,6 +1,5 @@
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { spawn as nodeSpawn } from 'node:child_process';
 
 const SUPPORTED_AGENTS = new Set(['claude', 'codex', 'copilot', 'cursor', 'gemini', 'opencode', 'muse', 'vibe', 'antigravity']);
 const MAX_PROMPT_CHARS = 32_000;
@@ -8,6 +7,13 @@ const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 const MAX_EVENTS = 200;
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 const MAX_TIMEOUT_MS = 30 * 60 * 1000;
+const REQUIRED_SANDBOX_CAPABILITIES = Object.freeze({
+  filesystemIsolation: true,
+  workspaceMountOnly: true,
+  resourceLimits: true,
+  networkPolicy: 'deny-by-default',
+  credentialScope: 'agent-only',
+});
 
 function isWithinRoot(root, target) {
   const relative = path.relative(root, target);
@@ -15,12 +21,16 @@ function isWithinRoot(root, target) {
 }
 
 function safeEnvironment(source) {
-  const allowed = ['PATH', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TMP', 'TEMP', 'SystemRoot', 'WINDIR', 'LANG', 'LC_ALL', 'CI'];
+  const allowed = ['PATH', 'LANG', 'LC_ALL', 'CI', 'SystemRoot', 'WINDIR'];
   const result = {};
   for (const key of allowed) {
     if (typeof source[key] === 'string' && source[key].length > 0) result[key] = source[key];
   }
   return result;
+}
+
+function validDigest(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
 }
 
 function sanitizeEvent(value) {
@@ -42,31 +52,61 @@ function parseEvents(stdout) {
       const event = sanitizeEvent(JSON.parse(line));
       if (event && events.length < MAX_EVENTS) events.push(event);
     } catch {
-      // Ignore non-JSON output: never echo raw agent output into RyanAI logs.
+      // Ignore non-JSON output; raw agent output is never copied into RyanAI logs.
     }
   }
   return events;
 }
 
+function assertSandboxRunner(runner) {
+  if (!runner || typeof runner.run !== 'function' || !runner.capabilities) {
+    throw new Error('A configured isolated sandbox runner is required; direct host execution is disabled.');
+  }
+  for (const [key, expected] of Object.entries(REQUIRED_SANDBOX_CAPABILITIES)) {
+    if (runner.capabilities[key] !== expected) {
+      throw new Error('Sandbox runner is missing required isolation capability: ' + key);
+    }
+  }
+}
+
+function assertApprovalBinding(approval, task) {
+  if (!approval || approval.approved !== true ||
+      approval.taskId !== task.taskId ||
+      approval.approvalId !== task.approvalId ||
+      approval.planHash !== task.planHash ||
+      approval.baseCommitSha !== task.baseCommitSha ||
+      approval.proposedDiffHash !== task.proposedDiffHash ||
+      typeof approval.approverId !== 'string' ||
+      typeof approval.authorId !== 'string' ||
+      approval.approverId === approval.authorId) {
+    throw new Error('No valid independent workbench approval matches this exact task, plan, base commit and proposed diff.');
+  }
+}
+
 /**
- * Runs a pre-installed GenAIcode CLI inside an approved workspace.
- * This adapter intentionally does not install packages, use npx, enable auto-approval,
- * or inherit provider credentials from the RyanAI API process.
+ * Runs GenAIcode only after RyanAI's trusted workbench authorizer confirms the exact
+ * persisted approval binding, and only through a separately configured isolated runner.
+ * The adapter never treats a caller-supplied boolean as authorization and never runs
+ * a coding agent directly on the API host.
  */
 export async function runGenAICodeTask(options, dependencies = {}) {
   const {
-    agent,
-    prompt,
-    workspaceRoot,
-    workspacePath,
-    approved,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    signal,
-    
-    env = process.env,
+    taskId, approvalId, planHash, baseCommitSha, proposedDiffHash,
+    agent, prompt, workspaceRoot, workspacePath,
+    timeoutMs = DEFAULT_TIMEOUT_MS, signal, env = process.env,
   } = options ?? {};
 
-  if (approved !== true) throw new Error('Explicit engineering-task approval is required.');
+  if (typeof dependencies.authorizeTask !== 'function') {
+    throw new Error('RyanAI workbench authorization service is required.');
+  }
+  const runner = dependencies.sandboxRunner;
+  assertSandboxRunner(runner);
+
+  if (typeof taskId !== 'string' || !taskId.trim() ||
+      typeof approvalId !== 'string' || !approvalId.trim() ||
+      !validDigest(planHash) || !validDigest(baseCommitSha) || !validDigest(proposedDiffHash)) {
+    throw new Error('Task, approval and valid SHA-256 plan/base/diff bindings are required.');
+  }
   if (!SUPPORTED_AGENTS.has(agent)) throw new Error('Unsupported coding agent.');
   if (typeof prompt !== 'string' || prompt.trim().length === 0 || prompt.length > MAX_PROMPT_CHARS) {
     throw new Error('Prompt must be non-empty and no longer than 32000 characters.');
@@ -74,14 +114,14 @@ export async function runGenAICodeTask(options, dependencies = {}) {
   if (typeof workspaceRoot !== 'string' || typeof workspacePath !== 'string') {
     throw new Error('An approved workspace root and workspace path are required.');
   }
-  const binary = process.env.RYANAI_GENAI_CODE_BIN || 'genaicode';
-  if (typeof binary !== 'string' || binary.trim().length === 0 || binary.includes('\0')) {
-    throw new Error('A valid GenAIcode executable name is required in trusted server configuration.');
-  }
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > MAX_TIMEOUT_MS) {
     throw new Error('Timeout must be between 1000 and 1800000 milliseconds.');
   }
   if (signal?.aborted) throw new Error('Engineering task was cancelled before launch.');
+
+  const task = { taskId, approvalId, planHash, baseCommitSha, proposedDiffHash };
+  const approval = await dependencies.authorizeTask(task);
+  assertApprovalBinding(approval, task);
 
   const root = await realpath(workspaceRoot);
   const cwd = await realpath(workspacePath);
@@ -89,23 +129,34 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     throw new Error('Workspace path must resolve to a directory inside the approved workspace root.');
   }
 
-  const spawn = dependencies.spawn ?? nodeSpawn;
+  const binary = process.env.RYANAI_GENAI_CODE_BIN || 'genaicode';
+  if (typeof binary !== 'string' || binary.trim().length === 0 || binary.includes('\0')) {
+    throw new Error('A valid GenAIcode executable name is required in trusted server configuration.');
+  }
+
   const args = ['run', '--json', '-a', agent, '-C', cwd, '-'];
-  const child = spawn(binary, args, {
+  const child = await runner.run({
+    command: binary,
+    args,
     cwd,
+    workspaceRoot: root,
     env: safeEnvironment(env),
-    shell: false,
-    detached: process.platform !== 'win32',
-    windowsHide: true,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    signal,
+    timeoutMs,
+    prompt,
+    limits: Object.freeze({ maxPromptChars: MAX_PROMPT_CHARS, maxOutputBytes: MAX_OUTPUT_BYTES, maxEvents: MAX_EVENTS }),
+    networkPolicy: 'deny-by-default',
+    credentialScope: 'agent-only',
   });
+
+  if (!child || !child.stdout || !child.stderr || !child.stdin || typeof child.once !== 'function') {
+    throw new Error('Isolated runner returned an invalid process handle.');
+  }
 
   return await new Promise((resolve, reject) => {
     let stdout = '';
     let outputBytes = 0;
     let settled = false;
-    let timedOut = false;
-    let overflow = false;
     const finish = (fn, value) => {
       if (settled) return;
       settled = true;
@@ -114,53 +165,41 @@ export async function runGenAICodeTask(options, dependencies = {}) {
       fn(value);
     };
     const stop = () => {
-      try {
-        if (process.platform !== 'win32' && Number.isInteger(child.pid)) process.kill(-child.pid, 'SIGTERM');
-        else child.kill('SIGTERM');
-      } catch {
-        try { child.kill('SIGTERM'); } catch { /* process may already have exited */ }
-      }
+      try { child.kill('SIGTERM'); } catch { /* runner may have already stopped the process */ }
     };
     const abort = () => {
       stop();
       finish(reject, new Error('Engineering task was cancelled.'));
     };
     const timer = setTimeout(() => {
-      timedOut = true;
       stop();
       finish(reject, new Error('GenAIcode task exceeded its time limit.'));
     }, timeoutMs);
 
     signal?.addEventListener('abort', abort, { once: true });
-    child.once('error', (error) => finish(reject, new Error('Unable to start the configured GenAIcode executable: ' + error.message)));
+    child.once('error', (error) => finish(reject, new Error('Unable to start GenAIcode in the isolated runner: ' + error.message)));
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString('utf8');
       outputBytes += Buffer.byteLength(text);
       if (outputBytes > MAX_OUTPUT_BYTES) {
-        overflow = true;
         stop();
         finish(reject, new Error('GenAIcode output exceeded the 2 MiB safety limit.'));
         return;
       }
       stdout += text;
     });
-    // Deliberately drain and discard stderr: CLI diagnostics can contain sensitive paths or input.
     child.stderr.on('data', () => {});
-    child.once('close', (code) => {
-      if (settled) return;
-      if (timedOut) return finish(reject, new Error('GenAIcode task exceeded its time limit.'));
-      if (overflow) return finish(reject, new Error('GenAIcode output exceeded the 2 MiB safety limit.'));
-      finish(resolve, {
-        status: code === 0 ? 'completed' : 'failed',
-        exitCode: Number.isInteger(code) ? code : null,
-        events: parseEvents(stdout),
-        verification: 'not-run',
-      });
-    });
-
+    child.once('close', (code) => finish(resolve, {
+      status: code === 0 ? 'completed' : 'failed',
+      exitCode: Number.isInteger(code) ? code : null,
+      events: parseEvents(stdout),
+      verification: 'not-run',
+      approvalId,
+      taskId,
+    }));
     try {
       child.stdin.end(prompt);
-    } catch (error) {
+    } catch {
       stop();
       finish(reject, new Error('Unable to send the task prompt to GenAIcode.'));
     }
@@ -172,8 +211,10 @@ export const genaicodeAdapterPolicy = Object.freeze({
   maxPromptChars: MAX_PROMPT_CHARS,
   maxOutputBytes: MAX_OUTPUT_BYTES,
   maxTimeoutMs: MAX_TIMEOUT_MS,
-  autoApproval: false,
-  shell: false,
-  providerCredentialsInherited: false,
+  directHostExecution: false,
+  independentWorkbenchApprovalRequired: true,
+  filesystemIsolationRequired: true,
+  networkPolicy: 'deny-by-default',
+  credentialScope: 'agent-only',
   verificationRequiredOutsideAdapter: true,
 });
