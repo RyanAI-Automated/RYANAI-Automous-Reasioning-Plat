@@ -33,6 +33,10 @@ function validDigest(value) {
   return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
 }
 
+function validCommitSha(value) {
+  return typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value);
+}
+
 function sanitizeEvent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.type !== 'string') return null;
   const event = { type: value.type.slice(0, 48) };
@@ -104,7 +108,7 @@ export async function runGenAICodeTask(options, dependencies = {}) {
 
   if (typeof taskId !== 'string' || !taskId.trim() ||
       typeof approvalId !== 'string' || !approvalId.trim() ||
-      !validDigest(planHash) || !validDigest(baseCommitSha) || !validDigest(proposedDiffHash)) {
+      !validDigest(planHash) || !validCommitSha(baseCommitSha) || !validDigest(proposedDiffHash)) {
     throw new Error('Task, approval and valid SHA-256 plan/base/diff bindings are required.');
   }
   if (!SUPPORTED_AGENTS.has(agent)) throw new Error('Unsupported coding agent.');
@@ -143,7 +147,6 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     env: safeEnvironment(env),
     signal,
     timeoutMs,
-    prompt,
     limits: Object.freeze({ maxPromptChars: MAX_PROMPT_CHARS, maxOutputBytes: MAX_OUTPUT_BYTES, maxEvents: MAX_EVENTS }),
     networkPolicy: 'deny-by-default',
     credentialScope: 'agent-only',
