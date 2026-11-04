@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compareMigrationState, assessSchema } from './audit-prisma-migration-readiness.mjs';
 
+const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
+const cacheColumns = new Set(['id', 'prompt', 'response', 'embedding', 'created_at']);
+const vectorIndexes = new Set(['idx_reasoning_embedding', 'idx_agent_session']);
+
 test('reports source migrations absent from the applied ledger without mutating either input', () => {
   const names = ['20261102150000_agent_run_execution_scope', '20261102210000_internal_jarvis_audit'];
   const rows = [{ migration_name: names[0], finished_at: new Date(), rolled_back_at: null }];
@@ -20,17 +24,22 @@ test('ignores rolled-back and unfinished ledger entries', () => {
   assert.deepEqual(result.databaseOnly, []);
 });
 
-test('detects schema and vector-memory drift', () => {
+test('detects schema and vector-memory drift, including runtime columns and indexes', () => {
   const result = assessSchema({
     columns: new Set(['execution_scope']),
     tables: new Set(['agent_runs', 'reasoning_cache']),
     indexes: new Set(),
     extensions: new Set(),
+    memoryColumns: new Set(['sessionid', 'role']),
+    cacheColumns: new Set(['id', 'prompt']),
   });
   assert.ok(result.missingColumns.includes('approval_status'));
   assert.ok(result.missingTables.includes('agent_run_evidence'));
   assert.equal(result.vector.extensionPresent, false);
   assert.deepEqual(result.vector.missingTables, ['agent_memory']);
+  assert.deepEqual(result.vector.missingMemoryColumns, ['session_id', 'content', 'timestamp']);
+  assert.deepEqual(result.vector.missingCacheColumns, ['response', 'embedding', 'created_at']);
+  assert.deepEqual(result.vector.missingIndexes, ['idx_reasoning_embedding', 'idx_agent_session']);
   assert.equal(result.vector.indexPresent, false);
 });
 
@@ -41,12 +50,17 @@ test('accepts a complete schema and vector-memory installation', () => {
   const result = assessSchema({
     columns: new Set(columns),
     tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'reasoning_cache', 'agent_memory']),
-    indexes: new Set(['idx_reasoning_embedding']),
+    indexes: vectorIndexes,
     extensions: new Set(['vector']),
+    memoryColumns,
+    cacheColumns,
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
   assert.equal(result.vector.extensionPresent, true);
   assert.deepEqual(result.vector.missingTables, []);
+  assert.deepEqual(result.vector.missingMemoryColumns, []);
+  assert.deepEqual(result.vector.missingCacheColumns, []);
+  assert.deepEqual(result.vector.missingIndexes, []);
   assert.equal(result.vector.indexPresent, true);
 });
