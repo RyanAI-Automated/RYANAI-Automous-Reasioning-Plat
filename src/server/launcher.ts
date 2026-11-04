@@ -14,7 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls, resolveTrustedProxyHops } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
 
@@ -66,6 +66,7 @@ const config = {
   nodeEnv,
   database: { url: connectionUrls.databaseUrl },
   redis: { url: connectionUrls.redisUrl },
+  trustedProxyHops: resolveTrustedProxyHops(process.env.TRUST_PROXY_HOPS),
 };
 
 console.log(`📋 Configuration:`);
@@ -78,9 +79,9 @@ console.log(
   `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)\n`,
 );
 
-// Initialize Fastify instance with trustProxy and telemetry-aware logger
+// Trust a finite number of ingress proxies; never trust arbitrary forwarded chains.
 const fastify = Fastify({
-  trustProxy: true,
+  trustProxy: config.trustedProxyHops,
   logger: {
     level: config.nodeEnv === 'production' ? 'info' : 'debug',
     ...(config.nodeEnv !== 'production' && {
