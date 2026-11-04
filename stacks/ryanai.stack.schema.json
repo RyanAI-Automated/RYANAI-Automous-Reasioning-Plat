@@ -98,7 +98,8 @@
         "kubernetes",
         "render",
         "vercel",
-        "railway"
+        "railway",
+        "railwayConfig"
       ],
       "properties": {
         "dockerCompose": {
@@ -117,6 +118,9 @@
           "type": "string"
         },
         "railway": {
+          "type": "string"
+        },
+        "railwayConfig": {
           "type": "string"
         }
       },
