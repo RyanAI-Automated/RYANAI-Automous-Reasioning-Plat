@@ -20,7 +20,7 @@ export function compareMigrationState(localNames, appliedRows) {
   };
 }
 
-export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns }) {
+export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, indexDefinitions = new Map() }) {
   const requiredColumns = [
     'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
@@ -38,6 +38,16 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
   const missingCacheColumns = requiredCacheColumns.filter((name) => !cacheColumns.has(name));
   const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session'];
   const missingIndexes = requiredIndexes.filter((name) => !indexes.has(name));
+  const reasoningIndexDefinition = (indexDefinitions.get('idx_reasoning_embedding') ?? '').toLowerCase();
+  const agentSessionIndexDefinition = (indexDefinitions.get('idx_agent_session') ?? '').toLowerCase();
+  const invalidIndexes = [
+    ...(indexes.has('idx_reasoning_embedding') &&
+      (!reasoningIndexDefinition.includes('using hnsw') || !reasoningIndexDefinition.includes('vector_cosine_ops'))
+      ? ['idx_reasoning_embedding (requires HNSW vector_cosine_ops)'] : []),
+    ...(indexes.has('idx_agent_session') &&
+      (!agentSessionIndexDefinition.includes('session_id') || !agentSessionIndexDefinition.includes('timestamp'))
+      ? ['idx_agent_session (requires session_id, timestamp)'] : []),
+  ];
   return {
     missingColumns,
     missingTables,
@@ -47,7 +57,8 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
       missingMemoryColumns,
       missingCacheColumns,
       missingIndexes,
-      indexPresent: missingIndexes.length === 0,
+      invalidIndexes,
+      indexPresent: missingIndexes.length === 0 && invalidIndexes.length === 0,
     },
   };
 }
@@ -72,7 +83,7 @@ async function main() {
     const [columnResult, tableResult, indexResult, extensionResult, memoryColumnResult, cacheColumnResult] = await Promise.all([
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_runs'"),
       pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
-      pool.query("SELECT indexname FROM pg_indexes WHERE schemaname='public'"),
+      pool.query("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'"),
       pool.query("SELECT extname FROM pg_extension WHERE extname='vector'"),
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_memory'"),
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='reasoning_cache'"),
@@ -81,6 +92,7 @@ async function main() {
       columns: new Set(columnResult.rows.map((row) => row.column_name)),
       tables: new Set(tableResult.rows.map((row) => row.table_name)),
       indexes: new Set(indexResult.rows.map((row) => row.indexname)),
+      indexDefinitions: new Map(indexResult.rows.map((row) => [row.indexname, row.indexdef])),
       extensions: new Set(extensionResult.rows.map((row) => row.extname)),
       memoryColumns: new Set(memoryColumnResult.rows.map((row) => row.column_name)),
       cacheColumns: new Set(cacheColumnResult.rows.map((row) => row.column_name)),
@@ -95,7 +107,7 @@ async function main() {
         schema.missingColumns.length || schema.missingTables.length ||
         !schema.vector.extensionPresent || schema.vector.missingTables.length ||
         schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length ||
-        schema.vector.missingIndexes.length) {
+        schema.vector.missingIndexes.length || schema.vector.invalidIndexes.length) {
       process.exitCode = 1;
     }
   } catch {
