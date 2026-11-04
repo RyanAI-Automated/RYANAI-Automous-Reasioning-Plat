@@ -79,7 +79,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID != '' }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID != '' }}
-          VITE_API_BASE_URL: https://ryanai-automous-reasoning-plat.onrender.com
+          VITE_API_BASE_URL: https://ryanai-automous-reasioning-plat.onrender.com
           # Pass only boolean presence indicators; never expose model API keys to audit processes.
           RYANAI_NVIDIA_KEY_CONFIGURED: ${{ secrets.NVIDIA_API_KEY != '' }}
           RYANAI_QWEN_KEY_CONFIGURED: ${{ secrets.QWEN_API_KEY != '' }}

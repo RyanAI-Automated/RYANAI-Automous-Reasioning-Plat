@@ -13,7 +13,6 @@ projects:
             rootDir: .
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             branch: main
-            plan: free
             autoDeployTrigger: "off"
             buildCommand: npm ci --legacy-peer-deps && npm run build:web
             staticPublishPath: ./dist

@@ -29,7 +29,7 @@ jobs:
     env:
       TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
       RENDER_SERVICE_ID: srv-dafvs4ht0dsc7380mapg
-      RENDER_API_URL: https://ryanai-automous-reasoning-plat.onrender.com
+      RENDER_API_URL: https://ryanai-automous-reasioning-plat.onrender.com
 
     steps:
       - name: Validate exact main commit

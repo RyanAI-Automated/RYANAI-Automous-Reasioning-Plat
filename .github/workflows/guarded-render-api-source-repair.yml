@@ -134,7 +134,7 @@ jobs:
             if curl --fail --silent --show-error --max-time 10 \
               --output health-response.json \
               --write-out '%{http_code}' \
-              "https://ryanai-automous-reasoning-plat.onrender.com/health" > health-status.txt; then
+              "https://ryanai-automous-reasioning-plat.onrender.com/health" > health-status.txt; then
               if [[ "$(cat health-status.txt)" == "200" ]]; then
                 echo "API /health returned HTTP 200"
                 cat health-response.json
