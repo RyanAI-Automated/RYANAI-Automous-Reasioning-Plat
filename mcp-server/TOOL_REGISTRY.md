@@ -27,3 +27,18 @@ The existing HTTP transport authentication and host/origin checks remain in plac
 ## Validation
 
 Run `npm --prefix mcp-server run check`. The check includes unit tests for default-deny behavior, explicit allowlisting, unknown names, unavailable tools, and registry metadata.
+
+## Communications contracts
+
+The following tools are disabled by default and require explicit operator allowlisting:
+
+```sh
+RYANAI_MCP_ENABLED_TOOLS=comms_policy_read,comms_draft_prepare
+MCP_AUTH_TOKEN=<at-least-32-character-random-secret>
+```
+
+- `comms_policy_read`: channel policy only; no private history, contacts or provider access.
+- `comms_draft_prepare`: validated draft only; always reports `approvalRequired=true` and `dispatchPerformed=false`.
+- Enabling either tool requires `MCP_AUTH_TOKEN` to contain at least 32 characters. Streamable HTTP checks the bearer token with constant-time comparison.
+- The shared bearer token authenticates the MCP client/service, not a human end-user. These tools must not be used for delegated private-history access or provider dispatch.
+- Stdio access is a trusted local-process boundary; protect it with OS permissions.

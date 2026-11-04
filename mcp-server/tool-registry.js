@@ -5,21 +5,16 @@ const TOOL_POLICY = Object.freeze({
   ryanai_stack_manifest: { owner: 'platform', risk: 'read-only', description: 'Read the non-secret service stack manifest.' },
   platform_health: { owner: 'platform', risk: 'network-read', description: 'Read the configured RyanAI API health endpoint.' },
   reasoning_route: { owner: 'reasoning', risk: 'external-model-request', description: 'Send a prompt to a configured reasoning provider.' },
+  comms_policy_read: { owner: 'communications', risk: 'read-only', description: 'Read channel policy; no private history or provider access.' },
+  comms_draft_prepare: { owner: 'communications', risk: 'draft-only', description: 'Prepare a draft for human approval; never dispatch.' },
 });
 
 const REGISTRY_TOOL = 'tool_registry';
 const ENABLED_TOOLS_ENV = 'RYANAI_MCP_ENABLED_TOOLS';
 
-/**
- * Resolve the runtime tool surface from an explicit operator-managed allowlist.
- * All action tools are disabled unless their exact names are configured.
- * The read-only registry remains discoverable so clients can inspect the catalogue.
- */
 export function resolveToolRegistry(tools, env = process.env) {
   const requested = String(env[ENABLED_TOOLS_ENV] ?? '')
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean);
+    .split(',').map((name) => name.trim()).filter(Boolean);
   const enabled = new Set(requested);
   const knownNames = new Set(Object.keys(TOOL_POLICY));
   const unknown = requested.filter((name) => !knownNames.has(name) || name === REGISTRY_TOOL);
@@ -34,18 +29,11 @@ export function resolveToolRegistry(tools, env = process.env) {
   }
 
   const registry = Object.entries(TOOL_POLICY).map(([name, policy]) => ({
-    name,
-    available: name === REGISTRY_TOOL || availableNames.has(name),
-    owner: policy.owner,
-    risk: policy.risk,
-    description: policy.description,
+    name, available: name === REGISTRY_TOOL || availableNames.has(name),
+    owner: policy.owner, risk: policy.risk, description: policy.description,
     enabled: name === REGISTRY_TOOL || (availableNames.has(name) && enabled.has(name)),
     enablement: name === REGISTRY_TOOL ? 'always-on-read-only' : 'explicit-operator-allowlist',
   }));
-
   const visibleNames = new Set(registry.filter((entry) => entry.enabled).map((entry) => entry.name));
-  return {
-    registry,
-    tools: tools.filter((tool) => visibleNames.has(tool.name)),
-  };
+  return { registry, tools: tools.filter((tool) => visibleNames.has(tool.name)) };
 }

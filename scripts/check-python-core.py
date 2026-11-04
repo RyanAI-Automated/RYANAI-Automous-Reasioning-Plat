@@ -12,6 +12,8 @@ PYTHON_TOOLS = (
     Path("scripts/ryan_master_boot.py"),
     Path("scripts/ryan_benchmark.py"),
     Path("scripts/ryan_status.py"),
+    Path("comms-orchestration/orchestrator.py"),
+    Path("comms-orchestration/tests/test_orchestrator.py"),
 )
 
 
