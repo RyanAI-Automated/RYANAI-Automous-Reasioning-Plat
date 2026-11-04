@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   record-merged-pr:
-    if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'patch-log/')
+    # Only confirmed merges into main may be recorded. Exclude our own
+    # patch-log PRs to prevent the updater from recursively recording itself.
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && !startsWith(github.event.pull_request.head.ref, 'patch-log/')
     runs-on: ubuntu-latest
     steps:
       - name: Check out current main
