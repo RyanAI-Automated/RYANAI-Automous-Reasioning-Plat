@@ -14,11 +14,34 @@ This README describes the current repository implementation and its intended loc
 - Production promotion requires a reviewed change, green required checks, an approved database plan, configured secrets, and a verified health check.
 - Autonomous execution is bounded by configured workers, queue availability, provider quotas, and infrastructure uptime. It is not an unlimited or guaranteed always-on service.
 
+## RyanAI architecture and governance standard (4 November 2026)
+
+RyanAI is designed to own its intelligence architecture. Models are replaceable specialists; evidence determines their value; deterministic security controls authorization; and human authority governs consequential actions.
+
+| Domain | Responsibility | Non-negotiable boundary |
+| --- | --- | --- |
+| RyanAI Comms | Transcription, extraction, speech, and controlled communications workflows | Authenticated, bounded interfaces; drafts and analysis do not imply permission to send or call |
+| Private RAG | Private document understanding, retrieval, and grounded answers | Owner-scoped access, source provenance, retention/deletion controls, and versioned embeddings |
+| Gen-X Security | Independent authorization and enforcement | Authorization is deterministic and outside model/orchestrator control |
+| Jarvis | Restricted engineering assistance, analysis, testing, and proposed corrections | No self-granted permissions, secret access, direct production deployment, or self-approval |
+
+**Engineering acceptance rule:** every proposed change must demonstrate measurable benefit, security compliance, operational reversibility, and economic justification. Measure useful, verified outcomes per rand spent—not the number of models integrated.
+
+**Model independence:** do not add a specialist because it is available or has an attractive published benchmark. Compare it with the current baseline on representative RyanAI tasks; pin its exact revision; isolate it; measure quality, reliability, latency, resource use, and total cost; and prove fallback, replacement, and rollback before promotion. Never mix embeddings from different models in one vector space.
+
+**Authorization boundary:** models may classify, transcribe, extract, retrieve, summarize, or recommend. They cannot grant permissions, approve actions, retrieve secrets, bypass policy, merge code, or deploy. Gen-X and the trusted application authorization layer must enforce allowlists and permissions independently. Consequential actions require explicit human authorization.
+
+**Economic measure:** cost per successful task is the fully attributable ZAR cost of compute, electricity, inference/provider usage, storage, amortized hardware, and maintenance divided by tasks that pass the defined quality and policy acceptance criteria. Report quality and failure rates beside cost; a cheap incorrect result is not useful intelligence.
+
+See [the architecture reference](docs/ARCHITECTURE.md) and [the specialist model fit and adoption standard](docs/architecture/SPECIALIST_MODEL_FIT_AND_ADOPTION.md) for detailed design and benchmark gates.
+
 ## Contents
 
+- [RyanAI architecture and governance standard](#ryanai-architecture-and-governance-standard-4-november-2026)
 - [Current implementation status](#current-implementation-status)
 
 - [Capabilities and architecture](#capabilities-and-architecture)
+- [Specialist model evaluation](#specialist-model-evaluation)
 - [Repository layout](#repository-layout)
 - [Requirements](#requirements)
 - [Quick start with Docker Compose](#quick-start-with-docker-compose)
@@ -38,7 +61,7 @@ This README describes the current repository implementation and its intended loc
 
 ## Current implementation status
 
-**Checkpoint: 3 November 2026 · `main` at `a0c42b65f4f1`.** RyanAI is actively being developed. The merged PRs establish useful foundations; they do not by themselves certify end-to-end operation or production readiness. This section separates code that exists from capabilities that are still awaiting independent validation.
+**Checkpoint: 4 November 2026 · `main`.** This is a source/documentation checkpoint, not a production-readiness certificate. PRs #864, #865, and #866 are merged. Their merge status establishes that the changes entered the repository; it does not prove live Ollama availability, provider connectivity, successful current-head CI, database migration readiness, production security, or end-to-end communications.
 
 ### Available foundations
 
@@ -51,6 +74,15 @@ This README describes the current repository implementation and its intended loc
 - GitHub pull-request proposal flow for reviewed code changes.
 
 The presence of a client, route, schema, worker profile, or configuration entry does not by itself prove that the corresponding external service is connected or operational. Provider authentication, queue execution, recovery, and hosted-service health must be tested independently.
+
+### 4 November 2026 engineering updates
+
+- **PR #864 — local inference adapter:** merged an explicit `RYANAI_INFERENCE_MODE=local` path using `OLLAMA_URL` and `OLLAMA_MODEL`. The local path is designed to reject unsupported/remote endpoint configurations and must not silently fall back to a cloud provider. A merged adapter is not proof that an Ollama daemon or model is installed and responding.
+- **PR #865 — communications contracts:** merged Python orchestration interfaces and authenticated communications MCP contracts for policy reading and draft preparation. These contracts do not authorize message sending, voice calls, or provider dispatch. Cross-channel and live-model tests remain separate acceptance work.
+- **PR #866 — specialist model fit:** merged the weighted evaluation rubric and staged adoption policy. No specialist model is enabled merely by that document; the candidate scores are preliminary architecture-fit estimates, not RyanAI benchmark results.
+- **PR #863 — verification report:** records the database/migration, CI/security, and main-branch ruleset evidence still required at the time of review. Re-check those gates against the exact current `main` commit; do not assume they passed because documentation or related PRs merged.
+
+The next work is evidence-led: complete disposable PostgreSQL/pgvector and migration checks; obtain current-head CI/security results; independently verify enforceable `main` branch protection; then benchmark specialist workloads offline. Do not download or activate candidate models in production as part of this documentation milestone.
 
 ### Governed engineering evidence workbench
 
@@ -421,7 +453,7 @@ The following are optional and should remain disabled/unconfigured unless delibe
 
 ## AI brains and provider connectivity
 
-The three clients are configured in `src/config/brains.ts`. Provider credentials must be supplied to the server process or deployment secret store.
+The existing NVIDIA, Qwen, and Logic reasoning roles remain independently configured. The shared model factory in `src/config/llm.ts` also has an explicit local Ollama mode introduced by PR #864. Provider credentials, when required, belong only in the trusted server-side environment.
 
 ### Configuration is not connectivity
 
@@ -435,7 +467,21 @@ To verify a provider end to end:
 4. Confirm the provider returned a real response and record the timestamp, model, and outcome without logging secrets.
 5. Repeat separately for NVIDIA, Qwen, and Logic.
 
+### Local Ollama inference
+
+Local mode is opt-in and requires both `OLLAMA_URL` and `OLLAMA_MODEL` with `RYANAI_INFERENCE_MODE=local`. The adapter validates the endpoint and is intended to fail closed rather than use a remote/cloud fallback. Configuration alone is not runtime evidence: verify that the local Ollama process is running, the pinned model is installed, and a real inference request succeeds. Do not expose local inference endpoints to untrusted networks.
+
 Do not mark a brain connected based only on a readiness flag or mocked test. Never commit credentials or paste them into an issue, PR, log, or chat.
+
+## Specialist model evaluation
+
+RyanAI should add only specialists that demonstrate a measurable improvement over an existing baseline. The current candidate policy prioritizes offline evaluation of GLiNER extraction, EmbeddingGemma retrieval, and PaddleOCR-VL document parsing. Parakeet ASR and Kokoro TTS remain conditional on language-specific tests. Arch-Router is deferred pending licence review and comparison with deterministic routing; research-only Nemotron-Orchestrator-8B is excluded from production under the terms described in the evaluation proposal.
+
+Benchmark document parsing, extraction, and embeddings separately from transcription and speech. For speech, report `en-ZA` and `ve-ZA` independently; a model's general multilingual claim does not establish Tshivenda quality. Use representative, consented, access-controlled evaluation data and record exact model revision, runtime, hardware, quantization, dataset, and prompt versions.
+
+Minimum measurements include OCR field-level precision/recall/F1 and character error rate; extraction precision/recall/F1, calibration, and source provenance; retrieval Recall@k, nDCG@k, and MRR; ASR WER/CER and named-term accuracy by language; and TTS blinded intelligibility, pronunciation, and naturalness assessments. Across all workloads measure p50/p95 latency, throughput, peak RAM/VRAM, failures, abstentions, fallback frequency, and total cost per successful task in ZAR.
+
+Run candidate models behind replaceable, versioned adapters. Keep the current model as a fallback; test timeouts, unsupported inputs, low confidence, model unavailability, and malformed outputs. Keep embedding indexes versioned and isolated—never mix incompatible vector spaces. Preserve the prior index and model revision until rollback has been exercised. See [the specialist adoption standard](docs/architecture/SPECIALIST_MODEL_FIT_AND_ADOPTION.md).
 
 ## Identity, language, and voice preferences
 
@@ -549,6 +595,12 @@ The current implementation:
 - States that the proposal has not been deployed or promoted.
 
 The self-patch service does **not** make a patch production-ready. The normal review, CI, security, branch-protection, merge, and deployment process must still apply. The local patch-verification path is distinct from the production PR-proposal path.
+
+### Jarvis governance and independent authorization
+
+Jarvis is a restricted engineering assistant, not an authorization authority. It may inspect, analyse, test, prepare a patch, and propose a pull request only within explicitly granted permissions. Expand its capabilities only after independent verification of the authenticated identity, least-privilege permissions, execution isolation, command/path/network boundaries, audit evidence, and recovery procedure. A model-generated plan or a successful tool response is not approval.
+
+Gen-X and the trusted application policy layer must enforce authorization independently of Jarvis, specialist models, and orchestration. No model or orchestrator may grant itself permissions, access secrets, approve its own work, bypass review, merge a change, or deploy to production. Consequential actions require explicit human authorization. Keep analysis/draft permissions separate from write, send, merge, and deploy permissions.
 
 ## Database operations
 
