@@ -394,3 +394,78 @@ Reviewers should explicitly accept or request changes to:
 - Six readiness gates: NOT RUN  
 - Model invocation/comparison: NOT AUTHORISED  
 - Production activation, merge or deployment: NOT AUTHORISED
+
+
+## 13. Repository-backed provider and environment audit (2026-11-04)
+
+This section supersedes any earlier wording that implies NVIDIA, Qwen, or Logic are unavailable or that all four paths can be tested under one offline profile. The repository already contains a GitHub Actions provider-verification path and provider-specific configuration. The user has confirmed that the relevant environments are available. This audit reads configuration names and code paths only; it does not read secret values or invoke a provider.
+
+### 13.1 Existing GitHub Actions access path
+
+`.github/workflows/provider-verification.yml` references the GitHub Actions environment `ryanai-provider-verification` and defines independent `primary`, `secondary`, and `logic` matrix entries. Its workflow mapping is:
+
+- NVIDIA primary: `secrets.NVIDIA_API_KEY`
+- Qwen secondary: `secrets.QWEN_API_KEY`
+- Logic: `secrets.LOGIC_API_KEY`, with `secrets.OPENAI_API_KEY` as a fallback
+- Selected credential is passed to the probe process as `PROVIDER_API_KEY`.
+- Endpoint and model selectors are supplied through Actions variables: `NVIDIA_API_ENDPOINT`, `QWEN_API_ENDPOINT`, `LOGIC_API_ENDPOINT`, `PRIMARY_REASONING_MODEL`, `SECONDARY_REASONING_MODEL`, and `LOGIC_REASONING_MODEL`.
+
+The workflow references the environment, but this repository read does not expose or verify secret values. Secret values must never be printed into logs or evidence. Do not ask the user to recreate these settings.
+
+**Important:** this workflow is a live connectivity probe, not the benchmark harness. `scripts/provider-live-probe.mjs` constructs a `ChatOpenAI` client and sends the `RYANAI_BRAIN_READY` challenge, then writes a health record to its disposable CI PostgreSQL service. It can invoke a real provider. It must not be dispatched or otherwise triggered as a substitute for mock-only gate tests. A push to its configured branch can also trigger it; avoid unrelated pushes to `main` while preserving this workflow's existing behaviour. No provider probe was run as part of this audit.
+
+### 13.2 Actual implementation identity
+
+Repository code establishes the following:
+
+- **NVIDIA primary:** `src/config/brains.ts` constructs a dedicated `ChatOpenAI` client. Its default model is `nvidia/nemotron-3-ultra-550b-a55b`; its default endpoint is NVIDIA's `https://integrate.api.nvidia.com/v1`. Model and endpoint are configurable through `PRIMARY_REASONING_MODEL`, `NVIDIA_MODEL`, and `NVIDIA_API_ENDPOINT`.
+- **Qwen secondary:** a separate `ChatOpenAI` client is constructed. Its default model is `Qwen/Qwen3-235B-A22B-Instruct-2507-tput`; its default endpoint is `https://api.together.xyz/v1`, with `QWEN_API_ENDPOINT` override. The configured path may therefore use Together as the serving endpoint for a Qwen model; provider/model identity must record both separately.
+- **Logic:** `logicBrain` is also a model-backed `ChatOpenAI` client, not a deterministic verifier. Its default model is `gpt-4o-mini` and default endpoint is `https://api.openai.com/v1`; `LOGIC_REASONING_MODEL`, `LM_STUDIO_MODEL`, `OPENAI_MODEL`, `LOGIC_API_ENDPOINT`, and `OPENAI_BASE_URL` can change that identity. It is used as the planning/structured-decomposition stage in `src/engine/graph.ts` and `src/engine/orchestrator.ts`. Therefore it is both a separately configurable model-backed path and a component of a composite Logic → NVIDIA → Qwen pipeline. Benchmark the Logic model path separately, and report the complete pipeline as a distinct composite system; do not conflate the two.
+- **Ollama:** it is a runtime/adapter, not a model identity. The actual `OLLAMA_MODEL` value, model digest, quantisation, runtime version, and serving configuration must be captured at evaluation time.
+
+### 13.3 Configuration consistency blocker
+
+There are multiple model inventories. `src/config/models.ts` declares Qwen entries including `qwen/qwen-3.6-27b` and `qwen/qwen-2.5-72b-instruct`, while `src/config/brains.ts` and the provider probe resolver default the secondary brain to `Qwen/Qwen3-235B-A22B-Instruct-2507-tput`. These are not the same model identity. Before evaluation, select the authoritative configured model per path, resolve the discrepancy without changing production routing, and freeze the exact model, serving provider, endpoint, immutable revision (or documented provider limitation), and prompt/configuration hashes. Do not infer which model is currently active from a default alone.
+
+### 13.4 Two explicit execution profiles
+
+**Profile A — strict offline/local-only**
+
+- Ollama/local candidate only.
+- No NVIDIA, Qwen, Logic, OpenAI, Together, gateway, or other remote provider credentials in the runner.
+- Deny public and arbitrary LAN egress at the OS/container/network boundary.
+- Permit only the exact isolated Ollama destination (address, port, and protocol) using a dedicated network namespace/bridge with firewall-enforced deny-by-default rules, or an equivalently narrow local IPC boundary.
+- `host.docker.internal` and Docker service aliases are not loopback and are not proof of isolation. The current application allowlist is not a substitute for network enforcement.
+- Missing model, endpoint, or runtime fails closed; no cloud fallback.
+
+**Profile B — separately approved remote-provider evaluation**
+
+- Uses the existing `ryanai-provider-verification` GitHub Actions environment and the existing provider-specific secret/variable mappings described above; do not create duplicate credentials or request that the user re-enter them.
+- This profile is explicitly **remote-provider evaluation**, not offline. It must run in a dedicated, short-lived job with an explicit provider selection, exact hostname/port/protocol allowlist derived from the pinned endpoint, TLS verification, no arbitrary URL override, no fallback, and no access to production databases, deployment credentials, or unrelated repository secrets.
+- Enforce request-count ceilings, concurrency limits, timeouts, maximum output tokens, and a hard per-run ZAR spend ceiling before any call. If the spend ceiling or actual provider price is unknown, the profile is BLOCKED and makes zero calls.
+- Record the selected provider, endpoint host (never credential-bearing URL), model identity, secret *name* used (never its value), request count, actual returned usage, billed cost if available, and failure classification.
+- A Profile A isolation PASS does not pass Profile B isolation. Profile B requires its own negative-egress, destination-allowlist, credential-scope, no-fallback, and spend-limit evidence.
+
+The six readiness gates remain conjunctive, but every verdict must be labelled with its profile. Gate 1 must have separate results for A and B. Remote model comparisons require all six gates to pass for Profile B and a separate explicit evaluation-scope approval. A pass for Ollama under Profile A does not imply that NVIDIA, Qwen, or Logic were evaluated.
+
+### 13.5 Pre-registered evaluation protocol
+
+Before the first model invocation, freeze and hash the evaluation protocol. Proposed starting defaults for review (not execution authorization) are:
+
+- At least 50 tasks per task-family/language slice; publish counts and confidence/uncertainty intervals.
+- Three repetitions per task for stochastic/reliability measurement; deterministic assertions run on every repetition.
+- Five warm-up requests per candidate, excluded from quality scoring but retained in resource/latency logs.
+- Baseline concurrency of one; any higher-concurrency stress run is a separate labelled experiment.
+- Per-request timeout of 60 seconds and a maximum output budget of 2,048 tokens unless a task-specific contract declares a lower limit.
+- Two independent blinded human reviewers for safety-critical and reasoning-quality slices; target inter-reviewer agreement of at least 0.70 using a declared statistic, with adjudication by a third reviewer when below threshold.
+- Zero tolerance for a confirmed Gen-X authorization bypass, secret disclosure, or disallowed consequential action.
+- Report all attempted tasks, refusals, timeouts, errors, and missing outputs; never remove them from denominators.
+- Profile A has no provider spend. Profile B has no default spend allowance: a numeric ZAR ceiling, provider pricing source/date, and user approval must be recorded before the first request.
+
+The proposal must identify the protocol owner, dataset custodian, isolation/security reviewer, scoring lead, economics reviewer, Gen-X policy owner, and human approver by role and record their attestations in the evidence bundle. Missing owners, missing thresholds, or missing evidence mean BLOCKED, not PASS.
+
+### 13.6 Revised gate evidence matrix
+
+For each selected profile, each of the six gates must record: profile ID, named owner, exact procedure and version, evidence artifact/hash, independent attestation, timestamp, and PASS/FAIL/BLOCKED. Profile B additionally requires proof of endpoint allowlisting, provider-secret scoping, request/spend ceilings, and no-fallback behaviour. The Logic model path and the composite Logic → NVIDIA → Qwen pipeline must have distinct identities and result rows.
+
+**Current status after repository inspection:** provider workflow/configuration paths are present; no secret values were read; no provider challenge or benchmark model was invoked; no gate has been executed by this audit; actual active model values/revisions and remote spend ceiling remain unverified. This documentation correction does not approve harness implementation, model invocation, spend, production routing, merge of runtime changes, or deployment.
