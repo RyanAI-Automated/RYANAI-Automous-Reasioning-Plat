@@ -21,7 +21,7 @@ function isWithinRoot(root, target) {
 }
 
 function safeEnvironment(source) {
-  const allowed = ['PATH', 'LANG', 'LC_ALL', 'CI', 'SystemRoot', 'WINDIR'];
+  const allowed = ['LANG', 'LC_ALL', 'CI'];
   const result = {};
   for (const key of allowed) {
     if (typeof source[key] === 'string' && source[key].length > 0) result[key] = source[key];
