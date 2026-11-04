@@ -86,6 +86,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     if (final && text.trim()) setProject(current => ({ ...current, chapters: current.chapters.map(c => c.id === activeId ? { ...c, text: [c.text.trim(), text.trim()].filter(Boolean).join(' ') } : c) }));
   }, [activeId]);
   const recognition = useVoiceRecognition({ language: project.language, onTranscript });
+  useEffect(() => { recognition.stop(); }, [activeId, recognition.stop]);
 
   const transcribe = async (file?: File) => {
     if (!file || !chapter) return;
