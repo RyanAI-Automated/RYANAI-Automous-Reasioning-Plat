@@ -5,8 +5,8 @@ import { auditDeploymentTargets } from './audit-deployment-readiness.mjs';
 test('reports Render, Vercel, and Railway independently', () => {
   const results = auditDeploymentTargets({});
   assert.deepEqual(results.slice(0, 3).map(({ name, status }) => [name, status]), [
-    ['Render', 'DISABLED'],
     ['Vercel', 'DISABLED'],
+    ['Render', 'DISABLED'],
     ['Railway', 'DISABLED'],
   ]);
 });
