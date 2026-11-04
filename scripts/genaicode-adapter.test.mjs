@@ -8,6 +8,7 @@ import { PassThrough } from 'node:stream';
 import { runGenAICodeTask, genaicodeAdapterPolicy } from '../src/engineering/genaicodeAdapter.mjs';
 
 const HASH = 'a'.repeat(64);
+const COMMIT_SHA = 'b'.repeat(40);
 const temporary = [];
 async function workspace() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ryanai-genaicode-'));
@@ -21,7 +22,7 @@ afterEach(async () => {
 });
 
 const task = (root, work, overrides = {}) => ({
-  taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: HASH,
+  taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: COMMIT_SHA,
   proposedDiffHash: HASH, agent: 'codex', prompt: 'Inspect this change',
   workspaceRoot: root, workspacePath: work, ...overrides,
 });
@@ -71,7 +72,7 @@ describe('RyanAI GenAIcode adapter authorization and isolation', () => {
 
   it('requires independent approval bound to exact task, plan, base and diff digests', async () => {
     const { root, work } = await workspace();
-    const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: HASH, proposedDiffHash: HASH };
+    const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: COMMIT_SHA, proposedDiffHash: HASH };
     await assert.rejects(runGenAICodeTask(task(root, work), {
       authorizeTask: async () => approved({ ...binding, proposedDiffHash: 'b'.repeat(64) }),
       sandboxRunner: fakeRunner(),
