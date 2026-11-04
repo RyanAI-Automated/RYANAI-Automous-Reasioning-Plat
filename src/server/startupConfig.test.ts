@@ -80,7 +80,7 @@ describe('production startup dependency gate', () => {
       assertProductionDependencies('development', { database: false, redis: false, agentCheckpointer: false, applicationSchema: false }),
     ).not.toThrow();
     expect(() =>
-      assertProductionDependencies('test', { database: false, redis: false, agentCheckpointer: false }),
+      assertProductionDependencies('test', { database: false, redis: false, agentCheckpointer: false, applicationSchema: false }),
     ).not.toThrow();
   });
 });
