@@ -3,6 +3,21 @@ export interface ConnectionUrls {
   redisUrl: string;
 }
 
+/**
+ * Trust only the configured number of reverse-proxy hops when resolving client
+ * IPs. A finite hop count prevents arbitrary client-supplied X-Forwarded-For
+ * entries from being treated as authoritative. The default is one hop; set
+ * TRUST_PROXY_HOPS only after verifying the deployment's proxy topology.
+ */
+export function resolveTrustedProxyHops(raw?: string): number {
+  if (raw === undefined || raw.trim() === '') return 1;
+  const hops = Number(raw.trim());
+  if (!Number.isSafeInteger(hops) || hops < 1 || hops > 5) {
+    throw new Error('TRUST_PROXY_HOPS must be an integer between 1 and 5.');
+  }
+  return hops;
+}
+
 function localDevelopmentDatabaseUrl(): string {
   const url = new URL('postgresql://localhost:5432/ryanai');
   url.username = 'postgres';
@@ -49,7 +64,7 @@ export function resolveConnectionUrls(
  */
 export function assertProductionDependencies(
   nodeEnv: string,
-  services: { database: boolean; redis: boolean; agentCheckpointer: boolean },
+  services: { database: boolean; redis: boolean; agentCheckpointer: boolean; applicationSchema: boolean },
 ): void {
   if (nodeEnv !== 'production') return;
 
@@ -57,6 +72,7 @@ export function assertProductionDependencies(
     !services.database ? 'PostgreSQL' : undefined,
     !services.redis ? 'Redis' : undefined,
     !services.agentCheckpointer ? 'agent checkpointer' : undefined,
+    !services.applicationSchema ? 'application Prisma schema' : undefined,
   ].filter(Boolean);
 
   if (unavailable.length) {
