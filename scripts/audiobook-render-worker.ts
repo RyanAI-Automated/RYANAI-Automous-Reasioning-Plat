@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { prisma } from '../src/lib/prisma.js';
+import { getLanguageName, isRyanLanguage } from '../src/shared/languages.js';
 
 const BUCKET = 'ryanai-audiobooks';
+const VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']);
 const MAX_SEGMENT_CHARS = 4_000;
 const LEASE_MS = 5 * 60_000;
 const POLL_MS = 2_000;
@@ -83,7 +85,7 @@ async function renderSegment(text: string, chapter: RenderChapter, language: str
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'gpt-4o-mini-tts', voice: chapter.voice, input: text,
-      instructions: `Narrate in ${language}. ${chapter.style || 'Speak naturally and clearly, with expressive audiobook narration and appropriate pauses.'}`,
+      instructions: `Narrate in ${getLanguageName(language)} (${language}). ${chapter.style || 'Speak naturally and clearly, with expressive audiobook narration and appropriate pauses.'}`,
       response_format: 'mp3', speed: chapter.speed,
     }),
     signal: AbortSignal.timeout(90_000),
@@ -100,13 +102,13 @@ async function renderSegment(text: string, chapter: RenderChapter, language: str
 
 async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClient>, apiKey: string) {
   const snapshot = job.request;
-  if (!snapshot || !Array.isArray(snapshot.chapters) || snapshot.chapters.length < 1 || snapshot.chapters.length > 200) {
+  if (!snapshot || !isRyanLanguage(snapshot.language) || !Array.isArray(snapshot.chapters) || snapshot.chapters.length < 1 || snapshot.chapters.length > 200) {
     throw new PermanentRenderError('Persisted render request is invalid.');
   }
   const artifacts: Array<{ chapterId: string; chapterTitle: string; path: string; mimeType: string }> = [];
   for (let chapterIndex = 0; chapterIndex < snapshot.chapters.length; chapterIndex += 1) {
     const chapter = snapshot.chapters[chapterIndex];
-    if (!chapter || typeof chapter.text !== 'string' || !chapter.text.trim() || chapter.text.length > 200_000) {
+    if (!chapter || typeof chapter.text !== 'string' || !chapter.text.trim() || chapter.text.length > 200_000 || typeof chapter.title !== 'string' || chapter.title.length > 120 || !VOICES.has(chapter.voice) || typeof chapter.style !== 'string' || chapter.style.length > 500 || !Number.isFinite(chapter.speed) || chapter.speed < 0.8 || chapter.speed > 1.2) {
       throw new PermanentRenderError('A chapter in the render snapshot is invalid.');
     }
     const segments = splitText(chapter.text);
@@ -220,7 +222,7 @@ async function run() {
     stopping = true;
     clearInterval(timer);
     // A running job keeps its lease; the recovery sweep will safely reclaim it after expiry.
-    await prisma.$disconnect();
+    while (active) await new Promise(resolve => setTimeout(resolve, 100));\n    await prisma.$disconnect();
   };
   process.once('SIGINT', () => { void shutdown(); });
   process.once('SIGTERM', () => { void shutdown(); });
