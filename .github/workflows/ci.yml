@@ -74,7 +74,8 @@ jobs:
           DD_API_KEY: ${{ secrets.DD_API_KEY != '' }}
           DD_APP_KEY: ${{ secrets.DD_APP_KEY != '' }}
           RENDER_DEPLOY_ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+          RENDER_API_DEPLOY_HOOK_URL: ${{ secrets.RENDER_API_DEPLOY_HOOK_URL != '' }}
+          RENDER_WEB_DEPLOY_HOOK_URL: ${{ secrets.RENDER_WEB_DEPLOY_HOOK_URL != '' }}
           RAILWAY_DEPLOY_ENABLED: ${{ vars.RAILWAY_DEPLOY_ENABLED }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
