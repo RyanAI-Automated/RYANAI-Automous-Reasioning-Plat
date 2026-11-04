@@ -45,7 +45,7 @@
     "infra:logs": "docker compose logs -f",
     "db:generate": "prisma generate",
     "db:migration:audit": "node scripts/audit-prisma-migration-readiness.mjs",
-    "test:migration:audit": "node --test scripts/audit-prisma-migration-readiness.test.mjs",
+    "test:migration:audit": "node --test scripts/audit-prisma-migration-readiness.node-test.mjs",
     "db:push": "prisma db push",
     "db:migrate": "node --import tsx/esm src/db/migrate.ts",
     "db:setup": "npm run db:generate && npm run db:migrate",

@@ -7,6 +7,7 @@ on:
       - 'prisma/**'
       - 'src/db/**'
       - 'tests/fixtures/supabase-auth-ci-*.sql'
+      - 'tests/fixtures/legacy-vector-bootstrap.sql'
       - 'Dockerfile'
       - 'docker-compose.yml'
       - '.github/workflows/database.yml'
@@ -16,6 +17,7 @@ on:
       - 'prisma/**'
       - 'src/db/**'
       - 'tests/fixtures/supabase-auth-ci-*.sql'
+      - 'tests/fixtures/legacy-vector-bootstrap.sql'
       - 'Dockerfile'
       - '.github/workflows/database.yml'
   workflow_dispatch:
@@ -105,6 +107,56 @@ jobs:
           # A second invocation must be a no-op, proving safe restart behavior.
           docker run --rm --network host --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
           npx prisma migrate diff --from-url "$MIGRATION_DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Create a disposable upgrade-path database
+        env:
+          PGPASSWORD: ci_password
+        run: |
+          docker run --rm --network host -e PGPASSWORD \
+            postgres:16-alpine createdb -h 127.0.0.1 -U ryanai ryanai_upgrade
+          docker run --rm --network host -e PGPASSWORD=ci_password \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bootstrap.sql:/tmp/auth.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_upgrade \
+              -v ON_ERROR_STOP=1 -f /tmp/auth.sql
+
+      - name: Simulate an existing database before the three backend migrations
+        env:
+          UPGRADE_DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_upgrade
+        run: |
+          set -euo pipefail
+          cp -a prisma/migrations /tmp/prisma-migrations-full
+          restore_migrations() {
+            rm -rf prisma/migrations
+            cp -a /tmp/prisma-migrations-full prisma/migrations
+          }
+          trap restore_migrations EXIT
+          cutoff=20261102123000_supabase_auth_identity_bridge
+          for migration_dir in prisma/migrations/20*; do
+            migration_name="${migration_dir##*/}"
+            if [[ "$migration_name" > "$cutoff" ]]; then
+              rm -rf "$migration_dir"
+            fi
+          done
+          DATABASE_URL="$UPGRADE_DATABASE_URL" npx prisma migrate deploy --schema=prisma/schema.prisma
+          # This is the old Compose init script's effect, applied before the
+          # new ordered vector migration to prove the upgrade is idempotent.
+          docker run --rm --network host -e PGPASSWORD=ci_password \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/legacy-vector-bootstrap.sql:/tmp/legacy-vector.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_upgrade \
+              -v ON_ERROR_STOP=1 -f /tmp/legacy-vector.sql
+          restore_migrations
+          trap - EXIT
+          DATABASE_URL="$UPGRADE_DATABASE_URL" npx prisma migrate deploy --schema=prisma/schema.prisma
+          DATABASE_URL="$UPGRADE_DATABASE_URL" npx prisma migrate deploy --schema=prisma/schema.prisma
+          docker run --rm --network host -e PGPASSWORD=ci_password \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_upgrade \
+              -v ON_ERROR_STOP=1 -c "SELECT 1 FROM public.agent_runs LIMIT 0" \
+              -c "SELECT 1 FROM public.agent_run_evidence LIMIT 0" \
+              -c "SELECT 1 FROM public.jarvis_audit_events LIMIT 0" \
+              -c "SELECT 1 FROM public.reasoning_cache LIMIT 0" \
+              -c "SELECT 1 FROM public.agent_memory LIMIT 0" \
+              -c "SELECT extname FROM pg_extension WHERE extname='vector'" \
+              -c "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname IN ('idx_reasoning_embedding','idx_agent_session') ORDER BY indexname"
 
       - name: Verify migrations match the Prisma data model
         run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
