@@ -1,44 +1,80 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import { auditDeploymentTargets } from './audit-deployment-readiness.mjs';
 
-const script = new URL('./audit-deployment-readiness.mjs', import.meta.url);
-
-function run(env) {
-  return spawnSync(process.execPath, [script.pathname, '--strict'], {
-    encoding: 'utf8',
-    env: { PATH: process.env.PATH || '', ...env },
-    timeout: 10000,
-  });
+function fixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'ryanai-deployment-audit-'));
+  t.after(() => rmSync(root, { recursive:true, force:true }));
+  const put = (name, value) => {
+    const file = path.join(root,name);
+    mkdirSync(path.dirname(file),{recursive:true});
+    writeFileSync(file,value,'utf8');
+  };
+  put('package.json',JSON.stringify({scripts:{'build:web':'npm run build:client'}}));
+  put('vercel.json',JSON.stringify({framework:'vite',outputDirectory:'dist',buildCommand:'npm run build:web'}));
+  put('.github/workflows/deploy-vercel.yml','name: Vercel deploy\n');
+  put('.github/workflows/deploy.yml','name: reusable Vercel deploy\n');
+  put('render.yaml',`projects:
+  - name: RyanAI
+    environments:
+      - name: Production
+        services:
+          - type: web
+            name: ryanai-web
+            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+          - type: web
+            name: ryanai-api
+            repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
+            runtime: docker
+            dockerfilePath: ./Dockerfile.api
+            healthCheckPath: /health
+`);
+  put('Dockerfile.api','FROM node:24-alpine\n');
+  put('railway.json',JSON.stringify({build:{builder:'DOCKERFILE',dockerfilePath:'Dockerfile.api'},deploy:{healthcheckPath:'/health'}}));
+  put('.github/workflows/deploy-render.yml','name: Render deploy\n');
+  put('.github/workflows/deploy-railway.yml','name: Railway deploy\n');
+  return root;
 }
 
-test('Railway stays disabled unless its explicit deployment gate is enabled', () => {
-  const result = run({});
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /DISABLED \| Railway \| gate: RAILWAY_DEPLOY_ENABLED/);
+test('all three platform configurations pass static checks while deployment gates remain disabled', (t) => {
+  const result = auditDeploymentTargets(fixture(t), {});
+  assert.deepEqual(result.map((item) => item.status), ['DISABLED','DISABLED','DISABLED']);
 });
 
-test('enabled Railway deployment is blocked until project, environment, services and token exist', () => {
-  const result = run({ RAILWAY_DEPLOY_ENABLED: 'true' });
-  assert.equal(result.status, 1);
-  assert.match(result.stdout, /BLOCKED \| Railway/);
-  for (const key of ['RAILWAY_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT_ID',
-    'RAILWAY_API_SERVICE_ID', 'RAILWAY_MCP_SERVICE_ID', 'RAILWAY_WORKER_SERVICE_ID']) {
-    assert.ok(result.stdout.includes(key), 'missing Railway prerequisite should name ' + key);
-  }
+test('rejects a Render Blueprint that points at a fork', (t) => {
+  const root = fixture(t);
+  const file = path.join(root,'render.yaml');
+  writeFileSync(file,readFileSync(file,'utf8').replace('RyanAI-Automated/RYANAI-Automous-Reasioning-Plat','rmnganyane-dev/RYANAI-Automous-Reasioning-Plat'));
+  const result = auditDeploymentTargets(root, {});
+  assert.equal(result[1].status,'BLOCKED');
+  assert.match(result[1].errors.join(' '),/official GitHub repository/);
 });
 
-test('fully configured Railway target passes readiness without printing credential values', () => {
-  const result = run({
-    RAILWAY_DEPLOY_ENABLED: 'true',
-    RAILWAY_TOKEN: 'true',
-    RAILWAY_PROJECT_ID: 'project-id',
-    RAILWAY_ENVIRONMENT_ID: 'environment-id',
-    RAILWAY_API_SERVICE_ID: 'api-service-id',
-    RAILWAY_MCP_SERVICE_ID: 'mcp-service-id',
-    RAILWAY_WORKER_SERVICE_ID: 'worker-service-id',
+test('Railway readiness contract matches the production workflow service ID', (t) => {
+  const result = auditDeploymentTargets(fixture(t), { RAILWAY_DEPLOY_ENABLED:'true' });
+  assert.equal(result[2].status,'BLOCKED');
+  assert.deepEqual(result[2].missing,['RAILWAY_TOKEN','RAILWAY_PROJECT_ID','RAILWAY_SERVICE_ID','RAILWAY_ENVIRONMENT_ID']);
+});
+
+test('enabled platform checks report missing variable names without exposing values', (t) => {
+  const secret = 'sensitive-fixture-value-must-not-appear';
+  const result = auditDeploymentTargets(fixture(t), {
+    VERCEL_DEPLOY_ENABLED:'true',
+    VERCEL_TOKEN:secret,
   });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /READY \| Railway/);
-  assert.equal(result.stdout.includes('project-id'), false);
+  assert.equal(result[0].status,'BLOCKED');
+  assert.deepEqual(result[0].missing,['VERCEL_ORG_ID','VERCEL_PROJECT_ID','VITE_API_BASE_URL']);
+  assert.equal(JSON.stringify(result).includes(secret),false);
+});
+
+test('blocks missing Railway deployment configuration', (t) => {
+  const root = fixture(t);
+  unlinkSync(path.join(root,'railway.json'));
+  const result = auditDeploymentTargets(root, {});
+  assert.equal(result[2].status,'BLOCKED');
+  assert.match(result[2].errors.join(' '),/missing railway.json/);
 });
