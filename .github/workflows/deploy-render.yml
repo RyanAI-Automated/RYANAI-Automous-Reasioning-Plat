@@ -93,6 +93,22 @@ jobs:
           set -euo pipefail
           [[ -n "$RENDER_API_KEY" ]] || { echo "::error::RENDER_API_KEY is missing"; exit 1; }
 
+      - name: Require production Redis to be available in Virginia
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --url "https://api.render.com/v1/key-value/red-dbk4miff3r2c738mecpg" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --output render-redis-status.json
+          jq -e '.status == "available" and .region == "virginia" and .name == "ryanai-redis"' render-redis-status.json || {
+            echo "::error::Production Redis is not available in Virginia. Restore the existing Redis dependency or approve a replacement before deploying the API."
+            jq '{name,status,region,plan}' render-redis-status.json
+            exit 1
+          }
+
       - name: Align official Render API service configuration
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
