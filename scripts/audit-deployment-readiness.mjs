@@ -59,7 +59,7 @@ export function auditDeploymentTargets(env = process.env, root = process.cwd()) 
   }
   if (!existsSync(path.join(root, '.github/workflows/deploy-render.yml'))) renderErrors.push('missing Render deployment workflow');
   const renderEnabled = env.RENDER_DEPLOY_ENABLED === 'true';
-  const renderMissing = renderEnabled ? missingEnv(env, ['RENDER_DEPLOY_HOOK_URL']) : [];
+  const renderMissing = renderEnabled ? missingEnv(env, ['RENDER_API_DEPLOY_HOOK_URL','RENDER_WEB_DEPLOY_HOOK_URL']) : [];
   results.push({ name:'Render', gate:'RENDER_DEPLOY_ENABLED', deploymentAttempted:false, status:renderErrors.length || renderMissing.length ? 'BLOCKED' : renderEnabled ? 'READY' : 'DISABLED', errors:renderErrors, missing:renderMissing });
 
   const railwayErrors = [];
