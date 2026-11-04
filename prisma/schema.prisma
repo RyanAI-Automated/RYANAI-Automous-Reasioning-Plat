@@ -423,6 +423,30 @@ model LangGraphCheckpointWrite {
   @@map("checkpoint_writes")
 }
 
+// Vector-memory tables are created by the versioned bootstrap migration.
+// Keep their definitions here so Prisma drift checks preserve the SQL objects.
+model ReasoningCache {
+  id        String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prompt    String                       @db.Text
+  response  String                       @db.Text
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime?                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([embedding(ops: raw("vector_cosine_ops"))], type: Hnsw, map: "idx_reasoning_embedding")
+  @@map("reasoning_cache")
+}
+
+model AgentMemory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String   @map("sessionid") @db.VarChar(255)
+  role      String   @db.VarChar(50)
+  content   String   @db.Text
+  timestamp DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([sessionId, timestamp], map: "idx_agent_session")
+  @@map("agent_memory")
+}
+
 model JarvisAuditEvent {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   actorId    String   @map("actor_id")
