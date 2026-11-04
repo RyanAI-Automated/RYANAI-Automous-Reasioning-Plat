@@ -50,6 +50,7 @@
     "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
     "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
+    "test:patch-log": "node --test scripts/update-patch-log-guards.test.mjs",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
     "test:e2e": "tsx scripts/test-e2e-flow.ts",
     "test:integration": "tsx scripts/test-integration.ts --local",
