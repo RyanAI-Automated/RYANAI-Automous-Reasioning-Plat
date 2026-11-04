@@ -47,7 +47,7 @@ try {
       ['legacy-upgrade-fixture', 'preserve-reasoning-cache-row'],
     );
     await pool.query(
-      "INSERT INTO public.agent_memory ("sessionId", role, content) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE "sessionId" = $1)",
+      `INSERT INTO public.agent_memory ("sessionId", role, content) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE "sessionId" = $1)`,
       ['legacy-upgrade-fixture', 'assistant', 'preserve-agent-memory-row'],
     );
     console.log('Prepared disposable legacy pgvector schema and preservation fixtures.');
