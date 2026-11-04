@@ -57,7 +57,7 @@ jobs:
           RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
         run: |
           set -euo pipefail
-          npx --yes @railway/cli@latest up --ci --detach \
+          npx --yes @railway/cli@latest up --ci \
             --project "$RAILWAY_PROJECT_ID" \
             --service "$RAILWAY_SERVICE_ID" \
             --environment "$RAILWAY_ENVIRONMENT_ID"
