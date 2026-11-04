@@ -445,8 +445,8 @@ model ReasoningCache {
   embedding Unsupported("vector(1536)")?
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  // Preserve the SQL-defined HNSW index in Prisma drift comparisons.
-  @@index([embedding], map: "idx_reasoning_embedding")
+  // The HNSW index is intentionally managed by custom SQL. Prisma ORM 6
+  // cannot represent pgvector's HNSW access method and cosine operator class.
   @@map("reasoning_cache")
 }
 
