@@ -68,7 +68,7 @@ const config = {
   nodeEnv,
   database: { url: connectionUrls.databaseUrl },
   redis: { url: connectionUrls.redisUrl },
-  trustedProxyHops: resolveTrustedProxyHops(process.env.TRUST_PROXY_HOPS),
+  trustedProxyHops: resolveTrustedProxyHops(process.env.TRUST_PROXY_HOPS, nodeEnv),
 };
 
 console.log(`📋 Configuration:`);
