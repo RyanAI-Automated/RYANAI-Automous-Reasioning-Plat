@@ -93,7 +93,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
       } finally { if (active) setServerReady(true); }
     })();
     return () => { active = false; };
-  }, [userId]);
+  }, [userId, initialProject]);
   useEffect(() => {
     try { localStorage.setItem(KEY + userId, JSON.stringify(project)); }
     catch { setError('Browser storage is full. Export your manuscript before continuing.'); }
