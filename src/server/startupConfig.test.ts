@@ -59,25 +59,25 @@ describe('production connection configuration', () => {
 describe('production startup dependency gate', () => {
   it('blocks production startup when PostgreSQL is unavailable', () => {
     expect(() =>
-      assertProductionDependencies('production', { database: false, redis: true, agentCheckpointer: true }),
+      assertProductionDependencies('production', { database: false, redis: true, agentCheckpointer: true, applicationSchema: true }),
     ).toThrow('PostgreSQL');
   });
 
   it('blocks production startup when Redis is unavailable', () => {
     expect(() =>
-      assertProductionDependencies('production', { database: true, redis: false, agentCheckpointer: true }),
+      assertProductionDependencies('production', { database: true, redis: false, agentCheckpointer: true, applicationSchema: true }),
     ).toThrow('Redis');
   });
 
   it('allows production startup only when both dependencies are ready', () => {
     expect(() =>
-      assertProductionDependencies('production', { database: true, redis: true, agentCheckpointer: true }),
+      assertProductionDependencies('production', { database: true, redis: true, agentCheckpointer: true, applicationSchema: true }),
     ).not.toThrow();
   });
 
   it('keeps non-production degraded startup behavior unchanged', () => {
     expect(() =>
-      assertProductionDependencies('development', { database: false, redis: false, agentCheckpointer: false }),
+      assertProductionDependencies('development', { database: false, redis: false, agentCheckpointer: false, applicationSchema: false }),
     ).not.toThrow();
     expect(() =>
       assertProductionDependencies('test', { database: false, redis: false, agentCheckpointer: false }),
@@ -93,6 +93,7 @@ describe('production agent checkpointer readiness', () => {
         database: true,
         redis: true,
         agentCheckpointer: false,
+        applicationSchema: true,
       }),
     ).toThrow('agent checkpointer');
   });
