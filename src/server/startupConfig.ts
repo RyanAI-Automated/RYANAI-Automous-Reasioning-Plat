@@ -3,21 +3,24 @@ export interface ConnectionUrls {
   redisUrl: string;
 }
 
+import { isIP } from 'node:net';
+
 /**
- * Trust only the configured number of reverse-proxy hops when resolving client
- * IPs. A finite hop count prevents arbitrary client-supplied X-Forwarded-For
- * entries from being treated as authoritative. The default is one hop; set
- * TRUST_PROXY_HOPS only after verifying the deployment's proxy topology.
+ * Use Cloudflare's single-value client-IP header only when a Cloudflare Ray ID
+ * is also present. Never parse X-Forwarded-For; if the trusted edge header is
+ * absent or malformed, fall back to the socket peer address.
  */
-export function resolveTrustedProxyHops(raw?: string, nodeEnv = 'development'): number | false {
-  if (raw === undefined || raw.trim() === '') return nodeEnv === 'production' ? 1 : false;
-  const hops = Number(raw.trim());
-  if (hops === 0) return false;
-  if (!Number.isSafeInteger(hops) || hops < 1 || hops > 5) {
-    throw new Error('TRUST_PROXY_HOPS must be 0 or an integer between 1 and 5.');
-  }
-  return hops;
+export function resolveRateLimitClientIp(
+  cfConnectingIp: string | string[] | undefined,
+  cfRay: string | string[] | undefined,
+  socketIp: string,
+): string {
+  const candidate = typeof cfConnectingIp === 'string' ? cfConnectingIp.trim() : '';
+  const rayId = typeof cfRay === 'string' ? cfRay.trim() : '';
+  if (rayId && isIP(candidate)) return candidate;
+  return socketIp;
 }
+
 
 function localDevelopmentDatabaseUrl(): string {
   const url = new URL('postgresql://localhost:5432/ryanai');
