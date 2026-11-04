@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Disposable PostgreSQL fixture for testing upgrades from the legacy pgvector
- * bootstrap. Refuses non-local hosts and any database except the CI fixture DB.
+ * Disposable PostgreSQL fixture for testing upgrades from legacy pgvector
+ * bootstraps. Refuses non-local hosts and any database except the CI fixture DB.
  */
 import assert from 'node:assert/strict';
 import { Pool } from 'pg';
@@ -17,6 +17,12 @@ if (process.env.RYANAI_DISPOSABLE_MIGRATION_DB !== 'true' || !process.env.DATABA
 const url = new URL(process.env.DATABASE_URL);
 assert.ok(['localhost', '127.0.0.1', '::1'].includes(url.hostname), 'Migration fixture must use loopback PostgreSQL.');
 assert.equal(decodeURIComponent(url.pathname.slice(1)), 'ryanai_migration_test', 'Unexpected migration fixture database.');
+
+const legacySessionColumn = process.env.RYANAI_LEGACY_SESSION_COLUMN ?? 'unquoted';
+if (!['unquoted', 'quoted'].includes(legacySessionColumn)) {
+  throw new Error('RYANAI_LEGACY_SESSION_COLUMN must be unquoted or quoted.');
+}
+const sessionColumnSql = legacySessionColumn === 'quoted' ? '"sessionId"' : 'sessionid';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, connectionTimeoutMillis: 8000 });
 try {
@@ -34,28 +40,28 @@ try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.agent_memory (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        sessionid VARCHAR(255) NOT NULL,
+        ${sessionColumnSql} VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL,
         content TEXT NOT NULL,
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory (sessionid, timestamp)');
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory (${sessionColumnSql}, timestamp)`);
     await pool.query(
       "INSERT INTO public.reasoning_cache (prompt, response) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM public.reasoning_cache WHERE prompt = $1)",
       ['legacy-upgrade-fixture', 'preserve-reasoning-cache-row'],
     );
     await pool.query(
-      "INSERT INTO public.agent_memory (sessionid, role, content) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE sessionid = $1)",
+      `INSERT INTO public.agent_memory (${sessionColumnSql}, role, content) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE content = $3)`,
       ['legacy-upgrade-fixture', 'assistant', 'preserve-agent-memory-row'],
     );
-    console.log('Prepared disposable legacy pgvector schema and preservation fixtures.');
+    console.log(`Prepared disposable legacy pgvector schema (${legacySessionColumn} session column) and preservation fixtures.`);
   } else {
     const [extension, cache, memory, indexes] = await Promise.all([
       pool.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'"),
       pool.query("SELECT response FROM public.reasoning_cache WHERE prompt = $1", ['legacy-upgrade-fixture']),
-      pool.query("SELECT content FROM public.agent_memory WHERE sessionid = $1", ['legacy-upgrade-fixture']),
+      pool.query("SELECT content FROM public.agent_memory WHERE session_id = $1", ['legacy-upgrade-fixture']),
       pool.query("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('idx_reasoning_embedding', 'idx_agent_session')"),
     ]);
     assert.equal(extension.rowCount, 1, 'pgvector extension missing after migration');
