@@ -45,15 +45,17 @@ jobs:
       - name: Trigger Render API deployment
         env:
           RENDER_API_DEPLOY_HOOK_URL: ${{ secrets.RENDER_API_DEPLOY_HOOK_URL }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_API_DEPLOY_HOOK_URL" > /dev/null
+          curl --fail --silent --show-error --max-time 30 -X POST "${RENDER_API_DEPLOY_HOOK_URL}&ref=${VALIDATED_SHA}" > /dev/null
           echo "Render API deploy hook accepted the request."
 
       - name: Trigger Render web deployment
         env:
           RENDER_WEB_DEPLOY_HOOK_URL: ${{ secrets.RENDER_WEB_DEPLOY_HOOK_URL }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_WEB_DEPLOY_HOOK_URL" > /dev/null
+          curl --fail --silent --show-error --max-time 30 -X POST "${RENDER_WEB_DEPLOY_HOOK_URL}&ref=${VALIDATED_SHA}" > /dev/null
           echo "Render web deploy hook accepted the request."
