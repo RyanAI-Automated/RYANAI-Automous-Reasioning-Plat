@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
+import { getLanguageName, isRyanLanguage } from '../../shared/languages.js';
 
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const MAX_TRANSCRIPT_CHARS = 4_000;
@@ -23,6 +24,7 @@ interface AudioBody {
 }
 interface SpeechBody {
   text?: string;
+  language?: string;
   voice?: string;
   style?: string;
   speed?: number;
@@ -43,12 +45,23 @@ function decodeAudio(body: AudioBody): { bytes: Buffer; mimeType: string; fileNa
       : mimeType.includes('ogg') ? 'ogg'
         : mimeType.includes('webm') ? 'webm'
           : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'bin';
-  const supplied = typeof body.fileName === 'string' ? body.fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) : '';
-  return { bytes, mimeType, fileName: supplied && supplied.includes('.') ? supplied : `audio.${extension}` };
+  const hasPrefix = (...values: number[]) => values.every((value, index) => bytes[index] === value);
+  const signatureValid = extension === 'mp3'
+    ? hasPrefix(0x49, 0x44, 0x33) || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)
+    : extension === 'wav'
+      ? hasPrefix(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45
+      : extension === 'ogg'
+        ? hasPrefix(0x4f, 0x67, 0x67, 0x53)
+        : extension === 'webm'
+          ? hasPrefix(0x1a, 0x45, 0xdf, 0xa3)
+          : bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+  if (!signatureValid) return null;
+  return { bytes, mimeType, fileName: \`audio.\${extension}\` };
 }
 
 export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: AudioBody }>('/api/v1/audio/transcriptions', {
+    bodyLimit: 23 * 1024 * 1024,
     preHandler: requireUser,
     config: { rateLimit: { max: 8, timeWindow: '1 minute' } },
   }, async (request, reply) => {
@@ -98,11 +111,13 @@ export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
     const text = typeof body.text === 'string' ? body.text.trim() : '';
     const voice = typeof body.voice === 'string' ? body.voice : 'coral';
     const style = typeof body.style === 'string' ? body.style.trim() : '';
+    const language = typeof body.language === 'string' ? body.language : 'en-ZA';
     const speed = typeof body.speed === 'number' ? body.speed : 1;
     if (!text || text.length > MAX_TRANSCRIPT_CHARS) {
       return reply.code(400).send({ error: 'Narration text must contain 1–4,000 characters per render.' });
     }
     if (!VOICES.has(voice)) return reply.code(400).send({ error: 'Select a supported narration voice.' });
+    if (!isRyanLanguage(language)) return reply.code(400).send({ error: 'Select a supported RyanAI narration language.' });
     if (!Number.isFinite(speed) || speed < 0.8 || speed > 1.2) {
       return reply.code(400).send({ error: 'Narration speed must be between 0.8 and 1.2.' });
     }
@@ -116,7 +131,7 @@ export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
           model: 'gpt-4o-mini-tts',
           voice,
           input: text,
-          instructions: style || 'Speak naturally and clearly, with expressive audiobook narration and appropriate pauses.',
+          instructions: `Narrate in ${getLanguageName(language)} (${language}). ${style || 'Speak naturally and clearly, with expressive audiobook narration and appropriate pauses.'}`,
           response_format: 'mp3',
           speed,
         }),

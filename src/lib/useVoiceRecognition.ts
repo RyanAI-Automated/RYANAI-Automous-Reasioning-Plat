@@ -36,6 +36,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const listeningRef = useRef(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [interimText, setInterimText] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const isSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognitionConstructor());
 
   const stop = useCallback(() => {
@@ -62,6 +63,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       return;
     }
 
+    setError(null);
     const SpeechRecognitionConstructor = getSpeechRecognitionConstructor();
     if (!SpeechRecognitionConstructor) return;
 
@@ -108,7 +110,15 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       setInterimText(interim);
     };
 
-    recognizer.onerror = () => {
+    recognizer.onerror = (event: SpeechRecognitionErrorEvent) => {
+      const messages: Record<string, string> = {
+        'not-allowed': 'Microphone permission was denied. Allow microphone access and try again.',
+        'service-not-allowed': 'This browser does not allow speech recognition for this site.',
+        'audio-capture': 'No usable microphone was found.',
+        network: 'Speech recognition is unavailable because of a network error.',
+        'no-speech': 'No speech was detected. Try speaking closer to the microphone.',
+      };
+      setError(messages[event.error] ?? 'Speech recognition stopped unexpectedly. Please try again.');
       listeningRef.current = false;
       setState('idle');
       setInterimText('');
@@ -130,6 +140,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       recognitionRef.current = null;
       listeningRef.current = false;
       setState('idle');
+      setError('The microphone could not be started. Check browser permissions and try again.');
     }
   }, [language, onCommand, onTranscript, stop]);
 
@@ -144,6 +155,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     isListening: state === 'listening',
     state,
     interimText,
+    error,
     toggle,
     stop,
   };

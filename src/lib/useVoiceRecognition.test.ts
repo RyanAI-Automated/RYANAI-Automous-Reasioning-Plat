@@ -112,6 +112,15 @@ describe('useVoiceRecognition', () => {
     expect(MockSpeechRecognition.latest?.lang).toBe('ve-ZA');
   });
 
+  it('surfaces microphone permission failures and returns to idle', () => {
+    window.SpeechRecognition = MockSpeechRecognition as unknown as SpeechRecognitionStatic;
+    const getResult = mountHook();
+    act(() => getResult().toggle());
+    act(() => MockSpeechRecognition.latest?.onerror?.({ error: 'not-allowed' } as SpeechRecognitionErrorEvent));
+    expect(getResult().isListening).toBe(false);
+    expect(getResult().error).toMatch(/permission was denied/i);
+  });
+
   it('cleans up safely when speech recognition is unavailable', () => {
     const getResult = mountHook();
     expect(getResult().isSupported).toBe(false);

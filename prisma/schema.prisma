@@ -44,6 +44,8 @@ model User {
   agentRuns     AgentRun[]
   codingTasks   CodingTask[]
   quantExperiments QuantExperiment[]
+  audiobookProjects AudiobookProject[]
+  audiobookRenderJobs AudiobookRenderJob[]
 
   @@map("users")
 }
@@ -512,4 +514,64 @@ model CodingTask {
   @@index([userId, createdAt(sort: Desc)], map: "coding_tasks_user_created_idx")
   @@index([workbenchRunId, createdAt(sort: Desc)], map: "coding_tasks_workbench_run_idx")
   @@map("coding_tasks")
+}
+
+// Persistent audiobook manuscripts and durable render work.
+model AudiobookProject {
+  id        String                 @id @default(uuid())
+  userId    String                 @map("user_id")
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String                 @db.VarChar(120)
+  language  String                 @default("en-ZA") @db.VarChar(16)
+  chapters  AudiobookChapter[]
+  renderJobs AudiobookRenderJob[]
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([userId, updatedAt(sort: Desc)], map: "audiobook_projects_user_updated_idx")
+  @@map("audiobook_projects")
+}
+
+model AudiobookChapter {
+  id                 String          @id @default(uuid())
+  projectId          String          @map("project_id")
+  project            AudiobookProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title              String          @db.VarChar(120)
+  content            String          @default("") @db.Text
+  position           Int
+  narrationSettings  Json            @default("{}") @map("narration_settings")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([projectId, position], map: "audiobook_chapters_project_position_key")
+  @@index([projectId, position], map: "audiobook_chapters_project_position_idx")
+  @@map("audiobook_chapters")
+}
+
+model AudiobookRenderJob {
+  id             String          @id @default(uuid())
+  userId         String          @map("user_id")
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId      String          @map("project_id")
+  project        AudiobookProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status         String          @default("queued") @db.VarChar(24)
+  progress       Json            @default("{}")
+  result         Json?
+  error          String?         @db.Text
+  attempts       Int             @default(0)
+  maxAttempts    Int             @default(3) @map("max_attempts")
+  workerId       String?         @map("worker_id") @db.VarChar(120)
+  lockedAt       DateTime?       @map("locked_at") @db.Timestamptz(6)
+  leaseExpiresAt DateTime?       @map("lease_expires_at") @db.Timestamptz(6)
+  nextAttemptAt  DateTime        @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  cancelRequestedAt DateTime?    @map("cancel_requested_at") @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt, createdAt], map: "audiobook_render_jobs_status_next_attempt_idx")
+  @@index([status, leaseExpiresAt], map: "audiobook_render_jobs_status_lease_idx")
+  @@index([userId, createdAt(sort: Desc)], map: "audiobook_render_jobs_user_created_idx")
+  @@index([projectId, createdAt(sort: Desc)], map: "audiobook_render_jobs_project_created_idx")
+  @@map("audiobook_render_jobs")
 }
