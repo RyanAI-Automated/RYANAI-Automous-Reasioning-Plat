@@ -116,3 +116,18 @@ describe('trusted reverse proxy configuration', () => {
     );
   });
 });
+
+
+describe('production application schema gate', () => {
+  it('blocks production startup when Prisma migrations required by runtime are missing', () => {
+    expect(() => assertProductionDependencies('production', {
+      database: true, redis: true, agentCheckpointer: true, applicationSchema: false,
+    })).toThrow('application Prisma schema');
+  });
+
+  it('allows production startup when the required application schema is ready', () => {
+    expect(() => assertProductionDependencies('production', {
+      database: true, redis: true, agentCheckpointer: true, applicationSchema: true,
+    })).not.toThrow();
+  });
+});
