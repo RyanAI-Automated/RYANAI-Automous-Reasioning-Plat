@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, BarChart3, BrainCircuit, History, Play, ShieldCheck, TrendingUp } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Activity, BarChart3, BrainCircuit, History, Play, ShieldCheck, TrendingUp, type LucideIcon } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 type EquityPoint = { date: string; equity: number };
@@ -22,7 +22,7 @@ type Experiment = {
   result?: { metrics?: BacktestResult['metrics']; period?: BacktestResult['period'] } | null;
 };
 
-const sampleShape = '[{"date":"2026-01-01","open":100,"high":102,"low":99,"close":101,"volume":1200}, ...]';
+const sampleShape = '[\\n  { "date": "YYYY-MM-DD", "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1200 }\\n]';
 
 export default function QuantLabPage() {
   const [barsJson, setBarsJson] = useState('');
@@ -37,7 +37,7 @@ export default function QuantLabPage() {
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const response = await authenticatedFetch('/api/quant/experiments');
       if (!response.ok) throw new Error('Experiment history is unavailable.');
@@ -213,7 +213,7 @@ export default function QuantLabPage() {
   );
 }
 
-function Module({ icon: Icon, title, detail }: { icon: typeof Activity; title: string; detail: string }) {
+function Module({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
   return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><Icon className="h-5 w-5 text-cyan-300" /><h2 className="mt-3 text-sm font-semibold text-white">{title}</h2><p className="mt-1 text-xs leading-5 text-slate-400">{detail}</p></article>;
 }
 
