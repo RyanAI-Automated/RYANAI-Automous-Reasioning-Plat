@@ -49,6 +49,7 @@ function decodeAudio(body: AudioBody): { bytes: Buffer; mimeType: string; fileNa
 
 export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: AudioBody }>('/api/v1/audio/transcriptions', {
+    bodyLimit: 23 * 1024 * 1024,
     preHandler: requireUser,
     config: { rateLimit: { max: 8, timeWindow: '1 minute' } },
   }, async (request, reply) => {
