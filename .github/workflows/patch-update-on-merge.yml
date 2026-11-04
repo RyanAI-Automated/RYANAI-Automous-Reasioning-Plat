@@ -1,0 +1,108 @@
+name: Record merged pull request patches
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: patch-update-main
+  cancel-in-progress: false
+
+jobs:
+  update-patch-log:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Add the confirmed merge to patch_update.md
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request;
+
+            // Only GitHub-confirmed merges into main are eligible.
+            if (!pr.merged || pr.base.ref !== 'main') {
+              core.setFailed('Refusing to record a PR not confirmed merged into main.');
+              return;
+            }
+
+            const marker = '<!-- merged-pr-' + pr.number + ' -->';
+            const path = 'patch_update.md';
+            const existing = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8')
+              : '# RyanAI Patch Update Log\n\nThis file records only PRs GitHub confirms merged into main. New entries are added newest first.\n';
+
+            // Idempotency: retries and duplicate deliveries cannot duplicate entries.
+            if (existing.includes(marker)) {
+              core.info('PR #' + pr.number + ' is already recorded; no change needed.');
+              return;
+            }
+
+            const response = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100
+            });
+            const files = response.data;
+            const mergedAt = pr.merged_at || new Date().toISOString();
+            const mergeSha = pr.merge_commit_sha || 'not reported by GitHub';
+            const changedFiles = files.length
+              ? files.map(file => '- ' + file.filename + ' (' + file.status + '; +' + file.additions + '/-' + file.deletions + ')').join('\n')
+              : '- GitHub returned no changed-file records.';
+
+            const summary = (pr.body || '').trim()
+              ? (pr.body || '').trim().split('\n').slice(0, 12).join('\n')
+              : '_No PR description was provided._';
+
+            const entry = [
+              marker,
+              '## ' + mergedAt.slice(0, 10) + ' — PR #' + pr.number + ': ' + pr.title,
+              '',
+              '- **Status:** Merged into main (GitHub-confirmed)',
+              '- **Merged at:** ' + mergedAt,
+              '- **Merge commit:** ' + mergeSha,
+              '- **Pull request:** ' + pr.html_url,
+              '',
+              '### Files changed',
+              changedFiles,
+              '',
+              '### PR summary',
+              summary,
+              '',
+              '---',
+              ''
+            ].join('\n');
+
+            const heading = '# RyanAI Patch Update Log';
+            const updated = existing.startsWith(heading)
+              ? existing.replace(heading, heading + '\n\n' + entry)
+              : heading + '\n\n' + entry + '\n' + existing;
+            fs.writeFileSync(path, updated, 'utf8');
+            core.info('Prepared patch_update.md entry for merged PR #' + pr.number + '.');
+
+      - name: Open or update the patch log pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: \${{ secrets.GITHUB_TOKEN }}
+          branch: automation/patch-update
+          delete-branch: false
+          commit-message: 'docs: record confirmed merged PR in patch_update.md'
+          title: 'docs: update merged PR patch log'
+          body: |
+            Automated patch log update.
+
+            Generated only from a GitHub pull_request.closed event where merged == true and the base branch is main.
+
+            Review the PR metadata and changed-file list before merging. This documentation update does not enable auto-merge or bypass branch protection.
+          add-paths: patch_update.md
