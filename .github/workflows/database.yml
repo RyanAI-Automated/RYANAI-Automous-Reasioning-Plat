@@ -3,23 +3,8 @@ name: Database Schema Validation
 on:
   push:
     branches: [main, master]
-    paths:
-      - 'prisma/**'
-      - 'src/db/**'
-      - 'tests/fixtures/supabase-auth-ci-*.sql'
-      - 'tests/fixtures/legacy-vector-bootstrap.sql'
-      - 'Dockerfile'
-      - 'docker-compose.yml'
-      - '.github/workflows/database.yml'
   pull_request:
     branches: [main, master]
-    paths:
-      - 'prisma/**'
-      - 'src/db/**'
-      - 'tests/fixtures/supabase-auth-ci-*.sql'
-      - 'tests/fixtures/legacy-vector-bootstrap.sql'
-      - 'Dockerfile'
-      - '.github/workflows/database.yml'
   workflow_dispatch:
 
 permissions:
