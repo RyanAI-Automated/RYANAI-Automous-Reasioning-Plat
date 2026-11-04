@@ -185,13 +185,11 @@ try {
   await expectStartupFailure(
     'Redis unavailable',
     { DATABASE_URL: databaseUrl, REDIS_URL: unreachableRedis.toString() },
-    'Production startup blocked: required dependency checks failed for Redis',
+    'Production startup blocked: required dependency checks failed for PostgreSQL, Redis, agent checkpointer',
   );
 
-  // Combined outage: both configured dependencies are unreachable in the
-  // same production startup attempt. Redis plugin registration currently runs
-  // before PostgreSQL initialization, so Redis is the first observed blocker;
-  // the independent PostgreSQL failure above covers its own fail-closed path.
+  // Combined outage: startup checks PostgreSQL before Redis plugin registration.
+  // Both dependency failures must be included in the fail-closed diagnostic.
   const combinedUnavailableDatabase = new URL(databaseUrl);
   combinedUnavailableDatabase.port = '1';
   await expectStartupFailure(
