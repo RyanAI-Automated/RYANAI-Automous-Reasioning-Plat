@@ -289,11 +289,13 @@ assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) 
   }
   const steps = document.jobs?.scan?.steps ?? [];
   const gate = steps.find((step) => step.name === 'Enforce high and critical vulnerability gate');
-  if (gate?.with?.format !== 'table' || String(gate?.with?.['exit-code']) !== '1') {
-    fail(filePath, 'high/critical vulnerability gate must use the blocking table scan');
+  const gateCommand = String(gate?.run ?? '');
+  if (!gateCommand.includes('--format table') || !gateCommand.includes('--exit-code 1')) {
+    fail(filePath, 'high/critical vulnerability gate must use the blocking Trivy table scan');
   }
   const report = steps.find((step) => step.name === 'Generate SARIF report (non-blocking)');
-  if (report?.['continue-on-error'] !== true || String(report?.with?.['exit-code']) !== '0') {
+  const reportCommand = String(report?.run ?? '');
+  if (report?.['continue-on-error'] !== true || !reportCommand.includes('--format sarif') || !reportCommand.includes('--exit-code 0')) {
     fail(filePath, 'SARIF generation must be non-blocking and separate from the vulnerability gate');
   }
 });
