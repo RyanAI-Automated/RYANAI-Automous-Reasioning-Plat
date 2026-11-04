@@ -1,4 +1,9 @@
 import '../loadEnv.js';
+import { assertLegacyEntrypointEnvironment } from './legacyEntrypointGuard.js';
+
+// This older server has no production-grade PostgreSQL/readiness lifecycle.
+// Keep it available only for explicit local development and test use.
+assertLegacyEntrypointEnvironment(process.env.NODE_ENV);
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyRedis from '@fastify/redis';
