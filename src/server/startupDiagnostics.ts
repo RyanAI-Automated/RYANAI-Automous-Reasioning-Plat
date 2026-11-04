@@ -60,6 +60,7 @@ export interface StartupServices {
   database: boolean;
   redis: boolean;
   agentCheckpointer: boolean;
+  applicationSchema: boolean;
   api: boolean;
 }
 
