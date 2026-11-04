@@ -13,6 +13,7 @@ describe('live dependency readiness', () => {
         database: healthy,
         redis: healthy,
         agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
         apiListening: true,
       }),
     ).resolves.toEqual({
@@ -21,6 +22,7 @@ describe('live dependency readiness', () => {
         database: true,
         redis: true,
         agentCheckpointer: true,
+        applicationSchema: true,
         api: true,
       },
     });
@@ -31,6 +33,7 @@ describe('live dependency readiness', () => {
       database: unavailable,
       redis: healthy,
       agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
       apiListening: true,
     });
 
@@ -39,6 +42,7 @@ describe('live dependency readiness', () => {
       database: false,
       redis: true,
       agentCheckpointer: false,
+      applicationSchema: true,
       api: true,
     });
     expect(JSON.stringify(result)).not.toContain('sensitive');
@@ -53,6 +57,7 @@ describe('live dependency readiness', () => {
       database,
       redis: healthy,
       agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
       apiListening: true,
     };
 
@@ -65,6 +70,7 @@ describe('live dependency readiness', () => {
       database: healthy,
       redis: unavailable,
       agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
       apiListening: true,
     });
 
@@ -82,6 +88,7 @@ describe('live dependency readiness', () => {
       database: healthy,
       redis,
       agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
       apiListening: true,
     };
 
@@ -97,6 +104,7 @@ describe('live dependency readiness', () => {
         database: neverSettles,
         redis: healthy,
         agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
         apiListening: true,
       },
       10,
@@ -116,6 +124,7 @@ describe('live dependency readiness', () => {
         database: neverSettles,
         redis: healthy,
         agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
         apiListening: true,
       },
       Number.POSITIVE_INFINITY,
@@ -130,6 +139,7 @@ describe('live dependency readiness', () => {
       database: healthy,
       redis: healthy,
       agentCheckpointerInitialized: false,
+      applicationSchemaInitialized: true,
       apiListening: true,
     });
 
@@ -142,10 +152,26 @@ describe('live dependency readiness', () => {
       database: healthy,
       redis: healthy,
       agentCheckpointerInitialized: true,
+        applicationSchemaInitialized: true,
       apiListening: false,
     });
 
     expect(result.ready).toBe(false);
     expect(result.services.api).toBe(false);
+  });
+});
+
+
+describe('application schema readiness', () => {
+  it('keeps readiness degraded when required Prisma migrations are absent', async () => {
+    const result = await inspectReadiness({
+      database: healthy,
+      redis: healthy,
+      agentCheckpointerInitialized: true,
+      applicationSchemaInitialized: false,
+      apiListening: true,
+    });
+    expect(result.ready).toBe(false);
+    expect(result.services.applicationSchema).toBe(false);
   });
 });
