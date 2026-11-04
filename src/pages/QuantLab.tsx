@@ -179,7 +179,7 @@ export default function QuantLabPage() {
       {result && (
         <section aria-live="polite" className="space-y-5 rounded-2xl border border-cyan-400/20 bg-slate-900/70 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h2 className="text-xl font-semibold text-white">Verified experiment result</h2><p className="mt-1 text-xs text-slate-400">{result.period.start} → {result.period.end} · {result.period.bars} bars · {result.execution_mode}</p></div>
+            <div><h2 className="text-xl font-semibold text-white">Backtest result</h2><p className="mt-1 text-xs text-slate-400">{result.period.start} → {result.period.end} · {result.period.bars} bars · {result.execution_mode}</p></div>
             <span className="rounded-full border border-emerald-300/30 px-3 py-1 text-xs text-emerald-200">Saved to your history</span>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
