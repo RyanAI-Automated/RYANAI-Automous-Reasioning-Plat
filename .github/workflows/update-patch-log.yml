@@ -23,14 +23,12 @@ jobs:
           ref: main
           fetch-depth: 0
       - name: Record confirmed merge
-        env:
-          GITHUB_EVENT_PATH: \${{ github.event_path }}
         run: node scripts/update-patch-log.mjs
       - name: Open a patch-log update pull request
         env:
-          GH_TOKEN: \${{ github.token }}
-          PR_NUMBER: \${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          PR_NUMBER="$(node -p "JSON.parse(require('fs').readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')).pull_request.number")"
           branch="patch-log/pr-$PR_NUMBER"
           git switch --create "$branch"
           git config user.name "github-actions[bot]"
