@@ -29,7 +29,7 @@ function splitForRender(value: string, limit = 4000): string[] {
   const chunks: string[] = [];
   while (rest.length > limit) {
     const sample = rest.slice(0, limit + 1);
-    const candidates = [sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('\\n\\n')];
+    const candidates = [sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('\n\n')];
     const sentenceBoundary = Math.max(...candidates);
     const boundary = sentenceBoundary > limit * 0.45 ? sentenceBoundary + 1 : sample.lastIndexOf(' ');
     const cut = boundary > 0 ? boundary : limit;
