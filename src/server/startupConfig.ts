@@ -1,9 +1,9 @@
+import { isIP } from 'node:net';
+
 export interface ConnectionUrls {
   databaseUrl: string;
   redisUrl: string;
 }
-
-import { isIP } from 'node:net';
 
 /**
  * Use Cloudflare's single-value client-IP header only when a Cloudflare Ray ID
