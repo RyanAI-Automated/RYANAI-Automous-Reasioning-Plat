@@ -20,7 +20,7 @@ export function compareMigrationState(localNames, appliedRows) {
   };
 }
 
-export function assessSchema({ columns, tables, indexes, extensions }) {
+export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns }) {
   const requiredColumns = [
     'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
@@ -32,13 +32,22 @@ export function assessSchema({ columns, tables, indexes, extensions }) {
   const missingColumns = requiredColumns.filter((name) => !columns.has(name));
   const missingTables = requiredTables.filter((name) => !tables.has(name));
   const missingVectorTables = requiredVector.filter((name) => !tables.has(name));
+  const requiredMemoryColumns = ['session_id', 'role', 'content', 'timestamp'];
+  const requiredCacheColumns = ['id', 'prompt', 'response', 'embedding', 'created_at'];
+  const missingMemoryColumns = requiredMemoryColumns.filter((name) => !memoryColumns.has(name));
+  const missingCacheColumns = requiredCacheColumns.filter((name) => !cacheColumns.has(name));
+  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session'];
+  const missingIndexes = requiredIndexes.filter((name) => !indexes.has(name));
   return {
     missingColumns,
     missingTables,
     vector: {
       extensionPresent: extensions.has('vector'),
       missingTables: missingVectorTables,
-      indexPresent: indexes.has('idx_reasoning_embedding'),
+      missingMemoryColumns,
+      missingCacheColumns,
+      missingIndexes,
+      indexPresent: missingIndexes.length === 0,
     },
   };
 }
@@ -60,17 +69,21 @@ async function main() {
       'SELECT migration_name, finished_at, rolled_back_at FROM public._prisma_migrations ORDER BY migration_name',
     );
     const state = compareMigrationState(localNames, migrationResult.rows);
-    const [columnResult, tableResult, indexResult, extensionResult] = await Promise.all([
+    const [columnResult, tableResult, indexResult, extensionResult, memoryColumnResult, cacheColumnResult] = await Promise.all([
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_runs'"),
       pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
       pool.query("SELECT indexname FROM pg_indexes WHERE schemaname='public'"),
       pool.query("SELECT extname FROM pg_extension WHERE extname='vector'"),
+      pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_memory'"),
+      pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='reasoning_cache'"),
     ]);
     const schema = assessSchema({
       columns: new Set(columnResult.rows.map((row) => row.column_name)),
       tables: new Set(tableResult.rows.map((row) => row.table_name)),
       indexes: new Set(indexResult.rows.map((row) => row.indexname)),
       extensions: new Set(extensionResult.rows.map((row) => row.extname)),
+      memoryColumns: new Set(memoryColumnResult.rows.map((row) => row.column_name)),
+      cacheColumns: new Set(cacheColumnResult.rows.map((row) => row.column_name)),
     });
     console.log(JSON.stringify({
       mode: 'read-only',
@@ -80,7 +93,9 @@ async function main() {
     }, null, 2));
     if (state.pending.length || state.databaseOnly.length ||
         schema.missingColumns.length || schema.missingTables.length ||
-        !schema.vector.extensionPresent || schema.vector.missingTables.length || !schema.vector.indexPresent) {
+        !schema.vector.extensionPresent || schema.vector.missingTables.length ||
+        schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length ||
+        schema.vector.missingIndexes.length) {
       process.exitCode = 1;
     }
   } catch {
