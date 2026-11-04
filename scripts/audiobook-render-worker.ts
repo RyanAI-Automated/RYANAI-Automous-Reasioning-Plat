@@ -27,7 +27,9 @@ function splitText(value: string): string[] {
   let rest = value.trim();
   while (rest.length > MAX_SEGMENT_CHARS) {
     const sample = rest.slice(0, MAX_SEGMENT_CHARS + 1);
-    const boundary = Math.max(sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('\n\n'));
+    const boundary = Math.max(sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('
+
+'));
     const cut = boundary > MAX_SEGMENT_CHARS * 0.45 ? boundary + 1 : sample.lastIndexOf(' ');
     const length = cut > 0 ? cut : MAX_SEGMENT_CHARS;
     chunks.push(rest.slice(0, length).trim());
@@ -42,6 +44,7 @@ function backoff(attempt: number): Date {
 }
 
 async function claimJob(): Promise<ClaimedJob | null> {
+  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW() WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
   const rows = await prisma.$queryRaw<ClaimedJob[]> `
     UPDATE audiobook_render_jobs
     SET status = 'running',
@@ -222,7 +225,8 @@ async function run() {
     stopping = true;
     clearInterval(timer);
     // A running job keeps its lease; the recovery sweep will safely reclaim it after expiry.
-    while (active) await new Promise(resolve => setTimeout(resolve, 100));\n    await prisma.$disconnect();
+    while (active) await new Promise(resolve => setTimeout(resolve, 100));
+    await prisma.$disconnect();
   };
   process.once('SIGINT', () => { void shutdown(); });
   process.once('SIGTERM', () => { void shutdown(); });
