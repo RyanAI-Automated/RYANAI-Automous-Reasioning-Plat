@@ -39,6 +39,7 @@ export function assessSchema({ columns, tables, indexes, extensions, agentMemory
       extensionPresent: extensions.has('vector'),
       missingTables: missingVectorTables,
       indexPresent: indexes.has('idx_reasoning_embedding'),
+      agentSessionIndexPresent: indexes.has('idx_agent_session'),
       sessionIdColumnPresent: agentMemoryColumns.has('session_id'),
     },
   };
@@ -83,7 +84,7 @@ async function main() {
     }, null, 2));
     if (state.pending.length || state.databaseOnly.length ||
         schema.missingColumns.length || schema.missingTables.length ||
-        !schema.vector.extensionPresent || schema.vector.missingTables.length || !schema.vector.indexPresent || !schema.vector.sessionIdColumnPresent) {
+        !schema.vector.extensionPresent || schema.vector.missingTables.length || !schema.vector.indexPresent || !schema.vector.agentSessionIndexPresent || !schema.vector.sessionIdColumnPresent) {
       process.exitCode = 1;
     }
   } catch {
