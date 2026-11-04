@@ -49,7 +49,7 @@
     "db:push": "prisma db push",
     "db:migrate": "node --import tsx/esm src/db/migrate.ts",
     "db:setup": "npm run db:generate && npm run db:migrate",
-    "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs && npm run test:genaicode && npm run test:quant-engine",
+    "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
     "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
@@ -117,7 +117,8 @@
     "test:api-activation": "node --test scripts/activate-apis.node.mjs",
     "deploy:validate": "node scripts/validate-deployment-contracts.mjs",
     "test:genaicode": "node --test scripts/genaicode-adapter.test.mjs",
-    "test:quant-engine": "python3 -m unittest discover -s quant-engine/tests -v"
+    "test:quant-engine": "python3 -m unittest discover -s quant-engine/tests -v",
+    "test:container-sandbox": "node --test scripts/container-sandbox-runner.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
