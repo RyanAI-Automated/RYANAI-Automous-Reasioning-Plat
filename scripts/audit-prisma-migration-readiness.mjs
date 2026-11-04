@@ -20,7 +20,7 @@ export function compareMigrationState(localNames, appliedRows) {
   };
 }
 
-export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, indexDefinitions = new Map() }) {
+export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, cacheColumnTypes = new Map(), indexDefinitions = new Map() }) {
   const requiredColumns = [
     'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
@@ -56,6 +56,7 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
       missingTables: missingVectorTables,
       missingMemoryColumns,
       missingCacheColumns,
+      embeddingTypeValid: cacheColumnTypes.get('embedding') === 'vector(1536)',
       missingIndexes,
       invalidIndexes,
       indexPresent: missingIndexes.length === 0 && invalidIndexes.length === 0,
@@ -86,7 +87,7 @@ async function main() {
       pool.query("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'"),
       pool.query("SELECT extname FROM pg_extension WHERE extname='vector'"),
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_memory'"),
-      pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='reasoning_cache'"),
+      pool.query("SELECT a.attname AS column_name, format_type(a.atttypid, a.atttypmod) AS formatted_type FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'reasoning_cache' AND a.attnum > 0 AND NOT a.attisdropped"),
     ]);
     const schema = assessSchema({
       columns: new Set(columnResult.rows.map((row) => row.column_name)),
@@ -96,6 +97,7 @@ async function main() {
       extensions: new Set(extensionResult.rows.map((row) => row.extname)),
       memoryColumns: new Set(memoryColumnResult.rows.map((row) => row.column_name)),
       cacheColumns: new Set(cacheColumnResult.rows.map((row) => row.column_name)),
+      cacheColumnTypes: new Map(cacheColumnResult.rows.map((row) => [row.column_name, row.formatted_type])),
     });
     console.log(JSON.stringify({
       mode: 'read-only',
@@ -106,7 +108,7 @@ async function main() {
     if (state.pending.length || state.databaseOnly.length ||
         schema.missingColumns.length || schema.missingTables.length ||
         !schema.vector.extensionPresent || schema.vector.missingTables.length ||
-        schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length ||
+        schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length || !schema.vector.embeddingTypeValid ||
         schema.vector.missingIndexes.length || schema.vector.invalidIndexes.length) {
       process.exitCode = 1;
     }
