@@ -56,12 +56,15 @@ try {
       pool.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'"),
       pool.query("SELECT response FROM public.reasoning_cache WHERE prompt = $1", ['legacy-upgrade-fixture']),
       pool.query("SELECT content FROM public.agent_memory WHERE session_id = $1", ['legacy-upgrade-fixture']),
-      pool.query("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('idx_reasoning_embedding', 'idx_agent_session')"),
+      pool.query("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('idx_reasoning_embedding', 'idx_agent_session')"),
     ]);
     assert.equal(extension.rowCount, 1, 'pgvector extension missing after migration');
     assert.equal(cache.rows[0]?.response, 'preserve-reasoning-cache-row', 'Legacy reasoning_cache data was not preserved');
     assert.equal(memory.rows[0]?.content, 'preserve-agent-memory-row', 'Legacy agent_memory data was not preserved');
-    assert.deepEqual(new Set(indexes.rows.map((row) => row.indexname)), new Set(['idx_reasoning_embedding', 'idx_agent_session']));
+    const indexDefinitions = new Map(indexes.rows.map((row) => [row.indexname, row.indexdef.toLowerCase()]));
+    assert.deepEqual(new Set(indexDefinitions.keys()), new Set(['idx_reasoning_embedding', 'idx_agent_session']));
+    assert.match(indexDefinitions.get('idx_reasoning_embedding') ?? '', /using hnsw.*vector_cosine_ops/);
+    assert.match(indexDefinitions.get('idx_agent_session') ?? '', /session_id.*timestamp/);
     console.log('Verified legacy pgvector extension, both tables, both indexes, and preserved fixture rows.');
   }
 } finally {
