@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.coding_tasks (
   attempts INTEGER NOT NULL DEFAULT 0,
   max_attempts INTEGER NOT NULL DEFAULT 3,
   worker_id TEXT,
+  container_name TEXT,
   locked_at TIMESTAMPTZ(6),
   lease_expires_at TIMESTAMPTZ(6),
   next_attempt_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
@@ -45,3 +46,5 @@ CREATE INDEX IF NOT EXISTS coding_tasks_user_created_idx
   ON public.coding_tasks (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS coding_tasks_workbench_run_idx
   ON public.coding_tasks (workbench_run_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS coding_tasks_workbench_approval_key
+  ON public.coding_tasks (workbench_run_id, approval_id);

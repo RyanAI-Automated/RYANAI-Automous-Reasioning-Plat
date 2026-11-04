@@ -268,6 +268,7 @@ model AgentRun {
   attempts Int @default(0)
   maxAttempts Int @default(3) @map("max_attempts")
   workerId String? @map("worker_id")
+  containerName String? @map("container_name")
   lockedAt DateTime? @map("locked_at")
   nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -511,5 +512,6 @@ model CodingTask {
   @@index([status, leaseExpiresAt], map: "coding_tasks_status_lease_expiry_idx")
   @@index([userId, createdAt(sort: Desc)], map: "coding_tasks_user_created_idx")
   @@index([workbenchRunId, createdAt(sort: Desc)], map: "coding_tasks_workbench_run_idx")
+  @@unique([workbenchRunId, approvalId], map: "coding_tasks_workbench_approval_key")
   @@map("coding_tasks")
 }
