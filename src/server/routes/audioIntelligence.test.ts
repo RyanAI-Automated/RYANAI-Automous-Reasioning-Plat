@@ -55,7 +55,7 @@ describe('RyanAI audio intelligence routes', () => {
 
   it('sends a bounded audio payload to the provider and returns normalized transcript text', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key');
-    const provider = vi.fn(async () => new Response(JSON.stringify({ text: 'Hello from RyanAI.' }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ text: 'Hello from RyanAI.' }), { status: 200, headers: { 'content-type': 'application/json' } }));
     vi.stubGlobal('fetch', provider);
     const app = await createApp();
     const response = await app.inject({
