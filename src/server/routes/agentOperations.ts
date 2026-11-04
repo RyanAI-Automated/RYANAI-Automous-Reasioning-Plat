@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { dispatchAutonomousTask, listAgentRuns, listBrainHealth, probeAllBrains } from '../../agent/operations.js';
+import { getAgentPAStatus } from '../../skills/agentPAScript.js';
 import { listBrainKnowledge, publishBrainKnowledge } from '../../agent/knowledgeAgent.js';
 interface DispatchBody { objective: string; }
 export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -34,6 +35,12 @@ export const agentOperationsRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (error) {
       return reply.code(400).send({ success: false, error: error instanceof Error ? error.message : 'Invalid knowledge item.' });
     }
+  });
+  fastify.get('/api/agent/ops/pa/status', async (request, reply) => {
+    if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
+    const pa = getAgentPAStatus();
+    if (!pa) return reply.code(503).send({ status: 'unavailable', error: 'PA observer has not started.' });
+    return { pa };
   });
   fastify.get('/api/agent/ops/brains', async (request, reply) => {
     if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
