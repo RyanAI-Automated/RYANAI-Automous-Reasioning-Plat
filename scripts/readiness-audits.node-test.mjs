@@ -154,7 +154,7 @@ test('deployment configuration points at the official Render API and aligned thr
   const workflow = await readFile(new URL('../.github/workflows/guarded-render-api-source-repair.yml', import.meta.url), 'utf8');
   const blueprint = await readFile(new URL('../render.yaml', import.meta.url), 'utf8');
   assert.ok(workflow.includes('srv-dafvs4ht0dsc7380mapg'));
-  assert.ok(workflow.includes('https://ryanai-automous-reasoning-plat.onrender.com/health'));
+  assert.ok(workflow.includes('https://ryanai-automous-reasioning-plat.onrender.com/health'));
   assert.ok(workflow.includes('"dockerfilePath":"./Dockerfile.api"'));
   assert.ok(workflow.includes('"healthCheckPath":"/health"'));
   assert.ok(!workflow.includes('srv-dbk4giu7bikc7394a4r0'));
@@ -162,7 +162,7 @@ test('deployment configuration points at the official Render API and aligned thr
   assert.ok(blueprint.includes('name: RYANAI-Automous-Reasioning-Plat'));
   assert.ok(blueprint.includes('dockerfilePath: ./Dockerfile.api'));
   assert.ok(blueprint.includes('healthCheckPath: /health'));
-  assert.ok(blueprint.includes('value: https://ryanai-automous-reasoning-plat.onrender.com'));
+  assert.ok(blueprint.includes('value: https://ryanai-automous-reasioning-plat.onrender.com'));
   assert.ok(blueprint.includes('region: virginia'));
 });
 
