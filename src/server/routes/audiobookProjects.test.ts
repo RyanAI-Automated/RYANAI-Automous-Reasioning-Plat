@@ -126,8 +126,8 @@ describe('RyanAI audiobook persistence routes', () => {
       headers: { authorization: 'Bearer test-user' },
       payload: { idempotencyKey: 'another-render-request' },
     });
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ reused: true, job: { id: 'job-active' } });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ jobId: 'job-active' });
     expect(jobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId, projectId: 'project-a', status: { in: ['queued', 'running', 'cancel_requested'] } },
     }));
