@@ -1,0 +1,130 @@
+schema_version: 1
+standard: RIIP
+name: RyanAI Intelligence Improvement Protocol
+status: policy_baseline
+doctrine:
+  ownership: RyanAI owns its intelligence.
+  models: Models serve it.
+  security: Gen-X protects it.
+  authority: Human authority governs it.
+engineering_acceptance:
+  measurable_benefit: required
+  security_compliance: required
+  operational_reversibility: required
+  economic_justification: required
+  cost_currency: ZAR
+  baseline_required: true
+  held_out_evaluation_required: true
+  exact_model_revision_required: true
+  reproducible_evidence_required: true
+authority:
+  model_outputs_are_untrusted: true
+  models_may_authorize_actions: false
+  models_may_change_own_permissions: false
+  models_may_approve_own_changes: false
+  models_may_promote_themselves: false
+  models_may_merge_or_deploy: false
+  consequential_actions_require_human_approval: true
+  authorization_enforcement_owner: Gen-X
+  fail_closed_on_policy_or_identity_failure: true
+operations:
+  model_download_at_api_startup: false
+  automatic_production_activation: false
+  automatic_embedding_index_replacement: false
+  provider_fallback_must_be_explicit: true
+  preserve_known_good_revision: true
+  rollback_test_required: true
+  record_model_provenance: true
+  redact_secrets_and_private_payloads_from_logs: true
+evaluation:
+  quality_non_inferiority_on_critical_slices: true
+  report_latency_p50_p95: true
+  report_failure_and_abstention_rates: true
+  report_peak_resource_use: true
+  report_cost_per_successful_task: true
+  include_human_correction_cost: true
+  security_and_licence_are_hard_gates: true
+  language_slices:
+    - en-ZA
+    - ve-ZA
+model_registry:
+  - id: reasoning.primary
+    provider: nvidia
+    role: primary_reasoning
+    status: configured_unverified
+    task_families: [reasoning, planning, synthesis]
+    authority: none
+    activation: existing_configuration_only
+    evaluation_required: true
+  - id: reasoning.secondary
+    provider: qwen
+    role: independent_reasoning
+    status: configured_unverified
+    task_families: [reasoning, long_context, critique]
+    authority: none
+    activation: existing_configuration_only
+    evaluation_required: true
+  - id: reasoning.logic
+    provider: logic
+    role: structured_verification
+    status: configured_unverified
+    task_families: [structured_reasoning, validation, synthesis]
+    authority: none
+    activation: existing_configuration_only
+    evaluation_required: true
+  - id: inference.local
+    provider: ollama
+    role: local_inference
+    status: adapter_merged_runtime_unverified
+    task_families: [local_reasoning, private_inference]
+    authority: none
+    activation: explicit_local_mode_only
+    evaluation_required: true
+  - id: specialist.gliner
+    provider: local_specialist
+    role: entity_extraction
+    status: evaluation_only
+    task_families: [entity_extraction]
+    authority: none
+    activation: offline_benchmark_only
+    evaluation_required: true
+  - id: specialist.embeddinggemma
+    provider: local_specialist
+    role: embeddings
+    status: evaluation_only
+    task_families: [embedding, retrieval]
+    authority: none
+    activation: separate_versioned_index_only
+    evaluation_required: true
+  - id: specialist.paddleocr_vl
+    provider: local_specialist
+    role: document_understanding
+    status: evaluation_only
+    task_families: [ocr, document_parsing]
+    authority: none
+    activation: secure_attachment_gate_required
+    evaluation_required: true
+  - id: specialist.parakeet
+    provider: local_specialist
+    role: speech_recognition
+    status: evaluation_only
+    task_families: [asr]
+    authority: none
+    activation: language_benchmark_only
+    evaluation_required: true
+  - id: specialist.kokoro
+    provider: local_specialist
+    role: speech_generation
+    status: evaluation_only
+    task_families: [tts]
+    authority: none
+    activation: language_benchmark_only
+    evaluation_required: true
+  - id: specialist.arch_router
+    provider: local_specialist
+    role: intent_routing
+    status: deferred_legal_review
+    task_families: [routing]
+    authority: none
+    activation: disabled_pending_legal_and_baseline_review
+    evaluation_required: true
