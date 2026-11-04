@@ -25,7 +25,6 @@ import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
-import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js';
@@ -490,7 +489,6 @@ async function registerPlugins() {
 
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
-  await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
   await fastify.register(engineeringEvidenceRoutes);
