@@ -91,3 +91,28 @@ The authenticated frontend route is `/#/comms`. It uses the Supabase session acc
 5. The Comms screen refreshes the timeline periodically and after a send. It displays provider acceptance separately from confirmed delivery.
 
 The browser never receives `OPENAI_API_KEY`, Twilio credentials, SMTP credentials, Resend credentials, or owner contact configuration. The Comms agent runs server-side through the shared `createChatModel()` configuration; MCP and other server agents use the same API-owned OpenAI key via their authenticated gateway path.
+
+
+## Intelligent Comms memory and tool boundary
+
+The LangGraph communications agent uses the configured PostgreSQL `DATABASE_URL` through `PostgresSaver`. Startup fails closed when `DATABASE_URL` is missing; it does not silently connect to a local fallback database. Checkpoint schema changes remain part of the explicit database migration workflow, not API startup.
+
+The legacy communications agent and communications sub-agent expose only:
+- channel policy lookup;
+- bounded, read-only owner conversation context;
+- message draft preparation.
+
+They do not have Twilio/SMTP credentials or provider dispatch tools. The main reasoning engine's separate `gatedCommsTools` queue outbound actions into the existing pending-action approval store; queueing is not sending, and an administrator must approve before provider execution.
+
+Cross-channel context is restricted to the configured owner phone/email addresses and reads only bounded recent rows from PostgreSQL communication history. Contact addresses and provider identifiers are omitted from the model context. Because conversation bodies are sensitive, this context tool returns no message content unless both conditions are true:
+
+- `RYANAI_COMMS_MEMORY_LOCAL_ONLY=true`
+- `OPENAI_BASE_URL` points to the local Ollama-compatible endpoint on port `11434` (for example, `http://ollama:11434/v1` inside a Docker network or `http://localhost:11434/v1` when the API shares the host network).
+
+If the endpoint is remote, malformed, or not explicitly enabled, the tool returns a blocked status without querying PostgreSQL. Do not enable this setting until the local Ollama endpoint is actually running and verified. The shared `createChatModel()` currently uses an OpenAI-compatible interface; this configuration alone is not proof that Ollama or a Qwen model is installed or healthy.
+
+## Attachment and multimodal status
+
+The private Supabase attachment pipeline currently validates file signatures, uses signed uploads, quarantines new objects, and permits authenticated reads only after the ClamAV scan state is clean. Its current path guard and ownership policies bind files to the chat `messages` and `conversations` tables. Communications history uses separate `communication_messages` and `communication_conversations` tables, so the existing upload path must not be reused for Comms until ownership linkage, path validation, scanning, signed reads, retention and audit behavior are extended and tested for those tables.
+
+Do not pass provider media URLs or unscanned bytes to an AI model. Multimodal processing is gated on the local inference foundation and secure attachment-to-communications ownership path. No image understanding, audio transcription, video analysis or document extraction through the Comms gateway is claimed as active by this design note.
