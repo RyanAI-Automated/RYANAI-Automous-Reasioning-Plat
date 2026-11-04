@@ -3,6 +3,21 @@ export interface ConnectionUrls {
   redisUrl: string;
 }
 
+/**
+ * Trust only the configured number of reverse-proxy hops when resolving client
+ * IPs. A finite hop count prevents arbitrary client-supplied X-Forwarded-For
+ * entries from being treated as authoritative. Render's standard ingress uses
+ * one proxy hop; deployments with a different topology must set this explicitly.
+ */
+export function resolveTrustedProxyHops(raw?: string): number {
+  if (raw === undefined || raw.trim() === '') return 1;
+  const hops = Number(raw.trim());
+  if (!Number.isSafeInteger(hops) || hops < 1 || hops > 5) {
+    throw new Error('TRUST_PROXY_HOPS must be an integer between 1 and 5.');
+  }
+  return hops;
+}
+
 function localDevelopmentDatabaseUrl(): string {
   const url = new URL('postgresql://localhost:5432/ryanai');
   url.username = 'postgres';
