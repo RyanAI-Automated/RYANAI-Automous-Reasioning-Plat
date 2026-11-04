@@ -124,7 +124,12 @@ export async function runGenAICodeTask(options, dependencies = {}) {
   if (signal?.aborted) throw new Error('Engineering task was cancelled before launch.');
 
   const task = { taskId, approvalId, planHash, baseCommitSha, proposedDiffHash };
-  const approval = await dependencies.authorizeTask(task);
+  let approval;
+  try {
+    approval = await dependencies.authorizeTask(task);
+  } catch {
+    throw new Error('Unable to verify the persisted workbench approval; task was not launched.');
+  }
   assertApprovalBinding(approval, task);
 
   const root = await realpath(workspaceRoot);
@@ -139,18 +144,23 @@ export async function runGenAICodeTask(options, dependencies = {}) {
   }
 
   const args = ['run', '--json', '-a', agent, '-C', cwd, '-'];
-  const child = await runner.run({
-    command: binary,
-    args,
-    cwd,
-    workspaceRoot: root,
-    env: safeEnvironment(env),
-    signal,
-    timeoutMs,
-    limits: Object.freeze({ maxPromptChars: MAX_PROMPT_CHARS, maxOutputBytes: MAX_OUTPUT_BYTES, maxEvents: MAX_EVENTS }),
-    networkPolicy: 'deny-by-default',
-    credentialScope: 'agent-only',
-  });
+  let child;
+  try {
+    child = await runner.run({
+      command: binary,
+      args,
+      cwd,
+      workspaceRoot: root,
+      env: safeEnvironment(env),
+      signal,
+      timeoutMs,
+      limits: Object.freeze({ maxPromptChars: MAX_PROMPT_CHARS, maxOutputBytes: MAX_OUTPUT_BYTES, maxEvents: MAX_EVENTS }),
+      networkPolicy: 'deny-by-default',
+      credentialScope: 'agent-only',
+    });
+  } catch {
+    throw new Error('The isolated sandbox runner could not start the coding task.');
+  }
 
   if (!child || !child.stdout || !child.stderr || !child.stdin || typeof child.once !== 'function') {
     throw new Error('Isolated runner returned an invalid process handle.');
