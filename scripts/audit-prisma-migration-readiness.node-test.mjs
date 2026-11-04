@@ -6,6 +6,7 @@ import { compareMigrationState, assessSchema } from './audit-prisma-migration-re
 const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
 const cacheColumns = new Set(['id', 'prompt', 'response', 'embedding', 'created_at']);
 const cacheColumnTypes = new Map([['embedding', 'vector(1536)']]);
+const quantColumns = new Set(['id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at']);
 const vectorIndexes = new Set(['idx_reasoning_embedding', 'idx_agent_session']);
 const vectorIndexDefinitions = new Map([
   ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)'],
@@ -55,16 +56,18 @@ test('accepts a complete schema and vector-memory installation', () => {
     'approved_by', 'approved_at', 'steering_notes', 'cancel_requested_at'];
   const result = assessSchema({
     columns: new Set(columns),
-    tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'reasoning_cache', 'agent_memory']),
+    tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'quant_experiments', 'reasoning_cache', 'agent_memory']),
     indexes: vectorIndexes,
     extensions: new Set(['vector']),
     memoryColumns,
     cacheColumns,
     cacheColumnTypes,
     indexDefinitions: vectorIndexDefinitions,
+    quantColumns,
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
+  assert.deepEqual(result.missingQuantColumns, []);
   assert.equal(result.vector.extensionPresent, true);
   assert.deepEqual(result.vector.missingTables, []);
   assert.deepEqual(result.vector.missingMemoryColumns, []);
@@ -117,4 +120,17 @@ test('vector session migration preserves both historical column spellings', () =
   );
   assert.match(migration, /RENAME COLUMN "sessionId" TO session_id/);
   assert.match(migration, /RENAME COLUMN sessionid TO session_id/);
+});
+
+test('reports missing quant experiment schema columns', () => {
+  const result = assessSchema({
+    columns: new Set(),
+    tables: new Set(['quant_experiments']),
+    indexes: new Set(),
+    extensions: new Set(),
+    memoryColumns: new Set(),
+    cacheColumns: new Set(),
+    quantColumns: new Set(['id', 'user_id', 'strategy']),
+  });
+  assert.deepEqual(result.missingQuantColumns, ['status', 'input', 'result', 'created_at']);
 });
