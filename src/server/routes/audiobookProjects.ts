@@ -34,6 +34,14 @@ function validateProject(body: ProjectInput): { title: string; language: string;
   return { title, language, chapters };
 }
 
+function jobSummary(job: { id: string; status: string; progress: unknown; error: string | null; attempts: number; maxAttempts: number; createdAt: Date; updatedAt: Date; completedAt: Date | null }) {
+  return {
+    id: job.id, status: job.status, progress: job.progress, error: job.error,
+    attempts: job.attempts, maxAttempts: job.maxAttempts,
+    createdAt: job.createdAt, updatedAt: job.updatedAt, completedAt: job.completedAt,
+  };
+}
+
 function getStorage() {
   const url = process.env.SUPABASE_URL?.trim();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -116,20 +124,20 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
       }),
     };
     const existing = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
-    if (existing) return reply.code(200).send({ job: existing, reused: true });
+    if (existing) return reply.code(200).send({ job: jobSummary(existing), reused: true });
     const activeJob = await fastify.prisma.audiobookRenderJob.findFirst({
       where: { userId, projectId: project.id, status: { in: ['queued', 'running', 'cancel_requested'] } },
     });
-    if (activeJob) return reply.code(200).send({ job: activeJob, reused: true });
+    if (activeJob) return reply.code(409).send({ error: 'Another render is already active for this project.', jobId: activeJob.id });
     try {
       const job = await fastify.prisma.audiobookRenderJob.create({
         data: { userId, projectId: project.id, idempotencyKey, request: snapshot, progress: { completedChapters: 0, totalChapters: project.chapters.length } },
       });
-      return reply.code(202).send({ job, reused: false });
+      return reply.code(202).send({ job: jobSummary(job), reused: false });
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
         const job = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
-        if (job) return reply.code(200).send({ job, reused: true });
+        if (job) return reply.code(200).send({ job: jobSummary(job), reused: true });
       }
       throw error;
     }
@@ -140,7 +148,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
     const job = await fastify.prisma.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId } });
     if (!job) return reply.code(404).send({ error: 'Audiobook render job not found.' });
-    return { job };
+    return { job: jobSummary(job) };
   });
 
   fastify.post<{ Params: { jobId: string } }>('/api/v1/audiobook-jobs/:jobId/cancel', { preHandler: requireUser }, async (request, reply) => {
@@ -168,7 +176,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     if (!job) return reply.code(404).send({ error: 'Audiobook render job not found.' });
     if (job.status !== 'completed' || !job.result || typeof job.result !== 'object') return reply.code(409).send({ error: 'Audiobook artifacts are not ready.' });
     const artifacts = (job.result as { artifacts?: Array<{ chapterTitle: string; path: string }> }).artifacts;
-    if (!Array.isArray(artifacts) || !artifacts.length || artifacts.some(item => typeof item.path !== 'string' || !item.path.startsWith(`${userId}/`))) return reply.code(409).send({ error: 'Audiobook artifacts are unavailable.' });
+    if (!Array.isArray(artifacts) || !artifacts.length || artifacts.some(item => !item || typeof item.chapterId !== 'string' || typeof item.path !== 'string' || !item.path.startsWith(`${userId}/`))) return reply.code(409).send({ error: 'Audiobook artifacts are unavailable.' });
     const storage = getStorage();
     if (!storage) return reply.code(503).send({ error: 'Private audiobook storage is not configured.' });
     const downloads = [];
