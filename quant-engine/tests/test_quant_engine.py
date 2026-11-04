@@ -32,6 +32,13 @@ class QuantEngineTests(unittest.TestCase):
         self.assertEqual(sides, {"buy", "sell"})
         self.assertEqual(first["period"]["bars"], 80)
 
+    def test_fills_signal_on_the_following_bar_open(self):
+        sample = bars()
+        result = run_backtest({"bars": sample, "fast_window": 3, "slow_window": 8})
+        first_buy = next(trade for trade in result["trades"] if trade["side"] == "buy")
+        self.assertEqual(first_buy["date"], sample[23]["date"])
+        self.assertAlmostEqual(first_buy["price"], sample[23]["open"] * 1.0005, places=7)
+
     def test_rejects_non_monotonic_dates(self):
         sample = bars()
         sample[3]["date"] = sample[2]["date"]
