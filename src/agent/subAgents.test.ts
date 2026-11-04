@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@langchain/openai', () => ({ ChatOpenAI: class {} }));
 vi.mock('@langchain/langgraph/prebuilt', () => ({ createReactAgent: () => ({}) }));
-vi.mock('./tools/whatsappTool.js', () => ({ sendWhatsAppTool: {} }));
 
 import { verifyComplianceTool } from './subAgents.js';
 
