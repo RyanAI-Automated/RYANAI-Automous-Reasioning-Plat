@@ -74,7 +74,7 @@ jobs:
                   { context: "Analyze (javascript-typescript)" },
                   { context: "Analyze (python)" },
                   { context: "TruffleHog secret audit" },
-                  { context: "Codacy Security Scan" },
+                  { context: "Codacy Security Scan" }
                 ]
               }},
               { type: "non_fast_forward" },
