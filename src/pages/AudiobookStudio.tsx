@@ -184,12 +184,12 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
         if (jobStatus === 'cancelled') throw new Error('Audiobook rendering was cancelled.');
       }
       const downloadsResponse = await authenticatedFetch('/api/v1/audiobook-jobs/' + jobId + '/downloads');
-      const downloadData = await downloadsResponse.json() as { downloads?: Array<{ chapterTitle: string; url: string }>; error?: string };
+      const downloadData = await downloadsResponse.json() as { downloads?: Array<{ chapterId: string; chapterTitle: string; url: string }>; error?: string };
       if (!downloadsResponse.ok || !downloadData.downloads?.length) throw new Error(downloadData.error || 'No downloadable chapter artifacts were returned.');
-      const urls = new Map(downloadData.downloads.map(item => [item.chapterTitle, item.url]));
+      const urls = new Map(downloadData.downloads.map(item => [item.chapterId, item.url]));
       const files: Record<string, { url: string; name: string }> = {};
       for (const item of project.chapters) {
-        const signedUrl = urls.get(item.title);
+        const signedUrl = urls.get(item.id);
         if (!signedUrl) continue;
         const media = await fetch(signedUrl);
         if (!media.ok) throw new Error('Could not retrieve rendered audio for ' + item.title + '.');
