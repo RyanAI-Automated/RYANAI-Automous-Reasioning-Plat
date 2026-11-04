@@ -108,6 +108,7 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
     throw new PermanentRenderError('Persisted render request is invalid.');
   }
   const artifacts: Array<{ chapterId: string; chapterTitle: string; path: string; mimeType: string }> = [];
+  try {
   for (let chapterIndex = 0; chapterIndex < snapshot.chapters.length; chapterIndex += 1) {
     const chapter = snapshot.chapters[chapterIndex];
     if (!chapter || typeof chapter.text !== 'string' || !chapter.text.trim() || chapter.text.length > 200_000 || typeof chapter.title !== 'string' || chapter.title.length > 120 || !VOICES.has(chapter.voice) || typeof chapter.style !== 'string' || chapter.style.length > 500 || !Number.isFinite(chapter.speed) || chapter.speed < 0.8 || chapter.speed > 1.2) {
@@ -152,6 +153,13 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
     },
   });
   if (completed.count !== 1) throw new Error('Render job could not commit completion because its lease was lost.');
+  } catch (error) {
+    if (artifacts.length) {
+      const { error: cleanupError } = await storage.storage.from(BUCKET).remove(artifacts.map(artifact => artifact.path));
+      if (cleanupError) console.error('[audiobook-worker] partial artifact cleanup failed', { jobId: job.id, count: artifacts.length });
+    }
+    throw error;
+  }
 }
 
 async function markCancelled(job: ClaimedJob) {
