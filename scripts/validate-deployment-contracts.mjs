@@ -29,6 +29,7 @@ const checks = [
   ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('ryanai-redis-virginia') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "virginia"')],
   ['Render production deployment is explicitly approval-gated', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
   ['Render deploy targets the official service after successful CI', renderDeploy.includes('srv-dafvs4ht0dsc7380mapg') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
+  ['Render deployment requires provider verification for the exact commit', renderDeploy.includes('provider-verification.yml') && renderDeploy.includes('--commit "$TARGET_SHA"') && renderDeploy.includes('headSha == env.TARGET_SHA') && renderDeploy.includes('conclusion != "success"')],
   ['Render readiness audit requires the API key, not a deploy hook', read('scripts/audit-deployment-readiness.mjs').includes("name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY']")],
   ['Deployment audit treats false secret-presence flags as missing', read('scripts/audit-deployment-readiness.mjs').includes("normalized !== 'false'")],
   ['Vercel builds the Vite frontend to dist', vercel.framework === 'vite' && vercel.outputDirectory === 'dist' && vercel.buildCommand.includes('build:web')],
