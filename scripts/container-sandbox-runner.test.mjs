@@ -100,14 +100,19 @@ test('rejects command and argument injection shapes before spawning', async () =
   assert.equal(called, false);
 });
 
-test('cancellation requests termination of the named Docker container', async () => {
+test('cancellation awaits successful Docker termination before stopping the client', async () => {
   const { root, nested } = await workspace();
   const invocations = [];
   const runner = createContainerSandboxRunner({
     image: IMAGE,
-    spawn: (...args) => { invocations.push(args); return fakeChild(); },
+    spawn: (...args) => {
+      invocations.push(args);
+      const child = fakeChild();
+      if (args[1]?.[0] === 'kill') setImmediate(() => child.emit('close', 0, null));
+      return child;
+    },
   });
   const child = await runner.run({ command: 'genaicode', args: [], cwd: nested, workspaceRoot: root, env: {} });
-  child.kill('SIGTERM');
+  await child.terminate();
   assert.ok(invocations.some(([binary, args]) => binary === 'docker' && args[0] === 'kill' && args[1].startsWith('ryanai-genai-')));
 });

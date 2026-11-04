@@ -93,18 +93,40 @@ export function createContainerSandboxRunner({
       if (!child || typeof child.kill !== 'function') throw new Error('Container runtime did not return a process handle.');
 
       const originalKill = child.kill.bind(child);
-      child.kill = (signal = 'SIGTERM') => {
-        try {
-          const killer = spawn('docker', ['kill', containerName], {
-            stdio: 'ignore',
-            windowsHide: true,
-            env: { PATH: process.env.PATH || '/usr/bin:/bin' },
+      let termination;
+      child.terminate = () => {
+        if (termination) return termination;
+        termination = new Promise((resolve, reject) => {
+          let killer;
+          try {
+            killer = spawn('docker', ['kill', containerName], {
+              stdio: 'ignore',
+              windowsHide: true,
+              env: { PATH: process.env.PATH || '/usr/bin:/bin' },
+            });
+          } catch {
+            reject(new Error('Docker could not confirm container termination.'));
+            return;
+          }
+          if (!killer || typeof killer.once !== 'function') {
+            reject(new Error('Docker did not return a termination process handle.'));
+            return;
+          }
+          killer.once('error', () => reject(new Error('Docker could not confirm container termination.')));
+          killer.once('close', (code) => {
+            if (code !== 0) {
+              reject(new Error('Docker could not confirm container termination.'));
+              return;
+            }
+            originalKill('SIGTERM');
+            resolve();
           });
-          killer?.on?.('error', () => {});
-        } catch {
-          // Still terminate the docker client if the daemon cannot be reached.
-        }
-        return originalKill(signal);
+        });
+        return termination;
+      };
+      child.kill = () => {
+        void child.terminate().catch(() => {});
+        return true;
       };
       return child;
     },

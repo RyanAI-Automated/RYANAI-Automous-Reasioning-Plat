@@ -207,7 +207,7 @@ export function startCodingTaskWorker({ queue, executeTask, concurrency = 1, lea
     } catch (error) {
       const latest = await queue.get(task.id).catch(() => null);
       if (latest?.status === 'cancel_requested') await queue.markCancelled(task.id, workerId, task.attempts);
-      else if (!controller.signal.aborted) await queue.fail(task.id, workerId, task.attempts, error);
+      else if (!controller.signal.aborted) await queue.fail(task.id, workerId, task.attempts, error, { retryable: error?.code !== 'SANDBOX_TERMINATION_UNCONFIRMED' });
     } finally {
       clearInterval(heartbeatTimer);
       active.delete(task.id);
