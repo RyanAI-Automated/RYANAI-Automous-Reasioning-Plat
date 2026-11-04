@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { compareMigrationState, assessSchema } from './audit-prisma-migration-readiness.mjs';
 
-const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
+const memoryColumns = new Set(['id', 'session_id', 'role', 'content', 'timestamp']);
 const cacheColumns = new Set(['id', 'prompt', 'response', 'embedding', 'created_at']);
 const cacheColumnTypes = new Map([['embedding', 'vector(1536)']]);
 const quantColumns = new Set(['id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at']);
@@ -46,7 +46,7 @@ test('detects schema and vector-memory drift, including runtime columns and inde
   assert.ok(result.missingTables.includes('agent_run_evidence'));
   assert.equal(result.vector.extensionPresent, false);
   assert.deepEqual(result.vector.missingTables, ['agent_memory']);
-  assert.deepEqual(result.vector.missingMemoryColumns, ['session_id', 'content', 'timestamp']);
+  assert.deepEqual(result.vector.missingMemoryColumns, ['id', 'session_id', 'content', 'timestamp']);
   assert.deepEqual(result.vector.missingCacheColumns, ['response', 'embedding', 'created_at']);
   assert.deepEqual(result.vector.missingIndexes, ['idx_reasoning_embedding', 'idx_agent_session', 'quant_experiments_user_created_idx']);
   assert.equal(result.vector.indexPresent, false);
