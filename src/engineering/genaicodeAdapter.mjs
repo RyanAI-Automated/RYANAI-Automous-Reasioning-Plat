@@ -62,7 +62,7 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     approved,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     signal,
-    binary = process.env.RYANAI_GENAI_CODE_BIN || 'genaicode',
+    
     env = process.env,
   } = options ?? {};
 
@@ -74,8 +74,9 @@ export async function runGenAICodeTask(options, dependencies = {}) {
   if (typeof workspaceRoot !== 'string' || typeof workspacePath !== 'string') {
     throw new Error('An approved workspace root and workspace path are required.');
   }
+  const binary = process.env.RYANAI_GENAI_CODE_BIN || 'genaicode';
   if (typeof binary !== 'string' || binary.trim().length === 0 || binary.includes('\0')) {
-    throw new Error('A valid GenAIcode executable name is required.');
+    throw new Error('A valid GenAIcode executable name is required in trusted server configuration.');
   }
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > MAX_TIMEOUT_MS) {
     throw new Error('Timeout must be between 1000 and 1800000 milliseconds.');
@@ -94,6 +95,7 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     cwd,
     env: safeEnvironment(env),
     shell: false,
+    detached: process.platform !== 'win32',
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -112,7 +114,12 @@ export async function runGenAICodeTask(options, dependencies = {}) {
       fn(value);
     };
     const stop = () => {
-      try { child.kill('SIGTERM'); } catch { /* process may already have exited */ }
+      try {
+        if (process.platform !== 'win32' && Number.isInteger(child.pid)) process.kill(-child.pid, 'SIGTERM');
+        else child.kill('SIGTERM');
+      } catch {
+        try { child.kill('SIGTERM'); } catch { /* process may already have exited */ }
+      }
     };
     const abort = () => {
       stop();
