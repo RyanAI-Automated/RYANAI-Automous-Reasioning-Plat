@@ -19,7 +19,8 @@ function validateProject(body: ProjectInput): { title: string; language: string;
   const language = typeof body.language === 'string' ? body.language : 'en-ZA';
   if (!title || title.length > 120 || !isRyanLanguage(language) || !Array.isArray(body.chapters) || body.chapters.length < 1 || body.chapters.length > MAX_CHAPTERS) return null;
   let total = 0;
-  const chapters = [];
+  const chapters: Array<{ id?: string; title: string; content: string; position: number; narrationSettings: { voice: string; style: string; speed: number } }> = [];
+  const chapterIds = new Set<string>();
   for (let index = 0; index < body.chapters.length; index += 1) {
     const chapter = body.chapters[index];
     if (!chapter || typeof chapter.title !== 'string' || !chapter.title.trim() || chapter.title.length > 120 || typeof chapter.text !== 'string' || chapter.text.length > MAX_CHAPTER_CHARS) return null;
@@ -29,7 +30,10 @@ function validateProject(body: ProjectInput): { title: string; language: string;
     if (!VOICES.has(voice) || style.length > 500 || !Number.isFinite(speed) || speed < 0.8 || speed > 1.2) return null;
     total += chapter.text.length;
     if (total > MAX_BOOK_CHARS) return null;
-    chapters.push({ ...(typeof chapter.id === 'string' && UUID.test(chapter.id) ? { id: chapter.id } : {}), title: chapter.title.trim(), content: chapter.text, position: index, narrationSettings: { voice, style, speed } });
+    const id = typeof chapter.id === 'string' && UUID.test(chapter.id) ? chapter.id : undefined;
+    if (id && chapterIds.has(id)) return null;
+    if (id) chapterIds.add(id);
+    chapters.push({ ...(id ? { id } : {}), title: chapter.title.trim(), content: chapter.text, position: index, narrationSettings: { voice, style, speed } });
   }
   return { title, language, chapters };
 }
