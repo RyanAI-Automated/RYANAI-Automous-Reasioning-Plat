@@ -70,7 +70,7 @@ test('flags legacy camelCase agent memory columns until normalization is applied
 
 test('vector memory migration normalizes both historical session column spellings', () => {
   const migration = readFileSync(
-    new URL('../prisma/migrations/20261104100000_vector_memory/migration.sql', import.meta.url),
+    new URL('../prisma/migrations/20261104120000_agent_memory_session_id/migration.sql', import.meta.url),
     'utf8',
   );
   assert.match(migration, /RENAME COLUMN "sessionId" TO session_id/);
