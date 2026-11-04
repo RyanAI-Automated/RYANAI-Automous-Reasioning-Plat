@@ -6,11 +6,11 @@ This document records observed repository and Render state. It is not authorizat
 
 ## Main-branch governance
 
-The existing ruleset was previously read as ID `26360956`, named `main-protectiona`, with enforcement active but no effective protection rules and one integration bypass actor configured with `always` bypass. An active ruleset with an empty rules array is not merge protection.
+The existing ruleset was read again after PR #830 merged. It remains ID `26360956`, named `main-protectiona`, with enforcement active, an empty `rules` array, and one integration bypass actor (`actor_id: 1144995`, `bypass_mode: always`). An active ruleset with an empty rules array is not merge protection.
 
-PR [#830](https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat/pull/830) updates the existing ruleset by resolving its current name dynamically, renaming it to `main-protection`, removing bypass actors, and applying review, required-check, deletion, and non-fast-forward rules. It fails closed if the ruleset is missing or ambiguous.
+PR [#830](https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat/pull/830) merged at 2026-11-04 12:43:38Z as commit `f6384eac380800bc08df31faa91f6da304337786`. Its change updates the manual enforcement workflow; it does **not** itself apply the ruleset. The live read after the merge confirms the name, empty rules array, and bypass actor are unchanged.
 
-PR #830 is **open and not merged**. At the latest check-run inspection of head `3294601f1b9c17d7fabefd8a45f4cc2ad4bf0a80`, 56 check runs were present: 25 success, 28 neutral, 2 skipped, 1 queued, and zero failures. The queued `record-merged-pr` check means the run set was not fully settled. Do not describe the PR as fully green or the ruleset as repaired.
+The PR head had 56 check runs at inspection: 25 success, 28 neutral, 2 skipped, 1 queued, and zero failures. The queued `record-merged-pr` check meant the run set was not fully settled at that snapshot. Do not describe the ruleset as repaired or main as protected. The enforcement workflow remains a manual operation requiring `GH_ADMIN_TOKEN` with repository Administration write permission.
 
 The connected GitHub integration can write repository content and pull requests but does not have Administration write permission. The ruleset workflow therefore still requires an authorized administrative credential. Do not attempt to bypass this permission boundary.
 
