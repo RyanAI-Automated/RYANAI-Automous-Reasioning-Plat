@@ -43,7 +43,7 @@ test('accepts a complete schema and vector-memory installation', () => {
   const result = assessSchema({
     columns: new Set(columns),
     tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'reasoning_cache', 'agent_memory']),
-    indexes: new Set(['idx_reasoning_embedding']),
+    indexes: new Set(['idx_reasoning_embedding', 'idx_agent_session']),
     extensions: new Set(['vector']),
     agentMemoryColumns: new Set(['session_id']),
   });
@@ -52,6 +52,7 @@ test('accepts a complete schema and vector-memory installation', () => {
   assert.equal(result.vector.extensionPresent, true);
   assert.deepEqual(result.vector.missingTables, []);
   assert.equal(result.vector.indexPresent, true);
+  assert.equal(result.vector.agentSessionIndexPresent, true);
   assert.equal(result.vector.sessionIdColumnPresent, true);
 });
 
