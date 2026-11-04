@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
 -- The live Supabase bootstrap used quoted "sessionId"; older local
 -- bootstrap files used unquoted sessionid. Create the legacy index against
 -- whichever column exists; the following ordered migration normalizes its name.
-DO $
+DO $migration$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -45,4 +45,4 @@ BEGIN
     RAISE EXCEPTION 'agent_memory is missing a recognized session identifier column';
   END IF;
 END;
-$;
+$migration$;
