@@ -55,7 +55,7 @@ try {
     const [extension, cache, memory, indexes] = await Promise.all([
       pool.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'"),
       pool.query("SELECT response FROM public.reasoning_cache WHERE prompt = $1", ['legacy-upgrade-fixture']),
-      pool.query("SELECT content FROM public.agent_memory WHERE sessionid = $1", ['legacy-upgrade-fixture']),
+      pool.query("SELECT content FROM public.agent_memory WHERE session_id = $1", ['legacy-upgrade-fixture']),
       pool.query("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('idx_reasoning_embedding', 'idx_agent_session')"),
     ]);
     assert.equal(extension.rowCount, 1, 'pgvector extension missing after migration');
