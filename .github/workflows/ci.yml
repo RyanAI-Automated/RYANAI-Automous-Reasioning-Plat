@@ -85,6 +85,11 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID != '' }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID != '' }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          RAILWAY_DEPLOY_ENABLED: ${{ vars.RAILWAY_DEPLOY_ENABLED }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
           # Pass only boolean presence indicators; never expose model API keys to audit processes.
           RYANAI_NVIDIA_KEY_CONFIGURED: ${{ secrets.NVIDIA_API_KEY != '' }}
           RYANAI_QWEN_KEY_CONFIGURED: ${{ secrets.QWEN_API_KEY != '' }}
