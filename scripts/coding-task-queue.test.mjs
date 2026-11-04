@@ -120,3 +120,28 @@ test('worker executes a claimed task and records durable completion', async () =
   assert.equal(updates[0][0], task.id);
   assert.equal(updates[0][2], task.attempts);
 });
+
+test('worker aborts an active coding task when its lease heartbeat is lost', async () => {
+  const task = { id: 'coding-cancel', attempts: 1, status: 'running' };
+  let cancelled = 0;
+  let executions = 0;
+  const queue = {
+    recoverExpired: async () => [],
+    claimNext: async () => executions++ === 0 ? task : null,
+    heartbeat: async () => false,
+    get: async () => ({ ...task, status: 'cancel_requested' }),
+    markCancelled: async () => { cancelled += 1; return true; },
+    complete: async () => false,
+    fail: async () => false,
+  };
+  const stop = startCodingTaskWorker({
+    queue, leaseMs: 5_000, recoveryIntervalMs: 60_000,
+    executeTask: async (_task, { signal }) => new Promise((resolve, reject) => {
+      if (signal.aborted) return reject(signal.reason);
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  stop();
+  assert.equal(cancelled, 1);
+});

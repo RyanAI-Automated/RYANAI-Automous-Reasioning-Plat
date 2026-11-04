@@ -504,7 +504,7 @@ model CodingTask {
   result Json?
   error String? @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
 
   @@index([status, nextAttemptAt, createdAt], map: "coding_tasks_status_next_attempt_idx")

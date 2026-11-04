@@ -424,7 +424,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       where: { runId: job.id, eventType: 'plan.approved' },
       orderBy: { sequence: 'desc' },
     });
-    if (!approval) return reply.code(409).send({ error: 'Persisted workbench approval evidence is missing.' });
+    if (!approval || !job.planHash || !job.baseCommitSha || !job.proposedDiffHash) return reply.code(409).send({ error: 'Persisted workbench approval evidence or exact plan bindings are missing.' });
     try {
       const task = await enqueueApprovedCodingTask(prisma, {
         workbenchRunId: job.id, approvalId: approval.id,
