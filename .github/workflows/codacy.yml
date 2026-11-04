@@ -77,10 +77,10 @@ jobs:
             throw new Error('Codacy produced no SARIF runs');
           }
 
-          const batchSize = 25;
+          const batchSize = 20;
           const batchCount = Math.ceil(report.runs.length / batchSize);
-          if (batchCount > 3) {
-            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 75 so uploads can stay within GitHub's 25-item request limit.`);
+          if (batchCount > 4) {
+            throw new Error(`Codacy emitted ${report.runs.length} SARIF runs; expected at most 80 so uploads stay within GitHub's 20-run code-scanning limit.`);
           }
 
           for (let index = 0; index < report.runs.length; index += 1) {
@@ -101,7 +101,7 @@ jobs:
           }
           NODE
 
-      # GitHub accepts at most 25 SARIF files in one upload request.
+      # GitHub Code Scanning accepts at most 20 SARIF runs in one upload request.
       - name: Upload Codacy SARIF batch 1
         uses: github/codeql-action/upload-sarif@v4
         with:
