@@ -27,9 +27,7 @@ function splitText(value: string): string[] {
   let rest = value.trim();
   while (rest.length > MAX_SEGMENT_CHARS) {
     const sample = rest.slice(0, MAX_SEGMENT_CHARS + 1);
-    const boundary = Math.max(sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('
-
-'));
+    const boundary = Math.max(sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf(String.fromCharCode(10, 10)));
     const cut = boundary > MAX_SEGMENT_CHARS * 0.45 ? boundary + 1 : sample.lastIndexOf(' ');
     const length = cut > 0 ? cut : MAX_SEGMENT_CHARS;
     chunks.push(rest.slice(0, length).trim());
