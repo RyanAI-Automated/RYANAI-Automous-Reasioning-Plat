@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { compareMigrationState, assessSchema } from './audit-prisma-migration-readiness.mjs';
 
 test('reports source migrations absent from the applied ledger without mutating either input', () => {
@@ -64,4 +65,14 @@ test('flags legacy camelCase agent memory columns until normalization is applied
     agentMemoryColumns: new Set(['sessionId']),
   });
   assert.equal(result.vector.sessionIdColumnPresent, false);
+});
+
+test('vector memory migration normalizes both historical session column spellings', () => {
+  const migration = readFileSync(
+    new URL('../prisma/migrations/20261104100000_vector_memory/migration.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /RENAME COLUMN "sessionId" TO session_id/);
+  assert.match(migration, /RENAME COLUMN sessionid TO session_id/);
+  assert.match(migration, /ON public\.agent_memory \(session_id, timestamp\)/);
 });
