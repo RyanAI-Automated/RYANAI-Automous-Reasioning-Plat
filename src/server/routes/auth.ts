@@ -5,15 +5,9 @@ import type {
   FastifyRequest,
 } from 'fastify';
 import { createContextClient } from '@supabase/server/core';
-import bcrypt from 'bcrypt';
 import type { PrismaClient } from '@prisma/client';
 
 // --- Interfaces & Types ---
-
-interface SigninRequestBody {
-  email: string;
-  password: string;
-}
 
 export interface AuthenticatedUser {
   id: string;
@@ -158,10 +152,11 @@ export function installAuthentication(fastify: FastifyInstance) {
       return;
     }
 
-    // Retired legacy login/logout routes
+    // Retired local-password routes return 410 from the compatibility plugin.
+    // They are public only so callers receive the retirement response, never a session.
     if (
       request.method === 'POST' &&
-      ['/api/auth/login', '/api/auth/logout'].includes(path)
+      ['/api/auth/signin', '/api/auth/signup', '/api/auth/login', '/api/auth/logout'].includes(path)
     ) {
       return;
     }
@@ -184,56 +179,12 @@ export function installAuthentication(fastify: FastifyInstance) {
 // --- Fastify Plugin Registration ---
 
 export const authPlugin: FastifyPluginAsync = async (fastify) => {
-  // 1. Prisma-backed local sign-in route (/api/auth/signin)
-  fastify.post('/api/auth/signin', async (request: FastifyRequest<{ Body: SigninRequestBody }>, reply: FastifyReply) => {
-    const { email, password } = request.body ?? {};
-
-    if (!email || !password) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'Both email and password are required.',
-      });
-    }
-
-    try {
-      const user = await fastify.prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (!user || !user.passwordHash) {
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'Invalid email or password.',
-        });
-      }
-
-      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-      if (!isPasswordValid) {
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'Invalid email or password.',
-        });
-      }
-
-      const jwt = (fastify as FastifyInstance & { jwt?: { sign(payload: object, options?: object): string } }).jwt;
-      const token = jwt ? jwt.sign({ id: user.id, email: user.email }) : null;
-
-      return reply.status(200).send({
-        success: true,
-        message: 'Signed in successfully.',
-        ...(token && { token }),
-      });
-
-    } catch (error: unknown) {
-      request.log.error({ err: error }, '[Auth] Database error encountered during signin');
-
-      return reply.status(500).send({
-        error: 'Internal Server Error',
-        message: 'Service temporarily unavailable. Please try again later.',
-      });
-    }
-  });
+  // Local password authentication is retired; Supabase Auth owns sessions.
+  fastify.post('/api/auth/signin', async (_request, reply) =>
+    reply.code(410).send({
+      error: 'Local password sign-in is retired. Use Supabase Auth.',
+    }),
+  );
 
   // 2. Session verification route
   fastify.get(
@@ -246,10 +197,10 @@ export const authPlugin: FastifyPluginAsync = async (fastify) => {
   );
 
   // 3. Retire legacy shared-password/cookie endpoints
-  for (const path of ['/api/auth/login', '/api/auth/logout']) {
+  for (const path of ['/api/auth/login', '/api/auth/logout', '/api/auth/signup']) {
     fastify.post(path, async (_request, reply) =>
       reply.code(410).send({
-        error: 'Use the application sign-in and sign-out controls.',
+        error: 'Local authentication is retired. Use Supabase Auth.',
       }),
     );
   }

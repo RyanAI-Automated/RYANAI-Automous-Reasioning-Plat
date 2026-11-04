@@ -4,7 +4,6 @@ import { startTelemetry } from './telemetry/otel.js';
 startTelemetry();
 
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import fastifyJwt from "@fastify/jwt";
 import { registerAuthRoutes } from './routes/auth.js';
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
@@ -155,9 +154,6 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
   await app.register(formbody);
   await app.register(websocket);
-  await app.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET || "ryanai-secure-jwt-secret-key-2026",
-  });
   await registerAuthRoutes(app);
   await app.register(nativeInferencePlugin);
 
