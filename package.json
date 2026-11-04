@@ -16,7 +16,7 @@
     "start": "node dist/server/server/launcher.js",
     "lint": "eslint . --max-warnings 0",
     "build:server": "tsc -p tsconfig.server.json && node scripts/copy-server-assets.mjs",
-    "agent:pa": "ts-node src/skills/agentPAScript.ts",
+    "agent:pa": "cross-env NODE_ENV=development tsx src/server/launcher.ts",
     "start:dev": "tsx src/server/launcher.ts",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "build:web": "npm run build:client",
