@@ -16,7 +16,7 @@
     "start": "node dist/server/server/launcher.js",
     "lint": "eslint . --max-warnings 0",
     "build:server": "tsc -p tsconfig.server.json && node scripts/copy-server-assets.mjs",
-    "agent:pa": "ts-node src/skills/agentPAScript.ts",
+    "agent:pa": "cross-env NODE_ENV=development tsx src/server/launcher.ts",
     "start:dev": "tsx src/server/launcher.ts",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "build:web": "npm run build:client",
@@ -49,7 +49,7 @@
     "db:push": "prisma db push",
     "db:migrate": "node --import tsx/esm src/db/migrate.ts",
     "db:setup": "npm run db:generate && npm run db:migrate",
-    "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs && npm run test:genaicode",
+    "test": "vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
     "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
@@ -116,7 +116,9 @@
     "api:report": "node scripts/activate-apis.mjs report",
     "test:api-activation": "node --test scripts/activate-apis.node.mjs",
     "deploy:validate": "node scripts/validate-deployment-contracts.mjs",
-    "test:genaicode": "node --test scripts/genaicode-adapter.test.mjs"
+    "test:genaicode": "node --test scripts/genaicode-adapter.test.mjs",
+    "test:quant-engine": "python3 -m unittest discover -s quant-engine/tests -v",
+    "test:container-sandbox": "node --test scripts/container-sandbox-runner.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

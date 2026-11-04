@@ -32,6 +32,7 @@ import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
+import { quantRoutes } from './routes/quantRoutes.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
@@ -42,6 +43,7 @@ import { inspectDatabaseSchema } from './databaseSchema.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
 import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { startAgentTaskWorker, startBrainHealthMonitor, type AgentRunProgressEvent } from '../agent/operations.js';
+import { AgentPAScript, setAgentPAObserver } from '../skills/agentPAScript.js';
 import { startAttachmentScanner } from './attachments/scanner.js';
 import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 
@@ -497,6 +499,7 @@ async function registerPlugins() {
   await fastify.register(slackInteractionsPlugin);
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
+  await fastify.register(quantRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
   await fastify.register(realtimeVoiceRoutes);
@@ -554,6 +557,29 @@ async function start() {
     console.log(`\n${startupSummary(serviceStatus)}\n`);
     stopBrainMonitor = startBrainHealthMonitor();
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
+
+    // PA is a read-only observer: it reports real API/PostgreSQL/Redis probes
+    // and has no task dispatch, messaging, file-edit or privileged capabilities.
+    const paObserver = new AgentPAScript({
+      fastifyPort: config.port,
+      heartbeatIntervalMs: Number(process.env.PA_HEARTBEAT_INTERVAL_MS ?? 15000),
+      healthCheck: async () => {
+        const [database, redis] = await Promise.allSettled([
+          dbPool.query('SELECT 1'),
+          fastify.redis.ping(),
+        ]);
+        return {
+          api: fastify.server.listening,
+          database: database.status === 'fulfilled',
+          redis: redis.status === 'fulfilled' && redis.value === 'PONG',
+        };
+      },
+    });
+    paObserver.on('report', (report) => fastify.log.info({ pa: report }, 'PA observer report'));
+    paObserver.on('healthCheckFailed', (report) => fastify.log.warn({ pa: report }, 'PA observer health degraded'));
+    await paObserver.start();
+    setAgentPAObserver(paObserver);
+    stopAgentPA = () => { void paObserver.stop().finally(() => setAgentPAObserver(null)); };
     else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
 
     if (process.env.ATTACHMENT_SCANNER_ENABLED === 'true') {
@@ -588,6 +614,7 @@ let stopAgentWorker: (() => void) | undefined;
 let stopAttachmentScanner: (() => void) | undefined;
 let stopAttachmentOrphanCleanup: (() => void) | undefined;
 let stopAlerts: (() => void) | undefined;
+let stopAgentPA: (() => void) | undefined;
 const shutdown = async () => {
   console.log('\n📴 Shutting down gracefully...');
   stopScheduler?.();
@@ -596,6 +623,7 @@ const shutdown = async () => {
   stopAttachmentScanner?.();
   stopAttachmentOrphanCleanup?.();
   stopAlerts?.();
+  stopAgentPA?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
   await fastify.close();
