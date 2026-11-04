@@ -24,21 +24,6 @@ function loadProject(userId: string): Project {
     return { title: typeof parsed.title === 'string' ? parsed.title.slice(0, 120) : fallback.title, language: typeof parsed.language === 'string' && isRyanLanguage(parsed.language) ? parsed.language : DEFAULT_LANGUAGE, chapters: chapters.length ? chapters : fallback.chapters };
   } catch { return fallback; }
 }
-function splitForRender(value: string, limit = 4000): string[] {
-  let rest = value.trim();
-  const chunks: string[] = [];
-  while (rest.length > limit) {
-    const sample = rest.slice(0, limit + 1);
-    const candidates = [sample.lastIndexOf('. '), sample.lastIndexOf('! '), sample.lastIndexOf('? '), sample.lastIndexOf('\n\n')];
-    const sentenceBoundary = Math.max(...candidates);
-    const boundary = sentenceBoundary > limit * 0.45 ? sentenceBoundary + 1 : sample.lastIndexOf(' ');
-    const cut = boundary > 0 ? boundary : limit;
-    chunks.push(rest.slice(0, cut).trim());
-    rest = rest.slice(cut).trim();
-  }
-  if (rest) chunks.push(rest);
-  return chunks;
-}
 function decodeAudioBase64(value: string, mimeType = 'audio/mpeg'): Blob {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
