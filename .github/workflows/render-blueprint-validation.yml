@@ -19,6 +19,7 @@ permissions:
 jobs:
   validate:
     name: Authenticated Render Blueprint validation (read-only)
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
