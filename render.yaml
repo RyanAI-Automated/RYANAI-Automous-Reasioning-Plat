@@ -22,7 +22,7 @@ projects:
               - key: VITE_SUPABASE_PUBLISHABLE_KEY
                 sync: false
               - key: VITE_API_BASE_URL
-                value: https://ryanai-automous-reasioning-plat.onrender.com
+                value: https://ryanai-automous-reasoning-plat.onrender.com
               - key: VITE_APP_ENV
                 value: production
             routes:
