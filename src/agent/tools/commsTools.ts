@@ -1,5 +1,6 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { getRecentOwnerCommunicationsTool } from './communicationContext.js';
 
 const channels = ['whatsapp', 'sms', 'voice', 'email'] as const;
 type CommunicationChannel = typeof channels[number];
@@ -85,8 +86,9 @@ export const prepareCommunicationDraftTool = tool(
   },
 );
 
-/** Agent tools are intentionally limited to read-only policy lookup and draft preparation. */
+/** Policy, draft and owner-scoped read-only context only; provider actions stay outside this registry. */
 export const commsTools = [
   getCommunicationPolicyTool,
+  getRecentOwnerCommunicationsTool,
   prepareCommunicationDraftTool,
 ];
