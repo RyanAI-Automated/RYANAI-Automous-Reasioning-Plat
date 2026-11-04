@@ -105,7 +105,7 @@ async function renderSegment(text: string, chapter: RenderChapter, language: str
 
 async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClient>, apiKey: string) {
   const snapshot = job.request;
-  if (!snapshot || !isRyanLanguage(snapshot.language) || !Array.isArray(snapshot.chapters) || snapshot.chapters.length < 1 || snapshot.chapters.length > 200) {
+  if (!snapshot || snapshot.projectId !== job.projectId || typeof snapshot.title !== 'string' || !isRyanLanguage(snapshot.language) || !Array.isArray(snapshot.chapters) || snapshot.chapters.length < 1 || snapshot.chapters.length > 200) {
     throw new PermanentRenderError('Persisted render request is invalid.');
   }
   const artifacts: Array<{ chapterId: string; chapterTitle: string; path: string; mimeType: string }> = [];
@@ -185,6 +185,10 @@ async function run() {
   const storageUrl = required('SUPABASE_URL');
   const serviceRoleKey = required('SUPABASE_SERVICE_ROLE_KEY');
   const storage = createClient(storageUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: bucket, error: bucketError } = await storage.storage.getBucket(BUCKET);
+  if (bucketError || !bucket || bucket.public) {
+    throw new Error('A pre-created private ryanai-audiobooks Storage bucket is required.');
+  }
   let stopping = false;
   let active = false;
 
