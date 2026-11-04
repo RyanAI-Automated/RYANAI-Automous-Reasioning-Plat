@@ -10,7 +10,6 @@ export interface AgentPASerializedStatus {
   active: boolean;
   operator: string;
   fastifyApiPort: number;
-  telemetrySocketPort: number;
   lastHeartbeat: string;
   health: AgentPAHealthSnapshot;
   workState: "stopped" | "monitoring" | "degraded";
@@ -24,7 +23,6 @@ export interface AgentPASerializedStatus {
 
 export interface AgentPAScriptConfig {
   fastifyPort?: number;
-  telemetryPort?: number;
   masterOperator?: string;
   heartbeatIntervalMs?: number;
   healthCheck?: () => Promise<AgentPAHealthSnapshot>;
@@ -56,7 +54,6 @@ export const GENX_HARDCORE_SECURITY_SKILL = {
 export class AgentPAScript extends EventEmitter {
   private active = false;
   private readonly fastifyPort: number;
-  private readonly telemetryPort: number;
   private readonly masterOperator: string;
   private readonly heartbeatIntervalMs: number;
   private readonly healthCheck?: () => Promise<AgentPAHealthSnapshot>;
@@ -71,7 +68,6 @@ export class AgentPAScript extends EventEmitter {
   constructor(config: AgentPAScriptConfig = {}) {
     super();
     this.fastifyPort = config.fastifyPort ?? 3000;
-    this.telemetryPort = config.telemetryPort ?? 3001;
     this.masterOperator = config.masterOperator ?? "RyanAI operator";
     const interval = config.heartbeatIntervalMs ?? 15000;
     this.heartbeatIntervalMs = Number.isFinite(interval) ? Math.max(1000, interval) : 15000;
@@ -145,7 +141,6 @@ export class AgentPAScript extends EventEmitter {
       active: this.active,
       operator: this.masterOperator,
       fastifyApiPort: this.fastifyPort,
-      telemetrySocketPort: this.telemetryPort,
       lastHeartbeat: this.lastHeartbeatISO,
       health: { ...this.health },
       workState: !this.active ? "stopped" : healthy ? "monitoring" : "degraded",
