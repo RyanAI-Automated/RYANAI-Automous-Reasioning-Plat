@@ -28,8 +28,12 @@ jobs:
         run: node scripts/update-patch-log.mjs
       - name: Open a patch-log update pull request
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PATCH_LOG_GH_TOKEN }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Configure the PATCH_LOG_GH_TOKEN Actions secret with contents:write and pull_requests:write permissions. GITHUB_TOKEN cannot reliably trigger the follow-up PR checks."
+            exit 1
+          fi
           PR_NUMBER="$(node -p "JSON.parse(require('fs').readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')).pull_request.number")"
           branch="patch-log/pr-$PR_NUMBER"
           git switch --create "$branch"
@@ -41,12 +45,14 @@ jobs:
             exit 0
           fi
           git commit -m "docs: record merged PR #$PR_NUMBER"
-          git push --force-with-lease origin "$branch"
-          existing_pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+          git push --force origin "$branch"
+          existing_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$GITHUB_REPOSITORY_OWNER:$branch" --jq '.[0].number // empty')"
           if [ -z "$existing_pr" ]; then
-            gh pr create --base main --head "$branch" \
-              --title "docs: record merged PR #$PR_NUMBER" \
-              --body "Automated, idempotent patch log entry for confirmed merged PR #$PR_NUMBER. This PR does not deploy applications."
+            gh api "repos/$GITHUB_REPOSITORY/pulls" --method POST \
+              -f title="docs: record merged PR #$PR_NUMBER" \
+              -f head="$GITHUB_REPOSITORY_OWNER:$branch" \
+              -f base="main" \
+              -f body="Automated, idempotent patch log entry for confirmed merged PR #$PR_NUMBER. This PR does not deploy applications."
           else
             echo "Patch-log update PR #$existing_pr already exists."
           fi
