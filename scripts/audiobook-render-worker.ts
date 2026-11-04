@@ -131,7 +131,7 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
     if (await isCancelled(job)) throw new Error('CANCELLED');
     const path = `${job.userId}/${job.projectId}/${job.id}/chapter-${String(chapterIndex + 1).padStart(4, '0')}.mp3`;
     const { error } = await storage.storage.from(BUCKET).upload(path, Buffer.concat(rendered), {
-      contentType: 'audio/mpeg', cacheControl: 'private, max-age=0', upsert: true,
+      contentType: 'audio/mpeg', cacheControl: '0', upsert: true,
     });
     if (error) throw new Error(`Private audio artifact upload failed: ${error.message}`);
     artifacts.push({ chapterId: chapter.id, chapterTitle: chapter.title, path, mimeType: 'audio/mpeg' });
