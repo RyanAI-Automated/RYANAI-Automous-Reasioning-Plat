@@ -114,7 +114,6 @@ if (manifest !== undefined) {
       manifest.deploymentTargets?.vercel,
       manifest.deploymentTargets?.railway,
       manifest.deploymentTargets?.railwayConfig,
-      manifest.deploymentTargets?.railway,
       ...(Array.isArray(manifest.deploymentTargets?.kubernetes) ? manifest.deploymentTargets.kubernetes : []),
     ];
     for (const target of targets) {
