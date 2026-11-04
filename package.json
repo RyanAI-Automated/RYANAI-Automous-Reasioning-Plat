@@ -120,7 +120,8 @@
     "test:quant-engine": "python3 -m unittest discover -s quant-engine/tests -v",
     "test:container-sandbox": "node --test scripts/container-sandbox-runner.test.mjs",
     "test:coding-queue": "node --test scripts/coding-task-queue.test.mjs",
-    "worker:coding": "tsx scripts/coding-task-worker.ts"
+    "worker:coding": "tsx scripts/coding-task-worker.ts",
+    "worker:audiobook": "tsx scripts/audiobook-render-worker.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
