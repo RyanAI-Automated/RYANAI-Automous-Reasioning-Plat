@@ -135,6 +135,8 @@ export default defineConfig(({ command, mode }) => {
         'scripts/validate-stack-manifest.test.mjs',
         // Written for node:test and run explicitly with `node --test` in CI.
         'scripts/redis-probe.test.mjs',
+        // Migration-readiness tests use node:test and run via `npm run test:migration:audit`.
+        'scripts/audit-prisma-migration-readiness.test.mjs',
       ],
       env: {
         RYAN_PATCH_VERIFIER_IMAGE:
