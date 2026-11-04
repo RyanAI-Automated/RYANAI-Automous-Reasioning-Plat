@@ -19,7 +19,7 @@ type BacktestResult = {
 };
 type Experiment = {
   id: string; strategy: string; status: string; createdAt: string;
-  result?: { metrics?: BacktestResult['metrics']; period?: BacktestResult['period'] } | null;
+  result?: BacktestResult | null;
 };
 
 const sampleShape = '[{"date":"YYYY-MM-DD","open":100,"high":102,"low":99,"close":101,"volume":1200}]';
@@ -51,6 +51,18 @@ export default function QuantLabPage() {
   }, []);
 
   useEffect(() => { void loadHistory(); }, [loadHistory]);
+
+  const openExperiment = async (experimentId: string) => {
+    setError('');
+    try {
+      const response = await authenticatedFetch(`/api/quant/experiments/${encodeURIComponent(experimentId)}`);
+      const data = await response.json() as { error?: string; experiment?: { result?: BacktestResult | null } };
+      if (!response.ok || !data.experiment?.result) throw new Error(data.error || 'Saved experiment result is unavailable.');
+      setResult(data.experiment.result);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to open saved experiment.');
+    }
+  };
 
   const chartPoints = useMemo(() => {
     const values = result?.equity_curve ?? [];
@@ -162,13 +174,16 @@ export default function QuantLabPage() {
             experiments.length === 0 ? <p className="text-sm text-slate-400">No saved experiments yet. Run a backtest to create your first traceable result.</p> :
             <ul className="space-y-3">
               {experiments.map((item) => (
-                <li key={item.id} className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-white">{item.strategy.replaceAll('_', ' ')}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-emerald-300">{item.status}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{new Date(item.createdAt).toLocaleString()}</p>
-                  {item.result?.metrics && <p className="mt-2 text-xs text-slate-300">Return: {item.result.metrics.total_return_pct}% · Max drawdown: {item.result.metrics.max_drawdown_pct}%</p>}
+                <li key={item.id}>
+                  <button type="button" onClick={() => void openExperiment(item.id)} className="w-full rounded-xl border border-white/10 bg-slate-950/60 p-3 text-left transition hover:border-cyan-300/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-white">{item.strategy.replaceAll('_', ' ')}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-emerald-300">{item.status}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{new Date(item.createdAt).toLocaleString()}</p>
+                    {item.result?.metrics && <p className="mt-2 text-xs text-slate-300">Return: {item.result.metrics.total_return_pct}% · Max drawdown: {item.result.metrics.max_drawdown_pct}%</p>}
+                    <span className="mt-2 inline-block text-xs text-cyan-200">Open saved result →</span>
+                  </button>
                 </li>
               ))}
             </ul>
