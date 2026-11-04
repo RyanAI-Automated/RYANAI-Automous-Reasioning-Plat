@@ -11,10 +11,10 @@ const readJson = (root, file, errors) => {
   try { return JSON.parse(readFileSync(fullPath, 'utf8')); }
   catch { errors.push(`invalid JSON in ${file}`); return null; }
 };
-const missingEnv = (env, names) => names.filter((name) => typeof env[name] !== 'string' || env[name].trim() === '');
+const missingEnv = (env, names) => names.filter((name) => typeof env[name] !== 'string' || env[name].trim() === '' || env[name].trim().toLowerCase() === 'false');
 const officialRepo = (value) => typeof value === 'string' && value.toLowerCase().replace(/\.git$/, '').endsWith(OFFICIAL_REPOSITORY.toLowerCase());
 
-export function auditDeploymentTargets(root = process.cwd(), env = process.env) {
+export function auditDeploymentTargets(env = process.env, root = process.cwd()) {
   const results = [];
 
   const vercelErrors = [];
@@ -28,7 +28,7 @@ export function auditDeploymentTargets(root = process.cwd(), env = process.env) 
   if (!existsSync(path.join(root, '.github/workflows/deploy.yml'))) vercelErrors.push('missing reusable Vercel deployment workflow');
   const vercelEnabled = env.VERCEL_DEPLOY_ENABLED === 'true';
   const vercelMissing = vercelEnabled ? missingEnv(env, ['VERCEL_TOKEN','VERCEL_ORG_ID','VERCEL_PROJECT_ID','VITE_API_BASE_URL']) : [];
-  results.push({ name:'Vercel', gate:'VERCEL_DEPLOY_ENABLED', status:vercelErrors.length || vercelMissing.length ? 'BLOCKED' : vercelEnabled ? 'READY' : 'DISABLED', errors:vercelErrors, missing:vercelMissing });
+  results.push({ name:'Vercel', gate:'VERCEL_DEPLOY_ENABLED', deploymentAttempted:false, status:vercelErrors.length || vercelMissing.length ? 'BLOCKED' : vercelEnabled ? 'READY' : 'DISABLED', errors:vercelErrors, missing:vercelMissing });
 
   const renderErrors = [];
   let render = null;
@@ -49,11 +49,17 @@ export function auditDeploymentTargets(root = process.cwd(), env = process.env) 
     if (api.healthCheckPath !== '/health') renderErrors.push('Render API healthCheckPath must be /health');
   }
   if (!web) renderErrors.push('Render Blueprint is missing ryanai-web');
-  else if (!officialRepo(web.repo)) renderErrors.push('Render web must use the official GitHub repository');
+  else {
+    if (!officialRepo(web.repo)) renderErrors.push('Render web must use the official GitHub repository');
+    if (web.runtime !== 'static') renderErrors.push('Render web must use the static runtime');
+    if (web.rootDir && web.rootDir !== '.') renderErrors.push('Render web rootDir must be the repository root');
+    if (web.staticPublishPath !== './dist') renderErrors.push('Render web staticPublishPath must be ./dist');
+    if (!String(web.buildCommand || '').includes('npm run build')) renderErrors.push('Render web buildCommand must run the frontend build');
+  }
   if (!existsSync(path.join(root, '.github/workflows/deploy-render.yml'))) renderErrors.push('missing Render deployment workflow');
   const renderEnabled = env.RENDER_DEPLOY_ENABLED === 'true';
   const renderMissing = renderEnabled ? missingEnv(env, ['RENDER_DEPLOY_HOOK_URL']) : [];
-  results.push({ name:'Render', gate:'RENDER_DEPLOY_ENABLED', status:renderErrors.length || renderMissing.length ? 'BLOCKED' : renderEnabled ? 'READY' : 'DISABLED', errors:renderErrors, missing:renderMissing });
+  results.push({ name:'Render', gate:'RENDER_DEPLOY_ENABLED', deploymentAttempted:false, status:renderErrors.length || renderMissing.length ? 'BLOCKED' : renderEnabled ? 'READY' : 'DISABLED', errors:renderErrors, missing:renderMissing });
 
   const railwayErrors = [];
   const railway = readJson(root, 'railway.json', railwayErrors);
@@ -64,7 +70,7 @@ export function auditDeploymentTargets(root = process.cwd(), env = process.env) 
   if (!existsSync(path.join(root, '.github/workflows/deploy-railway.yml'))) railwayErrors.push('missing Railway deployment workflow');
   const railwayEnabled = env.RAILWAY_DEPLOY_ENABLED === 'true';
   const railwayMissing = railwayEnabled ? missingEnv(env, ['RAILWAY_TOKEN','RAILWAY_PROJECT_ID','RAILWAY_SERVICE_ID','RAILWAY_ENVIRONMENT_ID']) : [];
-  results.push({ name:'Railway', gate:'RAILWAY_DEPLOY_ENABLED', status:railwayErrors.length || railwayMissing.length ? 'BLOCKED' : railwayEnabled ? 'READY' : 'DISABLED', errors:railwayErrors, missing:railwayMissing });
+  results.push({ name:'Railway', gate:'RAILWAY_DEPLOY_ENABLED', deploymentAttempted:false, status:railwayErrors.length || railwayMissing.length ? 'BLOCKED' : railwayEnabled ? 'READY' : 'DISABLED', errors:railwayErrors, missing:railwayMissing });
 
   return results;
 }
