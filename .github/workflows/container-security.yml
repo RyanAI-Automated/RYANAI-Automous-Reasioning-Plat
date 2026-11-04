@@ -92,27 +92,35 @@ jobs:
           tags: ryanai-${{ matrix.image }}:scan
           cache-from: type=gha,scope=${{ matrix.image }}
 
+      - name: Install checksum-verified Trivy release
+        env:
+          TRIVY_VERSION: 0.70.0
+        run: bash scripts/install-trivy.sh
+
       - name: Enforce high and critical vulnerability gate
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ryanai-${{ matrix.image }}:scan
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
+        run: |
+          set -euo pipefail
+          trivy image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --format table \
+            --exit-code 1 \
+            ryanai-${{ matrix.image }}:scan
 
       - name: Generate SARIF report (non-blocking)
         if: always()
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ryanai-${{ matrix.image }}:scan
-          format: sarif
-          output: trivy-${{ matrix.image }}.sarif
-          severity: HIGH,CRITICAL
-          limit-severities-for-sarif: true
-          ignore-unfixed: true
-          exit-code: '0'
+        run: |
+          set -euo pipefail
+          trivy image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --format sarif \
+            --output trivy-${{ matrix.image }}.sarif \
+            --exit-code 0 \
+            ryanai-${{ matrix.image }}:scan
 
       - name: Summarize Trivy SARIF findings on pull requests
         if: always() && github.event_name == 'pull_request' && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
