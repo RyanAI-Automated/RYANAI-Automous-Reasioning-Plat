@@ -178,6 +178,35 @@ if (statSafe(productionDeployPath)) {
 }
 
 
+const codacyPath = join(workflowDir, 'codacy.yml');
+if (statSafe(codacyPath)) {
+  const codacyText = readFileSync(codacyPath, 'utf8');
+  if (!codacyText.includes('const batchSize = 20;') || !codacyText.includes('if (batchCount > 4)')) {
+    fail(codacyPath, 'Codacy SARIF uploads must be split into batches of at most 20 runs');
+  }
+}
+
+const trivyInstallerPath = join(root, 'scripts', 'install-trivy.sh');
+if (!statSafe(trivyInstallerPath)) {
+  errors.push('Missing scripts/install-trivy.sh');
+} else {
+  const installerText = readFileSync(trivyInstallerPath, 'utf8');
+  if (!installerText.includes('sha256sum --check --strict')) {
+    fail(trivyInstallerPath, 'Trivy release must be checksum-verified before installation');
+  }
+}
+for (const relativePath of ['security.yml', 'container-security.yml']) {
+  const filePath = join(workflowDir, relativePath);
+  if (!statSafe(filePath)) continue;
+  const workflowText = readFileSync(filePath, 'utf8');
+  if (workflowText.includes('aquasecurity/trivy-action@')) {
+    fail(filePath, 'Trivy scans must use the checksum-verified installer instead of the failing action installer');
+  }
+  if (!workflowText.includes('bash scripts/install-trivy.sh')) {
+    fail(filePath, 'Trivy workflow must install the pinned binary with scripts/install-trivy.sh');
+  }
+}
+
 function assertPermissionsWorkflow(relativePath, checkDocument) {
   const filePath = join(workflowDir, relativePath);
   if (!statSafe(filePath)) {
