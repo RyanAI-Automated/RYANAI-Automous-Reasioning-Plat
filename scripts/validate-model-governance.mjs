@@ -45,7 +45,7 @@ export function validateModelGovernance(policy) {
     'models_may_merge_or_deploy',
     'consequential_actions_require_human_approval',
     'fail_closed_on_policy_or_identity_failure',
-  ]) require(typeof authority[key] === 'boolean,', `authority.${key} must be an explicit boolean`);
+  ]) require(typeof authority[key] === 'boolean', `authority.${key} must be an explicit boolean`);
   requireTrue(authority, 'model_outputs_are_untrusted', 'model outputs untrusted invariant');
   for (const key of [
     'models_may_authorize_actions',
