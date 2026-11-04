@@ -198,7 +198,7 @@ try {
       DATABASE_URL: combinedUnavailableDatabase.toString(),
       REDIS_URL: unreachableRedis.toString(),
     },
-    'Production startup blocked: required dependency checks failed for Redis',
+    'Production startup blocked: required dependency checks failed for PostgreSQL, Redis, agent checkpointer',
   );
 
   await expectHealthyRecovery();
