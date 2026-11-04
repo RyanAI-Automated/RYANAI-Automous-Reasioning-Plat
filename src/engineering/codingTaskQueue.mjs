@@ -148,7 +148,7 @@ export function createCodingTaskQueue(prisma, { now = () => new Date() } = {}) {
       const current = await prisma.codingTask.findUnique({ where: { id: taskId } });
       if (!current || current.workerId !== workerId || current.attempts !== attempts || !['running', 'cancel_requested'].includes(current.status)) return false;
       const timestamp = now();
-      const cancelled = current.status === 'cancel_requested' || current.cancelRequestedAt !== null;
+      const cancelled = retryable && (current.status === 'cancel_requested' || current.cancelRequestedAt !== null);
       const retry = !cancelled && retryable && attempts < current.maxAttempts;
       const delayMs = Math.min(15 * 60_000, 5_000 * (2 ** Math.max(0, attempts - 1)));
       const updated = await prisma.codingTask.updateMany({
@@ -206,8 +206,9 @@ export function startCodingTaskWorker({ queue, executeTask, concurrency = 1, lea
       }
     } catch (error) {
       const latest = await queue.get(task.id).catch(() => null);
-      if (latest?.status === 'cancel_requested') await queue.markCancelled(task.id, workerId, task.attempts);
-      else if (!controller.signal.aborted) await queue.fail(task.id, workerId, task.attempts, error, { retryable: error?.code !== 'SANDBOX_TERMINATION_UNCONFIRMED' });
+      if (error?.code === 'SANDBOX_TERMINATION_UNCONFIRMED') await queue.fail(task.id, workerId, task.attempts, error, { retryable: false });
+      else if (latest?.status === 'cancel_requested') await queue.markCancelled(task.id, workerId, task.attempts);
+      else if (!controller.signal.aborted) await queue.fail(task.id, workerId, task.attempts, error);
     } finally {
       clearInterval(heartbeatTimer);
       active.delete(task.id);
