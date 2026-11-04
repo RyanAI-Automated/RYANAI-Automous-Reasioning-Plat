@@ -87,7 +87,8 @@ test('a boolean false from GitHub secret-presence checks is treated as missing',
 test('all three platform targets become ready only when their own gate and prerequisites exist', (t) => {
   const result = auditDeploymentTargets({
     RENDER_DEPLOY_ENABLED:'true',
-    RENDER_DEPLOY_HOOK_URL:'true',
+    RENDER_API_DEPLOY_HOOK_URL:'true',
+    RENDER_WEB_DEPLOY_HOOK_URL:'true',
     VERCEL_DEPLOY_ENABLED:'true',
     VERCEL_TOKEN:'true',
     VERCEL_ORG_ID:'org',
