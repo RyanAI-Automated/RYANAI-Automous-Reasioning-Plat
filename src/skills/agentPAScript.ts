@@ -27,7 +27,6 @@ export interface AgentPAScriptConfig {
   telemetryPort?: number;
   masterOperator?: string;
   heartbeatIntervalMs?: number;
-  maxRetryAttempts?: number;
   healthCheck?: () => Promise<AgentPAHealthSnapshot>;
 }
 
@@ -60,7 +59,6 @@ export class AgentPAScript extends EventEmitter {
   private readonly telemetryPort: number;
   private readonly masterOperator: string;
   private readonly heartbeatIntervalMs: number;
-  private readonly maxRetryAttempts: number;
   private readonly healthCheck?: () => Promise<AgentPAHealthSnapshot>;
   private retryCount = 0;
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -75,8 +73,8 @@ export class AgentPAScript extends EventEmitter {
     this.fastifyPort = config.fastifyPort ?? 3000;
     this.telemetryPort = config.telemetryPort ?? 3001;
     this.masterOperator = config.masterOperator ?? "RyanAI operator";
-    this.heartbeatIntervalMs = Math.max(1000, config.heartbeatIntervalMs ?? 15000);
-    this.maxRetryAttempts = Math.max(1, config.maxRetryAttempts ?? 5);
+    const interval = config.heartbeatIntervalMs ?? 15000;
+    this.heartbeatIntervalMs = Number.isFinite(interval) ? Math.max(1000, interval) : 15000;
     this.healthCheck = config.healthCheck;
   }
 
