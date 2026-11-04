@@ -46,12 +46,14 @@ test('accepts a complete schema and vector-memory installation', () => {
     indexes: new Set(['idx_reasoning_embedding', 'idx_agent_session']),
     extensions: new Set(['vector']),
     agentMemoryColumns: new Set(['session_id']),
+    indexDefinitions: new Map([['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)']]),
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
   assert.equal(result.vector.extensionPresent, true);
   assert.deepEqual(result.vector.missingTables, []);
   assert.equal(result.vector.indexPresent, true);
+  assert.equal(result.vector.reasoningIndexValid, true);
   assert.equal(result.vector.agentSessionIndexPresent, true);
   assert.equal(result.vector.sessionIdColumnPresent, true);
 });
@@ -76,4 +78,17 @@ test('vector memory migration normalizes both historical session column spelling
   assert.match(migration, /RENAME COLUMN "sessionId" TO session_id/);
   assert.match(migration, /RENAME COLUMN sessionid TO session_id/);
   assert.match(migration, /ON public\.agent_memory \(session_id, timestamp\)/);
+});
+
+test('rejects a same-named but non-HNSW vector index', () => {
+  const result = assessSchema({
+    columns: new Set(),
+    tables: new Set(['reasoning_cache', 'agent_memory']),
+    indexes: new Set(['idx_reasoning_embedding', 'idx_agent_session']),
+    extensions: new Set(['vector']),
+    agentMemoryColumns: new Set(['session_id']),
+    indexDefinitions: new Map([['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING btree (embedding)']]),
+  });
+  assert.equal(result.vector.indexPresent, true);
+  assert.equal(result.vector.reasoningIndexValid, false);
 });
