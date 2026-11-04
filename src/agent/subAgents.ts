@@ -2,7 +2,7 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { tool } from '@langchain/core/tools';
 import { SystemMessage } from '@langchain/core/messages';
 import { z } from 'zod';
-import { sendWhatsAppTool } from './tools/whatsappTool.js';
+import { commsTools } from './tools/commsTools.js';
 import { createChatModel } from '../config/llm.js';
 
 const llm = createChatModel();
@@ -28,23 +28,24 @@ export const verifyComplianceTool = tool(
       deploymentId: z.string().describe('The deployment reference ID (e.g. #402).'),
       framework: z.string().optional().describe('Target compliance framework (e.g., SOC2, ISO27001, HIPAA).'),
     }),
-  }
+  },
 );
 
-// 1. Communications Sub-Agent (Handles messaging, alerts, notifications)
+// Communications sub-agent can prepare drafts and inspect channel policy only.
+// It has no provider credentials, network dispatch tool or call-placement tool.
 export const commsSubAgent = createReactAgent({
   llm,
-  tools: [sendWhatsAppTool],
+  tools: commsTools,
   stateModifier: new SystemMessage(
-    'You are a specialized communications agent. Dispatch outbound notifications cleanly and accurately using available tools.'
+    'You are RyanAI’s communications drafting assistant. Prepare drafts and explain channel policy. Never claim to have sent a message, scheduled a message or placed a call. External communication requires explicit owner approval through the authenticated communications gateway.',
   ),
 });
 
-// 2. Compliance Sub-Agent (Handles security checks, policy validations)
+// Compliance Sub-Agent (Handles security checks, policy validations)
 export const complianceSubAgent = createReactAgent({
   llm,
   tools: [verifyComplianceTool],
   stateModifier: new SystemMessage(
-    'You are a strict compliance officer agent. Verify parameters against enterprise security and regulatory standards.'
+    'You are a strict compliance officer agent. Verify parameters against enterprise security and regulatory standards.',
   ),
 });
