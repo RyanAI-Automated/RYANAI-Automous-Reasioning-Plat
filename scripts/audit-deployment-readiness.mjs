@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
 const targets = [
   { name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_DEPLOY_HOOK_URL'] },
@@ -24,11 +25,13 @@ export function auditDeploymentTargets(env = process.env) {
   });
 }
 
-const results = auditDeploymentTargets();
-for (const item of results) {
-  const suffix = item.status === 'BLOCKED' ? ` | missing: ${item.missing.join(', ')}` : '';
-  console.log(`${item.status} | ${item.name} | gate: ${item.gate}${suffix}`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const results = auditDeploymentTargets();
+  for (const item of results) {
+    const suffix = item.status === 'BLOCKED' ? ` | missing: ${item.missing.join(', ')}` : '';
+    console.log(`${item.status} | ${item.name} | gate: ${item.gate}${suffix}`);
+  }
+  const blocked = results.filter((item) => item.status === 'BLOCKED');
+  console.log(`\nDeployment readiness: ${results.filter((item) => item.status === 'READY').length} ready, ${blocked.length} blocked, ${results.filter((item) => item.status === 'DISABLED').length} disabled. No deployments were triggered.`);
+  if (process.argv.includes('--strict') && blocked.length) process.exitCode = 1;
 }
-const blocked = results.filter((item) => item.status === 'BLOCKED');
-console.log(`\nDeployment readiness: ${results.filter((item) => item.status === 'READY').length} ready, ${blocked.length} blocked, ${results.filter((item) => item.status === 'DISABLED').length} disabled. No deployments were triggered.`);
-if (process.argv.includes('--strict') && blocked.length) process.exitCode = 1;
