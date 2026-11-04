@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import yaml from 'yaml';
 
 const OFFICIAL_REPOSITORY = 'RyanAI-Automated/RYANAI-Automous-Reasioning-Plat';
@@ -75,14 +76,16 @@ export function auditDeploymentTargets(env = process.env, root = process.cwd()) 
   return results;
 }
 
-const results = auditDeploymentTargets();
-for (const item of results) {
-  console.log(`${item.status} | ${item.name} | gate: ${item.gate}`);
-  for (const error of item.errors) console.log(`  - ${error}`);
-  if (item.missing.length) console.log(`  - missing environment variable names: ${item.missing.join(', ')}`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const results = auditDeploymentTargets();
+  for (const item of results) {
+    console.log(`${item.status} | ${item.name} | gate: ${item.gate}`);
+    for (const error of item.errors) console.log(`  - ${error}`);
+    if (item.missing.length) console.log(`  - missing environment variable names: ${item.missing.join(', ')}`);
+  }
+  const blocked = results.filter((item) => item.status === 'BLOCKED');
+  const ready = results.filter((item) => item.status === 'READY');
+  const disabled = results.filter((item) => item.status === 'DISABLED');
+  console.log(`\nDeployment readiness: ${ready.length} ready, ${blocked.length} blocked, ${disabled.length} disabled. No deployments were triggered.`);
+  if (process.argv.includes('--strict') && blocked.length) process.exitCode = 1;
 }
-const blocked = results.filter((item) => item.status === 'BLOCKED');
-const ready = results.filter((item) => item.status === 'READY');
-const disabled = results.filter((item) => item.status === 'DISABLED');
-console.log(`\nDeployment readiness: ${ready.length} ready, ${blocked.length} blocked, ${disabled.length} disabled. No deployments were triggered.`);
-if (process.argv.includes('--strict') && blocked.length) process.exitCode = 1;
