@@ -1,16 +1,14 @@
 name: Deploy API to Render
 
-# Trigger only after the actual container publishing workflow succeeds.
-# Render remains opt-in and requires an explicit gate plus a configured deploy hook.
 on:
   workflow_run:
-    workflows: ['Build and Publish RyanAI Containers']
-    branches: [main, master]
+    workflows: ["CI - Build, Test, and Integrate"]
+    branches: [main]
     types: [completed]
-  workflow_dispatch:
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
   group: render-production
@@ -18,35 +16,165 @@ concurrency:
 
 jobs:
   deploy:
-    name: Trigger Render deploy
+    name: Deploy validated API commit to official Render service
     if: >-
       ${{
-        vars.RENDER_DEPLOY_ENABLED == 'true' &&
-        (
-          github.event_name == 'workflow_dispatch' ||
-          (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-        )
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     environment: production
+    env:
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      RENDER_SERVICE_ID: srv-dafvs4ht0dsc7380mapg
+      RENDER_API_URL: https://ryanai-automous-reasoning-plat.onrender.com
 
     steps:
-      - name: Validate Render deployment configuration
+      - name: Validate exact main commit
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        shell: bash
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ -z "$RENDER_DEPLOY_HOOK_URL" ]]; then
-            echo "::error::RENDER_DEPLOY_ENABLED is true but RENDER_DEPLOY_HOOK_URL is missing."
-            exit 1
-          fi
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid deployment SHA"; exit 1; }
+          MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$TARGET_SHA" == "$MAIN_SHA" ]] || { echo "::error::Workflow run is not for current main"; exit 1; }
 
-      - name: Trigger Render deploy
+      - name: Require successful CI and security checks for the exact commit
         env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
-          echo "Render deploy hook accepted the request."
+          required=(
+            "Validate (typecheck, lint, test, build)"
+            "MCP server and workflow worker"
+            "Issue 435 migrations and attachment security"
+            "Test agent API contracts"
+            "Dependency audit"
+            "Trivy filesystem scan"
+            "Analyze (javascript-typescript)"
+            "Analyze (python)"
+            "TruffleHog secret audit"
+            "Codacy Security Scan"
+          )
+          ready=false
+          for attempt in $(seq 1 40); do
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs?per_page=100" > checks-pages.json
+            jq -s '[.[].check_runs[]]' checks-pages.json > checks.json
+            missing=0
+            pending=0
+            failed=0
+            for name in "${required[@]}"; do
+              count="$(jq --arg n "$name" '[.[] | select(.name == $n)] | length' checks.json)"
+              if [[ "$count" -eq 0 ]]; then
+                missing=$((missing + 1))
+                continue
+              fi
+              bad="$(jq --arg n "$name" '[.[] | select(.name == $n) | select(.status == "completed" and .conclusion != "success")] | length' checks.json)"
+              wait="$(jq --arg n "$name" '[.[] | select(.name == $n) | select(.status != "completed")] | length' checks.json)"
+              failed=$((failed + bad))
+              pending=$((pending + wait))
+            done
+            [[ "$failed" -eq 0 ]] || { echo "::error::A required CI/security check failed"; jq '[.[] | select(.conclusion == "failure")] | map({name,conclusion})' checks.json; exit 1; }
+            if [[ "$missing" -eq 0 && "$pending" -eq 0 ]]; then
+              ready=true
+              break
+            fi
+            echo "Waiting for required checks: $missing missing, $pending pending (attempt $attempt/40)"
+            sleep 15
+          done
+          [[ "$ready" == true ]] || { echo "::error::Required checks did not all complete successfully within 10 minutes"; exit 1; }
+
+      - name: Validate Render API credential
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$RENDER_API_KEY" ]] || { echo "::error::RENDER_API_KEY is missing"; exit 1; }
+
+      - name: Align official Render API service configuration
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --url "https://api.render.com/v1/services/$RENDER_SERVICE_ID" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --header "content-type: application/json" \
+            --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","healthCheckPath":"/health"}}' \
+            --output render-service-update.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.healthCheckPath == "/health"' render-service-update.json
+
+      - name: Deploy exact validated main commit
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --header "content-type: application/json" \
+            --data "$(jq -n --arg sha "$TARGET_SHA" '{commitId:$sha}')" \
+            --output render-deploy.json
+          DEPLOY_ID="$(jq -er '.id' render-deploy.json)"
+          echo "RENDER_DEPLOY_ID=$DEPLOY_ID" >> "$GITHUB_ENV"
+          jq '{id,status,commit}' render-deploy.json
+
+      - name: Wait for exact Render deployment to become live
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            curl --fail-with-body --silent --show-error \
+              --url "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys/$RENDER_DEPLOY_ID" \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
+              --header "accept: application/json" \
+              --output render-deploy-final.json
+            STATUS="$(jq -r '.status // empty' render-deploy-final.json)"
+            DEPLOY_SHA="$(jq -r '.commit.id // .commitId // empty' render-deploy-final.json)"
+            echo "Render deployment status: $STATUS"
+            [[ -z "$DEPLOY_SHA" || "$DEPLOY_SHA" == "$TARGET_SHA" ]] || { echo "::error::Unexpected deployed commit: $DEPLOY_SHA"; exit 1; }
+            [[ "$STATUS" != "build_failed" && "$STATUS" != "update_failed" && "$STATUS" != "canceled" ]] || { echo "::error::Render deployment failed"; jq . render-deploy-final.json; exit 1; }
+            [[ "$STATUS" == "live" ]] && break
+            sleep 15
+          done
+          [[ "$(jq -r '.status' render-deploy-final.json)" == "live" ]] || { echo "::error::Timed out waiting for Render deployment"; exit 1; }
+          [[ "$(jq -r '.commit.id // .commitId // empty' render-deploy-final.json)" == "$TARGET_SHA" ]] || { echo "::error::Live Render deployment does not match validated SHA"; exit 1; }
+
+      - name: Verify official API health
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 10 \
+              --output health-response.json \
+              --write-out '%{http_code}' \
+              "$RENDER_API_URL/health" > health-status.txt; then
+              if [[ "$(cat health-status.txt)" == "200" ]]; then
+                echo "Official Render API /health returned HTTP 200"
+                cat health-response.json
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Official Render API /health did not return HTTP 200"
+          [[ -f health-response.json ]] && cat health-response.json || true
+          exit 1
+
+      - name: Verify live Render service configuration
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --url "https://api.render.com/v1/services/$RENDER_SERVICE_ID" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --output render-service-final.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.healthCheckPath == "/health"' render-service-final.json

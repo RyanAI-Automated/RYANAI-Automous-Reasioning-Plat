@@ -10,10 +10,11 @@ projects:
           - type: web
             name: ryanai-web
             runtime: static
+            rootDir: .
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             plan: free
             autoDeployTrigger: "off"
-            buildCommand: npm ci --legacy-peer-deps && npm run build
+            buildCommand: npm ci --legacy-peer-deps && npm run build:web
             staticPublishPath: ./dist
             envVars:
               - key: VITE_SUPABASE_URL
@@ -21,7 +22,7 @@ projects:
               - key: VITE_SUPABASE_PUBLISHABLE_KEY
                 sync: false
               - key: VITE_API_BASE_URL
-                value: https://ryanai-api.onrender.com
+                value: https://ryanai-automous-reasoning-plat.onrender.com
               - key: VITE_APP_ENV
                 value: production
             routes:
@@ -29,12 +30,11 @@ projects:
                 source: /*
                 destination: /index.html
           - type: web
-            name: ryanai-api
+            name: RYANAI-Automous-Reasioning-Plat
             runtime: docker
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             branch: main
             plan: free
-            region: oregon
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
             autoDeployTrigger: "off"
@@ -144,6 +144,6 @@ projects:
           - type: keyvalue
             name: ryanai-redis
             plan: free
-            region: oregon
+            region: virginia
             maxmemoryPolicy: noeviction
             ipAllowList: [] # Internal access only

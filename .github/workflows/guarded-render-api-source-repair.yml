@@ -71,20 +71,20 @@ jobs:
           set -euo pipefail
           [[ -n "$RENDER_API_KEY" ]] || { echo "::error::RENDER_API_KEY secret is missing; no Render change was made"; exit 1; }
 
-      - name: Relink existing API service to the official repository
+      - name: Repair official API service build and health configuration
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
             --request PATCH \
-            --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
+            --url "https://api.render.com/v1/services/srv-dafvs4ht0dsc7380mapg" \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --header "content-type: application/json" \
-            --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","autoDeployTrigger":"off"}' \
+            --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","healthCheckPath":"/health"}}' \
             --output render-service-update.json
-          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off"' render-service-update.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.healthCheckPath == "/health"' render-service-update.json
 
       - name: Deploy the exact validated API commit
         env:
@@ -94,7 +94,7 @@ jobs:
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
             --request POST \
-            --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0/deploys" \
+            --url "https://api.render.com/v1/services/srv-dafvs4ht0dsc7380mapg/deploys" \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --header "content-type: application/json" \
@@ -112,7 +112,7 @@ jobs:
           set -euo pipefail
           for attempt in $(seq 1 60); do
             curl --fail-with-body --silent --show-error \
-              --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0/deploys/$RENDER_DEPLOY_ID" \
+              --url "https://api.render.com/v1/services/srv-dafvs4ht0dsc7380mapg/deploys/$RENDER_DEPLOY_ID" \
               --header "Authorization: Bearer ${RENDER_API_KEY}" \
               --header "accept: application/json" \
               --output render-deploy-final.json
@@ -134,7 +134,7 @@ jobs:
             if curl --fail --silent --show-error --max-time 10 \
               --output health-response.json \
               --write-out '%{http_code}' \
-              "https://ryanai-api.onrender.com/health" > health-status.txt; then
+              "https://ryanai-automous-reasoning-plat.onrender.com/health" > health-status.txt; then
               if [[ "$(cat health-status.txt)" == "200" ]]; then
                 echo "API /health returned HTTP 200"
                 cat health-response.json
@@ -153,8 +153,8 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
-            --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
+            --url "https://api.render.com/v1/services/srv-dafvs4ht0dsc7380mapg" \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --output render-service-final.json
-          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main"' render-service-final.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.healthCheckPath == "/health"' render-service-final.json

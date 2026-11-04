@@ -112,6 +112,7 @@ if (manifest !== undefined) {
       manifest.deploymentTargets?.dockerCompose,
       manifest.deploymentTargets?.render,
       manifest.deploymentTargets?.vercel,
+      manifest.deploymentTargets?.railway,
       ...(Array.isArray(manifest.deploymentTargets?.kubernetes) ? manifest.deploymentTargets.kubernetes : []),
     ];
     for (const target of targets) {

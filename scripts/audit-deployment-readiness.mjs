@@ -5,14 +5,22 @@ const targets = [
   { name: 'AWS ECS', gate: 'AWS_ECS_DEPLOY_ENABLED', required: ['AWS_REGION','ECR_REPOSITORY','ECS_SERVICE','ECS_CLUSTER','ECS_TASK_DEFINITION','ECS_CONTAINER_NAME','AWS_ACCESS_KEY_ID','AWS_SECRET_ACCESS_KEY'] },
   { name: 'Azure AKS', gate: 'AZURE_AKS_DEPLOY_ENABLED', required: ['AZURE_CONTAINER_REGISTRY','AZURE_CONTAINER_NAME','AZURE_RESOURCE_GROUP','AZURE_CLUSTER_NAME','AZURE_KUSTOMIZE_PATH','AZURE_CLIENT_ID','AZURE_TENANT_ID','AZURE_SUBSCRIPTION_ID'] },
   { name: 'Datadog Synthetics', gate: 'DATADOG_SYNTHETICS_ENABLED', required: ['DD_API_KEY','DD_APP_KEY'] },
-  { name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_DEPLOY_HOOK_URL'] },
+  { name: 'Railway', gate: 'RAILWAY_DEPLOY_ENABLED', required: ['RAILWAY_TOKEN','RAILWAY_PROJECT_ID','RAILWAY_SERVICE_ID','RAILWAY_ENVIRONMENT_ID'] },
+  { name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY'] },
   { name: 'Vercel', gate: 'VERCEL_DEPLOY_ENABLED', required: ['VERCEL_TOKEN','VERCEL_ORG_ID','VERCEL_PROJECT_ID','VITE_API_BASE_URL'] },
 ];
+
+function isConfigured(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized !== '' && normalized !== 'false' && normalized !== '0';
+}
 
 export function auditDeploymentTargets(env = process.env) {
   return targets.map(({ name, gate, required }) => {
     const enabled = env[gate] === 'true';
-    const missing = enabled ? required.filter((key) => typeof env[key] !== 'string' || env[key].trim() === '') : [];
+    const missing = enabled ? required.filter((key) => !isConfigured(env[key])) : [];
     return {
       name,
       gate,
