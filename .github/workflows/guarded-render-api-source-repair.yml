@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   checks: read
+  deployments: write
 
 concurrency:
   group: render-api-source-repair
@@ -23,6 +24,8 @@ concurrency:
 jobs:
   repair-and-deploy:
     name: Validate commit, relink official source, deploy API
+    if: ${{ inputs.confirmation == 'REPAIR-AND-DEPLOY' && vars.RENDER_DEPLOY_ENABLED == 'true' && vars.RENDER_DEPLOY_APPROVED == 'true' }}
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Validate confirmation and main SHA
