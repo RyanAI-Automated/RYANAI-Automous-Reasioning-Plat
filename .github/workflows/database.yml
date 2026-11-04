@@ -114,7 +114,7 @@ jobs:
         run: |
           docker run --rm --network host -e PGPASSWORD \
             postgres:16-alpine createdb -h 127.0.0.1 -U ryanai ryanai_upgrade
-          docker run --rm --network host -e PGPASSWORD \
+          docker run --rm --network host -e PGPASSWORD=ci_password \
             -v "$GITHUB_WORKSPACE/tests/fixtures/supabase-auth-ci-bootstrap.sql:/tmp/auth.sql:ro" \
             postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_upgrade \
               -v ON_ERROR_STOP=1 -f /tmp/auth.sql
