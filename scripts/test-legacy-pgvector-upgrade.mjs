@@ -34,20 +34,20 @@ try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.agent_memory (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        sessionid VARCHAR(255) NOT NULL,
+        "sessionId" VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL,
         content TEXT NOT NULL,
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory (sessionid, timestamp)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory ("sessionId", timestamp)');
     await pool.query(
       "INSERT INTO public.reasoning_cache (prompt, response) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM public.reasoning_cache WHERE prompt = $1)",
       ['legacy-upgrade-fixture', 'preserve-reasoning-cache-row'],
     );
     await pool.query(
-      "INSERT INTO public.agent_memory (sessionid, role, content) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE sessionid = $1)",
+      "INSERT INTO public.agent_memory ("sessionId", role, content) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM public.agent_memory WHERE "sessionId" = $1)",
       ['legacy-upgrade-fixture', 'assistant', 'preserve-agent-memory-row'],
     );
     console.log('Prepared disposable legacy pgvector schema and preservation fixtures.');
@@ -55,7 +55,7 @@ try {
     const [extension, cache, memory, indexes] = await Promise.all([
       pool.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'"),
       pool.query("SELECT response FROM public.reasoning_cache WHERE prompt = $1", ['legacy-upgrade-fixture']),
-      pool.query("SELECT content FROM public.agent_memory WHERE sessionid = $1", ['legacy-upgrade-fixture']),
+      pool.query("SELECT content FROM public.agent_memory WHERE session_id = $1", ['legacy-upgrade-fixture']),
       pool.query("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('idx_reasoning_embedding', 'idx_agent_session')"),
     ]);
     assert.equal(extension.rowCount, 1, 'pgvector extension missing after migration');
