@@ -28,7 +28,8 @@ test('blocks enabled platforms when required deployment configuration is missing
 test('marks each platform ready only when its own gate and all required values exist', () => {
   const results = auditDeploymentTargets({
     RENDER_DEPLOY_ENABLED: 'true',
-    RENDER_DEPLOY_HOOK_URL: 'https://example.invalid/hook',
+    RENDER_API_DEPLOY_HOOK_URL: 'https://example.invalid/api-hook',
+    RENDER_WEB_DEPLOY_HOOK_URL: 'https://example.invalid/web-hook',
     VERCEL_DEPLOY_ENABLED: 'true',
     VERCEL_TOKEN: 'fixture-vercel-token',
     VERCEL_ORG_ID: 'fixture-org',
