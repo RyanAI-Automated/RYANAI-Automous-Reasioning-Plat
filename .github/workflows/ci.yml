@@ -2,7 +2,7 @@ name: CI - Build, Test, and Integrate
 
 on:
   push:
-    branches: [main, master, dev, develop]
+    branches: [main, master, dev, develop, 'fix/**']
   pull_request:
     branches: [main, master, dev, develop]
   workflow_dispatch:
@@ -74,7 +74,13 @@ jobs:
           DD_API_KEY: ${{ secrets.DD_API_KEY != '' }}
           DD_APP_KEY: ${{ secrets.DD_APP_KEY != '' }}
           RENDER_DEPLOY_ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+          RENDER_API_DEPLOY_HOOK_URL: ${{ secrets.RENDER_API_DEPLOY_HOOK_URL != '' }}
+          RENDER_WEB_DEPLOY_HOOK_URL: ${{ secrets.RENDER_WEB_DEPLOY_HOOK_URL != '' }}
+          RAILWAY_DEPLOY_ENABLED: ${{ vars.RAILWAY_DEPLOY_ENABLED }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
           VERCEL_DEPLOY_ENABLED: ${{ vars.VERCEL_DEPLOY_ENABLED }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID != '' }}
