@@ -555,6 +555,8 @@ model AudiobookRenderJob {
   projectId      String          @map("project_id")
   project        AudiobookProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   status         String          @default("queued") @db.VarChar(24)
+  idempotencyKey String          @map("idempotency_key") @db.VarChar(120)
+  request        Json
   progress       Json            @default("{}")
   result         Json?
   error          String?         @db.Text
@@ -569,6 +571,7 @@ model AudiobookRenderJob {
   updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
   completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
 
+  @@unique([userId, idempotencyKey], map: "audiobook_render_jobs_user_idempotency_key")
   @@index([status, nextAttemptAt, createdAt], map: "audiobook_render_jobs_status_next_attempt_idx")
   @@index([status, leaseExpiresAt], map: "audiobook_render_jobs_status_lease_idx")
   @@index([userId, createdAt(sort: Desc)], map: "audiobook_render_jobs_user_created_idx")
