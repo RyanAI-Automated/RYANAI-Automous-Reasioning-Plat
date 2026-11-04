@@ -104,7 +104,7 @@ describe('RyanAI audiobook persistence routes', () => {
     }));
   });
 
-  it('reuses an existing active project render instead of queueing a duplicate', async () => {
+  it('rejects a second render while a different project render is active', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'test-provider-key');
     vi.stubEnv('SUPABASE_URL', 'https://storage.example.test');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role');
