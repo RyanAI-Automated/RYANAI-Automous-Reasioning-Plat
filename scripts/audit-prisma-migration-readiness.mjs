@@ -20,17 +20,19 @@ export function compareMigrationState(localNames, appliedRows) {
   };
 }
 
-export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, cacheColumnTypes = new Map(), indexDefinitions = new Map() }) {
+export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns, cacheColumnTypes = new Map(), indexDefinitions = new Map(), quantColumns = new Set() }) {
   const requiredColumns = [
     'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
     'approved_commit_sha', 'approved_diff_hash', 'approved_by',
     'approved_at', 'steering_notes', 'cancel_requested_at',
   ];
-  const requiredTables = ['agent_run_evidence', 'jarvis_audit_events'];
+  const requiredTables = ['agent_run_evidence', 'jarvis_audit_events', 'quant_experiments'];
   const requiredVector = ['reasoning_cache', 'agent_memory'];
   const missingColumns = requiredColumns.filter((name) => !columns.has(name));
   const missingTables = requiredTables.filter((name) => !tables.has(name));
+  const requiredQuantColumns = ['id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at'];
+  const missingQuantColumns = requiredQuantColumns.filter((name) => !quantColumns.has(name));
   const missingVectorTables = requiredVector.filter((name) => !tables.has(name));
   const requiredMemoryColumns = ['session_id', 'role', 'content', 'timestamp'];
   const requiredCacheColumns = ['id', 'prompt', 'response', 'embedding', 'created_at'];
@@ -51,6 +53,7 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
   return {
     missingColumns,
     missingTables,
+    missingQuantColumns,
     vector: {
       extensionPresent: extensions.has('vector'),
       missingTables: missingVectorTables,
@@ -81,13 +84,14 @@ async function main() {
       'SELECT migration_name, finished_at, rolled_back_at FROM public._prisma_migrations ORDER BY migration_name',
     );
     const state = compareMigrationState(localNames, migrationResult.rows);
-    const [columnResult, tableResult, indexResult, extensionResult, memoryColumnResult, cacheColumnResult] = await Promise.all([
+    const [columnResult, tableResult, indexResult, extensionResult, memoryColumnResult, cacheColumnResult, quantColumnResult] = await Promise.all([
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_runs'"),
       pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
       pool.query("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'"),
       pool.query("SELECT extname FROM pg_extension WHERE extname='vector'"),
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_memory'"),
       pool.query("SELECT a.attname AS column_name, format_type(a.atttypid, a.atttypmod) AS formatted_type FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'reasoning_cache' AND a.attnum > 0 AND NOT a.attisdropped"),
+      pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='quant_experiments'"),
     ]);
     const schema = assessSchema({
       columns: new Set(columnResult.rows.map((row) => row.column_name)),
@@ -98,6 +102,7 @@ async function main() {
       memoryColumns: new Set(memoryColumnResult.rows.map((row) => row.column_name)),
       cacheColumns: new Set(cacheColumnResult.rows.map((row) => row.column_name)),
       cacheColumnTypes: new Map(cacheColumnResult.rows.map((row) => [row.column_name, row.formatted_type])),
+      quantColumns: new Set(quantColumnResult.rows.map((row) => row.column_name)),
     });
     console.log(JSON.stringify({
       mode: 'read-only',
@@ -106,7 +111,7 @@ async function main() {
       remediation: 'Review each pending migration against live schema before applying. This command never applies DDL.',
     }, null, 2));
     if (state.pending.length || state.databaseOnly.length ||
-        schema.missingColumns.length || schema.missingTables.length ||
+        schema.missingColumns.length || schema.missingTables.length || schema.missingQuantColumns.length ||
         !schema.vector.extensionPresent || schema.vector.missingTables.length ||
         schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length || !schema.vector.embeddingTypeValid ||
         schema.vector.missingIndexes.length || schema.vector.invalidIndexes.length) {
