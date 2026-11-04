@@ -14,7 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls, resolveRateLimitClientIp } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
 
@@ -25,7 +25,6 @@ import { startScheduler } from '../scheduler/runner.js';
 import { startAlerts } from '../alerts/runner.js';
 import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
-import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js';
@@ -81,9 +80,10 @@ console.log(
   `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)\n`,
 );
 
-// Initialize Fastify instance with trustProxy and telemetry-aware logger
+// Do not trust X-Forwarded-For. Rate limiting uses the single-value Cloudflare
+// client-IP header only when accompanied by CF-Ray; otherwise it uses the socket peer.
 const fastify = Fastify({
-  trustProxy: true,
+  trustProxy: false,
   logger: {
     level: config.nodeEnv === 'production' ? 'info' : 'debug',
     ...(config.nodeEnv !== 'production' && {
@@ -140,6 +140,7 @@ const serviceStatus = {
   database: false,
   redis: false,
   agentCheckpointer: false,
+  applicationSchema: false,
   api: false,
 };
 
@@ -158,6 +159,7 @@ function registerCoreRoutes() {
         await fastify.redis.ping();
       },
       agentCheckpointerInitialized: serviceStatus.agentCheckpointer,
+      applicationSchemaInitialized: serviceStatus.applicationSchema,
       apiListening: serviceStatus.api,
     });
     reply.code(readiness.ready ? 200 : 503);
@@ -431,6 +433,11 @@ async function initializeDatabase() {
     console.log(`✓ Database connected: ${result.rows[0].now}`);
     serviceStatus.database = true;
     serviceStatus.agentCheckpointer = schema.agentCheckpointer;
+    serviceStatus.applicationSchema = schema.applicationSchema;
+
+    if (!schema.applicationSchema) {
+      console.warn('⚠️ Required Prisma application migrations are missing. Run npm run db:migrate before enabling production API traffic.');
+    }
 
     if (!schema.agentCheckpointer) {
       console.warn(
@@ -483,6 +490,11 @@ async function registerPlugins() {
     max: 100,
     timeWindow: '1 minute',
     redis: fastify.redis,
+    keyGenerator: (request) => resolveRateLimitClientIp(
+      request.headers['cf-connecting-ip'],
+      request.headers['cf-ray'],
+      request.ip,
+    ),
   });
 
   // 2. Register WebSocket routes after rate-limiting and redis are fully decorated
@@ -492,7 +504,6 @@ async function registerPlugins() {
 
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
-  await fastify.register(authSigninRoute);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
   await fastify.register(engineeringEvidenceRoutes);
@@ -538,6 +549,7 @@ async function start() {
       database: databaseReady,
       redis: redisReady,
       agentCheckpointer: serviceStatus.agentCheckpointer,
+      applicationSchema: serviceStatus.applicationSchema,
     });
     if (!redisReady) {
       throw new Error('Startup blocked: Redis did not pass its live connectivity check.');
@@ -553,7 +565,7 @@ async function start() {
     console.log(`    - Root: http://${config.host}:${config.port}/`);
     console.log(`    - Health: http://${config.host}:${config.port}/health`);
     console.log(`    - System: http://${config.host}:${config.port}/api/system`);
-    console.log(`    - Signin: http://${config.host}:${config.port}/signin`);
+    console.log(`    - Authentication: Supabase Auth`);
     console.log(`\n${startupSummary(serviceStatus)}\n`);
     stopBrainMonitor = startBrainHealthMonitor();
     if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls, resolveRateLimitClientIp } from './startupConfig.js';
 
 const expectedLocalDatabaseUrl = () => {
   const url = new URL('postgresql://localhost:5432/ryanai');
@@ -59,28 +59,28 @@ describe('production connection configuration', () => {
 describe('production startup dependency gate', () => {
   it('blocks production startup when PostgreSQL is unavailable', () => {
     expect(() =>
-      assertProductionDependencies('production', { database: false, redis: true, agentCheckpointer: true }),
+      assertProductionDependencies('production', { database: false, redis: true, agentCheckpointer: true, applicationSchema: true }),
     ).toThrow('PostgreSQL');
   });
 
   it('blocks production startup when Redis is unavailable', () => {
     expect(() =>
-      assertProductionDependencies('production', { database: true, redis: false, agentCheckpointer: true }),
+      assertProductionDependencies('production', { database: true, redis: false, agentCheckpointer: true, applicationSchema: true }),
     ).toThrow('Redis');
   });
 
   it('allows production startup only when both dependencies are ready', () => {
     expect(() =>
-      assertProductionDependencies('production', { database: true, redis: true, agentCheckpointer: true }),
+      assertProductionDependencies('production', { database: true, redis: true, agentCheckpointer: true, applicationSchema: true }),
     ).not.toThrow();
   });
 
   it('keeps non-production degraded startup behavior unchanged', () => {
     expect(() =>
-      assertProductionDependencies('development', { database: false, redis: false, agentCheckpointer: false }),
+      assertProductionDependencies('development', { database: false, redis: false, agentCheckpointer: false, applicationSchema: false }),
     ).not.toThrow();
     expect(() =>
-      assertProductionDependencies('test', { database: false, redis: false, agentCheckpointer: false }),
+      assertProductionDependencies('test', { database: false, redis: false, agentCheckpointer: false, applicationSchema: false }),
     ).not.toThrow();
   });
 });
@@ -93,7 +93,38 @@ describe('production agent checkpointer readiness', () => {
         database: true,
         redis: true,
         agentCheckpointer: false,
+        applicationSchema: true,
       }),
     ).toThrow('agent checkpointer');
+  });
+});
+
+
+describe('rate-limit client IP resolution', () => {
+  it('uses a valid Cloudflare client IP only when a Cloudflare Ray ID is present', () => {
+    expect(resolveRateLimitClientIp('203.0.113.9', 'ray-id-123', '10.0.0.4')).toBe('203.0.113.9');
+    expect(resolveRateLimitClientIp('2001:db8::9', 'ray-id-123', '10.0.0.4')).toBe('2001:db8::9');
+  });
+
+  it('falls back to the socket peer when the Cloudflare headers are absent or malformed', () => {
+    expect(resolveRateLimitClientIp(undefined, undefined, '10.0.0.4')).toBe('10.0.0.4');
+    expect(resolveRateLimitClientIp('203.0.113.9', undefined, '10.0.0.4')).toBe('10.0.0.4');
+    expect(resolveRateLimitClientIp('not-an-ip', 'ray-id-123', '10.0.0.4')).toBe('10.0.0.4');
+    expect(resolveRateLimitClientIp(['203.0.113.9'], 'ray-id-123', '10.0.0.4')).toBe('10.0.0.4');
+  });
+});
+
+
+describe('production application schema gate', () => {
+  it('blocks production startup when Prisma migrations required by runtime are missing', () => {
+    expect(() => assertProductionDependencies('production', {
+      database: true, redis: true, agentCheckpointer: true, applicationSchema: false,
+    })).toThrow('application Prisma schema');
+  });
+
+  it('allows production startup when the required application schema is ready', () => {
+    expect(() => assertProductionDependencies('production', {
+      database: true, redis: true, agentCheckpointer: true, applicationSchema: true,
+    })).not.toThrow();
   });
 });

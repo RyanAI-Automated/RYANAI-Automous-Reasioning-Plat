@@ -1,7 +1,26 @@
+import { isIP } from 'node:net';
+
 export interface ConnectionUrls {
   databaseUrl: string;
   redisUrl: string;
 }
+
+/**
+ * Use Cloudflare's single-value client-IP header only when a Cloudflare Ray ID
+ * is also present. Never parse X-Forwarded-For; if the trusted edge header is
+ * absent or malformed, fall back to the socket peer address.
+ */
+export function resolveRateLimitClientIp(
+  cfConnectingIp: string | string[] | undefined,
+  cfRay: string | string[] | undefined,
+  socketIp: string,
+): string {
+  const candidate = typeof cfConnectingIp === 'string' ? cfConnectingIp.trim() : '';
+  const rayId = typeof cfRay === 'string' ? cfRay.trim() : '';
+  if (rayId && isIP(candidate)) return candidate;
+  return socketIp;
+}
+
 
 function localDevelopmentDatabaseUrl(): string {
   const url = new URL('postgresql://localhost:5432/ryanai');
@@ -49,7 +68,7 @@ export function resolveConnectionUrls(
  */
 export function assertProductionDependencies(
   nodeEnv: string,
-  services: { database: boolean; redis: boolean; agentCheckpointer: boolean },
+  services: { database: boolean; redis: boolean; agentCheckpointer: boolean; applicationSchema: boolean },
 ): void {
   if (nodeEnv !== 'production') return;
 
@@ -57,6 +76,7 @@ export function assertProductionDependencies(
     !services.database ? 'PostgreSQL' : undefined,
     !services.redis ? 'Redis' : undefined,
     !services.agentCheckpointer ? 'agent checkpointer' : undefined,
+    !services.applicationSchema ? 'application Prisma schema' : undefined,
   ].filter(Boolean);
 
   if (unavailable.length) {
