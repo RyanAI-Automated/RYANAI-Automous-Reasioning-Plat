@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { evaluateGenXSecurityEvent } from "../security/genxPolicy.js";
 
 export interface AgentPAHealthSnapshot {
   api: boolean;
@@ -17,7 +18,7 @@ export interface AgentPASerializedStatus {
   lastError: string | null;
   observationsCompleted: number;
   eBPFPolicyEnforced: false;
-  genXPolicyEngineAvailable: false;
+  genXPolicyEngineAvailable: boolean;
   retryAttempts: number;
 }
 
@@ -148,7 +149,7 @@ export class AgentPAScript extends EventEmitter {
       lastError: this.lastError,
       observationsCompleted: this.observationsCompleted,
       eBPFPolicyEnforced: false,
-      genXPolicyEngineAvailable: false,
+      genXPolicyEngineAvailable: typeof evaluateGenXSecurityEvent === "function",
       retryAttempts: this.retryCount,
     };
   }
