@@ -20,7 +20,7 @@ export function compareMigrationState(localNames, appliedRows) {
   };
 }
 
-export function assessSchema({ columns, tables, indexes, extensions, agentMemoryColumns = new Set() }) {
+export function assessSchema({ columns, tables, indexes, extensions, agentMemoryColumns = new Set(), indexDefinitions = new Map() }) {
   const requiredColumns = [
     'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
@@ -39,6 +39,10 @@ export function assessSchema({ columns, tables, indexes, extensions, agentMemory
       extensionPresent: extensions.has('vector'),
       missingTables: missingVectorTables,
       indexPresent: indexes.has('idx_reasoning_embedding'),
+      reasoningIndexValid: (() => {
+        const definition = (indexDefinitions.get('idx_reasoning_embedding') ?? '').toLowerCase();
+        return definition.includes('using hnsw') && definition.includes('vector_cosine_ops');
+      })(),
       agentSessionIndexPresent: indexes.has('idx_agent_session'),
       sessionIdColumnPresent: agentMemoryColumns.has('session_id'),
     },
@@ -65,7 +69,7 @@ async function main() {
     const [columnResult, tableResult, indexResult, extensionResult, agentMemoryColumnResult] = await Promise.all([
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_runs'"),
       pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"),
-      pool.query("SELECT indexname FROM pg_indexes WHERE schemaname='public'"),
+      pool.query("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public'"),
       pool.query("SELECT extname FROM pg_extension WHERE extname='vector'"),
       pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='agent_memory'"),
     ]);
@@ -73,6 +77,7 @@ async function main() {
       columns: new Set(columnResult.rows.map((row) => row.column_name)),
       tables: new Set(tableResult.rows.map((row) => row.table_name)),
       indexes: new Set(indexResult.rows.map((row) => row.indexname)),
+      indexDefinitions: new Map(indexResult.rows.map((row) => [row.indexname, row.indexdef])),
       extensions: new Set(extensionResult.rows.map((row) => row.extname)),
       agentMemoryColumns: new Set(agentMemoryColumnResult.rows.map((row) => row.column_name)),
     });
@@ -84,7 +89,7 @@ async function main() {
     }, null, 2));
     if (state.pending.length || state.databaseOnly.length ||
         schema.missingColumns.length || schema.missingTables.length ||
-        !schema.vector.extensionPresent || schema.vector.missingTables.length || !schema.vector.indexPresent || !schema.vector.agentSessionIndexPresent || !schema.vector.sessionIdColumnPresent) {
+        !schema.vector.extensionPresent || schema.vector.missingTables.length || !schema.vector.indexPresent || !schema.vector.reasoningIndexValid || !schema.vector.agentSessionIndexPresent || !schema.vector.sessionIdColumnPresent) {
       process.exitCode = 1;
     }
   } catch {
