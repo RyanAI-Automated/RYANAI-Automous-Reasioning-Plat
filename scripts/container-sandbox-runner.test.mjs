@@ -69,8 +69,8 @@ test('launches only with network, privilege, filesystem and resource restriction
   assert.ok(args.includes('--memory=2g'));
   assert.ok(args.includes('--cpus=2'));
   assert.ok(args.includes('--user=10001:10001'));
-  assert.ok(args.includes('type=bind,src=' + root + ',dst=/workspace'));
-  assert.ok(args.includes('/workspace/repo'));
+  assert.ok(args.includes('type=bind,src=' + nested + ',dst=/workspace'));
+  assert.ok(args.includes('/workspace'));
   assert.ok(args.includes('--env'));
   assert.ok(args.includes('LANG=C.UTF-8'));
   assert.ok(!args.some((arg) => arg.includes('OPENAI_API_KEY')));
@@ -98,4 +98,21 @@ test('rejects command and argument injection shapes before spawning', async () =
     command: 'genaicode', args: ['bad\0arg'], cwd: nested, workspaceRoot: root, env: {},
   }), /safe strings/);
   assert.equal(called, false);
+});
+
+test('cancellation awaits successful Docker termination before stopping the client', async () => {
+  const { root, nested } = await workspace();
+  const invocations = [];
+  const runner = createContainerSandboxRunner({
+    image: IMAGE,
+    spawn: (...args) => {
+      invocations.push(args);
+      const child = fakeChild();
+      if (args[1]?.[0] === 'kill') setImmediate(() => child.emit('close', 0, null));
+      return child;
+    },
+  });
+  const child = await runner.run({ command: 'genaicode', args: [], cwd: nested, workspaceRoot: root, env: {} });
+  await child.terminate();
+  assert.ok(invocations.some(([binary, args]) => binary === 'docker' && args[0] === 'kill' && args[1].startsWith('ryanai-genai-')));
 });

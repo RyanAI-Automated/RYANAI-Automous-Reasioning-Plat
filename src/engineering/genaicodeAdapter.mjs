@@ -170,51 +170,81 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     let stdout = '';
     let outputBytes = 0;
     let settled = false;
+    let terminationError = null;
+    let terminationTimer;
     const finish = (fn, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(terminationTimer);
       signal?.removeEventListener('abort', abort);
       fn(value);
     };
     const stop = () => {
-      try { child.kill('SIGTERM'); } catch { /* runner may have already stopped the process */ }
+      try {
+        if (typeof child.terminate === 'function') {
+          Promise.resolve(child.terminate()).catch(() => {
+            const error = new Error('Sandbox termination could not be confirmed.');
+            error.code = 'SANDBOX_TERMINATION_UNCONFIRMED';
+            finish(reject, error);
+          });
+        } else {
+          child.kill('SIGTERM');
+        }
+      } catch {
+        const error = new Error('Sandbox termination could not be confirmed.');
+        error.code = 'SANDBOX_TERMINATION_UNCONFIRMED';
+        finish(reject, error);
+      }
     };
-    const abort = () => {
+    const requestStop = (error) => {
+      if (settled) return;
+      terminationError = error;
       stop();
-      finish(reject, new Error('Engineering task was cancelled.'));
+      terminationTimer = setTimeout(() => {
+        const unconfirmed = new Error('Sandbox termination could not be confirmed within 10 seconds.');
+        unconfirmed.code = 'SANDBOX_TERMINATION_UNCONFIRMED';
+        finish(reject, unconfirmed);
+      }, 10_000);
     };
-    const timer = setTimeout(() => {
-      stop();
-      finish(reject, new Error('GenAIcode task exceeded its time limit.'));
-    }, timeoutMs);
+    const abort = () => requestStop(new Error('Engineering task was cancelled.'));
+    const timer = setTimeout(() => requestStop(new Error('GenAIcode task exceeded its time limit.')), timeoutMs);
 
     signal?.addEventListener('abort', abort, { once: true });
-    child.once('error', (error) => finish(reject, new Error('Unable to start GenAIcode in the isolated runner: ' + error.message)));
+    child.once('error', (error) => {
+      if (terminationError) {
+        const unconfirmed = new Error('Sandbox process failed during termination: ' + error.message);
+        unconfirmed.code = 'SANDBOX_TERMINATION_UNCONFIRMED';
+        finish(reject, unconfirmed);
+      } else {
+        finish(reject, new Error('Unable to start GenAIcode in the isolated runner: ' + error.message));
+      }
+    });
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString('utf8');
       outputBytes += Buffer.byteLength(text);
       if (outputBytes > MAX_OUTPUT_BYTES) {
-        stop();
-        finish(reject, new Error('GenAIcode output exceeded the 2 MiB safety limit.'));
+        requestStop(new Error('GenAIcode output exceeded the 2 MiB safety limit.'));
         return;
       }
       stdout += text;
     });
     child.stderr.on('data', () => {});
-    child.once('close', (code) => finish(resolve, {
-      status: code === 0 ? 'completed' : 'failed',
-      exitCode: Number.isInteger(code) ? code : null,
-      events: parseEvents(stdout),
-      verification: 'not-run',
-      approvalId,
-      taskId,
-    }));
+    child.once('close', (code) => {
+      if (terminationError) finish(reject, terminationError);
+      else finish(resolve, {
+        status: code === 0 ? 'completed' : 'failed',
+        exitCode: Number.isInteger(code) ? code : null,
+        events: parseEvents(stdout),
+        verification: 'not-run',
+        approvalId,
+        taskId,
+      });
+    });
     try {
       child.stdin.end(prompt);
     } catch {
-      stop();
-      finish(reject, new Error('Unable to send the task prompt to GenAIcode.'));
+      requestStop(new Error('Unable to send the task prompt to GenAIcode.'));
     }
   });
 }
