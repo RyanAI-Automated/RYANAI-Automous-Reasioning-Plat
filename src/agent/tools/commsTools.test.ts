@@ -96,6 +96,16 @@ describe('restricted communications tool registry', () => {
     expect(parsed.conversations[0].externalAddress).toBeUndefined();
   });
 
+  it('uses OLLAMA_URL in explicit local inference mode, even if the cloud endpoint is set', async () => {
+    vi.stubEnv('RYANAI_INFERENCE_MODE', 'local');
+    vi.stubEnv('OLLAMA_URL', 'http://ollama:11434/v1');
+    vi.stubEnv('OPENAI_BASE_URL', 'https://api.example.com/v1');
+
+    const result = await getRecentOwnerCommunicationsTool.invoke({ limit: 3 });
+    expect(JSON.parse(String(result)).status).toBe('ok');
+    expect(store.findMany).toHaveBeenCalledOnce();
+  });
+
   it('blocks cross-channel message content for remote model endpoints', async () => {
     vi.stubEnv('OPENAI_BASE_URL', 'https://api.openai.com/v1');
     const result = await getRecentOwnerCommunicationsTool.invoke({ limit: 3 });

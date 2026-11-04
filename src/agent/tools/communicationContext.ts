@@ -19,14 +19,21 @@ function ownerAddressCandidates(): string[] {
  */
 export function isLocalCommsMemoryModelConfigured(): boolean {
   if (process.env.RYANAI_COMMS_MEMORY_LOCAL_ONLY !== 'true') return false;
-  const endpoint = process.env.OPENAI_BASE_URL?.trim();
+  const endpoint = (process.env.RYANAI_INFERENCE_MODE === 'local'
+    ? process.env.OLLAMA_URL
+    : process.env.OPENAI_BASE_URL)?.trim();
   if (!endpoint) return false;
   try {
     const url = new URL(endpoint);
-    const localHosts = new Set(['localhost', '127.0.0.1', '::1', 'ollama', 'host.docker.internal']);
-    return (url.protocol === 'http:' || url.protocol === 'https:')
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'ollama', 'host.docker.internal']);
+    return url.protocol === 'http:'
       && localHosts.has(url.hostname.toLowerCase())
-      && url.port === '11434';
+      && url.port === '11434'
+      && ['', '/', '/v1', '/v1/'].includes(url.pathname)
+      && !url.username
+      && !url.password
+      && !url.search
+      && !url.hash;
   } catch {
     return false;
   }
