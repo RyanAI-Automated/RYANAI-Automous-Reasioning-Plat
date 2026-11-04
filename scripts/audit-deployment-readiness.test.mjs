@@ -26,6 +26,7 @@ function fixture(t) {
             name: ryanai-web
             runtime: static
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+            branch: main
             buildCommand: npm ci --legacy-peer-deps && npm run build
             staticPublishPath: ./dist
           - type: web
