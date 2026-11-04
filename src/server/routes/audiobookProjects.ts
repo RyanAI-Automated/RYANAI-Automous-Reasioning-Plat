@@ -8,7 +8,7 @@ const LANGUAGES = new Set(['en-ZA', 'en-US', 'en-GB', 've-ZA', 'zu-ZA', 'xh-ZA',
 const VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']);
 const MAX_CHAPTERS = 200;
 const MAX_CHAPTER_CHARS = 200_000;
-const MAX_BOOK_CHARS = 2_000_000;
+const MAX_BOOK_CHARS = 300_000;
 
 type ChapterInput = { id?: string; title: string; text: string; voice?: string; style?: string; speed?: number };
 type ProjectInput = { title?: string; language?: string; chapters?: ChapterInput[] };
