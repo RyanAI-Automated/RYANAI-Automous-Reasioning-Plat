@@ -43,6 +43,7 @@ import { inspectDatabaseSchema } from './databaseSchema.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
 import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { audioIntelligenceRoutes } from './routes/audioIntelligence.js';
+import { audiobookProjectRoutes } from './routes/audiobookProjects.js';
 import { startAgentTaskWorker, startBrainHealthMonitor, type AgentRunProgressEvent } from '../agent/operations.js';
 import { AgentPAScript, setAgentPAObserver } from '../skills/agentPAScript.js';
 import { startAttachmentScanner } from './attachments/scanner.js';
@@ -505,6 +506,7 @@ async function registerPlugins() {
   await fastify.register(agentOperationsRoutes);
   await fastify.register(realtimeVoiceRoutes);
   await fastify.register(audioIntelligenceRoutes);
+  await fastify.register(audiobookProjectRoutes);
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
   await fastify.register(internalJarvisRoutes);
