@@ -94,7 +94,7 @@ jobs:
       - name: Open or update the patch log pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          token: \${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           branch: automation/patch-update
           delete-branch: false
           commit-message: 'docs: record confirmed merged PR in patch_update.md'
