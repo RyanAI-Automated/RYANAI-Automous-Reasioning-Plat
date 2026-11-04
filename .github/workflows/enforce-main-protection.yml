@@ -29,16 +29,28 @@ jobs:
           [[ "$CONFIRMATION" == "ENFORCE-MAIN-PROTECTION" ]] || { echo "::error::Confirmation string did not match"; exit 1; }
           [[ -n "$GH_ADMIN_TOKEN" ]] || { echo "::error::GH_ADMIN_TOKEN secret is missing; ruleset was not changed"; exit 1; }
 
-      - name: Update existing main-protection ruleset
+      - name: Locate and update the existing main-protection ruleset
         env:
           GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
+
+          # Resolve the existing ruleset by its current or corrected name.
+          # Fail closed if it is missing or ambiguous; never create a second ruleset.
+          RULESET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/rulesets?per_page=100" |
+            jq -er '[.[] | select(.name == "main-protection" or .name == "main-protectiona")]
+              | if length == 1 then .[0].id else error("expected exactly one existing main-protection ruleset") end')"
+
           jq -n '{
             name: "main-protection",
             target: "branch",
             enforcement: "active",
-            conditions: { ref_name: { include: ["~DEFAULT_BRANCH", "refs/heads/main"], exclude: [] } },
+            conditions: {
+              ref_name: {
+                include: ["~DEFAULT_BRANCH", "refs/heads/main"],
+                exclude: []
+              }
+            },
             bypass_actors: [],
             rules: [
               { type: "pull_request", parameters: {
@@ -73,22 +85,36 @@ jobs:
               }}
             ]
           }' > ruleset.json
-          gh api --method PUT \
-            "repos/${GITHUB_REPOSITORY}/rulesets/26360956" \
-            --input ruleset.json > ruleset-updated.json
-          jq '{id,name,enforcement,rules,bypass_actors}' ruleset-updated.json
 
-      - name: Verify required protections are active
+          gh api --method PUT \
+            "repos/${GITHUB_REPOSITORY}/rulesets/${RULESET_ID}" \
+            --input ruleset.json > ruleset-updated.json
+          jq '{id,name,enforcement,conditions,rules,bypass_actors}' ruleset-updated.json
+
+      - name: Verify required protections are active and bypass is disabled
         env:
           GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/rulesets/26360956" > ruleset-final.json
+          RULESET_ID="$(gh api "repos/${GITHUB_REPOSITORY}/rulesets?per_page=100" |
+            jq -er '[.[] | select(.name == "main-protection")]
+              | if length == 1 then .[0].id else error("updated main-protection ruleset was not found exactly once") end')"
+          gh api "repos/${GITHUB_REPOSITORY}/rulesets/${RULESET_ID}" > ruleset-final.json
+
           jq -e '
-            .enforcement == "active"
+            .name == "main-protection"
+            and .enforcement == "active"
+            and (.bypass_actors // [] | length == 0)
+            and (.conditions.ref_name.include | index("refs/heads/main") != null)
             and ([.rules[].type] | index("pull_request") != null)
             and ([.rules[].type] | index("required_status_checks") != null)
             and ([.rules[].type] | index("non_fast_forward") != null)
             and ([.rules[].type] | index("deletion") != null)
-            and ([.bypass_actors // []] | length == 0)
+            and ([
+              .rules[] | select(.type == "pull_request") | .parameters
+              | select(.required_approving_review_count == 1
+                and .dismiss_stale_reviews_on_push == true
+                and .required_review_thread_resolution == true)
+            ] | length == 1)
           ' ruleset-final.json
+          echo "Verified: main protection is active, requires review and CI, and has no bypass actors."
