@@ -29,18 +29,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install checksum-verified Trivy release
+        env:
+          TRIVY_VERSION: 0.70.0
+        run: bash scripts/install-trivy.sh
+
       - name: Generate complete Trivy SARIF report
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-          # Keep every severity in SARIF; the explicit CLI gate below enforces
-          # the blocking threshold without hiding MEDIUM/LOW findings.
-          exit-code: '0'
-          skip-dirs: node_modules,**/node_modules,.cache,src-tauri/target
-          scanners: vuln
+        run: |
+          set -euo pipefail
+          trivy fs \
+            --scanners vuln \
+            --format sarif \
+            --output trivy-results.sarif \
+            --exit-code 0 \
+            --skip-dirs node_modules,**/node_modules,.cache,src-tauri/target \
+            .
 
       - name: Fail only on HIGH or CRITICAL vulnerabilities
         run: |
