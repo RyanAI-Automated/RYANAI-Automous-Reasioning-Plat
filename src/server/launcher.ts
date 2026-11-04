@@ -14,7 +14,7 @@ import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
-import { assertProductionDependencies, resolveConnectionUrls, resolveTrustedProxyHops } from './startupConfig.js';
+import { assertProductionDependencies, resolveConnectionUrls, resolveRateLimitClientIp } from './startupConfig.js';
 import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
 
@@ -68,7 +68,6 @@ const config = {
   nodeEnv,
   database: { url: connectionUrls.databaseUrl },
   redis: { url: connectionUrls.redisUrl },
-  trustedProxyHops: resolveTrustedProxyHops(process.env.TRUST_PROXY_HOPS, nodeEnv),
 };
 
 console.log(`📋 Configuration:`);
@@ -81,9 +80,10 @@ console.log(
   `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)\n`,
 );
 
-// Trust a finite number of ingress proxies; never trust arbitrary forwarded chains.
+// Do not trust X-Forwarded-For. Rate limiting uses the single-value Cloudflare
+// client-IP header only when accompanied by CF-Ray; otherwise it uses the socket peer.
 const fastify = Fastify({
-  trustProxy: config.trustedProxyHops,
+  trustProxy: false,
   logger: {
     level: config.nodeEnv === 'production' ? 'info' : 'debug',
     ...(config.nodeEnv !== 'production' && {
@@ -490,6 +490,11 @@ async function registerPlugins() {
     max: 100,
     timeWindow: '1 minute',
     redis: fastify.redis,
+    keyGenerator: (request) => resolveRateLimitClientIp(
+      request.headers['cf-connecting-ip'],
+      request.headers['cf-ray'],
+      request.ip,
+    ),
   });
 
   // 2. Register WebSocket routes after rate-limiting and redis are fully decorated
