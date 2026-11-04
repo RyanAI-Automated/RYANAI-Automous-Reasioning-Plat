@@ -12,6 +12,9 @@ const readyTables = {
   agent_run_approval_schema: true,
   agent_run_evidence: true,
   jarvis_audit_events: true,
+  quant_experiments: true,
+  quant_experiment_columns: true,
+  quant_experiment_index: true,
   reasoning_cache: true,
   reasoning_cache_columns: true,
   reasoning_embedding_type: true,
@@ -83,7 +86,7 @@ describe('inspectDatabaseSchema', () => {
 describe('application Prisma schema readiness', () => {
   it('reports the application schema unavailable when required migration objects are missing', async () => {
     const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ ...readyTables, agent_run_approval_schema: false, agent_run_evidence: false, jarvis_audit_events: false }] })
+      .mockResolvedValueOnce({ rows: [{ ...readyTables, agent_run_approval_schema: false, agent_run_evidence: false, jarvis_audit_events: false, quant_experiments: false, quant_experiment_columns: false, quant_experiment_index: false }] })
       .mockResolvedValueOnce({ rows: [{ version: 5 }] });
 
     await expect(inspectDatabaseSchema(query)).resolves.toMatchObject({
