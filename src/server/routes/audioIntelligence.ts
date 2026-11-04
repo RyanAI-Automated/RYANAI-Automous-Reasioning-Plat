@@ -43,8 +43,18 @@ function decodeAudio(body: AudioBody): { bytes: Buffer; mimeType: string; fileNa
       : mimeType.includes('ogg') ? 'ogg'
         : mimeType.includes('webm') ? 'webm'
           : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'bin';
-  const supplied = typeof body.fileName === 'string' ? body.fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) : '';
-  return { bytes, mimeType, fileName: supplied && supplied.includes('.') ? supplied : `audio.${extension}` };
+  const hasPrefix = (...values: number[]) => values.every((value, index) => bytes[index] === value);
+  const signatureValid = extension === 'mp3'
+    ? hasPrefix(0x49, 0x44, 0x33) || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)
+    : extension === 'wav'
+      ? hasPrefix(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45
+      : extension === 'ogg'
+        ? hasPrefix(0x4f, 0x67, 0x67, 0x53)
+        : extension === 'webm'
+          ? hasPrefix(0x1a, 0x45, 0xdf, 0xa3)
+          : bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+  if (!signatureValid) return null;
+  return { bytes, mimeType, fileName: \`audio.\${extension}\` };
 }
 
 export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
