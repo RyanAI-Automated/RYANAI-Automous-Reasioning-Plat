@@ -55,6 +55,7 @@ describe('inspectDatabaseSchema', () => {
     await expect(inspectDatabaseSchema(query)).resolves.toEqual({
       communications: true,
       agentCheckpointer: false,
+      applicationSchema: true,
     });
   });
 
