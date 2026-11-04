@@ -104,8 +104,10 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     });
     if (!project) return reply.code(404).send({ error: 'Audiobook project not found.' });
     if (!project.chapters.length || project.chapters.some(chapter => !chapter.content.trim())) return reply.code(400).send({ error: 'Every chapter needs manuscript text before rendering.' });
-    const idempotencyKey = typeof request.body?.idempotencyKey === 'string' && /^[A-Za-z0-9._:-]{8,120}$/.test(request.body.idempotencyKey)
-      ? request.body.idempotencyKey : randomUUID();
+    if (request.body?.idempotencyKey !== undefined && (typeof request.body.idempotencyKey !== 'string' || !/^[A-Za-z0-9._:-]{8,120}$/.test(request.body.idempotencyKey))) {
+      return reply.code(400).send({ error: 'The render idempotency key must be 8–120 safe characters.' });
+    }
+    const idempotencyKey = request.body?.idempotencyKey ?? randomUUID();
     const snapshot = {
       projectId: project.id, title: project.title, language: project.language,
       chapters: project.chapters.map(chapter => {
@@ -115,6 +117,10 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     };
     const existing = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
     if (existing) return reply.code(200).send({ job: existing, reused: true });
+    const activeJob = await fastify.prisma.audiobookRenderJob.findFirst({
+      where: { userId, projectId: project.id, status: { in: ['queued', 'running', 'cancel_requested'] } },
+    });
+    if (activeJob) return reply.code(200).send({ job: activeJob, reused: true });
     try {
       const job = await fastify.prisma.audiobookRenderJob.create({
         data: { userId, projectId: project.id, idempotencyKey, request: snapshot, progress: { completedChapters: 0, totalChapters: project.chapters.length } },
