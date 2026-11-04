@@ -53,6 +53,20 @@ describe('RyanAI audio intelligence routes', () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it('rejects audio whose bytes do not match the declared media type', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
+    const provider = vi.fn();
+    vi.stubGlobal('fetch', provider);
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/audio/transcriptions',
+      headers: { authorization: 'Bearer test-user' },
+      payload: { audioBase64: Buffer.from('not-an-mp3').toString('base64'), mimeType: 'audio/mpeg', fileName: 'voice.mp3' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(provider).not.toHaveBeenCalled();
+  });
+
   it('sends a bounded audio payload to the provider and returns normalized transcript text', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key');
     const provider = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ text: 'Hello from RyanAI.' }), { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -61,7 +75,7 @@ describe('RyanAI audio intelligence routes', () => {
     const response = await app.inject({
       method: 'POST', url: '/api/v1/audio/transcriptions',
       headers: { authorization: 'Bearer test-user' },
-      payload: { audioBase64: Buffer.from('mock-audio').toString('base64'), mimeType: 'audio/mpeg', fileName: 'chapter.mp3' },
+      payload: { audioBase64: Buffer.from('ID3mock-audio').toString('base64'), mimeType: 'audio/mpeg', fileName: 'chapter.mp3' },
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ text: 'Hello from RyanAI.', status: 'completed' });
