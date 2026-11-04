@@ -135,6 +135,30 @@ if (!statSafe(vercelValidationPath)) {
   }
 }
 
+const railwayDeployPath = join(workflowDir, 'deploy-railway.yml');
+if (!statSafe(railwayDeployPath)) {
+  errors.push('Missing .github/workflows/deploy-railway.yml');
+} else {
+  const railwayText = readFileSync(railwayDeployPath, 'utf8');
+  const railwayDocument = parse(railwayText);
+  if (Object.prototype.hasOwnProperty.call(railwayDocument?.on ?? {}, 'workflow_dispatch')) {
+    fail(railwayDeployPath, 'Railway production deployment must not bypass the successful-CI gate through workflow_dispatch');
+  }
+  for (const required of [
+    "github.event.workflow_run.conclusion == 'success'",
+    "github.event.workflow_run.event == 'push'",
+    "vars.RAILWAY_DEPLOY_ENABLED == 'true'",
+    "secrets.RAILWAY_TOKEN",
+    "vars.RAILWAY_PROJECT_ID",
+    "vars.RAILWAY_SERVICE_ID",
+    "vars.RAILWAY_ENVIRONMENT_ID",
+  ]) {
+    if (!railwayText.includes(required)) {
+      fail(railwayDeployPath, 'Railway production deployment is missing required gate/configuration: ' + required);
+    }
+  }
+}
+
 const productionDeployPath = join(workflowDir, 'deploy-vercel.yml');
 if (statSafe(productionDeployPath)) {
   const productionDeployText = readFileSync(productionDeployPath, 'utf8');
