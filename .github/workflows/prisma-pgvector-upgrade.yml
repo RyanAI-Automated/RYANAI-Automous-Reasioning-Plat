@@ -2,22 +2,9 @@ name: Disposable Prisma and pgvector Upgrade Test
 
 on:
   pull_request:
-    paths:
-      - 'prisma/**'
-      - 'scripts/audit-prisma-migration-readiness.mjs'
-      - 'scripts/test-legacy-pgvector-upgrade.mjs'
-      - '.github/workflows/prisma-pgvector-upgrade.yml'
-      - 'package.json'
-      - 'package-lock.json'
+    branches: [main]
   push:
     branches: [main]
-    paths:
-      - 'prisma/**'
-      - 'scripts/audit-prisma-migration-readiness.mjs'
-      - 'scripts/test-legacy-pgvector-upgrade.mjs'
-      - '.github/workflows/prisma-pgvector-upgrade.yml'
-      - 'package.json'
-      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
