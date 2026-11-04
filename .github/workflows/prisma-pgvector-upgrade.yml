@@ -25,7 +25,11 @@ permissions:
 
 jobs:
   legacy-pgvector-upgrade:
-    name: Upgrade legacy pgvector database safely
+    name: Upgrade legacy pgvector database safely (${{ matrix.legacy_session_column }})
+    strategy:
+      fail-fast: false
+      matrix:
+        legacy_session_column: [unquoted, quoted]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -46,6 +50,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://ryanai_migration:disposable_ci_password@127.0.0.1:5432/ryanai_migration_test
       RYANAI_DISPOSABLE_MIGRATION_DB: 'true'
+      RYANAI_LEGACY_SESSION_COLUMN: ${{ matrix.legacy_session_column }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
