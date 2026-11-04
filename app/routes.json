@@ -27,6 +27,11 @@
       "path": "/comms"
     },
     {
+      "id": "audiobook",
+      "label": "Audiobooks",
+      "path": "/audiobook"
+    },
+    {
       "id": "workspace",
       "label": "Workspace",
       "path": "/workspace"
