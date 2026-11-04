@@ -110,8 +110,8 @@ test('vector migration safely indexes either historical session column spelling'
   assert.match(migration, /column_name = 'sessionId'/);
   assert.match(migration, /column_name = 'sessionid'/);
   assert.match(migration, /CREATE INDEX IF NOT EXISTS idx_agent_session/);
-  assert.match(migration, /DO \\$\\$/);
-  assert.match(migration, /\\$\\$;/);
+  assert.match(migration, /DO \$migration\$/);
+  assert.match(migration, /\$migration\$;/);
 });
 
 test('session normalization migration preserves both historical column spellings', () => {
