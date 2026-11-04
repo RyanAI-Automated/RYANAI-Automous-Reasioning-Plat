@@ -7,6 +7,7 @@ const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
 const cacheColumns = new Set(['id', 'prompt', 'response', 'embedding', 'created_at']);
 const cacheColumnTypes = new Map([['embedding', 'vector(1536)']]);
 const quantColumns = new Set(['id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at']);
+const quantConstraints = new Set(['quant_experiments_user_id_fkey']);
 const vectorIndexes = new Set(['idx_reasoning_embedding', 'idx_agent_session', 'quant_experiments_user_created_idx']);
 const vectorIndexDefinitions = new Map([
   ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)'],
@@ -65,10 +66,12 @@ test('accepts a complete schema and vector-memory installation', () => {
     cacheColumnTypes,
     indexDefinitions: vectorIndexDefinitions,
     quantColumns,
+    constraints: quantConstraints,
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
   assert.deepEqual(result.missingQuantColumns, []);
+  assert.equal(result.quantUserForeignKeyPresent, true);
   assert.equal(result.vector.extensionPresent, true);
   assert.deepEqual(result.vector.missingTables, []);
   assert.deepEqual(result.vector.missingMemoryColumns, []);
@@ -135,4 +138,18 @@ test('reports missing quant experiment schema columns', () => {
     quantColumns: new Set(['id', 'user_id', 'strategy']),
   });
   assert.deepEqual(result.missingQuantColumns, ['status', 'input', 'result', 'created_at']);
+});
+
+test('blocks quant schema readiness when user ownership foreign key is missing', () => {
+  const result = assessSchema({
+    columns: new Set(),
+    tables: new Set(['quant_experiments']),
+    indexes: new Set(),
+    extensions: new Set(),
+    memoryColumns: new Set(),
+    cacheColumns: new Set(),
+    quantColumns,
+    constraints: new Set(),
+  });
+  assert.equal(result.quantUserForeignKeyPresent, false);
 });
