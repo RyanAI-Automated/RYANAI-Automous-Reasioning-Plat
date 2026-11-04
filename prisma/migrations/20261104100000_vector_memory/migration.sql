@@ -21,5 +21,28 @@ CREATE TABLE IF NOT EXISTS public.agent_memory (
 
 CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
   ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX IF NOT EXISTS idx_agent_session
-  ON public.agent_memory (sessionid, timestamp);
+-- The live Supabase bootstrap used quoted "sessionId"; older local
+-- bootstrap files used unquoted sessionid. Create the legacy index against
+-- whichever column exists; the following ordered migration normalizes its name.
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'agent_memory' AND column_name = 'session_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory (session_id, timestamp)';
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'agent_memory' AND column_name = 'sessionid'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory (sessionid, timestamp)';
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'agent_memory' AND column_name = 'sessionId'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_agent_session ON public.agent_memory ("sessionId", timestamp)';
+  ELSE
+    RAISE EXCEPTION 'agent_memory is missing a recognized session identifier column';
+  END IF;
+END;
+$;
