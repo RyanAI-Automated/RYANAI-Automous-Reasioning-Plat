@@ -2,7 +2,6 @@
 
 RyanAI is a modular AI application for coordinating multiple reasoning providers, durable agent work, persistent state, and a web/API interface. The repository contains a React and Vite frontend, a Node.js and TypeScript API, PostgreSQL persistence, Redis, an HTTP Model Context Protocol (MCP) service, and supporting workflow and developer tooling.
 
-> **Operational truth:** a passing build proves that the checked code builds; it does not prove that external model credentials work, a hosted service is healthy, a background worker is running continuously, or a deployment is production-ready. Verify each capability independently using the checks in this guide.
 
 ## Project status and release discipline
 
