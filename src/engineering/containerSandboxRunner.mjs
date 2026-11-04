@@ -22,6 +22,35 @@ function safeEnvironment(source) {
   return result;
 }
 
+function runDocker(spawn, args) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve({ ...result, stdout, stderr });
+    };
+    let child;
+    try {
+      child = spawn('docker', args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+        env: { PATH: process.env.PATH || '/usr/bin:/bin' },
+      });
+    } catch {
+      finish({ code: null });
+      return;
+    }
+    child?.stdout?.on?.('data', (chunk) => { stdout += chunk.toString('utf8'); });
+    child?.stderr?.on?.('data', (chunk) => { stderr += chunk.toString('utf8'); });
+    child?.once?.('error', () => finish({ code: null }));
+    child?.once?.('close', (code) => finish({ code }));
+    if (!child || typeof child.once !== 'function') finish({ code: null });
+  });
+}
+
 function assertInput(options) {
   if (!options || typeof options !== 'object') throw new Error('Sandbox options are required.');
   if (typeof options.command !== 'string' || !COMMAND_PATTERN.test(options.command)) {
@@ -29,6 +58,9 @@ function assertInput(options) {
   }
   if (!Array.isArray(options.args) || options.args.some((arg) => typeof arg !== 'string' || arg.includes('\0'))) {
     throw new Error('Sandbox arguments must be an array of safe strings.');
+  }
+  if (options.containerName !== undefined && (typeof options.containerName !== 'string' || !/^ryanai-genai-[a-f0-9]{32}-[1-5]$/i.test(options.containerName))) {
+    throw new Error('Sandbox container name must be a task-scoped safe identifier.');
   }
   if (typeof options.workspaceRoot !== 'string' || typeof options.cwd !== 'string') {
     throw new Error('An approved workspace root and working directory are required.');
@@ -62,7 +94,7 @@ export function createContainerSandboxRunner({
       if (cwd.includes(',') || cwd.includes('\n')) throw new Error('Workspace path contains unsupported mount characters.');
 
       const workdir = '/workspace';
-      const containerName = 'ryanai-genai-' + randomUUID();
+      const containerName = options.containerName || ('ryanai-genai-' + randomUUID().replaceAll('-', '') + '-1');
       const env = safeEnvironment(options.env);
       const dockerArgs = [
         'run', '--rm', '--init', '--interactive',
@@ -129,6 +161,17 @@ export function createContainerSandboxRunner({
         return true;
       };
       return child;
+    },
+    async stopContainer(containerName) {
+      if (typeof containerName !== 'string' || !/^ryanai-genai-[a-f0-9]{32}-[1-5]$/i.test(containerName)) return false;
+      const inspected = await runDocker(spawn, ['inspect', '--format={{.State.Running}}', containerName]);
+      if (inspected.code !== 0) return /no such (object|container)/i.test(inspected.stderr);
+      if (inspected.stdout.trim() === 'true') {
+        const killed = await runDocker(spawn, ['kill', containerName]);
+        if (killed.code !== 0) return false;
+      }
+      const removed = await runDocker(spawn, ['rm', '-f', containerName]);
+      return removed.code === 0 || /no such (object|container)/i.test(removed.stderr);
     },
   });
 }
