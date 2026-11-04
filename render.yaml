@@ -10,6 +10,7 @@ projects:
           - type: web
             name: ryanai-web
             runtime: static
+            rootDir: .
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             plan: free
             autoDeployTrigger: "off"
@@ -31,6 +32,7 @@ projects:
           - type: web
             name: ryanai-api
             runtime: docker
+            rootDir: .
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             branch: main
             plan: free
