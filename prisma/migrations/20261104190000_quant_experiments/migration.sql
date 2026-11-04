@@ -1,11 +1,11 @@
 CREATE TABLE "quant_experiments" (
-  "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+  "id" TEXT NOT NULL,
   "user_id" TEXT NOT NULL,
   "strategy" TEXT NOT NULL,
   "status" TEXT NOT NULL,
   "input" JSONB NOT NULL,
   "result" JSONB,
-  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "quant_experiments_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "quant_experiments_user_id_fkey"
     FOREIGN KEY ("user_id") REFERENCES "users"("id")
