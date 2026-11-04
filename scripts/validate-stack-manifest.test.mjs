@@ -31,6 +31,7 @@ function fixture(t) {
   put('k8s/ryanai-apps.yaml');
   put('k8s/ryanai-databases.yaml');
   put('.github/workflows/deploy-vercel.yml');
+  put('.github/workflows/deploy-railway.yml');
   put('render.yaml');
   put('docker-compose.yml', [
     'services:',
