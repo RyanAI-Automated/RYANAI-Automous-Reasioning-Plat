@@ -20,7 +20,7 @@
     "start:dev": "tsx src/server/launcher.ts",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "build:web": "npm run build:client",
-    "validate": "npm run index:check && npm run platform:wiring:check && npm run typecheck && npm run lint && npm run test && npm run test:repository-inventory && npm run test:cs-script && npm run test:api-activation && npm run test:workflows && npm run workflows:check && npm run test:stack-validator && npm run test:readiness-audits && npm run test:migration:audit && npm run deploy:validate && npm run stack:validate && npm run build && npm run build:server",
+    "validate": "npm run index:check && npm run platform:wiring:check && npm run typecheck && npm run lint && npm run test && npm run test:repository-inventory && npm run test:cs-script && npm run test:api-activation && npm run test:workflows && npm run workflows:check && npm run test:stack-validator && npm run test:readiness-audits && npm run test:migration:audit && npm run deploy:validate && npm run stack:validate && npm run build && npm run build:server && npm run test:comms-orchestration",
     "build:desktop": "tauri build",
     "docker:up": "docker compose up --build --detach --wait",
     "docker:health": "docker compose exec -T api wget -q -O - http://127.0.0.1:3000/health",
@@ -121,7 +121,8 @@
     "test:container-sandbox": "node --test scripts/container-sandbox-runner.test.mjs",
     "test:coding-queue": "node --test scripts/coding-task-queue.test.mjs",
     "worker:coding": "tsx scripts/coding-task-worker.ts",
-    "worker:audiobook": "tsx scripts/audiobook-render-worker.ts"
+    "worker:audiobook": "tsx scripts/audiobook-render-worker.ts",
+    "test:comms-orchestration": "python3 -m unittest discover -s comms-orchestration/tests -v"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
