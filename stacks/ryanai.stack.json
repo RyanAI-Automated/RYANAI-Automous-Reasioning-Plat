@@ -66,7 +66,8 @@
     ],
     "render": "render.yaml",
     "vercel": ".github/workflows/deploy-vercel.yml",
-    "railway": ".github/workflows/deploy-railway.yml"
+    "railway": ".github/workflows/deploy-railway.yml",
+    "railwayConfig": "railway.json"
   },
   "integrations": {
     "jarvis": {
