@@ -9,11 +9,12 @@ export interface ConnectionUrls {
  * entries from being treated as authoritative. The default is one hop; set
  * TRUST_PROXY_HOPS only after verifying the deployment's proxy topology.
  */
-export function resolveTrustedProxyHops(raw?: string): number {
-  if (raw === undefined || raw.trim() === '') return 1;
+export function resolveTrustedProxyHops(raw?: string, nodeEnv = 'development'): number | false {
+  if (raw === undefined || raw.trim() === '') return nodeEnv === 'production' ? 1 : false;
   const hops = Number(raw.trim());
+  if (hops === 0) return false;
   if (!Number.isSafeInteger(hops) || hops < 1 || hops > 5) {
-    throw new Error('TRUST_PROXY_HOPS must be an integer between 1 and 5.');
+    throw new Error('TRUST_PROXY_HOPS must be 0 or an integer between 1 and 5.');
   }
   return hops;
 }
