@@ -17,7 +17,7 @@ import { quantRoutes } from './quantRoutes.js';
 const makeBars = (count = 80) => {
   let close = 100;
   return Array.from({ length: count }, (_, index) => {
-    close += index < 45 ? 1.1 : -1.4;
+    close += index < 20 ? -1.0 : index < 50 ? 1.4 : -1.6;
     const date = new Date(Date.UTC(2026, 0, 1 + index)).toISOString().slice(0, 10);
     return { date, open: close - 0.2, high: close + 0.5, low: close - 0.5, close, volume: 1000 };
   });
