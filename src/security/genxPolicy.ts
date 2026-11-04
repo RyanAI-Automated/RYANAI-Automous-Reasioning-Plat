@@ -49,14 +49,16 @@ export function evaluateGenXSecurityEvent(event: GenXSecurityEvent): GenXPolicyR
   if (event.action === 'DELETE' && event.environment === 'production') {
     return { decision: 'DENY', ruleId: 'GX-PROD-DELETE-001', reason: 'Production deletion is prohibited for autonomous agents.', severity: 'CRITICAL' };
   }
+  // Validate untrusted target strings before granting any read-only tool exception.
+  // Otherwise a nominally safe reader could receive shell-control or injection payloads.
+  if (event.target && COMMAND_CONTROL.test(event.target)) {
+    return { decision: 'DENY', ruleId: 'GX-INJECTION-001', reason: 'Target contains shell-control or command-injection syntax.', severity: 'HIGH' };
+  }
   if (event.action === 'CREATE' || event.action === 'UPDATE' || event.action === 'DELETE' || event.action === 'NETWORK') {
     return { decision: 'REQUIRE_APPROVAL', ruleId: 'GX-HIL-001', reason: 'Mutating or network actions require an authenticated human approval and scoped credentials.', severity: 'HIGH' };
   }
   if (event.action === 'READ' && SAFE_READ_ONLY_TOOLS.has(tool)) {
     return { decision: 'ALLOW', ruleId: 'GX-READ-001', reason: 'Known read-only tool is allowed within its own access controls.', severity: 'LOW' };
-  }
-  if (event.action === 'READ' && event.target && COMMAND_CONTROL.test(event.target)) {
-    return { decision: 'DENY', ruleId: 'GX-INJECTION-001', reason: 'Request contains shell-control or command-injection syntax.', severity: 'HIGH' };
   }
   return { decision: 'REQUIRE_APPROVAL', ruleId: 'GX-DEFAULT-DENY-001', reason: 'Unknown tools and actions are not trusted by default.', severity: 'MEDIUM' };
 }

