@@ -49,6 +49,7 @@ export async function inspectDatabaseSchema(
       to_regclass('public.agent_run_evidence') IS NOT NULL AS agent_run_evidence,
       to_regclass('public.jarvis_audit_events') IS NOT NULL AS jarvis_audit_events,
       to_regclass('public.reasoning_cache') IS NOT NULL AS reasoning_cache,
+      EXISTS (SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = 'reasoning_cache' AND a.attname = 'embedding' AND format_type(a.atttypid, a.atttypmod) = 'vector(1536)') AS reasoning_embedding_type,
       to_regclass('public.agent_memory') IS NOT NULL AS agent_memory,
       EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'agent_memory' AND column_name = 'session_id') AS agent_memory_session_id,
       EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') AS vector_extension,
@@ -77,6 +78,7 @@ export async function inspectDatabaseSchema(
     row.agent_run_evidence === true &&
     row.jarvis_audit_events === true &&
     row.reasoning_cache === true &&
+    row.reasoning_embedding_type === true &&
     row.agent_memory === true &&
     row.agent_memory_session_id === true &&
     row.vector_extension === true &&
