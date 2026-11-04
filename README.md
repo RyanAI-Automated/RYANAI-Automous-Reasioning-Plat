@@ -895,3 +895,17 @@ For bugs and feature proposals, open a GitHub issue with a concise reproduction,
 ## Supabase OAuth 2.1 Server
 
 RyanAI provides an explicit Supabase OAuth consent UI at `/oauth/consent`. The hosted Supabase project must have OAuth Server enabled and its authorization path set to `/oauth/consent`; client registration and the remaining setup steps are documented in [Supabase OAuth Server setup](docs/SUPABASE_OAUTH_SERVER.md). Dynamic registration remains disabled by default.
+
+
+## Universal model governance (RIIP)
+
+RyanAI uses the **RyanAI Intelligence Improvement Protocol (RIIP)** as its shared model-governance baseline. The machine-readable policy and model registry live in `governance/model-governance.yaml`; the operational contract is documented in [RIIP Universal Model Governance](docs/architecture/RIIP-UNIVERSAL-MODEL-GOVERNANCE.md).
+
+- Every reasoning provider, local inference adapter, and specialist model must have an explicit role, task-family scope, status, and evaluation requirement.
+- Provider configuration is not proof of connectivity or successful inference. Runtime verification is recorded separately.
+- Model output is untrusted. Models cannot authorize actions, change their own permissions, approve their own changes, merge, deploy, or promote themselves.
+- Gen-X remains the independent authorization enforcement boundary; consequential actions require human approval.
+- Model changes require a held-out baseline, security/licence review, tested rollback, and cost per accepted successful task in ZAR.
+- Specialist candidates remain evaluation-only until their exact checkpoint, workload, security, language, licence, operational, and economic gates are independently satisfied.
+
+Run `npm run model-governance:validate` and `npm run test:model-governance` to validate the policy contract. These checks validate policy structure and invariants; they do not prove provider connectivity, model quality, production isolation, or live rollback.
