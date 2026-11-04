@@ -1,149 +1,246 @@
-# RyanAI architecture
+# RyanAI architecture and governance reference
 
-This document names the one production path in this repository. It also lists the older code that you can remove later.
+**Status:** Architecture and acceptance standard, updated 4 November 2026. This document distinguishes merged code foundations from target requirements and outstanding verification. It is not a production-readiness certificate.
 
-## Production path
+## 1. Governing principle
 
-`npm start` runs `src/server/launcher.ts`. This is the only supported entry point.
+> **RyanAI owns its intelligence. Models serve it. Gen-X protects it. Human authority governs it.**
 
-| Part | File |
-|---|---|
-| HTTP server, routes, authentication | `src/server/launcher.ts`, `src/server/routes/auth.ts` |
-| Reasoning agent (LangGraph ReAct) | `src/agent/engine.ts` |
-| Approval agent and supervisor | `src/agent/approvalEngine.ts`, `src/agent/supervisorGraph.ts`, `src/agent/subAgents.ts` |
-| Agent tools | `src/agent/tools/` |
-| Model configuration | `src/config/llm.ts` |
-| Data | Postgres through Prisma (`prisma/schema.prisma`) |
+RyanAI must select, measure, replace, and improve specialist models independently. It must not become dependent on additional models merely because they are available or publish strong external benchmark scores.
 
-## One model configuration
+The success measure is useful, verified intelligence per rand spent, without sacrificing accuracy, privacy, security, reliability, or user control.
 
-All agents call `createChatModel()` in `src/config/llm.ts`. Three variables control every agent:
+Every proposed change must demonstrate all four acceptance dimensions:
 
-- `OPENAI_MODEL` sets the model. The default comes from `models/catalog.json`.
-- `OPENAI_BASE_URL` sets an OpenAI-compatible endpoint, for example a local vLLM server.
-- `OPENAI_API_KEY` sets the key.
+1. **Measurable benefit:** a reproducible improvement against a representative baseline.
+2. **Security compliance:** independently verified identity, authorization, isolation, privacy, and audit controls.
+3. **Operational reversibility:** a tested fallback, rollback, and recovery procedure.
+4. **Economic justification:** total cost and value measured in ZAR, not parameter count or headline speed alone.
 
-Do not write a model name in agent code.
+A change that fails a mandatory security, authorization, licence, or privacy gate must not be promoted regardless of its aggregate score.
 
-## Agent tools
+## 2. System context and responsibility boundaries
 
-| Tool | Purpose | Access |
-|---|---|---|
-| `send_email`, `send_whatsapp_message`, `make_voice_call` | Ask to send a message or place a call. The action is queued, not sent. | Any signed-in user can queue. Only an administrator can approve. |
-| `remember_fact`, `recall_memory`, `forget_memory` | Long-term memory in the `memory_entries` table | Each user sees only their own entries |
-| `schedule_task`, `list_scheduled_tasks`, `cancel_scheduled_task` | Tasks that run later, once or on a repeat | Each user sees only their own tasks |
-| `list_workspace_files`, `read_workspace_file` | Read-only access to code | Administrators only. Set `AGENT_WORKSPACE_ROOT`. |
-| `write_workspace_file` | Create or replace a file | Administrators only. Set `AGENT_WORKSPACE_ROOT` and `AGENT_WORKSPACE_WRITE=true`. |
+| Domain | Responsibility | Trust boundary |
+| --- | --- | --- |
+| RyanAI application/API | Authenticated ingress, request validation, orchestration, persistence, user-facing results | The trusted application enforces identity and authorization; model output is untrusted |
+| RyanAI Comms | Transcription, extraction, speech, and controlled communications workflows | Drafting/analysis is separate from sending, calling, and provider dispatch |
+| Private RAG | Private document ingestion, OCR/parsing, embeddings, retrieval, and grounded responses | Owner-scoped access, provenance, retention, and deletion controls apply throughout |
+| Gen-X Security | Independent authorization, policy enforcement, and security checks | Policy decisions are deterministic and independent of model decisions |
+| Jarvis | Restricted engineering analysis, testing, and proposed code changes | No self-granted permissions, secret access, self-approval, direct merge, or deployment |
+| Human operator | Approval of consequential and irreversible actions | Explicit authorization remains outside model control |
 
-The routes pass the verified user in `configurable.userId` and `configurable.role`. The memory, schedule, and workspace tools fail when these values are missing.
+Specialist models may return suggestions or derived data. They do not become trusted principals and must not be given unrestricted MCP, shell, filesystem, network, credential, repository-write, or deployment access.
 
-To make an administrator, set `app_metadata.role` to `admin` for that user in Supabase.
+## 3. Persistence, memory, and private data
 
-### Memory
+PostgreSQL is the authoritative durable application and memory store; pgvector is the vector-search foundation for semantic retrieval. Prisma schema and migrations define the relational data contract. Redis may support runtime coordination and caching, but it is not the authoritative long-term memory store.
 
-Every request starts with the user's saved notes (up to 20) as a system message, so the agent knows the user without a tool call. `src/agent/invoke.ts` adds the message. The message is removed from the API response. The notes are marked as data, not instructions.
+Required data controls:
 
-### Approvals for outbound actions
+- Scope conversations, documents, tasks, embeddings, and derived results to the authenticated owner or explicitly authorised tenant.
+- Preserve source references, timestamps, model/checkpoint versions, and transformation provenance for derived facts and extracted fields.
+- Treat uploaded documents, audio, retrieved passages, prompts, and model outputs as untrusted data, never as instructions that can override policy.
+- Apply content-type and size limits, malware scanning/quarantine, secure object access, retention, and deletion propagation before adding new media-processing paths.
+- Do not expose private source content, signed URLs, credentials, or raw media in ordinary logs.
+- Keep embedding model versions and vector indexes separate. Never compare or mix vectors from incompatible embedding spaces.
+- Preserve the previous index and a tested rollback path before changing the active embedding model.
 
-The email, WhatsApp, and voice-call tools of the reasoning agent never send anything. They save the request in the `pending_actions` table and tell the agent that the action waits for approval.
+A configured database, vector extension, or storage bucket is not proof that migrations, access policies, backups, or restore procedures have been validated. Verify these against a disposable/staging environment before production changes.
 
-- `GET /api/actions` lists the open actions. Each one shows the full arguments, so the approver sees the exact message.
-- `POST /api/actions/:id/approve` sends the message through Twilio or SMTP and returns the result.
-- `POST /api/actions/:id/reject` closes the action without sending.
-- All three routes are for administrators only.
+## 4. Inference and replaceable specialist layer
 
-Rules that the code enforces:
+### 4.1 Reasoning foundation
 
-- An action is decided once. Approval is one conditional update, so a second click or a second server gets HTTP 404.
-- An action expires after 24 hours. An expired action cannot be approved.
-- The arguments are checked when the action is queued and again when it is sent. The recipient must be one email address or one phone number in international format. The subject must be one line. The spoken text of a call is escaped, so it cannot add TwiML elements.
-- A user can have at most 20 open actions.
-- An approved action is sent at most once. If the server stops between the approval and the end of the send, the row stays `approved` and nothing sends it again. Check the table.
+The existing NVIDIA, Qwen, and Logic reasoning roles remain distinct configured capabilities. The explicit local Ollama adapter added in PR #864 provides a local inference mode through the shared model factory.
 
-Set these variables for the channels that you use: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`, `TWILIO_PHONE_NUMBER`, `SMTP_USER`, `SMTP_PASS` (and optional `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`). A channel that is not configured fails with a clear message when you approve.
+Local mode requires:
 
-The older tools in `src/agent/tools/commsTools.ts` stay for `humanInTheLoopAgent`, which has its own approval flow. They call `/api/comms/*` over HTTP without a token, and the server does not register the routes that they need, so they cannot send today. The reasoning agent does not use them.
+```dotenv
+RYANAI_INFERENCE_MODE=local
+OLLAMA_URL=http://ollama:11434/v1
+OLLAMA_MODEL=qwen2.5:7b
+```
 
-### Scheduled tasks
+The actual model must already be installed in the trusted local Ollama runtime. The adapter is designed to validate local endpoint configuration and fail closed rather than silently fall back to a cloud provider. These environment settings do not prove that the daemon is running, the model is present, or inference works.
 
-A user can ask for a task such as "check my notes every morning". The server saves it in `scheduled_tasks`. A runner in the server process checks every 60 seconds and runs the due tasks.
+### 4.2 Specialist Intelligence Layer
 
-- **Off by default.** Set `SCHEDULER_ENABLED=true` to start the runner. Each run calls the model with no person present, so it costs money.
-- **Limited tools.** A scheduled run can read and save notes only. It cannot send messages, write files, or schedule more tasks, because nobody can approve those actions.
-- **Safe with many servers.** A server claims a task with one conditional update and a 10-minute lease. A task never runs on two servers at the same time. If a server stops in the middle of a run, the task runs again after the lease ends.
-- **Limits.** 20 active tasks for each user. A repeat interval from 15 minutes to 7 days. A run stops after 120 seconds.
-- **Results.** `GET /api/tasks` returns the tasks and their last result. `DELETE /api/tasks/:id` cancels a task.
+Specialists should sit behind stable, typed, versioned interfaces. Each adapter should declare:
 
-### Proactive alerts
+- Task type and input/output schema.
+- Exact model and checkpoint revision, licence, and provenance.
+- Runtime and dependency versions.
+- Resource, input-size, timeout, and concurrency limits.
+- Health and readiness semantics based on real inference probes.
+- Failure, abstention, timeout, and fallback behaviour.
+- Metrics, audit metadata, and safe data-retention behaviour.
 
-The server can watch your systems and send you a message when something needs you. The code is in `src/alerts/`. It does not call the model, so it costs nothing to run.
+Models should be independently replaceable without rewriting the orchestrator or changing the authoritative persistence layer. Do not download model weights during API startup. Provision pinned artifacts through an explicit, reviewed process and verify hashes where available. Isolate heavyweight runtimes to avoid dependency conflicts.
 
-The alert loop makes three kinds of checks:
+### 4.3 Candidate policy
 
-- **Health URLs.** `ALERT_HEALTH_URLS` is a comma-separated list. A URL passes when it answers with a success status in 10 seconds.
-- **CI.** `ALERT_GITHUB_REPOS` is a comma-separated list of `owner/repo`. A repo fails when one finished check run of the latest commit on `ALERT_GITHUB_BRANCH` (default `main`) has a failed result. Set `ALERT_GITHUB_TOKEN` for a private repo or a higher rate limit.
-- **Approvals.** The loop sends one "APPROVAL NEEDED" message for each new open action in `pending_actions`. Set `ALERT_WATCH_APPROVALS=false` to turn this off.
+The merged PR #866 establishes the evaluation rubric and adoption gates. Its fit scores are preliminary architecture-fit estimates, not RyanAI benchmark results or production approvals.
 
-Rules that the code enforces:
+- **GLiNER:** offline entity-extraction evaluation; verify exact checkpoint licence and source-span provenance.
+- **EmbeddingGemma 300M:** parallel retrieval evaluation only; verify gated terms and keep its vector index separate.
+- **PaddleOCR-VL 1.6:** document parsing evaluation after the secure attachment pipeline is verified; confirm exact checkpoint licence.
+- **Parakeet TDT 0.6B v3:** conditional ASR evaluation; European-language coverage does not establish Tshivenda support.
+- **Kokoro-82M:** conditional TTS evaluation; test South African English and Tshivenda pronunciation and intelligibility.
+- **Arch-Router 1.5B:** defer pending legal review and comparison with deterministic routing.
+- **Nemotron-Orchestrator-8B:** do not use in production under the research-only licence terms described in the source proposal unless suitable production rights are independently obtained.
 
-- **Off by default.** Set `ALERTS_ENABLED=true` to start the loop. The server does not start when the settings cannot work, for example when no channel has a destination or a URL is not valid.
-- **Channels.** Set at least one of `SLACK_WEBHOOK_URL` (must be `https`), `ADMIN_EMAIL`, or `ALERT_WHATSAPP_TO`. Email and WhatsApp use the SMTP and Twilio variables from the approvals section. Alerts go out without approval, because only you set the destinations, in the environment.
-- **No noise.** A check must fail `ALERT_FAILURES_BEFORE_ALERT` times in a row (default 2) before it raises "DOWN". While it stays down, it repeats every `ALERT_REMINDER_HOURS` (default 6) and says nothing between. The first good answer sends "RECOVERED".
-- **No lost alerts.** If no channel receives an alert, the same alert goes out again at the next check.
-- **Skips are not failures.** If GitHub does not answer, the check is skipped and the server logs a warning. A skipped check never raises or clears an alert. A wrong `ALERT_GITHUB_TOKEN` therefore shows only in the logs.
-- **Timing.** The loop runs every `ALERT_INTERVAL_SECONDS` (60 to 3600, default 300).
-- **State is per process.** After a restart, a check that still fails must fail again `ALERT_FAILURES_BEFORE_ALERT` times before it alerts. With many servers, each one sends its own alerts.
-- **Secrets stay out.** A health URL appears in an alert without its query string.
+No candidate becomes a runtime dependency simply by appearing in this list.
 
-A CI watch alerts for any failed check run, including optional ones. A job that always fails, such as a scan that needs a missing license, keeps alerting until you fix it or remove it.
+## 5. RyanAI Comms: transcription, extraction, and speech
 
-### Workspace safety
+PR #864 merged the fail-closed local inference adapter. PR #865 merged Python orchestration interfaces and authenticated communications MCP contracts for reading channel policy and preparing drafts. These interfaces are deliberately narrower than provider dispatch: they do not grant permission to send messages, place calls, or initiate external communications.
 
-The workspace tools work only inside `AGENT_WORKSPACE_ROOT`. They follow symbolic links before they check the path. They block `.git`, `node_modules`, env files, and key files. The write tool also blocks `.github`, because workflow files run with repository secrets. The write tool does not write through a symbolic link. An agent that reads untrusted files and can also write files is a risk, so keep `AGENT_WORKSPACE_WRITE` off unless you need it.
+The Comms roadmap is to evaluate each task independently:
 
-## Older code (not on the production path)
+### Transcription (ASR)
 
-Nothing in the production path imports these files. Remove them after you confirm that no script or deployment uses them.
+- Build separate held-out evaluation slices for South African English (`en-ZA`) and Tshivenda (`ve-ZA`).
+- Measure word error rate (WER), character error rate (CER), named-term accuracy, speaker/noise robustness where relevant, real-time factor, p50/p95 latency, and abstention/failure rate.
+- Record language-specific results; do not average away poor performance on one language.
+- Retain an approved fallback when the selected model does not support the language or confidence is insufficient.
 
-- `server.ts`, `src/server.ts`, `gateway.js`: older standalone gateways. They use `src/agent/reactGraph.ts` and `src/agent/reactWorkflow.ts`.
-- `reactGraph.py`, `basic.py`, `ryanai_supervisor_prompt.txt`: a Python copy of the agent graph. The `.txt` file contains Python code.
-- `src/engine/` and `src/config/brains.ts`: a second agent stack that uses Nemotron and Qwen models.
-- `src/agent/nodes.ts`, `src/agent/react.ts`: not imported by any file.
-- `COMPLETION_CERTIFICATE.txt`, `.completion-status.txt`: status claims that no test checks.
+### Information extraction
 
-## Known gaps
+- Measure exact-span precision, recall, and F1 by entity/field type.
+- Track calibration, false-positive rate, schema validity, source-span/provenance completeness, and human correction rate.
+- Treat extracted values as untrusted until validated against schemas and policy.
 
-- `verify_compliance` in `src/agent/subAgents.ts` always returns `NOT_VERIFIED`, because no compliance checks are connected.
-- There is no screen for approvals yet. Use `GET /api/actions` and the approve and reject routes. Turn on the alerts to get a message when an action waits.
-- Through the global authentication hook, every route that is not in its short allow-list needs an administrator, including `GET /api/tasks`. The comments in `tasks.ts` say "signed-in user". In practice only an administrator can use those routes.
-- The agent cannot run commands. It cannot use a calendar, because that needs OAuth credentials for each user.
-- There is no wake word. The voice stream goes to the OpenAI Realtime API.
-- The agent does not start work by itself. Scheduled tasks start a run on a timer. Alerts only send you a message, and they do not start a run or fix anything.
+### Speech generation (TTS)
 
+- Evaluate `en-ZA` and `ve-ZA` separately with consented, representative text.
+- Use blinded human assessments for intelligibility, pronunciation, naturalness, and accessibility.
+- Measure startup delay, real-time factor, p50/p95 latency, resource use, and fallback rate.
+- Do not infer language/voice support from a locale selector or a model's general multilingual claim.
 
-## Shared OpenAI API gateway and MCP
+The existence of orchestration contracts does not establish that a local model is installed, a provider is connected, or an end-to-end channel test has passed.
 
-The API process is the sole owner of `OPENAI_API_KEY`. Agent model creation
-uses `src/config/llm.ts`; communications agents and realtime voice use the
-same server-side credential. Dedicated NVIDIA and Qwen credentials continue
-to take precedence when explicitly configured; the Logic brain uses the
-shared OpenAI credential when no dedicated Logic key is supplied.
+## 6. Private RAG: document understanding and retrieval
 
-MCP's `reasoning_route` defaults to `openai` and calls the private
-`POST /api/internal/openai/chat` route over the Docker network. The route
-requires the separate `RYANAI_OPENAI_GATEWAY_TOKEN` bearer credential,
-applies rate limiting and request schema limits, and hides provider errors.
-MCP receives this service token, not the OpenAI provider key. Keep both
-credentials in the private runtime secret store.
+Document ingestion must follow a controlled pipeline:
 
-Set `RYANAI_OPENAI_GATEWAY_URL` only when the API service has a different
-private address. Plain HTTP is accepted only for the private Compose service
-name `api` or loopback; remote gateway URLs must use HTTPS. The OpenAI key
-must be configured on the API service. It is never copied to MCP or browser
-build variables.
+1. Authenticate the user and establish document ownership.
+2. Validate file type, size, page count, and structure; quarantine and scan before processing.
+3. Process a bounded, isolated copy with no secret or unrestricted network access.
+4. Parse text, tables, layout, and fields; validate output against explicit schemas.
+5. Store only necessary extracted content with source references, owner scope, and provenance.
+6. Embed using a pinned model version and a separate versioned index.
+7. Retrieve only records the requesting identity is authorised to access.
+8. Ground responses in retrieved sources and preserve citations/traceability.
+9. Apply retention and deletion requests to source files, extracted records, and derived vectors.
 
-Supabase remains the connected persistence/API project. The frontend uses
-only its publishable key; privileged Supabase credentials remain server-side.
-This integration does not create tables, alter RLS policies, run migrations,
-or change the existing Prisma/Postgres persistence path. Supabase security
-advisor findings are a separate least-privilege database workstream.
+Benchmark OCR/document understanding, extraction, and embeddings as separate workloads. A document parser's benchmark score does not establish retrieval quality; an embedding score does not establish source-grounded answer quality.
+
+PaddleOCR-VL and GLiNER are candidates for controlled offline evaluation. EmbeddingGemma may be tested in a separate versioned index. Do not alter live memory writes or replace the active vector index until retrieval quality, licence, privacy, migration cost, and rollback are verified.
+
+## 7. Gen-X: independent authorization authority
+
+Gen-X is a security and policy enforcement boundary, not another model that can be persuaded to approve an action.
+
+Required design properties:
+
+- Authorization is deterministic, deny-by-default, and evaluated outside model-generated reasoning.
+- Identity comes from a verified authenticated principal, not a model-supplied user ID, role, or claim.
+- Every tool/action is checked against an explicit capability allowlist, resource scope, and current policy at the execution boundary.
+- Permission grants are issued only by trusted application/operator controls; no model, agent, or orchestrator can create or expand its own grants.
+- Secret access is restricted to the smallest trusted service that needs a credential. Secrets are never placed in prompts or model-visible tool results.
+- Model output, retrieved content, tool arguments, and task payloads are untrusted and schema-validated.
+- Consequential actions require an explicit human approval bound to the exact action payload and relevant version/digest; any material change invalidates that approval.
+- Audit records identify the authenticated actor, requested action, policy decision, approval, execution outcome, and relevant version/digest without recording secret values.
+- Security controls fail closed when identity, policy, audit persistence, or approval verification is unavailable.
+
+No specialist model, Jarvis, or orchestration component may grant itself access, access secrets outside its explicit scope, approve consequential actions, bypass Gen-X, or override human approval.
+
+This section defines the required authority model. It is not a claim that every control has already been implemented or independently verified.
+
+## 8. Jarvis: controlled engineering assistance
+
+Jarvis remains restricted until its identity, permissions, execution environment, and evidence trail are independently verified.
+
+Permitted capability should progress in stages:
+
+1. Read-only inspection of explicitly authorised repository material.
+2. Analysis and test planning with no write capability.
+3. Isolated, resource-bounded test execution using non-production data and credentials.
+4. Patch preparation on a dedicated branch with path and content controls.
+5. Pull-request creation after explicit approval, with exact commit and diff recorded.
+6. Further capabilities only after independent review of the preceding stage.
+
+Jarvis must not inherit production secrets, developer home directories, unrestricted network access, or production database access. It must not self-approve, merge, deploy, change secret settings, or expand its own permissions. Keep patch preparation separate from merge and deployment permissions. Preserve human review, required CI/security checks, and branch protection.
+
+A successful command, generated patch, or model assertion is not proof of correctness. Record actual exit codes, test output, commit SHA, diff digest, actor identity, and review/approval evidence. Hash chains support tamper evidence but are not a substitute for authenticated provenance or digital signatures.
+
+## 9. Fallback, replacement, and rollback
+
+Every specialist must be removable without taking down unrelated RyanAI capabilities.
+
+- Pin the current and candidate revisions.
+- Keep a known-good baseline and explicit fallback route.
+- Define timeout, cancellation, retry, circuit-breaker, and safe-abstention behaviour.
+- Test model unavailable, malformed output, unsupported language, low confidence, rate limit, and resource exhaustion.
+- Use feature flags or explicit routing configuration for controlled promotion.
+- For embeddings, maintain separate versioned indexes and preserve the old index until rollback is tested.
+- For document and media pipelines, retain the original private artifact and provenance so derived data can be regenerated or deleted.
+- Record the model used for each derived result so replacement does not erase lineage.
+- Roll back automatically only to a previously approved version; do not let a model choose or install its own replacement.
+
+A fallback is accepted only after a test demonstrates that it works and preserves authorization, data isolation, and output provenance.
+
+## 10. Benchmarking and intelligence-per-rand accounting
+
+Use a held-out, representative, access-controlled evaluation corpus. Include a simple deterministic baseline and the current production candidate. Do not use the candidate's own training/evaluation benchmark as the only evidence for adoption.
+
+| Workload | Quality measures | Operational measures |
+| --- | --- | --- |
+| OCR/document parsing | CER; field precision/recall/F1; table/layout accuracy | Pages/minute; p50/p95; peak RAM/VRAM; malformed-file and timeout rate |
+| Extraction | Exact-span precision/recall/F1; calibration; schema validity | False-positive rate; provenance completeness; human correction rate |
+| Embeddings/retrieval | Recall@k; nDCG@k; MRR; grounded answer relevance | Index size; embedding/query latency; rebuild and rollback cost |
+| ASR | WER/CER and named-term accuracy by `en-ZA` and `ve-ZA` | Real-time factor; p50/p95; peak memory; unsupported-language/fallback rate |
+| TTS | Blinded intelligibility, pronunciation, naturalness, and accessibility | Startup delay; real-time factor; p50/p95; peak memory |
+| Routing/decision support | Task success; safe abstention; policy violation rate | Invalid route rate; unnecessary calls; latency and escalation rate |
+
+For every run, record dataset version, exact model/checkpoint hash, licence, runtime/library versions, hardware, quantization, prompt/configuration, cold and warm latency, throughput, peak RAM/VRAM, failures, and fallback frequency.
+
+Define:
+
+`cost_per_successful_task_ZAR = total_attributable_cost_ZAR / accepted_successful_tasks`
+
+Total attributable cost should include inference/provider charges, compute, electricity, storage, network where material, amortized hardware, and maintenance/operations. Define a successful task before the benchmark: it must meet the quality threshold, pass schema and policy validation, and not require an uncounted human correction. Report cost alongside quality, reliability, and security; never optimize cost by accepting unsafe or incorrect output.
+
+Promote a candidate only if it clears legal, privacy, security, language, and authorization gates; is non-inferior on critical workload slices; demonstrates a meaningful measured benefit; and has a tested fallback and rollback.
+
+## 11. Engineering and release gates
+
+The engineering sequence is:
+
+1. Complete the outstanding disposable PostgreSQL/pgvector and migration checks.
+2. Obtain completed CI, test, and security results for the exact current commit; queued, skipped, cancelled, or stale checks are not passes.
+3. Independently verify that the `main` branch ruleset enforces pull requests and the required status checks, blocks force pushes, and restricts bypass.
+4. Verify the local Ollama runtime and the Comms orchestration contracts with real, controlled tests.
+5. Verify the secure attachment/ingestion path before document and media pilots.
+6. Run offline specialist benchmarks and publish reproducible results.
+7. Pilot one specialist at a time behind explicit configuration/feature gates.
+8. Review security, operational reversibility, and ZAR economics before promotion.
+
+PR #863 records a point-in-time review of the database, CI/security, and branch-protection gates. PRs #864 and #865 add local inference and communications contracts; PR #866 adds specialist-model fit and adoption policy. Their merged status must not be treated as proof of live runtime health or successful current-head checks. Re-read current GitHub evidence before declaring a gate complete.
+
+No production activation, deployment, paid infrastructure upgrade, secret change, or database migration is authorised by this architecture document.
+
+## 12. Non-negotiable engineering doctrine
+
+- No unnecessary model dependencies.
+- No unverified capability claims.
+- No unrestricted autonomous permissions.
+- No irreversible changes without explicit authorization.
+- No production activation without reproducible evidence.
+- No model-generated authorization.
+- No silent cloud fallback from a local-only inference mode.
+- No mixing of incompatible embedding spaces.
+- No benchmark score without workload, hardware, revision, and dataset provenance.
+
+**RyanAI owns its intelligence. Models serve it. Gen-X protects it. Human authority governs it.**
