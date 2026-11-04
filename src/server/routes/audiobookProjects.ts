@@ -145,6 +145,10 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
         const job = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
         if (job) return reply.code(200).send({ job: jobSummary(job), reused: true });
+        const active = await fastify.prisma.audiobookRenderJob.findFirst({
+          where: { userId, projectId: project.id, status: { in: ['queued', 'running', 'cancel_requested'] } },
+        });
+        if (active) return reply.code(409).send({ error: 'Another render is already active for this project.', jobId: active.id });
       }
       throw error;
     }
