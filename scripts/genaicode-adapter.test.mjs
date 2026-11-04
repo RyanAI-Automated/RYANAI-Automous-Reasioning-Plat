@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { runGenAICodeTask, genaicodeAdapterPolicy } from '../src/engineering/genaicodeAdapter.mjs';
 
+const HASH = 'a'.repeat(64);
 const temporary = [];
 async function workspace() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ryanai-genaicode-'));
@@ -19,108 +20,134 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((item) => rm(item, { recursive: true, force: true })));
 });
 
-function fakeSpawn({ code = 0, output = '{"type":"message","text":"safe result"}\n', onLaunch } = {}) {
-  return (binary, args, options) => {
-    const child = new EventEmitter();
-    child.stdout = new PassThrough();
-    child.stderr = new PassThrough();
-    child.stdin = new PassThrough();
-    child.kill = () => true;
-    onLaunch?.({ binary, args, options, child });
-    queueMicrotask(() => {
-      child.stdout.write(output);
-      child.stdout.end();
-      child.stderr.end();
-      child.emit('close', code, null);
-    });
-    return child;
+const task = (root, work, overrides = {}) => ({
+  taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: HASH,
+  proposedDiffHash: HASH, agent: 'codex', prompt: 'Inspect this change',
+  workspaceRoot: root, workspacePath: work, ...overrides,
+});
+const approved = async (binding) => ({
+  approved: true, ...binding, approverId: 'admin-2', authorId: 'admin-1',
+});
+const capabilities = {
+  filesystemIsolation: true, workspaceMountOnly: true, resourceLimits: true,
+  networkPolicy: 'deny-by-default', credentialScope: 'agent-only',
+};
+function fakeRunner({ code = 0, output = '{"type":"message","text":"safe result"}\n', onLaunch } = {}) {
+  return {
+    capabilities,
+    run: async (launch) => {
+      const child = new EventEmitter();
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.stdin = new PassThrough();
+      child.kill = () => true;
+      onLaunch?.({ ...launch, child });
+      queueMicrotask(() => {
+        child.stdout.write(output);
+        child.stdout.end();
+        child.stderr.end();
+        child.emit('close', code, null);
+      });
+      return child;
+    },
   };
 }
 
-describe('RyanAI GenAIcode engineering adapter', () => {
-  it('requires explicit approval before starting an agent', async () => {
+describe('RyanAI GenAIcode adapter authorization and isolation', () => {
+  it('fails closed without the trusted workbench authorization service', async () => {
+    const { root, work } = await workspace();
+    await assert.rejects(runGenAICodeTask(task(root, work), { sandboxRunner: fakeRunner() }), /authorization service/);
+  });
+
+  it('rejects caller-supplied approval booleans and does not launch an agent', async () => {
     const { root, work } = await workspace();
     let launched = false;
-    await assert.rejects(runGenAICodeTask({
-      agent: 'codex', prompt: 'Inspect this change', workspaceRoot: root, workspacePath: work, approved: false,
-    }, { spawn: () => { launched = true; } }), /Explicit engineering-task approval/);
+    await assert.rejects(runGenAICodeTask(task(root, work, { approved: true }), {
+      authorizeTask: async () => null,
+      sandboxRunner: fakeRunner({ onLaunch: () => { launched = true; } }),
+    }), /valid independent workbench approval/);
     assert.equal(launched, false);
   });
 
-  it('rejects unsupported agents and workspace paths outside the approved root', async () => {
+  it('requires independent approval bound to exact task, plan, base and diff digests', async () => {
     const { root, work } = await workspace();
-    await assert.rejects(runGenAICodeTask({
-      agent: 'unknown', prompt: 'task', workspaceRoot: root, workspacePath: work, approved: true,
-    }), /Unsupported coding agent/);
-    const outside = await mkdtemp(path.join(os.tmpdir(), 'ryanai-outside-'));
-    temporary.push(outside);
-    await assert.rejects(runGenAICodeTask({
-      agent: 'codex', prompt: 'task', workspaceRoot: root, workspacePath: outside, approved: true,
-    }), /inside the approved workspace root/);
+    const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: HASH, proposedDiffHash: HASH };
+    await assert.rejects(runGenAICodeTask(task(root, work), {
+      authorizeTask: async () => approved({ ...binding, proposedDiffHash: 'b'.repeat(64) }),
+      sandboxRunner: fakeRunner(),
+    }), /valid independent workbench approval/);
+    await assert.rejects(runGenAICodeTask(task(root, work), {
+      authorizeTask: async () => ({ ...await approved(binding), approverId: 'admin-1' }),
+      sandboxRunner: fakeRunner(),
+    }), /valid independent workbench approval/);
   });
 
-  it('rejects symlink escapes after resolving the real workspace path', async () => {
+  it('rejects a runner without filesystem, network and resource isolation', async () => {
+    const { root, work } = await workspace();
+    await assert.rejects(runGenAICodeTask(task(root, work), {
+      authorizeTask: async (binding) => approved(binding),
+      sandboxRunner: { capabilities: { ...capabilities, networkPolicy: 'allow-all' }, run() {} },
+    }), /networkPolicy/);
+  });
+
+  it('rejects workspace escapes and symlink escapes', async () => {
     const { root } = await workspace();
     const outside = await mkdtemp(path.join(os.tmpdir(), 'ryanai-outside-'));
     temporary.push(outside);
+    await assert.rejects(runGenAICodeTask(task(root, outside), {
+      authorizeTask: async (binding) => approved(binding), sandboxRunner: fakeRunner(),
+    }), /inside the approved workspace root/);
     const link = path.join(root, 'escape');
     await symlink(outside, link, 'dir');
-    await assert.rejects(runGenAICodeTask({
-      agent: 'codex', prompt: 'task', workspaceRoot: root, workspacePath: link, approved: true,
+    await assert.rejects(runGenAICodeTask(task(root, link), {
+      authorizeTask: async (binding) => approved(binding), sandboxRunner: fakeRunner(),
     }), /inside the approved workspace root/);
   });
 
-  it('launches without a shell, sends the prompt on stdin and strips provider secrets', async () => {
+  it('runs through the isolated runner, passes only safe env and never claims verification', async () => {
     const { root, work } = await workspace();
     let launch;
-    const result = await runGenAICodeTask({
-      agent: 'codex',
-      prompt: 'Do not print secrets',
-      workspaceRoot: root,
-      workspacePath: work,
-      approved: true,
-      env: { PATH: '/usr/bin', HOME: '/home/test', OPENAI_API_KEY: 'must-not-pass', NVIDIA_API_KEY: 'must-not-pass' },
-    }, { spawn: fakeSpawn({ onLaunch: (value) => { launch = value; } }) });
-
-    assert.equal(launch.binary, 'genaicode');
+    const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: HASH, proposedDiffHash: HASH };
+    const result = await runGenAICodeTask(task(root, work), {
+      authorizeTask: async (received) => {
+        assert.deepEqual(received, binding);
+        return approved(binding);
+      },
+      sandboxRunner: fakeRunner({ onLaunch: (value) => { launch = value; } }),
+    });
+    assert.equal(launch.command, 'genaicode');
     assert.deepEqual(launch.args.slice(0, 5), ['run', '--json', '-a', 'codex', '-C']);
     assert.equal(launch.args.at(-1), '-');
-    assert.equal(launch.options.shell, false);
-    assert.equal(launch.options.cwd, work);
-    assert.equal(launch.options.env.HOME, '/home/test');
-    assert.equal('OPENAI_API_KEY' in launch.options.env, false);
-    assert.equal('NVIDIA_API_KEY' in launch.options.env, false);
+    assert.equal(launch.cwd, work);
+    assert.equal(launch.env.PATH, process.env.PATH);
+    assert.equal('HOME' in launch.env, false);
+    assert.equal('OPENAI_API_KEY' in launch.env, false);
+    assert.equal('NVIDIA_API_KEY' in launch.env, false);
     assert.equal(result.status, 'completed');
     assert.equal(result.verification, 'not-run');
+    assert.equal(result.taskId, 'job-123');
+    assert.equal(result.approvalId, 'approval-456');
     assert.deepEqual(result.events, [{ type: 'message', text: 'safe result' }]);
   });
 
-  it('reports a non-zero agent exit as failure and never claims verification', async () => {
+  it('reports failed exit codes and enforces prompt and timeout bounds', async () => {
     const { root, work } = await workspace();
-    const result = await runGenAICodeTask({
-      agent: 'claude', prompt: 'Inspect', workspaceRoot: root, workspacePath: work, approved: true,
-    }, { spawn: fakeSpawn({ code: 1 }) });
+    const dependencies = {
+      authorizeTask: async (binding) => approved(binding),
+      sandboxRunner: fakeRunner({ code: 1 }),
+    };
+    const result = await runGenAICodeTask(task(root, work), dependencies);
     assert.equal(result.status, 'failed');
     assert.equal(result.verification, 'not-run');
+    await assert.rejects(runGenAICodeTask(task(root, work, { prompt: 'x'.repeat(32_001) }), dependencies), /32000 characters/);
+    await assert.rejects(runGenAICodeTask(task(root, work, { timeoutMs: 1 }), dependencies), /between 1000 and 1800000/);
   });
 
-  it('enforces prompt, timeout and output bounds', async () => {
-    const { root, work } = await workspace();
-    await assert.rejects(runGenAICodeTask({
-      agent: 'codex', prompt: 'x'.repeat(32_001), workspaceRoot: root, workspacePath: work, approved: true,
-    }), /32000 characters/);
-    await assert.rejects(runGenAICodeTask({
-      agent: 'codex', prompt: 'task', workspaceRoot: root, workspacePath: work, approved: true, timeoutMs: 1,
-    }), /between 1000 and 1800000/);
-    await assert.rejects(runGenAICodeTask({
-      agent: 'codex', prompt: 'task', workspaceRoot: root, workspacePath: work, approved: true,
-    }, { spawn: fakeSpawn({ output: 'x'.repeat(2 * 1024 * 1024 + 1) }) }), /2 MiB safety limit/);
-  });
-
-  it('keeps the policy explicit and fail-closed', () => {
-    assert.equal(genaicodeAdapterPolicy.autoApproval, false);
-    assert.equal(genaicodeAdapterPolicy.shell, false);
-    assert.equal(genaicodeAdapterPolicy.providerCredentialsInherited, false);
+  it('keeps the fail-closed policy explicit', () => {
+    assert.equal(genaicodeAdapterPolicy.directHostExecution, false);
+    assert.equal(genaicodeAdapterPolicy.independentWorkbenchApprovalRequired, true);
+    assert.equal(genaicodeAdapterPolicy.filesystemIsolationRequired, true);
+    assert.equal(genaicodeAdapterPolicy.networkPolicy, 'deny-by-default');
     assert.equal(genaicodeAdapterPolicy.verificationRequiredOutsideAdapter, true);
   });
 });
