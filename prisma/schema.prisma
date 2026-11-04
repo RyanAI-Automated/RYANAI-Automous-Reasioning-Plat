@@ -445,13 +445,15 @@ model ReasoningCache {
   embedding Unsupported("vector(1536)")?
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  // Preserve the SQL-defined HNSW index in Prisma drift comparisons.
+  @@index([embedding], map: "idx_reasoning_embedding")
   @@map("reasoning_cache")
 }
 
 /// Session-scoped memory retained from the original vector bootstrap.
 model AgentMemory {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId String    @map("sessionid") @db.VarChar(255)
+  sessionId String    @map("session_id") @db.VarChar(255)
   role      String    @db.VarChar(50)
   content   String    @db.Text
   timestamp DateTime? @default(now()) @db.Timestamptz(6)

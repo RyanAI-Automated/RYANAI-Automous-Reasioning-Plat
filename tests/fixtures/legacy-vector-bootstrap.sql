@@ -19,3 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
   ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_agent_session
   ON public.agent_memory (sessionid, timestamp);
+
+-- A pre-existing row must survive the session column compatibility migration.
+INSERT INTO public.agent_memory (sessionid, role, content)
+VALUES ('legacy-session', 'assistant', 'preserve me');
