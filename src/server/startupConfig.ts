@@ -64,7 +64,7 @@ export function resolveConnectionUrls(
  */
 export function assertProductionDependencies(
   nodeEnv: string,
-  services: { database: boolean; redis: boolean; agentCheckpointer: boolean; applicationSchema?: boolean },
+  services: { database: boolean; redis: boolean; agentCheckpointer: boolean; applicationSchema: boolean },
 ): void {
   if (nodeEnv !== 'production') return;
 
@@ -72,7 +72,7 @@ export function assertProductionDependencies(
     !services.database ? 'PostgreSQL' : undefined,
     !services.redis ? 'Redis' : undefined,
     !services.agentCheckpointer ? 'agent checkpointer' : undefined,
-    services.applicationSchema === false ? 'application Prisma schema' : undefined,
+    !services.applicationSchema ? 'application Prisma schema' : undefined,
   ].filter(Boolean);
 
   if (unavailable.length) {
