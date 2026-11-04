@@ -19,8 +19,8 @@ The adapter deliberately has **no direct host-process fallback**. A production c
 supply both:
 
 1. `authorizeTask(binding)`: a trusted RyanAI workbench service that reads the persisted
-   job and approval records and confirms the exact task ID, approval ID, plan SHA-256,
-   base commit SHA and proposed-diff SHA-256. It must reject self-approval and stale,
+   job and approval records and confirms the exact task ID, approval evidence ID, plan
+   SHA-256, 40-character Git commit SHA and proposed-diff SHA-256. It must reject self-approval and stale,
    rejected, cancelled or superseded approvals. A caller-supplied boolean is never accepted.
 2. `sandboxRunner`: a separately configured runner with verified filesystem isolation,
    workspace-only mounts, CPU/memory/process/time limits, deny-by-default network policy,
