@@ -89,42 +89,36 @@ def run_backtest(payload: object) -> dict:
     daily_returns = []
     previous_equity = cash
 
-    # Decisions at bar i close are executed no earlier than bar i+1 open.
+    # A close-time signal is queued and filled at the following bar's open.
+    # The equity curve for each date is marked only after that date's open fills.
+    pending_action = None
     for index, bar in enumerate(bars):
-        if index >= slow:
-            fast_now = mean(closes[index - fast + 1:index + 1])
-            slow_now = mean(closes[index - slow + 1:index + 1])
-            fast_prev = mean(closes[index - fast:index])
-            slow_prev = mean(closes[index - slow:index])
-            crossed_up = fast_prev <= slow_prev and fast_now > slow_now
-            crossed_down = fast_prev >= slow_prev and fast_now < slow_now
-            if index + 1 < len(bars) and quantity == 0 and crossed_up:
-                fill_bar = bars[index + 1]
-                fill_price = fill_bar["open"] * (1 + slippage_rate)
-                quantity = cash / (fill_price * (1 + fee_rate))
-                fee = quantity * fill_price * fee_rate
-                entry_cost = quantity * fill_price + fee
-                cash = 0.0
-                trades.append({
-                    "date": fill_bar["date"], "side": "buy",
-                    "price": round(fill_price, 8), "quantity": round(quantity, 8),
-                    "fee": round(fee, 8),
-                })
-            elif index + 1 < len(bars) and quantity > 0 and crossed_down:
-                fill_bar = bars[index + 1]
-                fill_price = fill_bar["open"] * (1 - slippage_rate)
-                proceeds = quantity * fill_price
-                fee = proceeds * fee_rate
-                net_proceeds = proceeds - fee
-                trades.append({
-                    "date": fill_bar["date"], "side": "sell",
-                    "price": round(fill_price, 8), "quantity": round(quantity, 8),
-                    "fee": round(fee, 8),
-                    "realized_pnl": round(net_proceeds - entry_cost, 8),
-                })
-                cash = net_proceeds
-                quantity = 0.0
-                entry_cost = 0.0
+        if pending_action == "buy" and quantity == 0:
+            fill_price = bar["open"] * (1 + slippage_rate)
+            quantity = cash / (fill_price * (1 + fee_rate))
+            fee = quantity * fill_price * fee_rate
+            entry_cost = quantity * fill_price + fee
+            cash = 0.0
+            trades.append({
+                "date": bar["date"], "side": "buy",
+                "price": round(fill_price, 8), "quantity": round(quantity, 8),
+                "fee": round(fee, 8),
+            })
+        elif pending_action == "sell" and quantity > 0:
+            fill_price = bar["open"] * (1 - slippage_rate)
+            proceeds = quantity * fill_price
+            fee = proceeds * fee_rate
+            net_proceeds = proceeds - fee
+            trades.append({
+                "date": bar["date"], "side": "sell",
+                "price": round(fill_price, 8), "quantity": round(quantity, 8),
+                "fee": round(fee, 8),
+                "realized_pnl": round(net_proceeds - entry_cost, 8),
+            })
+            cash = net_proceeds
+            quantity = 0.0
+            entry_cost = 0.0
+        pending_action = None
 
         equity = cash + quantity * bar["close"]
         if previous_equity > 0:
@@ -134,6 +128,20 @@ def run_backtest(payload: object) -> dict:
         if peak > 0:
             max_drawdown = max(max_drawdown, (peak - equity) / peak)
         equity_curve.append({"date": bar["date"], "equity": round(equity, 2)})
+
+        # Compute the decision only after this bar has closed. It cannot fill
+        # until the next iteration, at the next bar's open.
+        if index >= slow and index + 1 < len(bars):
+            fast_now = mean(closes[index - fast + 1:index + 1])
+            slow_now = mean(closes[index - slow + 1:index + 1])
+            fast_prev = mean(closes[index - fast:index])
+            slow_prev = mean(closes[index - slow:index])
+            crossed_up = fast_prev <= slow_prev and fast_now > slow_now
+            crossed_down = fast_prev >= slow_prev and fast_now < slow_now
+            if quantity == 0 and crossed_up:
+                pending_action = "buy"
+            elif quantity > 0 and crossed_down:
+                pending_action = "sell"
 
     final_equity = cash + quantity * bars[-1]["close"]
     total_return = final_equity / config["initial_cash"] - 1
