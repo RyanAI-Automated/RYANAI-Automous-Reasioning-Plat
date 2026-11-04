@@ -32,7 +32,7 @@ class TaskReceipt:
 
 @runtime_checkable
 class TaskStore(Protocol):
-    """Durable adapter contract. create_pending must be idempotent."""
+    """Durable adapter contract. create_pending must be idempotent and owner-scoped."""
 
     def create_pending(self, request: OrchestrationRequest) -> str: ...
     def claim(self, task_id: str, worker_id: str) -> bool: ...
@@ -48,7 +48,7 @@ class CommunicationsAgent(Protocol):
 
 
 class CommunicationsOrchestrator:
-    """Persist first; execute only approved, claimed, non-dispatch work."""
+    """Persist first; execute only approved, owner-authorized, non-dispatch work."""
 
     def __init__(self, store: TaskStore, agent: CommunicationsAgent, worker_id: str):
         if not worker_id.strip():
@@ -57,8 +57,15 @@ class CommunicationsOrchestrator:
         self._agent = agent
         self._worker_id = worker_id
 
-    def submit(self, request: OrchestrationRequest) -> TaskReceipt:
+    def submit(
+        self,
+        request: OrchestrationRequest,
+        *,
+        authenticated_owner_id: str,
+    ) -> TaskReceipt:
         self._validate(request)
+        if not authenticated_owner_id.strip() or request.owner_id != authenticated_owner_id:
+            raise PermissionError("Task owner does not match the authenticated owner.")
         persisted_id = self._store.create_pending(request)
         if persisted_id != request.task_id:
             raise RuntimeError("Task store returned an unexpected task identifier")
