@@ -59,10 +59,9 @@ export function createContainerSandboxRunner({
       if (!isWithinRoot(root, cwd) || !(await stat(cwd)).isDirectory()) {
         throw new Error('Sandbox working directory must resolve inside the approved workspace root.');
       }
-      if (root.includes(',') || root.includes('\n')) throw new Error('Workspace path contains unsupported mount characters.');
+      if (cwd.includes(',') || cwd.includes('\n')) throw new Error('Workspace path contains unsupported mount characters.');
 
-      const relative = path.relative(root, cwd).split(path.sep).join('/');
-      const workdir = relative ? '/workspace/' + relative : '/workspace';
+      const workdir = '/workspace';
       const containerName = 'ryanai-genai-' + randomUUID();
       const env = safeEnvironment(options.env);
       const dockerArgs = [
@@ -77,7 +76,7 @@ export function createContainerSandboxRunner({
         '--cpus=2',
         '--user=10001:10001',
         '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=256m',
-        '--mount', 'type=bind,src=' + root + ',dst=/workspace',
+        '--mount', 'type=bind,src=' + cwd + ',dst=/workspace',
         '--workdir', workdir,
         ...Object.entries(env).flatMap(([key, value]) => ['--env', key + '=' + value]),
         '--entrypoint', options.command,
@@ -94,18 +93,40 @@ export function createContainerSandboxRunner({
       if (!child || typeof child.kill !== 'function') throw new Error('Container runtime did not return a process handle.');
 
       const originalKill = child.kill.bind(child);
-      child.kill = (signal = 'SIGTERM') => {
-        try {
-          const killer = spawn('docker', ['kill', containerName], {
-            stdio: 'ignore',
-            windowsHide: true,
-            env: { PATH: process.env.PATH || '/usr/bin:/bin' },
+      let termination;
+      child.terminate = () => {
+        if (termination) return termination;
+        termination = new Promise((resolve, reject) => {
+          let killer;
+          try {
+            killer = spawn('docker', ['kill', containerName], {
+              stdio: 'ignore',
+              windowsHide: true,
+              env: { PATH: process.env.PATH || '/usr/bin:/bin' },
+            });
+          } catch {
+            reject(new Error('Docker could not confirm container termination.'));
+            return;
+          }
+          if (!killer || typeof killer.once !== 'function') {
+            reject(new Error('Docker did not return a termination process handle.'));
+            return;
+          }
+          killer.once('error', () => reject(new Error('Docker could not confirm container termination.')));
+          killer.once('close', (code) => {
+            if (code !== 0) {
+              reject(new Error('Docker could not confirm container termination.'));
+              return;
+            }
+            originalKill('SIGTERM');
+            resolve();
           });
-          killer?.on?.('error', () => {});
-        } catch {
-          // Still terminate the docker client if the daemon cannot be reached.
-        }
-        return originalKill(signal);
+        });
+        return termination;
+      };
+      child.kill = () => {
+        void child.terminate().catch(() => {});
+        return true;
       };
       return child;
     },
@@ -116,7 +137,7 @@ export const containerSandboxPolicy = Object.freeze({
   imageMustBeDigestPinned: true,
   network: 'none',
   rootFilesystem: 'read-only',
-  workspaceMount: 'single-approved-root',
+  workspaceMount: 'single-approved-workspace',
   linuxCapabilities: 'drop-all',
   noNewPrivileges: true,
   user: '10001:10001',
