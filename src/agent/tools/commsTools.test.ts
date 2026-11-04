@@ -16,6 +16,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
   vi.stubEnv('RYANAI_OWNER_EMAIL', 'owner@example.test');
+  vi.stubEnv('RYANAI_COMMS_MEMORY_LOCAL_ONLY', 'true');
+  vi.stubEnv('OPENAI_BASE_URL', 'http://ollama:11434/v1');
   store.findMany.mockResolvedValue([{
     channel: 'whatsapp',
     updatedAt: new Date('2026-11-04T18:00:00.000Z'),
@@ -81,7 +83,7 @@ describe('restricted communications tool registry', () => {
     })).rejects.toThrow();
   });
 
-  it('retrieves recent owner conversations across channels from PostgreSQL', async () => {
+  it('retrieves recent owner conversations across channels from PostgreSQL for local Ollama', async () => {
     const result = await getRecentOwnerCommunicationsTool.invoke({ limit: 3 });
     const parsed = JSON.parse(String(result));
     const query = store.findMany.mock.calls[0][0];
@@ -92,6 +94,13 @@ describe('restricted communications tool registry', () => {
     expect(parsed.conversations[0].channel).toBe('whatsapp');
     expect(parsed.conversations[0].messages[0].body).toContain('email conversation');
     expect(parsed.conversations[0].externalAddress).toBeUndefined();
+  });
+
+  it('blocks cross-channel message content for remote model endpoints', async () => {
+    vi.stubEnv('OPENAI_BASE_URL', 'https://api.openai.com/v1');
+    const result = await getRecentOwnerCommunicationsTool.invoke({ limit: 3 });
+    expect(JSON.parse(String(result)).status).toBe('blocked');
+    expect(store.findMany).not.toHaveBeenCalled();
   });
 
   it('fails closed without a configured owner identity', async () => {
