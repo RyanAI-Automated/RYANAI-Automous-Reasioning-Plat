@@ -1,0 +1,63 @@
+name: Deploy Railway Production
+
+on:
+  workflow_run:
+    workflows: ["CI - Build, Test, and Integrate"]
+    branches: [main, master]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy validated commit to Railway
+    if: >-
+      ${{
+        vars.RAILWAY_DEPLOY_ENABLED == 'true' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout validated commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Validate Railway deployment configuration
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in RAILWAY_TOKEN RAILWAY_PROJECT_ID RAILWAY_SERVICE_ID RAILWAY_ENVIRONMENT_ID; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Railway deployment is enabled but $key is not configured."
+              exit 1
+            fi
+          done
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes @railway/cli@latest up --ci --detach \
+            --project "$RAILWAY_PROJECT_ID" \
+            --service "$RAILWAY_SERVICE_ID" \
+            --environment "$RAILWAY_ENVIRONMENT_ID"
