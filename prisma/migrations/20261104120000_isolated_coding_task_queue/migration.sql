@@ -1,6 +1,13 @@
 ALTER TABLE public.agent_runs
   ADD COLUMN IF NOT EXISTS queue_type TEXT NOT NULL DEFAULT 'reasoning';
 
+-- Existing workbench records are not eligible for the three-brain reasoning worker.
+UPDATE public.agent_runs
+SET queue_type = 'coding'
+WHERE approval_status = 'pending'
+   OR plan_snapshot IS NOT NULL
+   OR proposed_diff_hash IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS agent_runs_queue_type_status_created_idx
   ON public.agent_runs (queue_type, status, created_at);
 

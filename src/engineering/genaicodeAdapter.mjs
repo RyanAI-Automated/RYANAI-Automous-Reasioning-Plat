@@ -211,7 +211,15 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     const timer = setTimeout(() => requestStop(new Error('GenAIcode task exceeded its time limit.')), timeoutMs);
 
     signal?.addEventListener('abort', abort, { once: true });
-    child.once('error', (error) => finish(reject, new Error('Unable to start GenAIcode in the isolated runner: ' + error.message)));
+    child.once('error', (error) => {
+      if (terminationError) {
+        const unconfirmed = new Error('Sandbox process failed during termination: ' + error.message);
+        unconfirmed.code = 'SANDBOX_TERMINATION_UNCONFIRMED';
+        finish(reject, unconfirmed);
+      } else {
+        finish(reject, new Error('Unable to start GenAIcode in the isolated runner: ' + error.message));
+      }
+    });
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString('utf8');
       outputBytes += Buffer.byteLength(text);
@@ -236,8 +244,7 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     try {
       child.stdin.end(prompt);
     } catch {
-      stop();
-      finish(reject, new Error('Unable to send the task prompt to GenAIcode.'));
+      requestStop(new Error('Unable to send the task prompt to GenAIcode.'));
     }
   });
 }
