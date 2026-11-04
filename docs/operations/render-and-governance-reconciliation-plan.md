@@ -27,6 +27,12 @@ All resources below were read only. No service was resumed, changed, deployed, o
 
 The API service's recent deploy history included multiple `update_failed` attempts. The older canonical-repo service also has historical failed deployments. These failures need log-level diagnosis before any deployment attempt.
 
+The latest API deploy's image build completed, but the container exited with status 1. Sanitized runtime logs show:
+- PostgreSQL connection verification failed; the raw driver error was deliberately suppressed.
+- Redis returned `PONG`.
+- Startup then failed closed because PostgreSQL and the agent checkpointer were not healthy; the API listener was not started, and Render detected no open port.
+This narrows the next investigation to the API service's database target, network reachability, credentials/role and schema readiness. It does **not** justify weakening the production startup gate or changing credentials blindly.
+
 ## 3. Safe reconciliation order (approval gates retained)
 
 1. Confirm the canonical GitHub repository and desired service ownership. The two newer suspended services currently point to a different repository URL.
