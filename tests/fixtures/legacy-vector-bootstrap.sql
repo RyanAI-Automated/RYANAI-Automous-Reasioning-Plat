@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.reasoning_cache (
 );
 CREATE TABLE IF NOT EXISTS public.agent_memory (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sessionid VARCHAR(255) NOT NULL,
+  "sessionId" VARCHAR(255) NOT NULL,
   role VARCHAR(50) NOT NULL,
   content TEXT NOT NULL,
   timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS public.agent_memory (
 CREATE INDEX IF NOT EXISTS idx_reasoning_embedding
   ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_agent_session
-  ON public.agent_memory (sessionid, timestamp);
+  ON public.agent_memory ("sessionId", timestamp);
 
 -- A pre-existing row must survive the session column compatibility migration.
-INSERT INTO public.agent_memory (sessionid, role, content)
+INSERT INTO public.agent_memory ("sessionId", role, content)
 VALUES ('legacy-session', 'assistant', 'preserve me');
