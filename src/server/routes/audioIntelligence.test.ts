@@ -101,7 +101,7 @@ describe('RyanAI audio intelligence routes', () => {
 
   it('returns an MP3 artifact from the speech provider without exposing provider credentials', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'test-key');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.from('mp3-audio'), { status: 200, headers: { 'content-type': 'audio/mpeg' } })));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array(Buffer.from('mp3-audio')), { status: 200, headers: { 'content-type': 'audio/mpeg' } })));
     const app = await createApp();
     const response = await app.inject({
       method: 'POST', url: '/api/v1/audio/speech',
