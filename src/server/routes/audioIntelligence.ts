@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
+import { getLanguageName, isRyanLanguage } from '../../shared/languages.js';
 
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const MAX_TRANSCRIPT_CHARS = 4_000;
@@ -23,6 +24,7 @@ interface AudioBody {
 }
 interface SpeechBody {
   text?: string;
+  language?: string;
   voice?: string;
   style?: string;
   speed?: number;
@@ -109,11 +111,13 @@ export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
     const text = typeof body.text === 'string' ? body.text.trim() : '';
     const voice = typeof body.voice === 'string' ? body.voice : 'coral';
     const style = typeof body.style === 'string' ? body.style.trim() : '';
+    const language = typeof body.language === 'string' ? body.language : 'en-ZA';
     const speed = typeof body.speed === 'number' ? body.speed : 1;
     if (!text || text.length > MAX_TRANSCRIPT_CHARS) {
       return reply.code(400).send({ error: 'Narration text must contain 1–4,000 characters per render.' });
     }
     if (!VOICES.has(voice)) return reply.code(400).send({ error: 'Select a supported narration voice.' });
+    if (!isRyanLanguage(language)) return reply.code(400).send({ error: 'Select a supported RyanAI narration language.' });
     if (!Number.isFinite(speed) || speed < 0.8 || speed > 1.2) {
       return reply.code(400).send({ error: 'Narration speed must be between 0.8 and 1.2.' });
     }
@@ -127,7 +131,7 @@ export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
           model: 'gpt-4o-mini-tts',
           voice,
           input: text,
-          instructions: style || 'Speak naturally and clearly, with expressive audiobook narration and appropriate pauses.',
+          instructions: `Narrate in ${getLanguageName(language)} (${language}). ${style || 'Speak naturally and clearly, with expressive audiobook narration and appropriate pauses.'}`,
           response_format: 'mp3',
           speed,
         }),
