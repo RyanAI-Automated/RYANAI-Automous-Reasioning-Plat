@@ -120,7 +120,10 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
       projectId: project.id, title: project.title, language: project.language,
       chapters: project.chapters.map(chapter => {
         const settings = chapter.narrationSettings && typeof chapter.narrationSettings === 'object' ? chapter.narrationSettings as Record<string, unknown> : {};
-        return { id: chapter.id, title: chapter.title, text: chapter.content, voice: settings.voice ?? 'coral', style: settings.style ?? '', speed: settings.speed ?? 1 };
+        const voice = typeof settings.voice === 'string' && VOICES.has(settings.voice) ? settings.voice : 'coral';
+        const style = typeof settings.style === 'string' ? settings.style.slice(0, 500) : '';
+        const speed = typeof settings.speed === 'number' && Number.isFinite(settings.speed) && settings.speed >= 0.8 && settings.speed <= 1.2 ? settings.speed : 1;
+        return { id: chapter.id, title: chapter.title, text: chapter.content, voice, style, speed };
       }),
     };
     const existing = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
@@ -175,7 +178,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     const job = await fastify.prisma.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId } });
     if (!job) return reply.code(404).send({ error: 'Audiobook render job not found.' });
     if (job.status !== 'completed' || !job.result || typeof job.result !== 'object') return reply.code(409).send({ error: 'Audiobook artifacts are not ready.' });
-    const artifacts = (job.result as { artifacts?: Array<{ chapterTitle: string; path: string }> }).artifacts;
+    const artifacts = (job.result as { artifacts?: Array<{ chapterId: string; chapterTitle: string; path: string }> }).artifacts;
     if (!Array.isArray(artifacts) || !artifacts.length || artifacts.some(item => !item || typeof item.chapterId !== 'string' || typeof item.path !== 'string' || !item.path.startsWith(`${userId}/`))) return reply.code(409).send({ error: 'Audiobook artifacts are unavailable.' });
     const storage = getStorage();
     if (!storage) return reply.code(503).send({ error: 'Private audiobook storage is not configured.' });
@@ -186,7 +189,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.log.error({ errorName: error?.name ?? 'unknown' }, 'Unable to create audiobook download link');
         return reply.code(502).send({ error: 'Could not prepare a secure audiobook download.' });
       }
-      downloads.push({ chapterId: (artifact as { chapterId?: string }).chapterId, chapterTitle: artifact.chapterTitle, url: data.signedUrl, expiresInSeconds: 300 });
+      downloads.push({ chapterId: artifact.chapterId, chapterTitle: artifact.chapterTitle, url: data.signedUrl, expiresInSeconds: 300 });
     }
     return { downloads };
   });
