@@ -7,10 +7,11 @@ const memoryColumns = new Set(['session_id', 'role', 'content', 'timestamp']);
 const cacheColumns = new Set(['id', 'prompt', 'response', 'embedding', 'created_at']);
 const cacheColumnTypes = new Map([['embedding', 'vector(1536)']]);
 const quantColumns = new Set(['id', 'user_id', 'strategy', 'status', 'input', 'result', 'created_at']);
-const vectorIndexes = new Set(['idx_reasoning_embedding', 'idx_agent_session']);
+const vectorIndexes = new Set(['idx_reasoning_embedding', 'idx_agent_session', 'quant_experiments_user_created_idx']);
 const vectorIndexDefinitions = new Map([
   ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING hnsw (embedding vector_cosine_ops)'],
   ['idx_agent_session', 'CREATE INDEX idx_agent_session ON public.agent_memory (session_id, timestamp)'],
+  ['quant_experiments_user_created_idx', 'CREATE INDEX quant_experiments_user_created_idx ON public.quant_experiments (user_id, created_at DESC)'],
 ]);
 
 test('reports source migrations absent from the applied ledger without mutating either input', () => {
@@ -46,7 +47,7 @@ test('detects schema and vector-memory drift, including runtime columns and inde
   assert.deepEqual(result.vector.missingTables, ['agent_memory']);
   assert.deepEqual(result.vector.missingMemoryColumns, ['session_id', 'content', 'timestamp']);
   assert.deepEqual(result.vector.missingCacheColumns, ['response', 'embedding', 'created_at']);
-  assert.deepEqual(result.vector.missingIndexes, ['idx_reasoning_embedding', 'idx_agent_session']);
+  assert.deepEqual(result.vector.missingIndexes, ['idx_reasoning_embedding', 'idx_agent_session', 'quant_experiments_user_created_idx']);
   assert.equal(result.vector.indexPresent, false);
 });
 
@@ -90,6 +91,7 @@ test('rejects same-named indexes with incompatible vector or memory definitions'
     indexDefinitions: new Map([
       ['idx_reasoning_embedding', 'CREATE INDEX idx_reasoning_embedding ON public.reasoning_cache USING btree (embedding)'],
       ['idx_agent_session', 'CREATE INDEX idx_agent_session ON public.agent_memory (sessionid, timestamp)'],
+      ['quant_experiments_user_created_idx', 'CREATE INDEX quant_experiments_user_created_idx ON public.quant_experiments (user_id, created_at DESC)'],
     ]),
   });
   assert.deepEqual(result.vector.invalidIndexes, [
