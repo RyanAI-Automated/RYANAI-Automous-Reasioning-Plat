@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
+import { isRyanLanguage } from '../../shared/languages.js';
 
 const BUCKET = 'ryanai-audiobooks';
-const LANGUAGES = new Set(['en-ZA', 'en-US', 'en-GB', 've-ZA', 'zu-ZA', 'xh-ZA', 'af-ZA', 'st-ZA', 'tn-ZA', 'ts-ZA', 'ss-ZA', 'nr-ZA', 'nso-ZA']);
 const VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']);
 const MAX_CHAPTERS = 200;
 const MAX_CHAPTER_CHARS = 200_000;
@@ -14,10 +14,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 type ChapterInput = { id?: string; title: string; text: string; voice?: string; style?: string; speed?: number };
 type ProjectInput = { title?: string; language?: string; chapters?: ChapterInput[] };
 
-function validateProject(body: ProjectInput): { title: string; language: string; chapters: Array<{ title: string; content: string; position: number; narrationSettings: Record<string, unknown> }> } | null {
+function validateProject(body: ProjectInput): { title: string; language: string; chapters: Array<{ id?: string; title: string; content: string; position: number; narrationSettings: Record<string, unknown> }> } | null {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const language = typeof body.language === 'string' ? body.language : 'en-ZA';
-  if (!title || title.length > 120 || !LANGUAGES.has(language) || !Array.isArray(body.chapters) || body.chapters.length < 1 || body.chapters.length > MAX_CHAPTERS) return null;
+  if (!title || title.length > 120 || !isRyanLanguage(language) || !Array.isArray(body.chapters) || body.chapters.length < 1 || body.chapters.length > MAX_CHAPTERS) return null;
   let total = 0;
   const chapters = [];
   for (let index = 0; index < body.chapters.length; index += 1) {
