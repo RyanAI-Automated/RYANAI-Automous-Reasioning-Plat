@@ -120,7 +120,7 @@ describe('RyanAI GenAIcode adapter authorization and isolation', () => {
     assert.deepEqual(launch.args.slice(0, 5), ['run', '--json', '-a', 'codex', '-C']);
     assert.equal(launch.args.at(-1), '-');
     assert.equal(launch.cwd, work);
-    assert.equal(launch.env.PATH, process.env.PATH);
+    assert.equal('PATH' in launch.env, false);
     assert.equal('HOME' in launch.env, false);
     assert.equal('OPENAI_API_KEY' in launch.env, false);
     assert.equal('NVIDIA_API_KEY' in launch.env, false);
