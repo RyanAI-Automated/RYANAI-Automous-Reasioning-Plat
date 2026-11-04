@@ -95,7 +95,7 @@ function assertApprovalBinding(approval, task) {
  */
 export async function runGenAICodeTask(options, dependencies = {}) {
   const {
-    taskId, approvalId, planHash, baseCommitSha, proposedDiffHash,
+    taskId, approvalId, planHash, baseCommitSha, proposedDiffHash, containerName,
     agent, prompt, workspaceRoot, workspacePath,
     timeoutMs = DEFAULT_TIMEOUT_MS, signal, env = process.env,
   } = options ?? {};
@@ -149,6 +149,7 @@ export async function runGenAICodeTask(options, dependencies = {}) {
     child = await runner.run({
       command: binary,
       args,
+      containerName,
       cwd,
       workspaceRoot: root,
       env: safeEnvironment(env),

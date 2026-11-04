@@ -92,15 +92,15 @@ export function createWorkbenchTaskAuthorizer(prisma) {
   };
 }
 
-export function createCodingTaskQueue(prisma, { now = () => new Date() } = {}) {
+export function createCodingTaskQueue(prisma, { now = () => new Date(), stopContainer } = {}) {
   return Object.freeze({
     async claimNext(workerId, leaseMs = 60_000) {
       if (typeof workerId !== 'string' || !workerId.trim()) throw new Error('Worker ID is required.');
       if (!Number.isInteger(leaseMs) || leaseMs < 5_000 || leaseMs > 300_000) throw new Error('Lease must be between 5 seconds and 5 minutes.');
       const rows = await prisma.$queryRawUnsafe(
-        "UPDATE coding_tasks SET status = 'running', worker_id = $1, locked_at = NOW(), lease_expires_at = NOW() + ($2 * INTERVAL '1 millisecond'), attempts = attempts + 1, updated_at = NOW() " +
+        "UPDATE coding_tasks SET status = 'running', worker_id = $1, locked_at = NOW(), lease_expires_at = NOW() + ($2 * INTERVAL '1 millisecond'), container_name = 'ryanai-genai-' || replace(id, '-', '') || '-' || (attempts + 1), attempts = attempts + 1, updated_at = NOW() " +
         "WHERE id = (SELECT id FROM coding_tasks WHERE cancel_requested_at IS NULL AND attempts < max_attempts AND next_attempt_at <= NOW() AND (status = 'queued' OR (status = 'running' AND lease_expires_at < NOW())) ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED) " +
-        'RETURNING id, user_id AS "userId", workbench_run_id AS "workbenchRunId", approval_id AS "approvalId", plan_hash AS "planHash", base_commit_sha AS "baseCommitSha", proposed_diff_hash AS "proposedDiffHash", agent, prompt, workspace_key AS "workspaceKey", status, attempts, max_attempts AS "maxAttempts", worker_id AS "workerId", locked_at AS "lockedAt", lease_expires_at AS "leaseExpiresAt", next_attempt_at AS "nextAttemptAt", cancel_requested_at AS "cancelRequestedAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt"',
+        'RETURNING id, user_id AS "userId", workbench_run_id AS "workbenchRunId", approval_id AS "approvalId", plan_hash AS "planHash", base_commit_sha AS "baseCommitSha", proposed_diff_hash AS "proposedDiffHash", agent, prompt, workspace_key AS "workspaceKey", status, attempts, max_attempts AS "maxAttempts", worker_id AS "workerId", locked_at AS "lockedAt", lease_expires_at AS "leaseExpiresAt", next_attempt_at AS "nextAttemptAt", cancel_requested_at AS "cancelRequestedAt", created_at AS "createdAt", updated_at AS "updatedAt", completed_at AS "completedAt", container_name AS "containerName"',
         workerId, leaseMs,
       );
       return rows[0] ?? null;
@@ -165,14 +165,32 @@ export function createCodingTaskQueue(prisma, { now = () => new Date() } = {}) {
       return updated.count === 1;
     },
     async recoverExpired() {
-      return prisma.$queryRawUnsafe(
-        "UPDATE coding_tasks SET status = CASE WHEN cancel_requested_at IS NOT NULL THEN 'cancelled' WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END, " +
-        "error = CASE WHEN cancel_requested_at IS NOT NULL THEN 'Cancelled worker lease expired.' WHEN attempts >= max_attempts THEN 'Worker lease expired after the maximum number of attempts.' ELSE 'Worker lease expired; task returned to the coding queue.' END, " +
-        "next_attempt_at = CASE WHEN cancel_requested_at IS NULL AND attempts < max_attempts THEN NOW() + LEAST(900000, 5000 * POWER(2, GREATEST(0, attempts - 1))) * INTERVAL '1 millisecond' ELSE next_attempt_at END, " +
-        "worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, " +
-        "completed_at = CASE WHEN cancel_requested_at IS NOT NULL OR attempts >= max_attempts THEN NOW() ELSE NULL END, updated_at = NOW() " +
-        "WHERE status IN ('running', 'cancel_requested') AND lease_expires_at < NOW() RETURNING id, status, attempts"
+      const expired = await prisma.$queryRawUnsafe(
+        "UPDATE coding_tasks SET status = 'recovering' WHERE status IN ('running', 'cancel_requested') AND lease_expires_at < NOW() " +
+        'RETURNING id, container_name AS "containerName", attempts, max_attempts AS "maxAttempts", cancel_requested_at AS "cancelRequestedAt"'
       );
+      const recovered = [];
+      for (const task of expired) {
+        let stopped = false;
+        try { stopped = typeof stopContainer === 'function' && await stopContainer(task.containerName) === true; } catch { stopped = false; }
+        const cancelled = task.cancelRequestedAt !== null;
+        const retry = stopped && !cancelled && task.attempts < task.maxAttempts;
+        const status = !stopped ? 'orphaned' : cancelled ? 'cancelled' : retry ? 'queued' : 'failed';
+        const timestamp = now();
+        const delayMs = Math.min(15 * 60_000, 5_000 * (2 ** Math.max(0, task.attempts - 1)));
+        const result = await prisma.codingTask.updateMany({
+          where: { id: task.id, status: 'recovering' },
+          data: {
+            status,
+            error: !stopped ? 'Expired worker lease; container termination could not be verified.' : cancelled ? 'Cancelled task container stopped during lease recovery.' : retry ? 'Worker lease expired; verified stopped container returned to the coding queue.' : 'Worker lease expired after the maximum number of attempts.',
+            nextAttemptAt: retry ? new Date(timestamp.getTime() + delayMs) : undefined,
+            workerId: null, lockedAt: null, leaseExpiresAt: null,
+            completedAt: status === 'queued' ? null : timestamp, updatedAt: timestamp,
+          },
+        });
+        if (result.count === 1) recovered.push({ id: task.id, status, attempts: task.attempts });
+      }
+      return recovered;
     }
   });
 }

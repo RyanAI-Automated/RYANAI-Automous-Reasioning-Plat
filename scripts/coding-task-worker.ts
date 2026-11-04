@@ -16,7 +16,7 @@ if (!workspaceRootSetting) {
 const workspaceRoot = await realpath(workspaceRootSetting);
 const sandboxRunner = createContainerSandboxRunner();
 const authorizeTask = createWorkbenchTaskAuthorizer(prisma);
-const queue = createCodingTaskQueue(prisma);
+const queue = createCodingTaskQueue(prisma, { stopContainer: sandboxRunner.stopContainer });
 
 const stop = startCodingTaskWorker({
   queue,
@@ -30,6 +30,7 @@ const stop = startCodingTaskWorker({
     }
     return runGenAICodeTask({
       taskId: task.workbenchRunId,
+      containerName: task.containerName,
       approvalId: task.approvalId,
       planHash: task.planHash,
       baseCommitSha: task.baseCommitSha,
