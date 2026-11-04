@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import { requireAdmin } from './auth.js';
-import { publishAgentTaskNotification } from '../../agent/queueNotifications.js';
+import { enqueueApprovedCodingTask } from '../../engineering/codingTaskQueue.mjs';
 import { appendRunEvidence, buildEvidenceBundle, sha256, verifyEvidenceChain } from '../../agent/engineeringEvidence.js';
 
 interface CreateJobBody {
@@ -84,6 +84,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
           objective: objective.trim(),
           status: 'queued',
           approvalStatus: 'pending',
+          queueType: 'coding',
           planSnapshot,
           planHash,
           baseCommitSha: baseCommitSha.toLowerCase(),
@@ -185,12 +186,51 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
           : 'Approval was not applied: ' + result.status,
       });
     }
-    await publishAgentTaskNotification(request.params.jobId, async (id) => {
-      await prisma.$queryRawUnsafe('SELECT pg_notify($1, $2)', 'agent_task_queue', id);
-    });
-    return { success: true, approvalStatus: 'approved', jobId: request.params.jobId };
+    return { success: true, approvalStatus: 'approved', jobId: request.params.jobId, executionQueue: 'coding_tasks' };
   });
 
+  fastify.post<{ Params: { jobId: string }; Body: { agent: string; prompt: string; workspaceKey: string; maxAttempts?: number } }>('/api/engineering/jobs/:jobId/coding-tasks', {
+    schema: { body: {
+      type: 'object', required: ['agent', 'prompt', 'workspaceKey'], additionalProperties: false,
+      properties: {
+        agent: { type: 'string', enum: ['claude', 'codex', 'copilot', 'cursor', 'gemini', 'opencode', 'muse', 'vibe', 'antigravity'] },
+        prompt: { type: 'string', minLength: 1, maxLength: 32000 },
+        workspaceKey: { type: 'string', pattern: '^(?!\\.{1,2}$)[A-Za-z0-9][A-Za-z0-9._-]{0,119}$' },
+        maxAttempts: { type: 'integer', minimum: 1, maximum: 5 },
+      },
+    } },
+  }, async (request, reply) => {
+    const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
+    if (!job) return reply.code(404).send({ error: 'Workbench job not found.' });
+    if (job.queueType !== 'coding') return reply.code(409).send({ error: 'Workbench job is not assigned to the coding queue.' });
+    const approval = await prisma.agentRunEvidence.findFirst({ where: { runId: job.id, eventType: 'plan.approved' }, orderBy: { sequence: 'desc' } });
+    if (!approval || !job.planHash || !job.baseCommitSha || !job.proposedDiffHash) return reply.code(409).send({ error: 'Persisted workbench approval evidence or exact plan bindings are missing.' });
+    try {
+      const task = await enqueueApprovedCodingTask(prisma, {
+        workbenchRunId: job.id, approvalId: approval.id, planHash: job.planHash,
+        baseCommitSha: job.baseCommitSha, proposedDiffHash: job.proposedDiffHash,
+        agent: request.body.agent, prompt: request.body.prompt, workspaceKey: request.body.workspaceKey,
+        maxAttempts: request.body.maxAttempts,
+      });
+      return reply.code(202).send({ taskId: task.id, status: task.status, queue: 'coding_tasks', workbenchRunId: job.id });
+    } catch (error) {
+      return reply.code(409).send({ error: error instanceof Error ? error.message : 'Coding task could not be enqueued.' });
+    }
+  });
+
+  fastify.post<{ Params: { taskId: string } }>('/api/engineering/coding-tasks/:taskId/cancel', async (request, reply) => {
+    const task = await prisma.codingTask.findUnique({ where: { id: request.params.taskId } });
+    if (!task) return reply.code(404).send({ error: 'Coding task not found.' });
+    const timestamp = new Date();
+    const result = await prisma.codingTask.updateMany({
+      where: { id: task.id, userId: request.authUser!.id, status: { in: ['queued', 'running'] } },
+      data: task.status === 'queued'
+        ? { status: 'cancelled', cancelRequestedAt: timestamp, completedAt: timestamp }
+        : { status: 'cancel_requested', cancelRequestedAt: timestamp },
+    });
+    if (result.count !== 1) return reply.code(409).send({ error: 'Coding task is no longer cancellable.' });
+    return { success: true, status: task.status === 'queued' ? 'cancelled' : 'cancel_requested' };
+  });
   fastify.post<{ Params: { jobId: string }; Body: SteeringBody }>('/api/engineering/jobs/:jobId/steer', {
     schema: { body: {
       type: 'object',
