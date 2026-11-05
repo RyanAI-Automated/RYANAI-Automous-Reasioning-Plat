@@ -5,15 +5,9 @@ import type {
   FastifyRequest,
 } from 'fastify';
 import { createContextClient } from '@supabase/server/core';
-import bcrypt from 'bcrypt';
 import type { PrismaClient } from '@prisma/client';
 
 // --- Interfaces & Types ---
-
-interface SigninRequestBody {
-  email: string;
-  password: string;
-}
 
 export interface AuthenticatedUser {
   id: string;
@@ -158,10 +152,10 @@ export function installAuthentication(fastify: FastifyInstance) {
       return;
     }
 
-    // Retired legacy login/logout routes
+    // Retired legacy local-password login/logout/sign-in routes
     if (
       request.method === 'POST' &&
-      ['/api/auth/login', '/api/auth/logout'].includes(path)
+      ['/api/auth/login', '/api/auth/logout', '/signin'].includes(path)
     ) {
       return;
     }
@@ -185,56 +179,15 @@ export function installAuthentication(fastify: FastifyInstance) {
 // --- Fastify Plugin Registration ---
 
 export const authPlugin: FastifyPluginAsync = async (fastify) => {
-  // 1. Prisma-backed local sign-in route (/api/auth/signin)
-  fastify.post('/api/auth/signin', async (request: FastifyRequest<{ Body: SigninRequestBody }>, reply: FastifyReply) => {
-    const { email, password } = request.body ?? {};
-
-    if (!email || !password) {
-      return reply.status(400).send({
-        error: 'Bad Request',
-        message: 'Both email and password are required.',
-      });
-    }
-
-    try {
-      const user = await fastify.prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (!user || !user.passwordHash) {
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'Invalid email or password.',
-        });
-      }
-
-      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-      if (!isPasswordValid) {
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'Invalid email or password.',
-        });
-      }
-
-      const jwt = (fastify as FastifyInstance & { jwt?: { sign(payload: object, options?: object): string } }).jwt;
-      const token = jwt ? jwt.sign({ id: user.id, email: user.email }) : null;
-
-      return reply.status(200).send({
-        success: true,
-        message: 'Signed in successfully.',
-        ...(token && { token }),
-      });
-
-    } catch (error: unknown) {
-      request.log.error({ err: error }, '[Auth] Database error encountered during signin');
-
-      return reply.status(500).send({
-        error: 'Internal Server Error',
-        message: 'Service temporarily unavailable. Please try again later.',
-      });
-    }
-  });
+  // Retire the local Prisma-password path. The frontend uses Supabase Auth,
+  // and this legacy handler could report success without issuing a usable session.
+  fastify.post('/api/auth/signin', async (_request, reply) =>
+    reply.code(410).send({
+      success: false,
+      error: 'Gone',
+      message: 'Local password sign-in has been retired. Use Supabase Auth through the RyanAI sign-in page.',
+    }),
+  );
 
   // 2. Session verification route
   fastify.get(
