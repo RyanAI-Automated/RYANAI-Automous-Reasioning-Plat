@@ -161,6 +161,9 @@ if (!audiobookPage.includes('Private audiobook library') || !audiobookPage.inclu
 if (!audiobookRoutes.includes("take: 50")) {
   fail('Audiobook project listing must expose a bounded private library, not only one project');
 }
+if (!audiobookPage.includes('cancelEntireBookRender') || !audiobookPage.includes('/cancel')) {
+  fail('Audiobook Studio must expose the durable render cancellation API');
+}
 if (!app.includes("lazy(() => import('@/pages/QuantLab'))") || !app.includes("{route === 'quant' && <QuantLabPage />}")) {
   fail('Quant Lab route must lazy-load and render the QuantLab page');
 }
