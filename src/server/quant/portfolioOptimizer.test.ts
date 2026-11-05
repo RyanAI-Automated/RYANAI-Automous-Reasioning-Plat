@@ -55,6 +55,13 @@ describe('constrained long-only portfolio optimizer', () => {
     })).toThrow(/infeasible/);
   });
 
+  it('fails closed when the minimum-variance portfolio breaches the volatility ceiling', () => {
+    expect(() => optimizeLongOnlyPortfolio({
+      assets: [history('AAA', 0.17), history('BBB', 0.31), history('CCC', 0.43)],
+      maxAnnualizedVolatilityPct: 0.1,
+    })).toThrow(/exceeds maxAnnualizedVolatilityPct/);
+  });
+
   it('requires sufficient common daily history and valid unique symbols', () => {
     const first = history('AAA', 0.17);
     const second = history('AAA', 0.31);
