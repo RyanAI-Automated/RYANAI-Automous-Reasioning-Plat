@@ -11,9 +11,14 @@
     "memoryLimitMb": 256,
     "cpuLimit": 1,
     "pidsLimit": 64,
-    "repositoryMount": "read-only",
+    "repositoryMount": "two-file-allowlist",
     "dockerSocketMounted": false,
-    "providerCredentialsPassed": false
+    "providerCredentialsPassed": false,
+    "hostEnvironmentPassed": false,
+    "mountedFiles": [
+      "scripts/benchmark-isolation-container.mjs",
+      "benchmarks/contracts/local-isolation-policy.json"
+    ]
   },
   "requiredChecks": [
     "ipv4-loopback-fixture",
@@ -23,7 +28,8 @@
     "public-dns-denied",
     "docker-host-alias-denied",
     "policy-endpoint-allowlist",
-    "credential-environment-absent"
+    "credential-environment-absent",
+    "only-loopback-network-interface"
   ],
   "successMeaning": "HARNESS_PASS_ONLY_NOT_GATE_PASS",
   "doesNotProve": [
