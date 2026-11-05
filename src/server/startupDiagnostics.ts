@@ -15,8 +15,8 @@ const connectionHints: Record<string, string> = {
     'No network route to the database host is available. Check the configured host and network route.',
   EPIPE:
     'The database connection closed unexpectedly. Check database availability and TLS settings.',
-  'XX000':
-    'The Supabase shared pooler returned an internal error. Verify the exact Session Pooler hostname and the project-qualified postgres.<project-ref> username.'
+  XX000:
+    'The Supabase shared pooler returned an internal error. Verify the exact Session Pooler hostname and the project-qualified postgres.<project-ref> username.',
   ERR_TLS_CERT_ALTNAME_INVALID:
     'TLS certificate hostname validation failed. Verify the exact pooler hostname copied from Supabase Connect.',
   SELF_SIGNED_CERT_IN_CHAIN:
@@ -27,7 +27,6 @@ const connectionHints: Record<string, string> = {
     'The database endpoint presented an expired TLS certificate.',
   ERR_SSL_WRONG_VERSION_NUMBER:
     'TLS negotiation failed. Confirm the PostgreSQL endpoint and port are correct.',
-    'The Supabase pooler returned an internal error. Verify the exact Session Pooler hostname and the postgres.<project-ref> username in the protected connection configuration.',
   '28P01':
     'Password authentication failed. Check the database credentials in DATABASE_URL.',
   '28000':
@@ -47,52 +46,48 @@ const connectionHints: Record<string, string> = {
 export function databaseFailureDiagnostic(error: unknown): string {
   const pending: unknown[] = [error];
   const seen = new Set<object>();
-  const codes = new Set<string>();
+  const knownCodes = new Set<string>();
   const unclassifiedCodes = new Set<string>();
-  for (let visited = 0; pending.length && visited < 32; visited++) {
+
+  for (let visited = 0; pending.length > 0 && visited < 32; visited += 1) {
     const current = pending.shift();
     if (!current || typeof current !== 'object' || seen.has(current)) continue;
+
     seen.add(current);
     const detail = current as {
       code?: unknown;
       cause?: unknown;
       errors?: unknown;
     };
+
     if (typeof detail.code === 'string') {
-      if (Object.hasOwn(connectionHints, detail.code)) {
-        codes.add(detail.code);
-      } else if (
-        /^[A-Z][A-Z0-9_]{1,63}$/.test(detail.code) ||
-        /^[0-9A-Z]{5}$/.test(detail.code)
-      ) {
+      const code = detail.code;
+      if (Object.hasOwn(connectionHints, code)) {
+        knownCodes.add(code);
+      } else if (/^[A-Z][A-Z0-9_]{1,63}$/.test(code) || /^[0-9A-Z]{5}$/.test(code)) {
         // Error codes are safe diagnostic metadata; messages and URLs are not.
-        unclassifiedCodes.add(detail.code);
+        unclassifiedCodes.add(code);
       }
-    if (
-      typeof detail.code === 'string' &&
-      /^[A-Z][A-Z0-9_]{2,31}$|^\\d{5}$/.test(detail.code)
-    ) {
-      codes.add(detail.code);
     }
+
     if (detail.cause) pending.push(detail.cause);
-    if (Array.isArray(detail.errors))
-      pending.push(...detail.errors.slice(0, 16));
+    if (Array.isArray(detail.errors)) pending.push(...detail.errors.slice(0, 16));
   }
-  const known = [...codes].map((code) => `${code}: ${connectionHints[code]}`);
+
+  const known = [...knownCodes].map(
+    (code) => `${code}: ${connectionHints[code]}`,
+  );
   const unclassified = [...unclassifiedCodes].map(
     (code) =>
-      `${code}: Unclassified database transport error. Verify the exact Supabase Session Pooler host and project-qualified username, TLS settings, and database availability.`,
+      `${code}: Unclassified PostgreSQL connection error. Verify the protected DATABASE_URL endpoint, the exact Supabase Session Pooler host and project-qualified username, TLS settings, and database availability. Raw error details are omitted.`,
   );
   const diagnostics = [...known, ...unclassified];
-  if (!diagnostics.length) {
+
+  if (diagnostics.length === 0) {
     return 'Cause unavailable. Check DATABASE_URL, the exact Supabase Session Pooler endpoint, PostgreSQL availability, and database server logs. Raw error details are omitted to protect credentials.';
   }
+
   return diagnostics.join(' ');
-  return [...codes]
-    .map((code) => connectionHints[code]
-      ? `${code}: ${connectionHints[code]}`
-      : `${code}: Unclassified PostgreSQL connection error. Verify the protected DATABASE_URL host, username, database name, and TLS mode. Raw error details are omitted.`)
-    .join(' ');
 }
 
 export interface StartupServices {
