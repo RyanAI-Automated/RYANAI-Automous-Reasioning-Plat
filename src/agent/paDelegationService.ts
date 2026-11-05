@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
-import { captureQueueTraceContext } from '../telemetry/queueContext.js';
+import { captureQueueTraceContextForStorage } from '../telemetry/queueContext.js';
 import { appendRunEvidence } from './engineeringEvidence.js';
 import {
   signAgentIdentityProof,
@@ -68,7 +68,7 @@ export async function createPADelegation(input: {
         userId: input.ownerUserId,
         objective: input.objective.trim(),
         executionScope: { paDelegationId: delegation.id, capabilities: input.capabilities },
-        traceContext: captureQueueTraceContext() ?? undefined,
+        traceContext: captureQueueTraceContextForStorage(),
         status: 'queued',
         approvalStatus: 'pending',
       },
