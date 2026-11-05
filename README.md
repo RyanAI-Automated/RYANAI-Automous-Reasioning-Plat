@@ -416,7 +416,8 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 | Variable | Purpose / handling |
 | --- | --- |
 | `SUPABASE_SESSION_POOLER_HOST` | Exact Supabase Shared Pooler Session hostname copied from the project's Connect dialog; do not infer the cluster index from the region. |
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Supabase Auth endpoint and server-side publishable key used to verify user sessions. |\n| `SUPABASE_ANON_KEY` | Legacy public key alias retained where needed. |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Supabase Auth endpoint and server-side publishable key used to verify user sessions. |
+| `SUPABASE_ANON_KEY` | Legacy public key alias retained where needed. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-only credential. Never expose to the browser. |
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
