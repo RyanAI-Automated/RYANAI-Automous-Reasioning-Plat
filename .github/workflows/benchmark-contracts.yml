@@ -1,0 +1,43 @@
+name: Offline Benchmark Contract Tests
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/contracts/**"
+      - "scripts/benchmark-*"
+      - "package.json"
+      - ".github/workflows/benchmark-contracts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  mock-only-contracts:
+    name: Mock-only benchmark contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify six gate contracts without model invocation
+        run: npm run benchmark:gates:mock
+      - name: Test mock adapter, scorer and evidence inventory contracts
+        run: npm run test:benchmark:contracts
+
+  network-isolation:
+    name: Network-disabled container isolation harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run hardened network-disabled container probes
+        run: npm run benchmark:isolation:container | tee benchmark-isolation-evidence.json
+      - name: Upload isolation harness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-isolation-harness-evidence
+          path: benchmark-isolation-evidence.json
+          if-no-files-found: error
+          retention-days: 14

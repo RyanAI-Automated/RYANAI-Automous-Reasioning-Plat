@@ -44,3 +44,17 @@ Therefore no Qwen benchmark identity is frozen by this phase. The active evaluat
 ## Completion rule
 
 Only after all six gates independently return PASS, with required evidence intact, may separate evaluation-scope approval be requested. Passing the gates does not authorize production activation, routing changes, merging, deployment, or provider spend.
+
+## Isolation harness (mock-only)
+
+The CI isolation harness executes in a dedicated Docker container with:
+
+- `--network=none` (no bridge, host, or user-defined network)
+- read-only root filesystem and read-only repository mount
+- all Linux capabilities dropped, no-new-privileges, non-root UID
+- bounded memory, CPU, process count, and temporary filesystem
+- no provider credentials, production database variables, deployment tokens, Docker socket, or host environment passed into the container
+
+A loopback fixture server binds only to `127.0.0.1:11434` and `[::1]:11434`. The harness verifies those local paths work while direct public-IP and private-network connections, public DNS resolution, and `host.docker.internal` resolution fail.
+
+The CI evidence is labelled `HARNESS_PASS_ONLY_NOT_GATE_PASS`. It proves the behavior of this disposable CI container only. It does **not** prove that a future production benchmark runner, developer workstation, Ollama process, or its host network is isolated. Profile A remains UNKNOWN until the actual runner deployment boundary is independently inspected and evidenced. No Ollama process or model is started by this harness.
