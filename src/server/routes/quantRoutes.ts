@@ -187,16 +187,40 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get('/api/quant/strategy-signals', async (request) => {
-    const signals = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT id, market_data_import_id, strategy, fast_window, slow_window, action,
-              reference_price::text, previous_fast_sma::text, previous_slow_sma::text,
-              fast_sma::text, slow_sma::text, generated_at, metadata
-       FROM quant_strategy_signals
-       WHERE user_id = $1
-       ORDER BY generated_at DESC
+    const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT s.id, s.market_data_import_id, i.symbol, s.strategy, s.fast_window,
+              s.slow_window, s.action, s.reference_price::text,
+              s.previous_fast_sma::text, s.previous_slow_sma::text,
+              s.fast_sma::text, s.slow_sma::text, s.generated_at, s.metadata
+       FROM quant_strategy_signals s
+       INNER JOIN quant_market_data_imports i
+         ON i.id = s.market_data_import_id AND i.user_id = s.user_id
+       WHERE s.user_id = $1
+       ORDER BY s.generated_at DESC
        LIMIT 30`,
       request.authUser!.id,
     );
+    const signals = rows.map((row) => {
+      const metadata = row.metadata && typeof row.metadata === 'object'
+        ? row.metadata as Record<string, unknown>
+        : {};
+      return {
+        id: row.id,
+        importId: row.market_data_import_id,
+        symbol: row.symbol,
+        strategy: row.strategy,
+        fastWindow: Number(row.fast_window),
+        slowWindow: Number(row.slow_window),
+        action: row.action,
+        referencePrice: Number(row.reference_price),
+        previousFastSma: Number(row.previous_fast_sma),
+        previousSlowSma: Number(row.previous_slow_sma),
+        fastSma: Number(row.fast_sma),
+        slowSma: Number(row.slow_sma),
+        generatedAt: row.generated_at,
+        sourceBarDate: metadata.sourceBarDate,
+      };
+    });
     return { signals, executionEnabled: false };
   });
 
