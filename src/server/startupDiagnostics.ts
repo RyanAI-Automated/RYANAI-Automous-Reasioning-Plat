@@ -2,13 +2,23 @@ const connectionHints: Record<string, string> = {
   ECONNREFUSED:
     'Connection refused. Check that PostgreSQL is running and the configured host and port are reachable.',
   ENOTFOUND:
-    'Database hostname could not be resolved. Check the host in DATABASE_URL.',
+    'Hostname or Supavisor tenant lookup failed. Copy the exact Session Pooler host from Supabase Connect and confirm the shared-pooler username includes the project reference.',
   EAI_AGAIN:
     'Database hostname lookup temporarily failed. Check DNS and retry.',
   ETIMEDOUT:
     'Connection timed out. Check database reachability and network rules.',
   ECONNRESET:
     'Connection was reset. Check database availability and TLS settings.',
+  ERR_TLS_CERT_ALTNAME_INVALID:
+    'TLS certificate hostname validation failed. Verify the exact pooler hostname copied from Supabase Connect.',
+  SELF_SIGNED_CERT_IN_CHAIN:
+    'TLS certificate chain could not be verified. Check the runtime CA store and database endpoint.',
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE:
+    'TLS certificate chain could not be verified. Check the runtime CA store and database endpoint.',
+  CERT_HAS_EXPIRED:
+    'The database endpoint presented an expired TLS certificate.',
+  ERR_SSL_WRONG_VERSION_NUMBER:
+    'TLS negotiation failed. Confirm the PostgreSQL endpoint and port are correct.',
   '28P01':
     'Password authentication failed. Check the database credentials in DATABASE_URL.',
   '28000':
@@ -29,6 +39,7 @@ export function databaseFailureDiagnostic(error: unknown): string {
   const pending: unknown[] = [error];
   const seen = new Set<object>();
   const codes = new Set<string>();
+  const unclassifiedCodes = new Set<string>();
   for (let visited = 0; pending.length && visited < 32; visited++) {
     const current = pending.shift();
     if (!current || typeof current !== 'object' || seen.has(current)) continue;
@@ -38,22 +49,31 @@ export function databaseFailureDiagnostic(error: unknown): string {
       cause?: unknown;
       errors?: unknown;
     };
-    if (
-      typeof detail.code === 'string' &&
-      Object.hasOwn(connectionHints, detail.code)
-    ) {
-      codes.add(detail.code);
+    if (typeof detail.code === 'string') {
+      if (Object.hasOwn(connectionHints, detail.code)) {
+        codes.add(detail.code);
+      } else if (
+        /^[A-Z][A-Z0-9_]{1,63}$/.test(detail.code) ||
+        /^[0-9A-Z]{5}$/.test(detail.code)
+      ) {
+        // Error codes are safe diagnostic metadata; messages and URLs are not.
+        unclassifiedCodes.add(detail.code);
+      }
     }
     if (detail.cause) pending.push(detail.cause);
     if (Array.isArray(detail.errors))
       pending.push(...detail.errors.slice(0, 16));
   }
-  if (!codes.size) {
-    return 'Cause unavailable. Check DATABASE_URL, PostgreSQL availability, and database server logs. Raw error details are omitted to protect credentials.';
+  const known = [...codes].map((code) => `${code}: ${connectionHints[code]}`);
+  const unclassified = [...unclassifiedCodes].map(
+    (code) =>
+      `${code}: Unclassified database transport error. Verify the exact Supabase Session Pooler host and project-qualified username, TLS settings, and database availability.`,
+  );
+  const diagnostics = [...known, ...unclassified];
+  if (!diagnostics.length) {
+    return 'Cause unavailable. Check DATABASE_URL, the exact Supabase Session Pooler endpoint, PostgreSQL availability, and database server logs. Raw error details are omitted to protect credentials.';
   }
-  return [...codes]
-    .map((code) => `${code}: ${connectionHints[code]}`)
-    .join(' ');
+  return diagnostics.join(' ');
 }
 
 export interface StartupServices {
