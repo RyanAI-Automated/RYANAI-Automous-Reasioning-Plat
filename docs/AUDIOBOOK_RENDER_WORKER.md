@@ -4,19 +4,24 @@ This worker is an opt-in, separately deployed background process. It does not ru
 
 ## Required infrastructure
 
-1. Apply the Prisma migrations, including:
-   - `20261104200000_audiobook_persistence_jobs`
-   - `20261104203000_audiobook_render_request_snapshot`
-2. Create a **private** Supabase Storage bucket named `ryanai-audiobooks`. Do not make it public.
-3. Configure the worker environment:
-   - `DATABASE_URL` — PostgreSQL connection used by Prisma.
+1. Configure the dedicated Neon audiobook database:
+   - `AUDIOBOOK_DATABASE_URL` — pooled Neon connection for API and worker traffic.
+   - `AUDIOBOOK_DATABASE_URL_UNPOOLED` — direct Neon connection used by Prisma migration commands.
+   - Do not repoint the platform `DATABASE_URL`; this database is isolated from RyanAI's general application database.
+2. Review pending schema changes with `npm run db:audiobook:status`, then apply the dedicated migration with `npm run db:audiobook:migrate` only on an approved Neon branch. The migration is under `prisma/audiobook/migrations/`; do not run the Supabase-oriented `npm run db:migrate` command against Neon.
+3. Create or verify a **private** Supabase Storage bucket named `ryanai-audiobooks`. Do not make it public. Storage remains in Supabase.
+4. Configure the API and worker environments:
+   - `AUDIOBOOK_DATABASE_URL` — pooled Neon connection.
    - `OPENAI_API_KEY` — server-only TTS credential. Rendering may incur provider usage charges.
-   - `SUPABASE_URL` — Supabase project URL.
+   - `SUPABASE_URL` — existing Supabase project URL.
+   - `SUPABASE_PUBLISHABLE_KEY` — existing server-side key used by the API to verify Supabase Auth sessions.
    - `SUPABASE_SERVICE_ROLE_KEY` — server-only storage credential. Never expose it to frontend code or logs.
-4. Run `npm run db:generate` after applying the schema changes.
-5. Start a dedicated worker process with `npm run worker:audiobook`.
+5. Run `npm run db:audiobook:generate` after changing `prisma/audiobook/schema.prisma`.
+6. Start a dedicated worker process with `npm run worker:audiobook`.
 
-The worker refuses to start if any required credential is missing or if the bucket is absent or public. It does not create infrastructure or change provider subscriptions.
+The API verifies bearer sessions with Supabase Auth before creating the minimal Neon identity anchor. Neon stores only the immutable Supabase user UUID; authentication credentials, email, roles and user metadata remain in Supabase. Audio artifacts continue to use the existing private Supabase Storage bucket.
+
+The worker refuses to start if its required database, provider or storage configuration is missing, or if the bucket is absent or public. It does not create infrastructure or change provider subscriptions.
 
 ## Job lifecycle
 
