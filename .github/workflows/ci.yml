@@ -11,8 +11,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) && github.sha || 'shared' }}
-  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') }}
+  # Keep one active run and only the latest pending run per workflow/ref.
+  # Do not include github.sha: that creates a separate concurrency group
+  # for every main/master push and defeats branch-level serialization.
+  # Serialize each workflow/ref. A stable main group prevents every push SHA
+  # from creating an independent queue of runners. GitHub retains only the
+  # latest pending run per group while allowing the active run to finish.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   NODE_OPTIONS: --max-old-space-size=6144
