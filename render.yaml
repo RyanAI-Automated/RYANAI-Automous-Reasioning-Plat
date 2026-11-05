@@ -104,6 +104,9 @@ services:
       - key: SUPABASE_URL
         value: https://narsvpwymvlrhurqbthu.supabase.co
       # Pooler cluster index cannot be derived from region. Copy the exact host from Supabase Connect > Session pooler.
+      # Dedicated Neon database for audiobook API persistence; never substitute DATABASE_URL.
+      - key: AUDIOBOOK_DATABASE_URL
+        sync: false
       - key: SUPABASE_SESSION_POOLER_HOST
         sync: false
       - key: SUPABASE_ANON_KEY
