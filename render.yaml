@@ -4,7 +4,7 @@
 version: "1"
 
 previews:
-  generation: off
+  generation: "off"
 
 services:
   - type: web
@@ -13,7 +13,7 @@ services:
     repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
     branch: main
     rootDir: .
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     buildCommand: npm ci --legacy-peer-deps && npm run build:web
     staticPublishPath: ./dist
     envVars:
@@ -45,7 +45,7 @@ services:
     # The runtime image intentionally removes npm/npx and prunes dev dependencies.
     # Do not add "npx prisma migrate deploy" as a preDeployCommand to this image.
     dockerCommand: ""
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
