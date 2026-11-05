@@ -1,0 +1,26 @@
+name: Offline Benchmark Contract Tests
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/contracts/**"
+      - "scripts/benchmark-*"
+      - "package.json"
+
+permissions:
+  contents: read
+
+jobs:
+  mock-only-contracts:
+    name: Mock-only benchmark contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify six gate contracts without model invocation
+        run: npm run benchmark:gates:mock
+      - name: Test mock adapter, scorer and evidence inventory
+        run: npm run test:benchmark:contracts
