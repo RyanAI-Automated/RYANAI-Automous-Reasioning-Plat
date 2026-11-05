@@ -62,7 +62,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     try {
       const proof = await verifyPAHandshake(request.body.identityProof);
-      if (proof.capabilities.some((capability) => !request.body.capabilities.includes(capability))) {
+      if (request.body.capabilities.some((capability) => !proof.capabilities.includes(capability))) {
         return reply.code(403).send({ error: 'Delegated capability scope cannot be expanded by the handshake request.' });
       }
       const delegation = await createPADelegation({
