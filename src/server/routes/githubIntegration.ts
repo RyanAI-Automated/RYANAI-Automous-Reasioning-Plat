@@ -357,7 +357,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return reply.redirect(getGitHubReturnUrl(config, 'connected'));
       } catch (cause) {
-        if (accessToken) await revokeGitHubToken(config, accessToken);
+        if (accessToken) await revokeGitHubGrant(config, accessToken);
         request.log.warn({
           reason: cause instanceof GitHubOAuthError ? cause.publicCode : 'oauth_callback_failed',
         }, 'GitHub authorization was not completed');
