@@ -116,10 +116,10 @@ export const quantStreamingRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const identity = JSON.parse(serialized) as StreamTicket;
-        const normalized = normalizeQuantStreamRequest(identity);
-        if (typeof identity.userId !== 'string' || !identity.userId || normalized.symbols.length !== identity.symbols.length) {
+        if (!identity || typeof identity !== 'object' || typeof identity.userId !== 'string' || !identity.userId) {
           return reply.code(401).send({ error: 'Invalid market-data stream session.' });
         }
+        const normalized = normalizeQuantStreamRequest({ symbols: identity.symbols, feed: identity.feed });
         (request as StreamSocketRequest).quantStreamIdentity = { userId: identity.userId, ...normalized };
       } catch {
         return reply.code(401).send({ error: 'Invalid market-data stream session.' });
