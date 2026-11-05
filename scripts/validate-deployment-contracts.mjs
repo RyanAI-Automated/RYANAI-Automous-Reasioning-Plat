@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
@@ -61,7 +61,18 @@ const hasVerifiedCaContract = (stage) =>
   && stage.includes('scripts/verify-node-ca.sh')
   && !stage.includes('NODE_TLS_REJECT_UNAUTHORIZED');
 
+const hasLegacyVercelIntegration =
+  existsSync(new URL('../vercel.json', import.meta.url))
+  || existsSync(new URL('../.github/workflows/deploy-vercel.yml', import.meta.url))
+  || existsSync(new URL('../.github/workflows/vercel-deploy.yml', import.meta.url))
+  || Boolean(packageJson.dependencies?.['@vercel/analytics'])
+  || Boolean(packageJson.devDependencies?.['@vercel/analytics'])
+  || ciWorkflow.includes('VERCEL_')
+  || renderDeploy.includes('VERCEL_')
+  || railwayDeploy.includes('VERCEL_');
+
 const checks = [
+  ['Vercel project, build package, deployment workflows, and CI credentials are absent', !hasLegacyVercelIntegration],
   ['Render Blueprint uses a top-level services list', Array.isArray(renderConfig.services)],
   ['Render Blueprint declares exactly the API, web, and Redis resources', renderServices.length === 3 && expectedRenderServiceNames.every((name) => renderServiceNames.includes(name)) && new Set(renderServiceNames).size === 3],
   ['Render API and web environment variable keys are unique', hasUniqueEnvKeys(renderApi) && hasUniqueEnvKeys(renderWeb)],
