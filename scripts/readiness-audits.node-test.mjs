@@ -160,6 +160,10 @@ test('deployment configuration points at the official Render API and aligned thr
   assert.ok(!workflow.includes('srv-dafvs4ht0dsc7380mapg'));
   assert.ok(workflow.includes('"dockerCommand":""'));
   assert.ok(blueprint.includes('name: ryanai-api'));
+  assert.ok(blueprint.includes('repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat'));
+  assert.ok(blueprint.includes('branch: main'));
+  assert.ok(blueprint.includes('dockerContext: .'));
+  assert.ok(blueprint.includes('dockerCommand: ""'));
   assert.ok(blueprint.includes('dockerfilePath: ./Dockerfile.api'));
   assert.ok(blueprint.includes('healthCheckPath: /health'));
   assert.ok(blueprint.includes('value: https://ryanai-automous-reasioning-plat.onrender.com'));
