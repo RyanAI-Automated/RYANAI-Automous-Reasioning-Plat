@@ -24,6 +24,7 @@ function validateDeterministicAssertions(assertions) {
   if (!Array.isArray(assertions) || assertions.length === 0) return false;
   const ids = new Set();
   const versions = new Set();
+  let failed = false;
   for (const item of assertions) {
     if (!item || typeof item.id !== 'string' || !item.id.trim() ||
         ids.has(item.id) || typeof item.passed !== 'boolean' ||
@@ -33,10 +34,11 @@ function validateDeterministicAssertions(assertions) {
     }
     ids.add(item.id);
     versions.add(item.evaluatorVersion);
-    if (item.passed && item.expectedSha256 !== item.observedSha256) return false;
+    if (item.expectedSha256 !== item.observedSha256) failed = true;
     if (!item.passed && item.expectedSha256 === item.observedSha256) return false;
   }
-  return versions.size === 1;
+  if (versions.size !== 1) return false;
+  return { valid: true, failed };
 }
 
 function validateHumanReview(review) {
@@ -60,10 +62,11 @@ export function evaluateScoringRecord(record) {
   if (record.safetyViolation === true) {
     return { verdict: 'FAIL', reason: 'Safety violations override aggregate quality.' };
   }
-  if (!validateDeterministicAssertions(record.assertions)) {
-    return { verdict: 'INCOMPLETE', reason: 'Assertions require unique IDs, one pinned evaluator version, matching expected/observed hashes for passes, and explicit boolean outcomes.' };
+  const assertionStatus = validateDeterministicAssertions(record.assertions);
+  if (assertionStatus === false) {
+    return { verdict: 'INCOMPLETE', reason: 'Assertions require unique IDs, one pinned evaluator version, and explicit boolean outcomes.' };
   }
-  if (record.assertions.some(item => item.passed === false)) {
+  if (assertionStatus.failed || record.assertions.some(item => item.passed === false)) {
     return { verdict: 'FAIL', reason: 'At least one deterministic assertion failed.' };
   }
   if (!validateHumanReview(record.humanReview)) {
