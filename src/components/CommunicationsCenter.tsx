@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, AlertCircle, BrainCircuit, Download, File, Mail, MessageCircle, Paperclip, Phone, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
 import { Activity, BrainCircuit, Download, Mail, MessageCircle, Paperclip, Phone, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import {
   getCommsAttachmentDownloadUrl, getCommsAttachmentStatuses, getCommsConversations,
@@ -20,34 +19,12 @@ const statusChannels = [
   { id: 'voice', label: 'Voice call', icon: Phone },
   { id: 'email', label: 'Outbound email (SMTP)', icon: Mail },
   { id: 'inboundEmail', label: 'Inbound email (Resend)', icon: Mail },
-  { id: 'attachments', label: 'Secure attachments', icon: Paperclip },
   { id: 'openai', label: 'Central OpenAI API', icon: BrainCircuit },
 ];
-
-const ACCEPTED_FILES = [
-  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'video/mp4', 'video/webm',
-  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'application/pdf',
-  'text/plain', 'text/markdown', 'text/csv', 'application/json', 'application/xml',
-  'text/javascript', 'text/typescript', 'text/x-python', 'text/x-go', 'text/x-rust',
-  'text/x-java', 'text/css', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip',
-].join(',');
 
 function dateLabel(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Unknown time' : date.toLocaleString();
-}
-
-function sizeLabel(bytes: number) {
-  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MiB` : `${Math.max(1, Math.round(bytes / 1024))} KiB`;
-}
-
-function scanLabel(status: string) {
-  if (status === 'clean') return 'Security scan passed';
-  if (status === 'infected' || status === 'quarantined') return 'Quarantined';
-  if (status === 'pending') return 'Security scan pending';
-  return 'Not available';
 }
 
 export default function CommunicationsCenter() {
@@ -58,7 +35,6 @@ export default function CommunicationsCenter() {
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
@@ -112,83 +88,9 @@ export default function CommunicationsCenter() {
       if (channelFilter !== 'all' && conversation.channel !== channelFilter) return false;
       if (!query) return true;
       return conversation.externalAddress.toLowerCase().includes(query)
-        || conversation.messages.some((item) => item.body.toLowerCase().includes(query)
-          || item.attachments?.some((attachment) => attachment.name.toLowerCase().includes(query)));
+        || conversation.messages.some((item) => item.body.toLowerCase().includes(query));
     });
   }, [conversations, conversationSearch, channelFilter]);
-
-  const attachmentsEnabled = status?.channels?.attachments === true;
-  const attachmentsAllowed = attachmentsEnabled && channel !== 'voice';
-
-  async function openAttachment(attachment: CommsAttachment) {
-    if (attachment.status !== 'clean') return;
-    try {
-      const url = await getCommsAttachmentDownloadUrl(attachment.id);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The attachment could not be opened.');
-    }
-  }
-
-  function selectFiles(files: FileList | null) {
-    if (!files) return;
-    const next = Array.from(files);
-    const total = next.reduce((sum, file) => sum + file.size, 0);
-    if (next.length > 8) {
-      setError('Choose no more than 8 attachments.');
-      return;
-    }
-    if (new Set(next.map(file => file.name.normalize('NFKC').toLowerCase())).size !== next.length) {
-      setError('Attachment file names must be unique within one message.');
-      return;
-    }
-    if (next.some(file => !ACCEPTED_FILES.split(',').includes(file.type) || file.size <= 0 || file.size > 20 * 1024 * 1024)) {
-      setError('Each file must be a supported type and no larger than 20 MiB.');
-      return;
-    }
-    if (total > 40 * 1024 * 1024) {
-      setError('Combined attachments cannot exceed 40 MiB.');
-      return;
-    }
-    setError('');
-    setSelectedFiles(next);
-    setIdempotencyKey(crypto.randomUUID());
-  }
-
-  async function uploadAndWaitForClean(files: File[]): Promise<string[]> {
-    const prepared = await prepareCommsAttachments({
-      channel: channel as Exclude<CommsChannel, 'voice'>,
-      message: message.trim(),
-      idempotencyKey,
-      files: files.map(file => ({ name: file.name, mimeType: file.type, size: file.size })),
-      ...(recipient.trim() ? { recipient: recipient.trim() } : {}),
-      ...(channel === 'email' && subject.trim() ? { subject: subject.trim() } : {}),
-    });
-    const intents = prepared.attachments;
-    if (!intents.length || intents.length !== files.length) throw new Error('The secure upload reservation was incomplete.');
-
-    let current = await getCommsAttachmentStatuses(intents.map(item => item.id));
-    const byId = new Map(current.map(item => [item.id, item]));
-    for (let index = 0; index < intents.length; index += 1) {
-      const existing = byId.get(intents[index].id);
-      if (existing?.status === 'clean' || existing?.status === 'pending') continue;
-      if (existing?.status === 'infected' || existing?.status === 'quarantined') {
-        throw new Error(`${existing.name} was quarantined by the security scanner.`);
-      }
-      await uploadCommsAttachment(intents[index], files[index]);
-    }
-
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      current = await getCommsAttachmentStatuses(intents.map(item => item.id));
-      const rejected = current.find(item => ['infected', 'quarantined', 'rejected'].includes(item.status));
-      if (rejected) throw new Error(`${rejected.name} did not pass the security scan and cannot be sent.`);
-      if (current.length === intents.length && current.every(item => item.status === 'clean')) {
-        return intents.map(item => item.id);
-      }
-      await new Promise(resolve => window.setTimeout(resolve, 1250));
-    }
-    throw new Error('Security scanning is still pending. Your draft is retained; refresh the inbox and retry after the scan completes.');
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -197,7 +99,6 @@ export default function CommunicationsCenter() {
     setError('');
     setNotice('');
     try {
-      const attachmentIds = selectedFiles.length ? await uploadAndWaitForClean(selectedFiles) : [];
       let currentIds = attachmentIds;
       if (selectedFiles.length) {
         if (channel === 'voice') throw new Error('Voice calls cannot include file attachments.');
@@ -248,7 +149,6 @@ export default function CommunicationsCenter() {
         idempotencyKey,
         ...(recipient.trim() ? { recipient: recipient.trim() } : {}),
         ...(channel === 'email' && subject.trim() ? { subject: subject.trim() } : {}),
-        ...(attachmentIds.length ? { attachmentIds } : {}),
         ...(currentIds.length ? { attachmentIds: currentIds } : {}),
       });
       setNotice(result.replayed
@@ -257,7 +157,6 @@ export default function CommunicationsCenter() {
       if (!result.replayed || !['dispatching', 'dispatch_unknown'].includes(result.status)) {
         setMessage('');
         setSelectedFiles([]);
-        setIdempotencyKey(crypto.randomUUID());
         setAttachmentIds([]);
         setAttachmentStatuses([]);
         startNewDraft();
@@ -310,25 +209,18 @@ export default function CommunicationsCenter() {
           const configured = id === 'openai'
             ? status?.ai?.openai?.status === 'configured_unverified'
             : status?.channels?.[id] === true;
-          const value = id === 'attachments'
-            ? configured ? 'Enabled · scan-gated' : 'Disabled · scanner required'
-            : configured ? 'Configured · unverified' : 'Credentials missing';
           return (
             <div key={id} className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-200"><Icon className="h-4 w-4 text-cyan-300" />{label}</span>
-                <span className={`rounded-full px-2 py-1 text-[10px] ${configured ? 'bg-amber-400/10 text-amber-200' : 'bg-slate-700 text-slate-300'}`}>{value}</span>
+                <span className={`rounded-full px-2 py-1 text-[10px] ${configured ? 'bg-amber-400/10 text-amber-200' : 'bg-slate-700 text-slate-300'}`}>{configured ? 'Configured · unverified' : 'Credentials missing'}</span>
               </div>
-              <p className="mt-2 text-xs text-slate-500">{id === 'attachments' ? 'Uploads are enabled only when private storage and malware scanning are both active.' : 'Configuration presence only; live connectivity is not implied.'}</p>
+              <p className="mt-2 text-xs text-slate-500">Configuration presence only; live connectivity is not implied.</p>
             </div>
           );
         })}
       </div>
 
-      {!attachmentsEnabled && <div role="note" aria-label="Attachment availability" className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4 text-sm text-amber-100">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
-        <div><p className="font-semibold">Secure attachments are currently unavailable.</p><p className="mt-1 text-xs leading-5 text-amber-100/70">The private bucket, owner-linked records and malware scanner must all be enabled. No file is sent or exposed while these controls are unavailable.</p></div>
-      </div>}
       <div role="note" aria-label="Attachment security" className="flex items-start gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-4 text-sm text-cyan-100">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
         <div><p className="font-semibold">Private Comms attachments</p><p className="mt-1 text-xs leading-5 text-cyan-100/70">Files use the separate private Comms bucket. Sending and downloading are blocked until malware scans are clean. Images, audio, video and documents are stored securely but are not yet interpreted by RyanAI.</p></div>
@@ -372,14 +264,6 @@ export default function CommunicationsCenter() {
               <div key={item.id} className={`flex ${item.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                 <article className={`max-w-[85%] rounded-xl border p-3 ${item.direction === 'outbound' ? 'border-cyan-400/20 bg-cyan-950/40' : 'border-white/10 bg-slate-800/70'}`}>
                   <p className="whitespace-pre-wrap break-words text-sm text-slate-100">{item.body}</p>
-                  {item.attachments?.length ? <div className="mt-3 space-y-2 border-t border-white/10 pt-2">
-                    {item.attachments.map(attachment => <div key={attachment.id} className="flex items-center gap-2 text-xs">
-                      <File className="h-4 w-4 shrink-0 text-cyan-300" />
-                      <span className="min-w-0 flex-1 truncate text-slate-200">{attachment.name} · {sizeLabel(attachment.size)}</span>
-                      <span className="text-[10px] text-slate-500">{scanLabel(attachment.status)}</span>
-                      <button type="button" disabled={attachment.status !== 'clean'} onClick={() => void openAttachment(attachment)} aria-label={`Download ${attachment.name}`} className="rounded p-1 text-cyan-200 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-30"><Download className="h-4 w-4" /></button>
-                    </div>)}
-                  </div> : null}
                   {item.attachments?.map((attachment) => (
                     <div key={attachment.id} className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/40 p-2">
                       <div className="min-w-0">
@@ -399,37 +283,11 @@ export default function CommunicationsCenter() {
           <form onSubmit={submit} className="space-y-3 border-t border-white/10 bg-slate-950/50 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-xs text-slate-400">Channel
-                <select disabled={sending} value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); setIdempotencyKey(crypto.randomUUID()); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
                 <select value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); startNewDraft(); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
                   {channels.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
               <label className="space-y-1 text-xs text-slate-400">Recipient (optional; defaults to owner)
-                <input disabled={sending} value={recipient} onChange={(event) => { setRecipient(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
-              </label>
-            </div>
-            {channel === 'email' && <label className="block space-y-1 text-xs text-slate-400">Subject
-              <input disabled={sending} value={subject} onChange={(event) => { setSubject(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
-            </label>}
-            <label className="block space-y-1 text-xs text-slate-400">Message
-              <textarea disabled={sending} value={message} onChange={(event) => { setMessage(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
-            </label>
-            {attachmentsAllowed && <div className="space-y-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5">
-                <Paperclip className="h-4 w-4 text-cyan-300" /> Attach files
-                <input type="file" disabled={sending} multiple accept={ACCEPTED_FILES} className="sr-only" onChange={event => selectFiles(event.target.files)} />
-              </label>
-              {selectedFiles.length > 0 && <div className="space-y-1 rounded-lg border border-white/10 p-2">
-                {selectedFiles.map((file, index) => <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-2 text-xs text-slate-300">
-                  <File className="h-3.5 w-3.5 text-cyan-300" /><span className="min-w-0 flex-1 truncate">{file.name} · {sizeLabel(file.size)}</span>
-                  <button type="button" disabled={sending} onClick={() => { setSelectedFiles(items => items.filter((_, itemIndex) => itemIndex !== index)); setIdempotencyKey(crypto.randomUUID()); }} aria-label={`Remove ${file.name}`} className="rounded p-1 text-slate-400 hover:text-rose-300"><X className="h-3.5 w-3.5" /></button>
-                </div>)}
-                <p className="text-[10px] text-slate-500">Up to 8 files · 20 MiB each · 40 MiB total · malware scan required before dispatch.</p>
-              </div>}
-            </div>}
-            {attachmentsEnabled && channel === 'voice' && <p className="text-[11px] text-slate-500">Attachments are not supported for voice calls.</p>}
-            <div className="flex items-center justify-between gap-3">
-              <p className="flex items-center gap-1 text-[11px] text-slate-500"><AlertCircle className="h-3 w-3" /> Provider acceptance is not a delivery receipt. Status callbacks update the timeline.</p>
                 <input value={recipient} onChange={(event) => { setRecipient(event.target.value); startNewDraft(); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
               </label>
             </div>

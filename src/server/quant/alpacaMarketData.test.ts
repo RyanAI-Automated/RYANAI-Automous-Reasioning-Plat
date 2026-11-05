@@ -30,7 +30,7 @@ describe('Alpaca daily market data adapter', () => {
   });
 
   it('requests the free IEX daily feed and returns normalized completed bars with provenance', async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ bars: bars(35) }), {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ bars: bars(35, new Date('2026-09-18T00:00:00.000Z')) }), {
       status: 200, headers: { 'content-type': 'application/json' },
     }));
     const result = await fetchAlpacaDailyBars({
