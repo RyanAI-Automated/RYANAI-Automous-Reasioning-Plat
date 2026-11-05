@@ -10,6 +10,31 @@ const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'] as const;
 interface Chapter { id: string; title: string; text: string; voice: string; style: string; speed: number }
 interface Project { title: string; language: string; chapters: Chapter[] }
+interface SavedProject {
+  id: string;
+  title: string;
+  language: string;
+  updatedAt?: string;
+  chapters: Array<{ id: string; title: string; content: string; narrationSettings?: unknown }>;
+}
+function fromSavedProject(saved: SavedProject, fallback: Project): Project {
+  const chapters = saved.chapters.map(item => {
+    const settings = item.narrationSettings && typeof item.narrationSettings === 'object' ? item.narrationSettings as Record<string, unknown> : {};
+    return {
+      id: item.id,
+      title: item.title,
+      text: item.content,
+      voice: VOICES.includes(settings.voice as typeof VOICES[number]) ? String(settings.voice) : 'coral',
+      style: typeof settings.style === 'string' ? settings.style : '',
+      speed: typeof settings.speed === 'number' && settings.speed >= .8 && settings.speed <= 1.2 ? settings.speed : 1,
+    };
+  });
+  return {
+    title: saved.title,
+    language: isRyanLanguage(saved.language) ? saved.language : DEFAULT_LANGUAGE,
+    chapters: chapters.length ? chapters : fallback.chapters,
+  };
+}
 const newChapter = (n: number): Chapter => ({ id: crypto.randomUUID(), title: `Chapter ${n}`, text: '', voice: 'coral', style: 'Expressive, warm audiobook narration. Use natural pauses and clear pronunciation.', speed: 1 });
 function loadProject(userId: string): Project {
   const fallback = { title: 'My RyanAI Audiobook', language: DEFAULT_LANGUAGE, chapters: [newChapter(1)] };
@@ -48,6 +73,8 @@ function toBase64(file: File): Promise<string> {
 export default function AudiobookStudio({ userId }: { userId: string }) {
   const [initialProject] = useState(() => loadProject(userId));
   const [serverProjectId, setServerProjectId] = useState<string | null>(null);
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [projectActionBusy, setProjectActionBusy] = useState(false);
   const [serverReady, setServerReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState('Connecting to private audiobook storage…');
 
@@ -71,24 +98,27 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     void (async () => {
       try {
         const response = await authenticatedFetch('/api/v1/audiobooks');
-        const data = await response.json() as { projects?: Array<{ id: string; title: string; language: string; chapters: Array<{ id: string; title: string; content: string; narrationSettings?: unknown }> }>; error?: string };
+        const data = await response.json() as { projects?: SavedProject[]; error?: string };
         if (!response.ok) throw new Error(data.error || 'Could not load saved audiobook projects.');
-        const saved = data.projects?.[0];
+        const projects = data.projects ?? [];
+        if (!active) return;
+        setSavedProjects(projects);
+        const saved = projects[0];
         if (saved) {
-          if (!active) return;
-          const chapters = saved.chapters.map(item => {
-            const settings = item.narrationSettings && typeof item.narrationSettings === 'object' ? item.narrationSettings as Record<string, unknown> : {};
-            return { id: item.id, title: item.title, text: item.content, voice: VOICES.includes(settings.voice as typeof VOICES[number]) ? String(settings.voice) : 'coral', style: typeof settings.style === 'string' ? settings.style : '', speed: typeof settings.speed === 'number' && settings.speed >= .8 && settings.speed <= 1.2 ? settings.speed : 1 };
-          });
-          setProject({ title: saved.title, language: isRyanLanguage(saved.language) ? saved.language : DEFAULT_LANGUAGE, chapters: chapters.length ? chapters : initialProject.chapters });
-          setActiveId(chapters[0]?.id ?? initialProject.chapters[0].id);
+          const nextProject = fromSavedProject(saved, initialProject);
+          setProject(nextProject);
+          setActiveId(nextProject.chapters[0].id);
           setServerProjectId(saved.id);
-          setSyncStatus('Saved to your private RyanAI account.');
+          setSyncStatus('Private audiobook library loaded (' + projects.length + ' projects).');
         } else {
           const create = await authenticatedFetch('/api/v1/audiobooks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: initialProject.title, language: initialProject.language, chapters: initialProject.chapters }) });
-          const created = await create.json() as { project?: { id: string }; error?: string };
+          const created = await create.json() as { project?: SavedProject; error?: string };
           if (!create.ok || !created.project?.id) throw new Error(created.error || 'Could not create your private audiobook project.');
           if (!active) return;
+          setSavedProjects([created.project]);
+          const nextProject = fromSavedProject(created.project, initialProject);
+          setProject(nextProject);
+          setActiveId(nextProject.chapters[0].id);
           setServerProjectId(created.project.id);
           setSyncStatus('Saved to your private RyanAI account.');
         }
@@ -125,6 +155,57 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
   }, [project, serverProjectId, serverReady]);
 
   useEffect(() => () => { renderedUrls.current.forEach(url => URL.revokeObjectURL(url)); }, []);
+
+  const saveCurrentProject = async () => {
+    if (!serverProjectId || !serverReady) return;
+    const response = await authenticatedFetch('/api/v1/audiobooks/' + encodeURIComponent(serverProjectId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: project.title, language: project.language, chapters: project.chapters }),
+    });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) throw new Error(result.error || 'Could not save the current audiobook before switching projects.');
+  };
+
+  const switchProject = async (projectId: string) => {
+    if (!projectId || projectId === serverProjectId || projectActionBusy) return;
+    setProjectActionBusy(true); setError(''); setStatus('');
+    try {
+      await saveCurrentProject();
+      const response = await authenticatedFetch('/api/v1/audiobooks/' + encodeURIComponent(projectId));
+      const result = await response.json() as { project?: SavedProject; error?: string };
+      if (!response.ok || !result.project) throw new Error(result.error || 'Could not open that audiobook project.');
+      const nextProject = fromSavedProject(result.project, initialProject);
+      setProject(nextProject);
+      setActiveId(nextProject.chapters[0].id);
+      setServerProjectId(result.project.id);
+      setAudioUrl(null); setRenderedFiles({});
+      setSyncStatus('Opened private project: ' + result.project.title);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not switch audiobook projects.');
+    } finally { setProjectActionBusy(false); }
+  };
+
+  const createNewProject = async () => {
+    if (projectActionBusy || !serverReady) return;
+    setProjectActionBusy(true); setError(''); setStatus('');
+    try {
+      await saveCurrentProject();
+      const draft: Project = { title: 'New RyanAI Audiobook', language: project.language, chapters: [newChapter(1)] };
+      const response = await authenticatedFetch('/api/v1/audiobooks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: draft.title, language: draft.language, chapters: draft.chapters }),
+      });
+      const result = await response.json() as { project?: SavedProject; error?: string };
+      if (!response.ok || !result.project?.id) throw new Error(result.error || 'Could not create a new audiobook project.');
+      const nextProject = fromSavedProject(result.project, draft);
+      setSavedProjects(current => [result.project!, ...current.filter(item => item.id !== result.project!.id)].slice(0, 50));
+      setProject(nextProject); setActiveId(nextProject.chapters[0].id); setServerProjectId(result.project.id);
+      setAudioUrl(null); setRenderedFiles({});
+      setSyncStatus('New audiobook created in your private library.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create a new audiobook project.');
+    } finally { setProjectActionBusy(false); }
+  };
 
   const updateChapter = useCallback((patch: Partial<Chapter>) => {
     setProject(current => ({ ...current, chapters: current.chapters.map(c => c.id === activeId ? { ...c, ...patch } : c) }));
@@ -234,12 +315,14 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     </header>
     <div className="grid gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="space-y-3 rounded-xl border border-cyan-400/20 bg-slate-900/70 p-3">
+        <label className="block text-xs text-slate-400">Private audiobook library<select value={serverProjectId ?? 'local-draft'} onChange={event => void switchProject(event.target.value)} disabled={!serverReady || projectActionBusy || busy !== null} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{!serverProjectId && <option value="local-draft">Local draft</option>}{savedProjects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+        <button type="button" onClick={() => void createNewProject()} disabled={!serverReady || projectActionBusy || busy !== null} className="w-full rounded-lg border border-cyan-400/40 px-3 py-2 text-left text-xs font-semibold text-cyan-100 disabled:opacity-40">{projectActionBusy ? 'Updating library…' : '+ New audiobook project'}</button>
         <label className="block text-xs text-slate-400">Project title<input value={project.title} maxLength={120} onChange={e => setProject(p => ({ ...p, title: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label>
         <label className="block text-xs text-slate-400">Language<select value={project.language} onChange={e => setProject(p => ({ ...p, language: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{RYANAI_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select></label>
         <div className="flex items-center justify-between pt-2"><span className="text-xs font-semibold uppercase text-slate-400">Chapters</span><button onClick={addChapter} aria-label="Add chapter" className="rounded p-2 text-cyan-200"><Plus size={17} /></button></div>
         {project.chapters.map((c, i) => <button key={c.id} onClick={() => { setActiveId(c.id); setAudioUrl(renderedFiles[c.id]?.url ?? null); setAudioName(renderedFiles[c.id]?.name ?? 'chapter.mp3'); setError(''); setStatus(''); }} className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${c.id === chapter?.id ? 'bg-cyan-400/15 text-cyan-100' : 'text-slate-400 hover:bg-white/5'}`}><span className="block text-[10px] uppercase opacity-60">Chapter {i + 1}</span><span className="block truncate">{c.title || 'Untitled'}</span></button>)}
         <button onClick={deleteChapter} disabled={project.chapters.length < 2} className="flex items-center gap-2 px-2 py-2 text-xs text-rose-300 disabled:opacity-40"><Trash2 size={14} /> Delete chapter</button>
-        <p className="border-t border-slate-800 pt-3 text-[11px] text-slate-500">Manuscript settings save in this browser for this account. Audio files are temporary until downloaded.</p>
+        <p className="border-t border-slate-800 pt-3 text-[11px] text-slate-500">Private projects are account-scoped in PostgreSQL. Local drafts remain on this device; generated audio stays temporary until downloaded.</p>
       </aside>
       <div className="space-y-4">
         {chapter && <>

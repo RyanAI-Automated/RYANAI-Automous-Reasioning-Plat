@@ -29,6 +29,12 @@ vi.mock('@/pages/LandingPage', () => ({
 vi.mock('@/pages/Dashboard', () => ({
   default: () => <div>Private dashboard</div>,
 }));
+vi.mock('@/pages/OperatorConsole', () => ({
+  default: () => <div>Private operator console</div>,
+}));
+vi.mock('@/pages/AdminConsole', () => ({
+  default: ({ userId }: { userId: string }) => <div>Private admin console {userId}</div>,
+}));
 vi.mock('@/pages/QuantLab', () => ({
   default: () => <div>Private quant lab</div>,
 }));
@@ -58,6 +64,14 @@ const ownerSession = {
     email: 'owner@example.com',
     user_metadata: {},
     app_metadata: { owner: true },
+  },
+} as Session;
+const adminSession = {
+  user: {
+    id: 'admin-user',
+    email: 'admin@example.com',
+    user_metadata: {},
+    app_metadata: { role: 'admin' },
   },
 } as Session;
 
@@ -92,7 +106,7 @@ async function mount(hash: string) {
 }
 
 describe('application authentication boundary', () => {
-  it.each(['dashboard', 'cockpit', 'workspace'])(
+  it.each(['dashboard', 'cockpit', 'workspace', 'operator', 'admin'])(
     'blocks anonymous direct access to %s',
     async (route) => {
       await mount(`/${route}`);
@@ -128,6 +142,8 @@ describe('application authentication boundary', () => {
     expect(container.querySelector('nav a[href="#/dashboard"]')).toBeNull();
     expect(container.querySelector('nav a[href="#/cockpit"]')).toBeNull();
     expect(container.querySelector('nav a[href="#/workspace"]')).toBeNull();
+    expect(container.querySelector('nav a[href="#/operator"]')).toBeNull();
+    expect(container.querySelector('nav a[href="#/admin"]')).toBeNull();
     expect(container.querySelector('a.skip-link[href="#main-content"]')).not.toBeNull();
   });
   it('renders one personalized multilingual greeting for an authenticated account', async () => {
@@ -142,11 +158,12 @@ describe('application authentication boundary', () => {
     await mount('/dashboard');
     await expectContent('Private dashboard');
 
-    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook']) {
+    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator']) {
       expect(container.querySelector(`nav[aria-label="Main navigation"] a[href="#${path}"]`)).not.toBeNull();
       expect(container.querySelector(`nav[aria-label="Mobile navigation"] a[href="#${path}"]`)).not.toBeNull();
     }
     expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/comms"]')).toBeNull();
+    expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/admin"]')).toBeNull();
   });
 
   it('makes owner-only Comms available to an authenticated owner', async () => {
@@ -164,6 +181,30 @@ describe('application authentication boundary', () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount(`/${route}`);
     await expectContent(content);
+  });
+
+  it('opens Operator for an authenticated regular account', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/operator');
+    await expectContent('Private operator console');
+  });
+
+  it('blocks the Admin Console for authenticated non-admin users', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/admin');
+    await expectContent('Administrator access is required');
+    expect(container.textContent).not.toContain('Private admin console');
+    expect(container.querySelector('nav a[href="#/admin"]')).toBeNull();
+  });
+
+  it('makes Admin Console available to an admin session', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: adminSession }, error: null });
+    await mount('/admin');
+    await expectContent('Private admin console admin-user');
+    for (const nav of ['Main navigation', 'Mobile navigation']) {
+      expect(container.querySelector('nav[aria-label="' + nav + '"] a[href="#/admin"]')).not.toBeNull();
+      expect(container.querySelector('nav[aria-label="' + nav + '"] a[href="#/operator"]')).not.toBeNull();
+    }
   });
 
   it('shows protected destinations after an authenticated session is restored', async () => {

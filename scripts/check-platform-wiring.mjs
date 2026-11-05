@@ -118,13 +118,33 @@ if (!importsOrLazyLoads(
 )) {
   fail('Desktop cockpit must import or lazy-load AgentControlPanel');
 }
-for (const id of ['dashboard', 'quant', 'cockpit', 'workspace']) {
+for (const id of ['dashboard', 'operator', 'admin', 'quant', 'cockpit', 'workspace']) {
   if (!routes.routes?.some((route) => route.id === id)) {
     fail(`app/routes.json is missing the ${id} route`);
   }
 }
-if (!app.includes("{route === 'dashboard' && <DashboardPage />}")) {
-  fail('Dashboard route must render the focused DashboardPage');
+if (!app.includes("{route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}")) {
+  fail('Dashboard route must render the focused DashboardPage with verified role context');
+}
+if (!app.includes("lazy(() => import('@/pages/OperatorConsole'))") || !app.includes("{route === 'operator' && <OperatorConsole />}")) {
+  fail('Operator route must lazy-load and render the durable OperatorConsole');
+}
+if (!app.includes("lazy(() => import('@/pages/AdminConsole'))") || !app.includes("route === 'admin' && (isAdmin ? <AdminConsole")) {
+  fail('Admin route must lazy-load and render the role-gated AdminConsole');
+}
+if (!app.includes("(id !== 'admin' || isAdmin)")) {
+  fail('Admin navigation must remain hidden for non-admin users');
+}
+const operatorPage = readText('src/pages/OperatorConsole.tsx');
+const adminPage = readText('src/pages/AdminConsole.tsx');
+for (const endpoint of ['/api/agent/ops/tasks', '/api/agent/ops/tasks']) {
+  if (!operatorPage.includes(endpoint)) fail('Operator console is missing authenticated task endpoints');
+}
+for (const endpoint of ['/api/admin/metrics', '/api/actions', '/api/engineering/jobs']) {
+  if (!adminPage.includes(endpoint)) fail('Admin console is missing a protected control-plane endpoint: ' + endpoint);
+}
+if (!adminPage.includes('Approve and execute') || !adminPage.includes('Approve exact plan')) {
+  fail('Admin console must expose separate, explicit approval controls');
 }
 if (!app.includes("lazy(() => import('@/pages/QuantLab'))") || !app.includes("{route === 'quant' && <QuantLabPage />}")) {
   fail('Quant Lab route must lazy-load and render the QuantLab page');

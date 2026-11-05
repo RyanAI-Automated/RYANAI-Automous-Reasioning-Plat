@@ -30,7 +30,7 @@ type PAStatus = {
   health: { api: boolean; database: boolean; redis: boolean };
 };
 
-export default function DashboardPage({ isOwner = false }: { isOwner?: boolean }) {
+export default function DashboardPage({ isOwner = false, isAdmin = false }: { isOwner?: boolean; isAdmin?: boolean }) {
   const { health, error, checking, refresh } = usePlatformHealth();
   const [now, setNow] = useState(() => Date.now());
   const [paStatus, setPaStatus] = useState<PAStatus | null>(null);
@@ -94,6 +94,18 @@ export default function DashboardPage({ isOwner = false }: { isOwner?: boolean }
       description: 'Inspect provider readiness, three-brain health and live reasoning activity.',
       icon: Cpu,
     },
+    {
+      href: '#/operator',
+      title: 'Operator Console',
+      description: 'Queue durable reasoning tasks and inspect persisted execution progress.',
+      icon: Activity,
+    },
+    ...(isAdmin ? [{
+      href: '#/admin',
+      title: 'Admin Console',
+      description: 'Review protected approvals, runtime diagnostics and engineering evidence.',
+      icon: Database,
+    }] : []),
     {
       href: '#/quant',
       title: 'Quant Lab',
