@@ -26,6 +26,25 @@ type RiskPolicy = {
   maxGrossExposure: number;
   hardCaps?: { maxOrderNotional: number; maxPositionNotional: number; maxGrossExposure: number };
 };
+type RiskState = {
+  tradingEnabled: boolean;
+  emergencyStop: boolean;
+  emergencyStopReason: string | null;
+  maxDailyLoss: number;
+  maxDrawdownPct: number;
+  dailyRisk: {
+    risk_date: string;
+    starting_equity: string;
+    current_equity: string;
+    daily_loss: string;
+  } | null;
+  portfolioRisk: {
+    peak_equity: string;
+    current_equity: string;
+    max_drawdown_pct: string;
+  } | null;
+  enforcement?: string;
+};
 
 const money = (value: number | string) => Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -37,6 +56,18 @@ export default function PaperTradingPanel() {
   });
   const [riskSaving, setRiskSaving] = useState(false);
   const [riskMessage, setRiskMessage] = useState('');
+  const [riskState, setRiskState] = useState<RiskState>({
+    tradingEnabled: true,
+    emergencyStop: false,
+    emergencyStopReason: null,
+    maxDailyLoss: 5000,
+    maxDrawdownPct: 10,
+    dailyRisk: null,
+    portfolioRisk: null,
+  });
+  const [riskStateSaving, setRiskStateSaving] = useState(false);
+  const [riskStateMessage, setRiskStateMessage] = useState('');
+  const [emergencyAction, setEmergencyAction] = useState(false);
   const [strategySignals, setStrategySignals] = useState<StrategySignal[]>([]);
   const [selectedSignalId, setSelectedSignalId] = useState('');
   const [symbol, setSymbol] = useState('AAPL');
@@ -51,19 +82,23 @@ export default function PaperTradingPanel() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [response, riskResponse, signalResponse] = await Promise.all([
+      const [response, riskResponse, signalResponse, riskStateResponse] = await Promise.all([
         authenticatedFetch('/api/quant/paper'),
         authenticatedFetch('/api/quant/paper/risk'),
         authenticatedFetch('/api/quant/strategy-signals'),
+        authenticatedFetch('/api/quant/paper/risk/state'),
       ]);
       const data = await response.json() as Snapshot & { error?: string };
       const riskData = await riskResponse.json() as RiskPolicy & { error?: string };
       const signalData = await signalResponse.json() as { signals?: StrategySignal[]; error?: string };
+      const riskStateData = await riskStateResponse.json() as RiskState & { error?: string };
       if (!response.ok) throw new Error(data.error || 'Paper trading account is unavailable.');
       if (!riskResponse.ok) throw new Error(riskData.error || 'Paper risk policy is unavailable.');
       if (!signalResponse.ok) throw new Error(signalData.error || 'Strategy signal history is unavailable.');
+      if (!riskStateResponse.ok) throw new Error(riskStateData.error || 'Paper risk state is unavailable.');
       setSnapshot(data);
       setRiskPolicy(riskData);
+      setRiskState(riskStateData);
       const signals = signalData.signals ?? [];
       setStrategySignals(signals);
       setSelectedSignalId((current) => current || signals[0]?.id || '');
@@ -118,6 +153,79 @@ export default function PaperTradingPanel() {
       setError(cause instanceof Error ? cause.message : 'Risk policy could not be saved.');
     } finally {
       setRiskSaving(false);
+    }
+  };
+
+  const saveDailyRiskLimits = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setRiskStateMessage('');
+    setRiskStateSaving(true);
+    try {
+      const response = await authenticatedFetch('/api/quant/paper/risk/limits', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          maxDailyLoss: Number(riskState.maxDailyLoss),
+          maxDrawdownPct: Number(riskState.maxDrawdownPct),
+        }),
+      });
+      const data = await response.json() as { error?: string; maxDailyLoss?: number; maxDrawdownPct?: number };
+      if (!response.ok) throw new Error(data.error || 'Daily risk limits could not be saved.');
+      setRiskState((current) => ({
+        ...current,
+        maxDailyLoss: data.maxDailyLoss ?? current.maxDailyLoss,
+        maxDrawdownPct: data.maxDrawdownPct ?? current.maxDrawdownPct,
+      }));
+      setRiskStateMessage('Daily loss and drawdown limits saved.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Daily risk limits could not be saved.');
+    } finally {
+      setRiskStateSaving(false);
+    }
+  };
+
+  const triggerEmergencyStop = async () => {
+    if (!window.confirm('Activate the emergency stop? All new paper orders will be blocked until you explicitly reset it.')) return;
+    setError('');
+    setRiskStateMessage('');
+    setEmergencyAction(true);
+    try {
+      const response = await authenticatedFetch('/api/quant/paper/risk/emergency-stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'manual_emergency_stop' }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Emergency stop could not be activated.');
+      setRiskStateMessage('Emergency stop active. New paper orders are blocked.');
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Emergency stop could not be activated.');
+    } finally {
+      setEmergencyAction(false);
+    }
+  };
+
+  const resetEmergencyStop = async () => {
+    if (!window.confirm('Reset the emergency-stop latch? Paper trading will remain disabled and must be re-enabled separately.')) return;
+    setError('');
+    setRiskStateMessage('');
+    setEmergencyAction(true);
+    try {
+      const response = await authenticatedFetch('/api/quant/paper/risk/emergency-stop/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acknowledge: true }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Emergency stop could not be reset.');
+      setRiskStateMessage('Emergency stop reset. Paper trading remains disabled.');
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Emergency stop could not be reset.');
+    } finally {
+      setEmergencyAction(false);
     }
   };
 
@@ -223,7 +331,7 @@ export default function PaperTradingPanel() {
       <form onSubmit={saveRiskPolicy} className="grid gap-4 rounded-xl border border-white/10 bg-slate-950/60 p-4 sm:grid-cols-2 xl:grid-cols-5">
         <div className="xl:col-span-2">
           <h3 className="font-semibold text-white">Portfolio risk controls</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">Server-enforced limits apply before every simulated buy. Platform hard caps cannot be increased here.</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Server-enforced order, position and gross exposure limits apply before simulated orders. Platform hard caps cannot be increased here.</p>
           <label className="mt-3 flex items-center gap-2 text-sm text-slate-200">
             <input type="checkbox" checked={riskPolicy.tradingEnabled} onChange={(event) => setRiskPolicy((current) => ({ ...current, tradingEnabled: event.target.checked }))} />
             Paper trading enabled
@@ -237,6 +345,48 @@ export default function PaperTradingPanel() {
           {riskMessage && <p role="status" className="text-xs text-emerald-200">{riskMessage}</p>}
         </div>
       </form>
+      <section aria-label="Daily loss drawdown and emergency stop" className="space-y-4 rounded-xl border border-rose-300/20 bg-slate-950/60 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-white">Daily loss and drawdown protection</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">Server-side paper safeguards. Equity is evaluated on confirmed fills using stored simulated fill marks, not live quotes.</p>
+          </div>
+          {riskState.emergencyStop ? (
+            <span role="status" className="rounded-full border border-rose-300/40 bg-rose-300/10 px-3 py-1 text-xs font-semibold text-rose-200">EMERGENCY STOP ACTIVE</span>
+          ) : (
+            <span className="rounded-full border border-emerald-300/30 px-3 py-1 text-xs text-emerald-200">No emergency stop</span>
+          )}
+        </div>
+        {riskState.emergencyStop && (
+          <p className="rounded-lg border border-rose-300/30 bg-rose-300/5 p-3 text-sm text-rose-100">
+            {riskState.emergencyStopReason || 'Manual emergency stop'} — all new paper orders are blocked.
+          </p>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Daily loss" value={riskState.dailyRisk ? money(riskState.dailyRisk.daily_loss) : '—'} />
+          <Metric label="Daily loss limit" value={money(riskState.maxDailyLoss)} />
+          <Metric label="Current drawdown" value={riskState.portfolioRisk ? `${Number(riskState.portfolioRisk.max_drawdown_pct).toFixed(2)}%` : '—'} />
+          <Metric label="Drawdown limit" value={`${riskState.maxDrawdownPct.toFixed(2)}%`} />
+        </div>
+        <form onSubmit={saveDailyRiskLimits} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
+          <label className="block text-xs text-slate-400">Maximum daily loss
+            <input type="number" min="100" max="50000" step="100" required value={riskState.maxDailyLoss} onChange={(event) => setRiskState((current) => ({ ...current, maxDailyLoss: Number(event.target.value) }))} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white" />
+          </label>
+          <label className="block text-xs text-slate-400">Maximum drawdown (%)
+            <input type="number" min="1" max="50" step="0.5" required value={riskState.maxDrawdownPct} onChange={(event) => setRiskState((current) => ({ ...current, maxDrawdownPct: Number(event.target.value) }))} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white" />
+          </label>
+          <button type="submit" disabled={riskStateSaving || riskState.emergencyStop} className="self-end rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100 disabled:opacity-50">{riskStateSaving ? 'Saving…' : 'Save daily risk limits'}</button>
+        </form>
+        <div className="flex flex-wrap items-center gap-3">
+          {!riskState.emergencyStop ? (
+            <button type="button" onClick={() => void triggerEmergencyStop()} disabled={emergencyAction || loading} className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{emergencyAction ? 'Activating…' : 'Activate emergency stop'}</button>
+          ) : (
+            <button type="button" onClick={() => void resetEmergencyStop()} disabled={emergencyAction || loading} className="rounded-lg border border-rose-300/40 px-4 py-2 text-sm font-semibold text-rose-100 disabled:opacity-50">{emergencyAction ? 'Resetting…' : 'Reset emergency stop'}</button>
+          )}
+          {riskStateMessage && <p role="status" className="text-xs text-emerald-200">{riskStateMessage}</p>}
+        </div>
+      </section>
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <form onSubmit={submit} className="space-y-3 rounded-xl border border-white/10 bg-slate-950/60 p-4">
           <div className="flex items-center justify-between gap-3">
