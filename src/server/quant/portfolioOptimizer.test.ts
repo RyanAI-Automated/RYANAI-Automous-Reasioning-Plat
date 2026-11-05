@@ -33,7 +33,7 @@ describe('constrained long-only portfolio optimizer', () => {
       investedWeight: 0.9,
       maxWeight: 0.5,
       maxTurnoverPct: 2,
-      currentWeights: { AAA: 0.3, BBB: 0.3, CCC: 0.3 },
+      currentWeights: { AAA: 0.5, BBB: 0.2, CCC: 0.2 },
     });
     expect(result.metrics.estimatedOneWayTurnoverPct).toBeLessThanOrEqual(2.0001);
     expect(result.constraints.turnoverConstraintApplied).toBe(true);
