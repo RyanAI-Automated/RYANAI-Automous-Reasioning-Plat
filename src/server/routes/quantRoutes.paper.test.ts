@@ -83,7 +83,7 @@ describe('Quant paper trading routes', () => {
       expect.stringContaining('UPDATE quant_paper_accounts SET cash_balance = cash_balance -'),
       'paper-user-a', 200.1,
     );
-    expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('filled_quantity, remaining_quantity, average_fill_price'),
       'paper-user-a', 'paper-order-client-001', 'AAPL', 'buy', 2, 100, 0.1,
     );
