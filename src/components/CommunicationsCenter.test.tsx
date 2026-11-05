@@ -8,12 +8,20 @@ const comms = vi.hoisted(() => ({
   getCommsStatus: vi.fn(),
   getCommsConversations: vi.fn(),
   sendCommsMessage: vi.fn(),
+  prepareCommsAttachments: vi.fn(),
+  getCommsAttachmentStatuses: vi.fn(),
+  uploadCommsAttachment: vi.fn(),
+  getCommsAttachmentDownloadUrl: vi.fn(),
 }));
 
 vi.mock('@/lib/commsApi', () => ({
   getCommsStatus: comms.getCommsStatus,
   getCommsConversations: comms.getCommsConversations,
   sendCommsMessage: comms.sendCommsMessage,
+  prepareCommsAttachments: comms.prepareCommsAttachments,
+  getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,
+  uploadCommsAttachment: comms.uploadCommsAttachment,
+  getCommsAttachmentDownloadUrl: comms.getCommsAttachmentDownloadUrl,
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -120,9 +128,10 @@ describe('RyanAI Comms inbox controls', () => {
     expect(list?.textContent).not.toContain('+27110000001');
   });
 
-  it('explains that Comms attachments remain disabled until their own security controls exist', async () => {
+  it('keeps secure attachment uploads unavailable until private storage and scanning are enabled', async () => {
     await render();
-    expect(container.textContent).toContain('Comms attachments are locked pending secure storage integration.');
+    expect(container.textContent).toContain('Secure attachments are currently unavailable.');
+    expect(container.textContent).toContain('Disabled · scanner required');
     expect(container.querySelector('input[type="file"]')).toBeNull();
   });
 });
