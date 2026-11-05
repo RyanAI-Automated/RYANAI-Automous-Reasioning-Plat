@@ -9,6 +9,14 @@ const connectionHints: Record<string, string> = {
     'Connection timed out. Check database reachability and network rules.',
   ECONNRESET:
     'Connection was reset. Check database availability and TLS settings.',
+  EHOSTUNREACH:
+    'The database host is not reachable from this service. Check the configured host and network route.',
+  ENETUNREACH:
+    'No network route to the database host is available. Check the configured host and network route.',
+  EPIPE:
+    'The database connection closed unexpectedly. Check database availability and TLS settings.',
+  'XX000':
+    'The Supabase pooler returned an internal error. Verify the exact Session Pooler hostname and the postgres.<project-ref> username in the protected connection configuration.',
   '28P01':
     'Password authentication failed. Check the database credentials in DATABASE_URL.',
   '28000':
@@ -40,7 +48,7 @@ export function databaseFailureDiagnostic(error: unknown): string {
     };
     if (
       typeof detail.code === 'string' &&
-      Object.hasOwn(connectionHints, detail.code)
+      /^[A-Z][A-Z0-9_]{2,31}$|^\\d{5}$/.test(detail.code)
     ) {
       codes.add(detail.code);
     }
@@ -52,7 +60,9 @@ export function databaseFailureDiagnostic(error: unknown): string {
     return 'Cause unavailable. Check DATABASE_URL, PostgreSQL availability, and database server logs. Raw error details are omitted to protect credentials.';
   }
   return [...codes]
-    .map((code) => `${code}: ${connectionHints[code]}`)
+    .map((code) => connectionHints[code]
+      ? `${code}: ${connectionHints[code]}`
+      : `${code}: Unclassified PostgreSQL connection error. Verify the protected DATABASE_URL host, username, database name, and TLS mode. Raw error details are omitted.`)
     .join(' ');
 }
 
