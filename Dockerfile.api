@@ -28,7 +28,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    PUPPETEER_SKIP_DOWNLOAD=true
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
@@ -50,7 +51,5 @@ USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-# Render dockerCommand must remain empty: npm is not installed in this runtime image.
-# This gated backup script skips cleanly unless BACKUP_ON_STARTUP=true.
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]
