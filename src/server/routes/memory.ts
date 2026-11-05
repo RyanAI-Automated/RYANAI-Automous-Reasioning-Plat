@@ -36,21 +36,26 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: 'Page size must be between 1 and 100.' });
     }
 
+    const searchFilters: Prisma.MemoryEntryWhereInput[] = query ? [
+      { value: { contains: query, mode: 'insensitive' } },
+      { category: { contains: query, mode: 'insensitive' } },
+      { key: { contains: query, mode: 'insensitive' } },
+    ] : [];
+
     const where: Prisma.MemoryEntryWhereInput = { userId };
-    if (query) {
-      where.OR = [
-        { value: { contains: query, mode: 'insensitive' } },
-        { category: { contains: query, mode: 'insensitive' } },
-        { key: { contains: query, mode: 'insensitive' } },
-      ];
-    }
+    if (searchFilters.length > 0) where.OR = searchFilters;
 
     if (request.query.cursor) {
       if (!UUID_PATTERN.test(request.query.cursor)) {
         return reply.code(400).send({ error: 'Invalid memory page cursor.' });
       }
+      const cursorWhere: Prisma.MemoryEntryWhereInput = {
+        id: request.query.cursor,
+        userId,
+      };
+      if (searchFilters.length > 0) cursorWhere.OR = searchFilters;
       const cursorEntry = await fastify.prisma.memoryEntry.findFirst({
-        where: { id: request.query.cursor, userId },
+        where: cursorWhere,
         select: { id: true, createdAt: true },
       });
       if (!cursorEntry) return reply.code(400).send({ error: 'Memory page cursor is unavailable for this account.' });
