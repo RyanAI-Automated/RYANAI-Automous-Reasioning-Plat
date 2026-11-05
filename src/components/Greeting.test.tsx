@@ -67,6 +67,14 @@ describe('RyanAI multilingual welcome settings', () => {
     expect(voiceToggle.textContent).toContain('Voice off');
   });
 
+  it('uses the Supabase account language ahead of a device-local preference', async () => {
+    window.localStorage.setItem('ryanai:language:account-pref', 'en-ZA');
+    await act(async () => root.render(
+      <Greeting userId="account-pref" displayName="Alex Morgan" preferredLanguage="ve-ZA" />,
+    ));
+    expect((container.querySelector('#ryanai-language') as HTMLSelectElement).value).toBe('ve-ZA');
+  });
+
   it('defaults other accounts to their name and South African English', async () => {
     await act(async () => root.render(
       <Greeting userId="user-1" displayName="Alex Morgan" />,
@@ -87,6 +95,16 @@ describe('RyanAI multilingual welcome settings', () => {
     });
     expect(window.localStorage.getItem('ryanai:language:owner-2')).toBe('en-ZA');
     expect(window.localStorage.getItem('ryanai:language')).toBe('en-ZA');
+  });
+
+  it('applies saved language and voice events to the active welcome panel', async () => {
+    await act(async () => root.render(<Greeting userId="event-account" displayName="Alex Morgan" />));
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language: 've-ZA' } }));
+      window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled: false } }));
+    });
+    expect((container.querySelector('#ryanai-language') as HTMLSelectElement).value).toBe('ve-ZA');
+    expect(container.querySelector('button[aria-pressed]')?.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('offers the owner preferred-name options and device voice controls', async () => {
