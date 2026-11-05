@@ -42,6 +42,14 @@ Scoring still needs authenticated blinded human review and calibration.
 Resource measurement still needs actual independently reviewed meter, tariff
 and hardware evidence. Isolation still needs evidence that the real execution
 runner and Ollama endpoint meet the approved offline boundary.
+The executable checks validate development dataset hashes, externally pinned
+Ed25519 custody attestations, provenance pins, deterministic scoring contracts,
+three-run repeatability, meter/tariff/amortization evidence, and ZAR arithmetic, and the current Gen-X policy function.
+Ed25519 custody attestations, signed provenance pins, deterministic scoring contracts,
+repeatability inputs, ZAR arithmetic, and the current Gen-X policy function.
+Signed custody assertions still require an independent runtime ACL probe. The
+checks do not prove provider-side revision claims, actual model performance,
+production approval-service authentication, transactional audit persistence, or production runner isolation.
 
 A structurally valid evidence bundle with BLOCKED gates remains blocked.
 Do not commit provider outputs, secrets, held-out data, private datasets, or

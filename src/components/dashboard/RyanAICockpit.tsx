@@ -13,6 +13,7 @@ interface HandoffSnapshot { fromAgent: string; toAgent: string; status: string; 
 interface StreamEvent { status?: 'processing' | 'complete'; message?: string; result?: string; error?: string; handoffs?: HandoffSnapshot[]; runId?: string; runStatus?: string; }
 const labels: Record<BrainId, string> = { primary: 'NVIDIA', secondary: 'Qwen', logic: 'Logic' };
 const regions = ['Perception', 'Planning', 'Reasoning', 'Memory', 'Verification', 'Execution'] as const;
+const BRAIN_SNAPSHOT_STALE_AFTER_MS = 60_000;
 
 /** Cockpit renders only provider health and activity actually reported by the API. */
 export default function RyanAICockpit() {
@@ -26,6 +27,12 @@ export default function RyanAICockpit() {
   const [brainError, setBrainError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [handoffs, setHandoffs] = useState<HandoffSnapshot[]>([]);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 5_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const refreshBrains = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -117,7 +124,11 @@ export default function RyanAICockpit() {
   }
 
   const byId = new Map(brains.map((brain) => [brain.brain, brain]));
-  const healthyCount = brains.filter((brain) => brain.status === 'HEALTHY').length;
+  const checkedAtMs = checkedAt ? Date.parse(checkedAt) : Number.NaN;
+  const brainSnapshotKnown = Number.isFinite(checkedAtMs);
+  const brainSnapshotStale = brainSnapshotKnown && now - checkedAtMs > BRAIN_SNAPSHOT_STALE_AFTER_MS;
+  const brainSnapshotFresh = brainSnapshotKnown && !brainSnapshotStale;
+  const healthyCount = brainSnapshotFresh ? brains.filter((brain) => brain.status === 'HEALTHY').length : 0;
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-7 sm:px-8">
@@ -137,17 +148,18 @@ export default function RyanAICockpit() {
         <ServiceValue icon={<Database className="h-4 w-4" />} label="PostgreSQL" value={reported(health?.services?.database)} />
         <ServiceValue icon={<Wifi className="h-4 w-4" />} label="Redis" value={reported(health?.services?.redis)} />
         <ServiceValue icon={<Cpu className="h-4 w-4" />} label="Reasoning graph" value={health?.activeGraph || 'Not reported'} />
-        <ServiceValue icon={<ShieldAlert className="h-4 w-4" />} label="Provider readiness" value={brains.length ? healthyCount + '/3 verified healthy' : 'Not reported'} />
+        <ServiceValue icon={<ShieldAlert className="h-4 w-4" />} label="Provider readiness" value={brainSnapshotStale ? 'Telemetry stale' : !brainSnapshotKnown || !brains.length ? 'Not reported' : healthyCount + '/3 verified healthy'} />
       </div>
 
       <section className="mt-7 rounded-2xl border border-cyan-400/20 bg-slate-950/80 p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs uppercase tracking-[0.18em] text-cyan-300">Neural core network</p><h2 className="mt-1 text-xl font-semibold text-white">Three-brain status</h2></div>
-          <span className="text-xs text-slate-500">{checkedAt ? 'Health snapshot ' + new Date(checkedAt).toLocaleTimeString() : 'Awaiting provider health snapshot'}</span>
+          <span className={brainSnapshotStale ? 'text-xs text-amber-200' : 'text-xs text-slate-500'}>{brainSnapshotStale ? 'Brain snapshot stale · last read ' + new Date(checkedAtMs).toLocaleTimeString() : checkedAt ? 'Health snapshot ' + new Date(checkedAt).toLocaleTimeString() : 'Awaiting provider health snapshot'}</span>
         </div>
         {brainError && <Alert tone="warning">{brainError}</Alert>}
+        {brainSnapshotStale && <Alert tone="warning">No fresh brain snapshot has arrived in over 60 seconds. Last-known provider states are marked stale and are not counted as currently healthy.</Alert>}
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
-          {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} activity={brainActivity(id, handoffs)} />)}
+          {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} activity={brainActivity(id, handoffs)} snapshotFresh={brainSnapshotFresh} snapshotStale={brainSnapshotStale} />)}
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
           <Network className="h-4 w-4 text-cyan-300" />
@@ -188,9 +200,9 @@ export default function RyanAICockpit() {
   );
 }
 
-function BrainCard({ id, health, activity }: { id: BrainId; health?: BrainHealth; activity: string }) {
-  const status = health?.status || 'UNKNOWN';
-  const healthy = status === 'HEALTHY';
+function BrainCard({ id, health, activity, snapshotFresh, snapshotStale }: { id: BrainId; health?: BrainHealth; activity: string; snapshotFresh: boolean; snapshotStale: boolean }) {
+  const status = snapshotStale ? 'STALE' : snapshotFresh ? health?.status || 'UNKNOWN' : 'UNKNOWN';
+  const healthy = snapshotFresh && status === 'HEALTHY';
   const failed = status === 'DEGRADED' || status === 'UNCONFIGURED' || status === 'FAILED';
   const tone = healthy ? 'text-emerald-300' : failed ? 'text-rose-300' : 'text-amber-200';
   const border = healthy ? 'border-emerald-400/25' : failed ? 'border-rose-400/25' : 'border-amber-300/20';
@@ -200,7 +212,7 @@ function BrainCard({ id, health, activity }: { id: BrainId; health?: BrainHealth
       <div className="my-4 flex items-center justify-center"><div className={'relative flex h-24 w-24 items-center justify-center rounded-full border ' + border + ' bg-slate-950 '}><div className={'absolute inset-2 rounded-full border border-dashed ' + (healthy ? 'border-cyan-400/40' : 'border-slate-700')} style={{ animationDuration: '18s' }} /><Brain className={'h-10 w-10 ' + tone} /></div></div>
       <p className="truncate text-xs text-slate-400" title={health?.model}>{health?.model || 'Model not reported'}</p>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs"><span className="text-slate-500">Live execution</span><span className={activity === 'Completed' ? 'text-emerald-300' : activity === 'Failed' ? 'text-rose-300' : activity === 'Processing' ? 'text-cyan-300' : 'text-slate-400'}>{activity}</span></div>
-      <div className="mt-2 flex justify-between gap-2 text-xs"><span className="text-slate-500">Last latency</span><span className="text-slate-300">{typeof health?.latencyMs === 'number' ? health.latencyMs + ' ms' : 'Not reported'}</span></div>
+      <div className="mt-2 flex justify-between gap-2 text-xs"><span className="text-slate-500">Last latency</span><span className="text-slate-300">{snapshotFresh && typeof health?.latencyMs === 'number' ? health.latencyMs + ' ms' : 'Not current'}</span></div>
       {health?.lastError && <p className="mt-2 text-xs text-rose-300">{health.lastError}</p>}
       <div className="mt-4 border-t border-white/10 pt-3"><p className="mb-2 text-[10px] uppercase tracking-wider text-slate-500">Functional regions · live stage telemetry unavailable</p><div className="grid grid-cols-2 gap-1.5">{regions.map((region) => <div key={region} className="flex items-center gap-1.5 rounded-md bg-slate-950/70 px-2 py-1.5 text-[10px] text-slate-500"><CircleDot className="h-3 w-3 shrink-0" />{region}</div>)}</div></div>
       <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-500">{healthy ? <CheckCircle2 className="h-3 w-3 text-emerald-300" /> : <ShieldAlert className="h-3 w-3 text-amber-300" />}{healthy ? 'Provider health verified' : 'Provider requires attention or verification'}</div>
