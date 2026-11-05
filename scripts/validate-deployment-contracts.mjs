@@ -5,9 +5,10 @@ const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf
 const render = read('render.yaml');
 const renderConfig = parseYaml(render);
 const renderServices = renderConfig.projects?.[0]?.environments?.[0]?.services ?? [];
-const renderApi = renderServices.find((service) => service.name === 'RYANAI-Automous-Reasioning-Plat');
+const renderApi = renderServices.find((service) => service.name === 'ryanai-api');
 const renderWeb = renderServices.find((service) => service.name === 'ryanai-web');
-const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis-virginia');
+const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis');
+const apiDockerfile = read('Dockerfile.api');
 const vercel = JSON.parse(read('vercel.json'));
 const railway = JSON.parse(read('railway.json'));
 const renderRepair = read('.github/workflows/guarded-render-api-source-repair.yml');
@@ -17,25 +18,28 @@ const vercelCliDeploy = read('.github/workflows/deploy.yml');
 const ciWorkflow = read('.github/workflows/ci.yml');
 const railwayDeploy = read('.github/workflows/deploy-railway.yml');
 const checks = [
-  ['Render API maps to the official existing service', render.includes('name: RYANAI-Automous-Reasioning-Plat')],
-  ['Render API uses Dockerfile.api', renderApi?.dockerfilePath === './Dockerfile.api'],
+  ['Render API maps to the current service', renderApi?.name === 'ryanai-api'],
+  ['Render services use canonical repository and main branch', renderApi?.repo === 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat' && renderWeb?.repo === renderApi?.repo && renderApi?.branch === 'main' && renderWeb?.branch === 'main'],
+  ['Render API uses root context and Dockerfile.api', renderApi?.rootDir === '.' && renderApi?.dockerContext === '.' && renderApi?.dockerfilePath === './Dockerfile.api'],
+  ['Render API clears Docker command override', renderApi?.dockerCommand === ''],
+  ['Dockerfile.api declares runtime entrypoint and command', apiDockerfile.includes('ENTRYPOINT ["/usr/bin/dumb-init", "--"]') && apiDockerfile.includes('CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]')],
   ['Render API health check is configured', renderApi?.healthCheckPath === '/health'],
-  ['Render API uses Virginia region', renderApi?.region === 'virginia'],
-  ['Render Redis shares the API region', Boolean(renderRedis) && renderRedis.region === renderApi?.region],
+  ['Render API uses Oregon region', renderApi?.region === 'oregon'],
+  ['Render Redis shares the API region', Boolean(renderRedis) && renderRedis.name === 'ryanai-redis' && renderRedis.region === renderApi?.region],
   ['Render frontend builds the Vite app from repository root', renderWeb?.rootDir === '.' && renderWeb?.buildCommand?.includes('npm run build:web') && renderWeb?.staticPublishPath === './dist'],
-  ['Render frontend targets the official API origin', renderWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL' && item.value === 'https://ryanai-automous-reasioning-plat.onrender.com')],
-  ['Render repair targets the official service ID only', renderRepair.includes('srv-dafvs4ht0dsc7380mapg') && !renderRepair.includes('srv-dbk4giu7bikc7394a4r0')],
-  ['Render repair checks the official health endpoint', renderRepair.includes('https://ryanai-automous-reasioning-plat.onrender.com/health') && !renderRepair.includes('ryanai-api.onrender.com')],
-  ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('ryanai-redis-virginia') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "virginia"')],
+  ['Render frontend targets the official API origin', renderWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL' && item.value === 'https://ryanai-api.onrender.com')],
+  ['Render repair targets the official service ID only', renderRepair.includes('srv-dbk4giu7bikc7394a4r0') && !renderRepair.includes('srv-dafvs4ht0dsc7380mapg')],
+  ['Render repair checks the official health endpoint', renderRepair.includes('https://ryanai-api.onrender.com/health')],
+  ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('ryanai-redis') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "oregon"')],
   ['Render production deployment is explicitly approval-gated', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
-  ['Render deploy targets the official service after successful CI', renderDeploy.includes('srv-dafvs4ht0dsc7380mapg') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
+  ['Render deploy targets the official service after successful CI', renderDeploy.includes('srv-dbk4giu7bikc7394a4r0') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
   ['Render deployment requires provider verification for the exact commit', renderDeploy.includes('provider-verification.yml') && renderDeploy.includes('--commit "$TARGET_SHA"') && renderDeploy.includes('headSha == env.TARGET_SHA') && renderDeploy.includes('conclusion != "success"')],
   ['Render readiness audit requires the API key, not a deploy hook', read('scripts/audit-deployment-readiness.mjs').includes("name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY']")],
   ['Deployment audit treats false secret-presence flags as missing', read('scripts/audit-deployment-readiness.mjs').includes("normalized !== 'false'")],
   ['Vercel builds the Vite frontend to dist', vercel.framework === 'vite' && vercel.outputDirectory === 'dist' && vercel.buildCommand.includes('build:web')],
   ['Vercel deployment is explicitly gated', vercelDeploy.includes("vars.VERCEL_DEPLOY_ENABLED == 'true'")],
-  ['Vercel CLI deployment uses the official Render API origin', vercelCliDeploy.includes('VITE_API_BASE_URL: https://ryanai-automous-reasioning-plat.onrender.com') && !vercelCliDeploy.includes('vars.VITE_API_BASE_URL')],
-  ['CI deployment audit uses the official Render API origin', ciWorkflow.includes('VITE_API_BASE_URL: https://ryanai-automous-reasioning-plat.onrender.com') && !ciWorkflow.includes('vars.VITE_API_BASE_URL')],
+  ['Vercel CLI deployment uses the official Render API origin', vercelCliDeploy.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com') && !vercelCliDeploy.includes('vars.VITE_API_BASE_URL')],
+  ['CI deployment audit uses the official Render API origin', ciWorkflow.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com') && !ciWorkflow.includes('vars.VITE_API_BASE_URL')],
   ['Railway uses Dockerfile.api and /health', railway.build?.dockerfilePath === 'Dockerfile.api' && railway.deploy?.healthcheckPath === '/health'],
   ['Railway deployment is explicitly gated', railwayDeploy.includes("vars.RAILWAY_DEPLOY_ENABLED == 'true'")],
 ];
