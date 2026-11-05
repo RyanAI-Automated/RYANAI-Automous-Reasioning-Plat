@@ -189,8 +189,6 @@ build/
 *.worktrees/
 RYANAI/
 complete-ryanal-reasoning-platform/
-vercel-build-failure-npm-script/complete-ryanai-reasoning-platform/ 
-.vercel
 
 # Database dumps and backups. Never commit these to a public repo.
 *.backup
