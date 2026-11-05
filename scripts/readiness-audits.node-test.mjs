@@ -164,6 +164,9 @@ test('Render repair is CI-gated, idempotent, and never calls the deploy endpoint
   assert.ok(workflow.includes('"dockerfilePath":"./Dockerfile.api"'));
   assert.ok(workflow.includes('"dockerCommand":""'));
   assert.ok(workflow.includes('"autoDeployTrigger":"off"'));
+  assert.ok(workflow.includes('"healthCheckPath":"/health"'));
+  assert.ok(workflow.includes('Read current API service configuration'));
+  assert.ok(workflow.includes('Read back and verify live API configuration'));
   assert.ok(workflow.includes('serviceDetails.envSpecificDetails.dockerCommand'));
   assert.ok(!workflow.includes('/deploys'));
   assert.ok(!workflow.includes('srv-dafvs4ht0dsc7380mapg'));
