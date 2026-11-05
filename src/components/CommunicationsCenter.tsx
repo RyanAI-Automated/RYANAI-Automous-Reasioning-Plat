@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Activity, BrainCircuit, Download, Mail, MessageCircle, Paperclip, Phone, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import {
   getCommsAttachmentDownloadUrl, getCommsAttachmentStatuses, getCommsConversations,
-  getCommsStatus, prepareCommsAttachments, sendCommsMessage, uploadCommsAttachment,
+  getCommsStatus, prepareCommsAttachments, sendCommsMessage, assistCommsConversation, uploadCommsAttachment,
   type CommsAttachment, type CommsChannel, type CommsConversation, type CommsStatus,
 } from '@/lib/commsApi';
 
