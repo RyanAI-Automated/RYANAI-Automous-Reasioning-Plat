@@ -36,14 +36,16 @@ RUN npm run db:generate \
     && npm run build:server \
     && npm prune --omit=dev --legacy-peer-deps
 
-# Minimal API runtime; the npm CLI is not needed after the build.
+# Keep the API runtime contract aligned with Dockerfile.api.
+# pg_dump is required by the optional, non-blocking startup backup.
+# The npm CLI is deliberately absent; Render must use this image's default CMD.
 FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true
-RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget python3 \
+RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
@@ -57,12 +59,13 @@ COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
 COPY --chown=node:node quant-engine ./quant-engine
+COPY --chown=node:node scripts/backup-on-startup.mjs ./scripts/backup-on-startup.mjs
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "dist/server/server/launcher.js"]
+CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]
 
 # Build-time Vite configuration contains public browser values only.
 FROM node:24-alpine AS web-builder
