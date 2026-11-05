@@ -153,17 +153,21 @@ test('deployment configuration points at the official Render API and aligned thr
   const { readFile } = await import('node:fs/promises');
   const workflow = await readFile(new URL('../.github/workflows/guarded-render-api-source-repair.yml', import.meta.url), 'utf8');
   const blueprint = await readFile(new URL('../render.yaml', import.meta.url), 'utf8');
-  assert.ok(workflow.includes('srv-dafvs4ht0dsc7380mapg'));
-  assert.ok(workflow.includes('https://ryanai-automous-reasioning-plat.onrender.com/health'));
+  assert.ok(workflow.includes('srv-dbk4giu7bikc7394a4r0'));
+  assert.ok(workflow.includes('https://ryanai-api.onrender.com/health'));
   assert.ok(workflow.includes('"dockerfilePath":"./Dockerfile.api"'));
   assert.ok(workflow.includes('"healthCheckPath":"/health"'));
-  assert.ok(!workflow.includes('srv-dbk4giu7bikc7394a4r0'));
-  assert.ok(!workflow.includes('ryanai-api.onrender.com'));
-  assert.ok(blueprint.includes('name: RYANAI-Automous-Reasioning-Plat'));
+  assert.ok(!workflow.includes('srv-dafvs4ht0dsc7380mapg'));
+  assert.ok(workflow.includes('"dockerCommand":""'));
+  assert.ok(blueprint.includes('name: ryanai-api'));
+  assert.ok(blueprint.includes('repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat'));
+  assert.ok(blueprint.includes('branch: main'));
+  assert.ok(blueprint.includes('dockerContext: .'));
+  assert.ok(blueprint.includes('dockerCommand: ""'));
   assert.ok(blueprint.includes('dockerfilePath: ./Dockerfile.api'));
   assert.ok(blueprint.includes('healthCheckPath: /health'));
-  assert.ok(blueprint.includes('value: https://ryanai-automous-reasioning-plat.onrender.com'));
-  assert.ok(blueprint.includes('region: virginia'));
+  assert.ok(blueprint.includes('value: https://ryanai-api.onrender.com'));
+  assert.ok(blueprint.includes('region: oregon'));
 });
 
 

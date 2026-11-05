@@ -30,9 +30,9 @@ jobs:
     environment: production
     env:
       TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
-      RENDER_SERVICE_ID: srv-dafvs4ht0dsc7380mapg
+      RENDER_SERVICE_ID: srv-dbk4giu7bikc7394a4r0
       RENDER_WORKSPACE_ID: tea-d5ogqtcoud1c73b266f0
-      RENDER_REDIS_NAME: ryanai-redis-virginia
+      RENDER_REDIS_NAME: ryanai-redis
       RENDER_API_URL: https://ryanai-automous-reasioning-plat.onrender.com
 
     steps:
@@ -124,11 +124,11 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
-            --url "https://api.render.com/v1/key-value?ownerId=$RENDER_WORKSPACE_ID&name=$RENDER_REDIS_NAME&region=virginia&limit=100" \
+            --url "https://api.render.com/v1/key-value?ownerId=$RENDER_WORKSPACE_ID&name=$RENDER_REDIS_NAME&region=oregon&limit=100" \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --output render-redis-list.json
-          jq -e --arg name "$RENDER_REDIS_NAME" '[.[] | .keyValue | select(.name == $name and .status == "available" and .region == "virginia")] | length == 1' render-redis-list.json || {
+          jq -e --arg name "$RENDER_REDIS_NAME" '[.[] | .keyValue | select(.name == $name and .status == "available" and .region == "oregon")] | length == 1' render-redis-list.json || {
             echo "::error::Virginia Redis is not available. The API deploy remains blocked until the approved replacement resource exists and is available."
             jq '[.[] | .keyValue | {name,status,region,plan}]' render-redis-list.json
             exit 1
@@ -145,9 +145,9 @@ jobs:
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --header "content-type: application/json" \
-            --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","healthCheckPath":"/health"}}' \
+            --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","dockerCommand":"","healthCheckPath":"/health"}}' \
             --output render-service-update.json
-          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.healthCheckPath == "/health"' render-service-update.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.dockerCommand == "" and .serviceDetails.healthCheckPath == "/health"' render-service-update.json
 
       - name: Deploy exact validated main commit
         env:
@@ -218,4 +218,4 @@ jobs:
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --output render-service-final.json
-          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.healthCheckPath == "/health"' render-service-final.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.dockerCommand == "" and .serviceDetails.healthCheckPath == "/health"' render-service-final.json
