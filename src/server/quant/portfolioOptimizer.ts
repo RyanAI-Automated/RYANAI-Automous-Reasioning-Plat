@@ -150,6 +150,9 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
     }),
   );
 
+  if (covariance.some((row) => row.some((value) => !Number.isFinite(value)))) {
+    throw new Error('Return covariance is numerically unstable for the selected history.');
+  }
   const shrinkage = 0.1;
   const stableCovariance = covariance.map((row, left) => row.map((value, right) =>
     left === right ? value + 1e-10 : value * (1 - shrinkage),
@@ -157,6 +160,7 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   const lipschitz = 2 * Math.max(...stableCovariance.map((row) =>
     row.reduce((sum, value) => sum + Math.abs(value), 0),
   ));
+  if (!Number.isFinite(lipschitz)) throw new Error('Portfolio covariance is too large to optimize safely.');
   const step = lipschitz > 1e-12 ? 1 / lipschitz : 1;
   let weights = Array(assetCount).fill(investedWeight / assetCount) as number[];
   let converged = false;
@@ -215,6 +219,9 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
     ? (expectedAnnualReturn - riskFreeRatePct) / annualizedVolatility
     : 0;
   const estimatedTransactionCostPct = turnover * transactionCostBps / 10000 * 100;
+  if (![annualizedVolatility, expectedAnnualReturn, sharpe, estimatedTransactionCostPct].every(Number.isFinite)) {
+    throw new Error('Portfolio metrics are numerically unstable.');
+  }
   return {
     method: 'projected_gradient_minimum_variance',
     observations: sessionCount,
