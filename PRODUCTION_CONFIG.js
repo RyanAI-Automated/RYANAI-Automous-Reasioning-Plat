@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * REFERENCE ONLY — this file is not loaded by Docker Compose, Vercel, Render,
+ * REFERENCE ONLY — this file is not loaded by Docker Compose, Render, Railway,
  * Kubernetes, or the API runtime. Resource counts, SLOs, backup schedules,
  * autoscaling and compliance values below are planning targets, not verified
  * live settings. Use the deployment manifests and provider dashboards as the
