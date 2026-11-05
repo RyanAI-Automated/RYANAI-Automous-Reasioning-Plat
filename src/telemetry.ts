@@ -1,30 +1,30 @@
-// File path: ./src/telemetry.ts
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { resourceFromAttributes, type Resource } from '@opentelemetry/resources';
-import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 
-export function initializeTelemetry(serviceName: string = "ryanai-autonomous-reasoning-engine"): Resource {
-  return resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: serviceName,
-  });
-}
+export let sdk: NodeSDK | null = null;
+let lifecycle: 'idle' | 'started' | 'stopped' = 'idle';
+let handlersRegistered = false;
 
-let sdk: NodeSDK | null = null;
+/** One SDK lifecycle per Node process. No exporter/content capture is enabled without explicit configuration. */
+export function startTelemetry(serviceName = process.env.OTEL_SERVICE_NAME || 'ryanai-autonomous-platform'): boolean {
+  if (lifecycle !== 'idle') return lifecycle === 'started';
 
-export function startTelemetry(serviceName: string = "ryanai-autonomous-reasoning-engine") {
-  if (sdk) {
-    return sdk;
-  }
-
-  const resource = initializeTelemetry(serviceName);
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+    || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const traceExporter = endpoint ? new OTLPTraceExporter({ url: endpoint }) : undefined;
 
   sdk = new NodeSDK({
-    resource,
-    resourceDetectors: [],
+    resource: resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: serviceName,
+      [ATTR_SERVICE_VERSION]: process.env.npm_package_version || 'unknown',
+    }),
+    ...(traceExporter ? { traceExporter } : {}),
     instrumentations: [
       getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-pino': { enabled: true },
+        '@opentelemetry/instrumentation-fs': { enabled: false },
         '@opentelemetry/instrumentation-http': { enabled: true },
       }),
     ],
@@ -32,17 +32,32 @@ export function startTelemetry(serviceName: string = "ryanai-autonomous-reasonin
 
   try {
     sdk.start();
-    console.log('🔍 [OpenTelemetry] Tracing & Logging Initialized');
+    lifecycle = 'started';
+    if (!handlersRegistered) {
+      handlersRegistered = true;
+      const shutdown = () => { void shutdownTelemetry(); };
+      process.once('SIGTERM', shutdown);
+      process.once('SIGINT', shutdown);
+    }
+    console.log('[Telemetry] OpenTelemetry SDK started; content capture remains disabled.');
+    return true;
   } catch (error) {
-    console.error('[OpenTelemetry] Error initializing OpenTelemetry SDK:', error);
+    lifecycle = 'stopped';
+    console.error('[Telemetry] SDK startup failed; application continues without telemetry.', error instanceof Error ? error.name : 'UnknownError');
+    return false;
   }
-
-  process.on('SIGTERM', () => {
-    sdk?.shutdown()
-      .then(() => console.log('📊 [OpenTelemetry] SDK shut down successfully'))
-      .catch((error) => console.error('[OpenTelemetry] Error shutting down SDK', error))
-      .finally(() => process.exit(0));
-  });
-
-  return sdk;
 }
+
+export async function shutdownTelemetry(): Promise<void> {
+  if (lifecycle !== 'started' || !sdk) return;
+  lifecycle = 'stopped';
+  try {
+    await sdk.shutdown();
+    console.log('[Telemetry] OpenTelemetry SDK flushed and shut down.');
+  } catch (error) {
+    console.error('[Telemetry] SDK shutdown failed.', error instanceof Error ? error.name : 'UnknownError');
+  }
+}
+
+// Imported before application modules by the API launcher and telemetry:collect script.
+startTelemetry();
