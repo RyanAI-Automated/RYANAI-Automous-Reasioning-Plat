@@ -12,6 +12,11 @@
       "path": "/dashboard"
     },
     {
+      "id": "pa",
+      "label": "Personal Assistant",
+      "path": "/pa"
+    },
+    {
       "id": "calculator",
       "label": "Calculator",
       "path": "/calculator"
