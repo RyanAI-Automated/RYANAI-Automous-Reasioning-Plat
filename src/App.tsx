@@ -46,206 +46,204 @@ const routeFromHash = (): Route => {
       : segment === 'register'
         ? 'signup'
         : segment;
-  return (
-    appManifest.routes.find((candidate) => candidate.id === route)?.id ??
-    UI_CONFIG.defaultRoute
+  const visibleDestinations = destinations.filter(({ id }) =>
+    user
+      ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
+      : id === 'landing' || id === 'signin' || id === 'signup',
   );
-};
-
-const routeIcons: Record<Route, LucideIcon> = {
-  landing: Orbit,
-  signin: LogIn,
-  signup: UserPlus,
-  dashboard: LayoutDashboard,
-  quant: TrendingUp,
-  cockpit: Cpu,
-  workspace: MessageSquareText,
-  comms: Mail,
-  audiobook: BookAudio,
-};
-
-const destinations = appManifest.routes.map((route) => ({
-  ...route,
-  icon: routeIcons[route.id],
-}));
-
-export default function App() {
-  const [route, setRoute] = useState<Route>(routeFromHash);
-  const [verifiedIdentity, setVerifiedIdentity] = useState<{ userId: string; isOwner: boolean; displayName?: string } | null>(null);
-  const { session, loading, error, signingOut, signOut } = useAuth();
-  const isAuthRoute = route === 'signin' || route === 'signup';
-  // Supabase redirects OAuth authorization requests to this real path (not a hash route).
-  const isOAuthConsentRoute = window.location.pathname.replace(/\/+$/, '') === '/oauth/consent';
-  const user = session?.user;
-  const isAdmin = user?.app_metadata?.role === 'admin';
-  const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
-  const displayName =
-    typeof user?.user_metadata?.full_name === 'string'
-      ? user.user_metadata.full_name
-      : user?.email?.split('@')[0];
-
-  const handleSignOut = async () => {
-    if (await signOut()) window.location.hash = '/signin';
-  };
-
-  const authenticatedUserId = user?.id;
-  const authenticatedUserEmail = user?.email;
-  const authenticatedOwnerClaim = user?.app_metadata?.owner === true;
-
-  useEffect(() => {
-    if (!authenticatedUserId) return;
-    let active = true;
-    void authenticatedFetch('/api/auth/verify')
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Identity verification unavailable');
-        return response.json() as Promise<{ user?: { isOwner?: boolean; displayName?: string } }>;
-      })
-      .then((result) => {
-        if (active) setVerifiedIdentity({
-          userId: authenticatedUserId,
-          isOwner: result.user?.isOwner === true,
-          displayName: result.user?.displayName,
-        });
-      })
-      .catch(() => {
-        if (active) setVerifiedIdentity({
-          userId: authenticatedUserId,
-          isOwner: authenticatedOwnerClaim,
-          displayName,
-        });
-      });
-    return () => { active = false; };
-  }, [authenticatedUserId, authenticatedUserEmail, authenticatedOwnerClaim, displayName]);
-
-  useEffect(() => {
-    if (session && isAuthRoute) window.location.hash = '/workspace';
-  }, [session, isAuthRoute]);
-
-  useEffect(() => {
-    const syncRoute = () => setRoute(routeFromHash());
-    window.addEventListener('hashchange', syncRoute);
-    return () => window.removeEventListener('hashchange', syncRoute);
-  }, []);
+  const currentTitle = destinations.find(({ id }) => id === route)?.label ?? 'Workspace';
 
   return (
-    <div className="flex h-screen min-h-[480px] flex-col overflow-hidden bg-slate-950 text-slate-100">
+    <div className="flex h-dvh min-h-[480px] flex-col overflow-hidden bg-[#0D0E15] text-[#F8FAFC] md:flex-row">
       <a className="skip-link" href="#main-content">Skip to main content</a>
-      <header className="z-20 flex min-h-14 items-center justify-between border-b border-cyan-400/15 bg-slate-950/95 px-4 sm:px-8">
-        <a
-          href="#/"
-          className="flex items-center gap-2 font-display text-sm font-black tracking-[0.18em] text-cyan-200"
-        >
-          <Cpu className="h-5 w-5 text-cyan-400" />
-          RYANAI
+
+      <aside className="relative z-30 hidden w-[252px] shrink-0 flex-col border-r border-cyan-300/10 bg-[#0a0d14] md:flex">
+        <a href="#/" className="flex min-h-[76px] items-center gap-3 border-b border-white/5 px-6">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10 text-cyan-200 shadow-[0_0_24px_rgba(0,242,254,0.12)]">
+            <Cpu className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-display text-sm font-black tracking-[0.2em] text-cyan-100">RYANAI</span>
+            <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500">Autonomous platform</span>
+          </span>
         </a>
-        <nav
-          aria-label="Main navigation"
-          className="flex items-center gap-1 overflow-x-auto"
-        >
-          {destinations
-            .filter(({ id }) =>
-              user
-                ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
-                : id === 'landing' || id === 'signin' || id === 'signup',
-            )
-            .map(({ id, path, label, icon: Icon }) => (
+
+        <div className="px-5 pb-2 pt-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600">
+          Platform
+        </div>
+        <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+          {visibleDestinations.map(({ id, path, label, icon: Icon }) => (
+            <a
+              key={id}
+              href={id === 'landing' ? '#/' : `#${path}`}
+              aria-current={route === id ? 'page' : undefined}
+              className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                route === id
+                  ? 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100 shadow-[inset_2px_0_0_#00F2FE]'
+                  : 'border-transparent text-slate-400 hover:border-white/5 hover:bg-white/[0.04] hover:text-slate-100'
+              }`}
+            >
+              <Icon className={`h-[18px] w-[18px] shrink-0 ${route === id ? 'text-cyan-300' : 'text-slate-500 group-hover:text-cyan-200'}`} />
+              <span>{label}</span>
+              {route === id && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(0,242,254,0.8)]" />}
+            </a>
+          ))}
+        </nav>
+
+        <div className="border-t border-white/5 p-4">
+          {user ? (
+            <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.03] p-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/20 to-blue-400/20 text-xs font-bold text-cyan-100">
+                {(displayName || 'R').slice(0, 1).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-slate-200">{displayName || 'Signed-in operator'}</span>
+                <span className="mt-1 block text-[9px] uppercase tracking-wider text-slate-500">{isOwner ? 'Owner session' : isAdmin ? 'Admin session' : 'Authenticated session'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                disabled={signingOut}
+                aria-label="Sign out"
+                title="Sign out"
+                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-50"
+              >
+                <LogIn className="h-4 w-4 rotate-180" />
+              </button>
+            </div>
+          ) : (
+            <p className="px-2 py-2 text-[11px] text-slate-600">Secure sign-in required for operator tools.</p>
+          )}
+          <p className="mt-3 px-2 text-[9px] font-mono uppercase tracking-[0.14em] text-slate-700">RyanAI · {APP_ENV.toUpperCase()}</p>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="relative z-20 shrink-0 border-b border-cyan-300/10 bg-[#0d111b]/95 shadow-[0_8px_32px_rgba(0,0,0,0.16)] backdrop-blur-xl">
+          <div className="hidden min-h-[64px] items-center justify-between gap-4 px-6 md:flex xl:px-9">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600">RyanAI / Platform</p>
+              <p className="mt-1 text-sm font-semibold text-slate-200">{currentTitle}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-cyan-200/80">Operator console</span>
+              {user && <span className="max-w-[220px] truncate text-xs text-slate-500">{displayName}</span>}
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={signingOut}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 transition-colors hover:border-rose-300/20 hover:bg-rose-300/5 hover:text-rose-200 disabled:opacity-50"
+                >
+                  {signingOut ? 'Signing out…' : 'Sign out'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex min-h-[58px] items-center justify-between gap-3 px-4 md:hidden">
+            <a href="#/" className="flex min-w-0 items-center gap-2 font-display text-sm font-black tracking-[0.18em] text-cyan-100">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-300/10 text-cyan-300"><Cpu className="h-4 w-4" /></span>
+              RYANAI
+            </a>
+            <div className="flex min-w-0 items-center gap-2">
+              {user && <span className="max-w-[140px] truncate text-[11px] text-slate-500">{displayName}</span>}
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={signingOut}
+                  aria-label="Sign out"
+                  className="rounded-lg border border-white/10 px-2.5 py-2 text-[11px] text-slate-300 disabled:opacity-50"
+                >
+                  {signingOut ? '…' : 'Sign out'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <nav aria-label="Mobile navigation" className="flex gap-1 overflow-x-auto px-3 pb-3 md:hidden">
+            {visibleDestinations.map(({ id, path, label, icon: Icon }) => (
               <a
                 key={id}
                 href={id === 'landing' ? '#/' : `#${path}`}
                 aria-label={label}
                 aria-current={route === id ? 'page' : undefined}
-                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-medium transition-colors ${
                   route === id
-                    ? 'bg-cyan-400/10 text-cyan-200'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                    ? 'border-cyan-300/25 bg-cyan-300/10 text-cyan-100'
+                    : 'border-white/5 text-slate-400 hover:bg-white/5 hover:text-slate-100'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <Icon className="h-3.5 w-3.5" />
+                <span>{label}</span>
               </a>
             ))}
-          {user && (
-            <>
-              <span className="hidden px-2 text-xs text-slate-300 md:inline">
-                {displayName}
-              </span>
-              <button
-                onClick={() => void handleSignOut()}
-                disabled={signingOut}
-                className="shrink-0 rounded-lg px-3 py-2 text-sm text-cyan-200 disabled:opacity-50"
-              >
-                {signingOut ? 'Signing out…' : 'Sign out'}
-              </button>
-            </>
-          )}
-        </nav>
-      </header>
+          </nav>
+        </header>
 
-      <Suspense fallback={<p role="status" className="p-8 text-slate-300">Loading RyanAI workspace…</p>}>
-      <main
-        id="main-content"
-        key={user?.id ?? 'signed-out'}
-        tabIndex={-1}
-        className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
-      >
-        {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
-        {error && (
-          <p role="alert" className="p-4 text-rose-300">
-            {error}
-          </p>
-        )}
-        {isOAuthConsentRoute ? (
-          loading ? (
-            <p role="status" className="p-8 text-slate-300">Restoring your session before authorization…</p>
-          ) : user ? (
-            <OAuthConsentPage key={user.id} userId={user.id} />
-          ) : (
-            <AuthPage key="oauth-signin" mode="signin" />
-          )
-        ) : route === 'landing' ? (
-          <LandingPage />
-        ) : loading ? (
-          <p role="status" className="p-8 text-slate-300">
-            Restoring your session…
-          </p>
-        ) : !user ? (
-          <AuthPage
-            key={route}
-            mode={route === 'signup' ? 'signup' : 'signin'}
-          />
-        ) : (
-          <>
-            {route === 'dashboard' && <DashboardPage />}
-            {route === 'quant' && <QuantLabPage />}
-            {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
-            {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
-            {route === 'cockpit' && (
+        <Suspense fallback={<p role="status" className="p-8 text-slate-300">Loading RyanAI workspace…</p>}>
+          <main
+            id="main-content"
+            key={user?.id ?? 'signed-out'}
+            tabIndex={-1}
+            className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
+          >
+            {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
+            {error && (
+              <p role="alert" className="p-4 text-rose-300">
+                {error}
+              </p>
+            )}
+            {isOAuthConsentRoute ? (
+              loading ? (
+                <p role="status" className="p-8 text-slate-300">Restoring your session before authorization…</p>
+              ) : user ? (
+                <OAuthConsentPage key={user.id} userId={user.id} />
+              ) : (
+                <AuthPage key="oauth-signin" mode="signin" />
+              )
+            ) : route === 'landing' ? (
+              <LandingPage />
+            ) : loading ? (
+              <p role="status" className="p-8 text-slate-300">Restoring your session…</p>
+            ) : !user ? (
+              <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
+            ) : (
               <>
-                <RyanAICockpit />
-                {isAdmin && (
+                {route === 'dashboard' && <DashboardPage />}
+                {route === 'quant' && <QuantLabPage />}
+                {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
+                {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
+                {route === 'cockpit' && (
                   <>
-                    <BrainKnowledgePanel />
-                    <SelfPatchPanel />
+                    <RyanAICockpit />
+                    {isAdmin && (
+                      <>
+                        <BrainKnowledgePanel />
+                        <SelfPatchPanel />
+                      </>
+                    )}
+                    {isTauri() && <AgentControlPanel />}
                   </>
                 )}
-                {isTauri() && <AgentControlPanel />}
+                {(route === 'workspace' || isAuthRoute) && (
+                  <div className="min-h-0">
+                    <CommandCenter
+                      onSignOut={() => void handleSignOut()}
+                      userId={user.id}
+                      userEmail={user.email!}
+                      userFullName={displayName}
+                    />
+                  </div>
+                )}
               </>
             )}
-            {(route === 'workspace' || isAuthRoute) && (
-              <div className="min-h-0">
-                <CommandCenter
-                  onSignOut={() => void handleSignOut()}
-                  userId={user.id}
-                  userEmail={user.email!}
-                  userFullName={displayName}
-                />
-              </div>
-            )}
-          </>
-        )}
-      </main>
-      </Suspense>
-      <Analytics />
+          </main>
+        </Suspense>
+        <Analytics />
+      </div>
     </div>
   );
+}
 }
