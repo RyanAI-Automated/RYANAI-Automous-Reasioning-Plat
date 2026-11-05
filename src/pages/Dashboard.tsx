@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Activity,
+import {\n  Activity,\n  BookAudio,\n  Cpu,\n  MessageSquareText,\n  TrendingUp,
   AlertCircle,
   CheckCircle2,
   Clock3,
@@ -25,7 +24,7 @@ type PAStatus = {
   health: { api: boolean; database: boolean; redis: boolean };
 };
 
-export default function DashboardPage() {
+export default function DashboardPage({ isOwner = false }: { isOwner?: boolean }) {
   const { health, error, checking, refresh } = usePlatformHealth();
   const [now, setNow] = useState(() => Date.now());
   const [paStatus, setPaStatus] = useState<PAStatus | null>(null);
@@ -80,6 +79,38 @@ export default function DashboardPage() {
   const paHeartbeatStale = !paHeartbeatKnown || paHeartbeatAge! > PA_HEARTBEAT_STALE_AFTER_MS;
   const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && !paHeartbeatStale);
   const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paStatus.workState;
+  const workspaces = [
+    {
+      href: '#/cockpit',
+      title: 'Command Cockpit',
+      description: 'Inspect provider readiness, three-brain health and live reasoning activity.',
+      icon: Cpu,
+    },
+    {
+      href: '#/quant',
+      title: 'Quant Lab',
+      description: 'Run historical strategy experiments and review risk analytics.',
+      icon: TrendingUp,
+    },
+    {
+      href: '#/workspace',
+      title: 'Reasoning Workspace',
+      description: 'Continue conversations, use voice and manage your project memory.',
+      icon: MessageSquareText,
+    },
+    {
+      href: '#/audiobook',
+      title: 'Audiobook Studio',
+      description: 'Prepare chapters, transcribe audio and generate narration.',
+      icon: BookAudio,
+    },
+    ...(isOwner ? [{
+      href: '#/comms',
+      title: 'RyanAI Comms',
+      description: 'Manage owner-authorised WhatsApp, SMS, voice and email conversations.',
+      icon: Activity,
+    }] : []),
+  ];
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-8 sm:px-10">
@@ -137,6 +168,33 @@ export default function DashboardPage() {
         <StatusCard title="Redis" value={serviceLabel(health?.services?.redis, checking, isStale, healthFresh)} icon={Wifi} healthy={healthFresh ? health?.services?.redis : undefined} />
         <StatusCard title="Agent checkpointer" value={serviceLabel(health?.services?.agentCheckpointer, checking, isStale, healthFresh)} icon={Activity} healthy={healthFresh ? health?.services?.agentCheckpointer : undefined} />
       </div>
+
+      <section className="mt-8" aria-labelledby="platform-workspaces-title">
+        <div className="mb-4">
+          <h2 id="platform-workspaces-title" className="text-xl font-semibold text-white">Platform workspaces</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Open each authenticated RyanAI workspace from one place. Live capabilities depend on verified backend services and configured providers.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {workspaces.map(({ href, title, description, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              className="group rounded-xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-cyan-300/30 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Icon className="h-4 w-4 text-cyan-300" />
+                  {title}
+                </span>
+                <span aria-hidden="true" className="text-cyan-300 transition group-hover:translate-x-1">↗</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-slate-400">{description}</p>
+            </a>
+          ))}
+        </div>
+      </section>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
