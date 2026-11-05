@@ -1,6 +1,7 @@
 import { languageInstruction, DEFAULT_LANGUAGE, isRyanLanguage } from '../shared/languages.js';
 import { buildMemoryContext } from './memoryContext.js';
 import { dispatchAutonomousTask, waitForAutonomousTask, type AgentRunProgressEvent } from './operations.js';
+import { withTelemetrySpan } from '../telemetry/core.js';
 
 export interface AgentUser {
   id: string;
@@ -32,6 +33,7 @@ export async function invokeReasoningAgent({
   language?: string;
   onProgress?: (event: AgentRunProgressEvent) => void;
 }) {
+  return withTelemetrySpan('agent.run', { 'agent.operation': 'reasoning' }, async () => {
   if (!user?.id) {
     throw new Error('An authenticated user is required for traceable three-brain reasoning.');
   }
@@ -58,4 +60,5 @@ export async function invokeReasoningAgent({
     handoffs,
     engine: 'RyanAI Three-Brain Orchestrator',
   };
+  });
 }
