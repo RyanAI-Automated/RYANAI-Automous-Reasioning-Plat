@@ -12,6 +12,11 @@
       "path": "/dashboard"
     },
     {
+      "id": "settings",
+      "label": "Settings",
+      "path": "/settings"
+    },
+    {
       "id": "operator",
       "label": "Operator",
       "path": "/operator"
