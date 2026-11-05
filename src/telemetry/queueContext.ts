@@ -40,6 +40,16 @@ export function captureQueueTraceContext(): PersistedTraceContext | null {
   return normalizePersistedTraceContext(carrier);
 }
 
+
+/** Return a JSON-safe object without optional undefined properties for Prisma JSON columns. */
+export function captureQueueTraceContextForStorage(): Record<string, string> | undefined {
+  const captured = captureQueueTraceContext();
+  if (!captured?.traceparent) return undefined;
+  return captured.tracestate
+    ? { traceparent: captured.traceparent, tracestate: captured.tracestate }
+    : { traceparent: captured.traceparent };
+}
+
 /** Restore the originating context before the worker creates child spans. */
 export function runWithQueueTraceContext<T>(value: unknown, operation: (activeContext: Context) => T): T {
   const carrier = normalizePersistedTraceContext(value) ?? {};

@@ -16,7 +16,7 @@ import { buildAgentRunExecutionPrompt, planQueuedAgentRun } from './agentRunExec
 import type { ExecutionChange } from './executionPlanner.js';
 import { recordRunEvidence, appendRunEvidence } from './engineeringEvidence.js';
 import { withTelemetrySpan } from '../telemetry/core.js';
-import { captureQueueTraceContext, runWithQueueTraceContext } from '../telemetry/queueContext.js';
+import { captureQueueTraceContextForStorage, runWithQueueTraceContext } from '../telemetry/queueContext.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -343,7 +343,7 @@ async function processAgentRun(
 export async function dispatchAutonomousTask(userId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId, objective, executionScope, traceContext: captureQueueTraceContext() ?? undefined, status: 'queued' },
+      data: { userId, objective, executionScope, traceContext: captureQueueTraceContextForStorage(), status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
@@ -375,7 +375,7 @@ export async function dispatchAutonomousTask(userId: string, objective: string, 
 export async function dispatchJarvisTask(actorId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId: actorId, objective, executionScope, traceContext: captureQueueTraceContext(), status: 'queued' },
+      data: { userId: actorId, objective, executionScope, traceContext: captureQueueTraceContextForStorage(), status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
