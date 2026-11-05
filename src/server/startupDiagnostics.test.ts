@@ -102,6 +102,17 @@ describe('safe database diagnostics', () => {
     expect(result).not.toContain('SCRAM');
   });
 
+  it('recognizes malformed URL encoding without echoing the URI', () => {
+    const result = databaseFailureDiagnostic(new URIError('URI malformed in private database URL'));
+    expect(result).toContain('malformed percent escape');
+    expect(result).not.toContain('private database URL');
+  });
+
+  it('recognizes a server-side SSL rejection', () => {
+    const result = databaseFailureDiagnostic(new Error('The server does not support SSL connections'));
+    expect(result).toContain('rejected SSL');
+  });
+
   it('recognizes Supavisor TLS and tenant errors without echoing usernames', () => {
     const tls = databaseFailureDiagnostic(new Error('ClientHandler: (ESSLREQUIRED) SSL connection is required for user: postgres'));
     expect(tls).toContain('requires TLS');
