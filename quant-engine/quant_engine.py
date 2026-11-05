@@ -73,10 +73,17 @@ def validate(payload: object) -> tuple[list[dict], dict]:
     return normalized, config
 
 
-def run_backtest(payload: object, *, start_index: int = 0) -> dict:
+def run_backtest(
+    payload: object,
+    *,
+    start_index: int = 0,
+    initial_action: str | None = None,
+) -> dict:
     bars, config = validate(payload)
     if isinstance(start_index, bool) or not isinstance(start_index, int) or not 0 <= start_index < len(bars):
         raise ValueError("start_index must be an integer within the validated bar range")
+    if initial_action not in (None, "buy"):
+        raise ValueError("initial_action must be buy or None")
     closes = [bar["close"] for bar in bars]
     fast, slow = config["fast_window"], config["slow_window"]
     cash = config["initial_cash"]
@@ -95,6 +102,10 @@ def run_backtest(payload: object, *, start_index: int = 0) -> dict:
     # The equity curve for each date is marked only after that date's open fills.
     pending_action = None
     for index, bar in enumerate(bars):
+        if index == start_index:
+            # Align the flat fold portfolio to the trend observed at the final
+            # training close; any resulting entry fills at the first test open.
+            pending_action = initial_action
         if index >= start_index:
             if pending_action == "buy" and quantity == 0:
                 fill_price = bar["open"] * (1 + slippage_rate)
@@ -254,12 +265,16 @@ def run_walk_forward(payload: object) -> dict:
                 "metrics": metrics,
             })
         selected = max(candidates, key=lambda item: item["score"])
+        training_closes = [bar["close"] for bar in training_bars]
+        training_fast = mean(training_closes[-selected["parameters"]["fast_window"]:])
+        training_slow = mean(training_closes[-selected["parameters"]["slow_window"]:])
+        initial_action = "buy" if training_fast > training_slow else None
         out_of_sample = run_backtest({
             **payload,
             "bars": fold_bars,
             "fast_window": selected["parameters"]["fast_window"],
             "slow_window": selected["parameters"]["slow_window"],
-        }, start_index=train_window)
+        }, start_index=train_window, initial_action=initial_action)
         folds.append({
             "fold": len(folds) + 1,
             "training_period": {
@@ -273,6 +288,7 @@ def run_walk_forward(payload: object) -> dict:
                 "bars": test_window,
             },
             "selected_parameters": selected["parameters"],
+            "test_initial_position": "long" if initial_action == "buy" else "flat",
             "training_selection_metrics": {
                 "annualized_sharpe": selected["metrics"]["annualized_sharpe"],
                 "total_return_pct": selected["metrics"]["total_return_pct"],
