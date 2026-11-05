@@ -1,0 +1,65 @@
+# Isolated RyanAI staging blueprint. First sync must be reviewed and approved manually.
+version: "1"
+
+services:
+  - type: web
+    name: ryanai-staging-web
+    runtime: static
+    repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+    branch: feat/render-isolated-staging-blueprint-20261105
+    buildCommand: npm ci --legacy-peer-deps && npm run build:web
+    staticPublishPath: ./dist
+    autoDeployTrigger: off
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_APP_ENV
+        value: staging
+
+  - type: web
+    name: ryanai-staging-api
+    runtime: docker
+    repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+    branch: feat/render-isolated-staging-blueprint-20261105
+    region: oregon
+    plan: free
+    dockerfilePath: ./Dockerfile.api
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SESSION_POOLER_HOST
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: ryanai-staging-redis
+          type: keyvalue
+          property: connectionString
+      - key: COMMUNICATIONS_ENABLED
+        value: "false"
+      - key: COMMUNICATION_ATTACHMENTS_ENABLED
+        value: "false"
+      - key: ATTACHMENT_SCANNER_ENABLED
+        value: "false"
+      - key: ATTACHMENT_ORPHAN_CLEANUP_ENABLED
+        value: "false"
+
+  - type: keyvalue
+    name: ryanai-staging-redis
+    plan: free
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
