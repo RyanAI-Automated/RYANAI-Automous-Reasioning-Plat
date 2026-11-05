@@ -39,3 +39,11 @@ Required slices include math, code, general reasoning, instruction following, kn
 7. Publish reproducible evidence and obtain explicit human approval for any future change.
 
 This PR does not add TwIL-8B to production routing, does not alter PostgreSQL/pgvector memory, and does not modify existing brain orchestration. Removal is a file-level rollback: delete the isolated adapter, tests, documentation and candidate registry entry.
+
+## Shared comparison harness
+
+`src/inference/modelEvaluation.ts` exports `runModelComparison`. Supply the same frozen prompt-case array and at least two candidate callbacks (each with a pinned revision) to compare TwIL balanced/verbose with NVIDIA, Qwen, and Logic. Provider-specific callbacks must be supplied by the isolated evaluation runner; this harness does not create credentials or call provider APIs itself.
+
+The report includes a SHA-256 digest of the canonical prompt dataset, candidate revisions, per-case latency, success/failure, optional exact/contains scoring, approximate output-token counts, output SHA-256 digests, and p50/p95 plus aggregate summaries. It intentionally excludes prompt and completion text and does not persist results. The approximate token count is a rough character-based estimate, not tokenizer usage. Capture actual provider billing, hardware/VRAM/RAM, energy, and human-correction measurements separately in the access-controlled evidence bundle.
+
+For each run, retain the harness report together with the external dataset file hash, model-weight file hashes, server/runtime version, quantisation, hardware details, licence evidence, and scorer/dataset version. Run balanced and verbose in separate server processes so the selected weights are unambiguous. A supplied revision string is provenance metadata; the operator must independently verify it against the downloaded model revision and file hashes before accepting the run.
