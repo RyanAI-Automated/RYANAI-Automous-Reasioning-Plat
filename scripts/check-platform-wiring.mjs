@@ -304,9 +304,14 @@ if (!memoryComponent.includes("authenticatedFetch('/api/user/memory")
 }
 
 const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
-for (const endpoint of ['/api/v1/audiobooks', '/api/audiobook-jobs/:jobId', '/cancel', '/downloads']) {
-  if (!audiobookPage.includes(endpoint) || !audiobookRoutes.includes(endpoint)) {
-    fail('Audiobook Studio frontend/backend route contract is missing: ' + endpoint);
+for (const [pagePath, serverPath] of [
+  ['/api/v1/audiobooks', '/api/v1/audiobooks'],
+  ['/api/audiobook-jobs/', '/api/audiobook-jobs/:jobId'],
+  ['/cancel', '/cancel'],
+  ['/downloads', '/downloads'],
+]) {
+  if (!audiobookPage.includes(pagePath) || !audiobookRoutes.includes(serverPath)) {
+    fail('Audiobook Studio frontend/backend route contract is missing: ' + pagePath);
   }
 }
 if (!audiobookRoutes.includes('preHandler: requireUser')) {
@@ -355,8 +360,8 @@ for (const [name, source] of [
   ['Audiobook Studio', audiobookPage],
   ['Comms', commsPage],
   ['Inference Console', inferencePage],
-  ['GitHub Integration', githubPage],
-  ['Memory Vault', memoryPage],
+  ['GitHub Integration', githubComponent],
+  ['Memory Vault', memoryComponent],
   ['Command Cockpit', cockpit],
 ]) {
   if (!/sm:|md:|lg:/.test(source) || !/min-w-0|w-full|max-w-/.test(source)) {
