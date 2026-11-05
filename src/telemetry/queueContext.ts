@@ -29,7 +29,9 @@ export function captureQueueTraceContext(): PersistedTraceContext | null {
   const carrier: PersistedTraceContext = {};
   propagation.inject(context.active(), carrier, {
     set(target, key, value) {
-      if ((key === 'traceparent' || key === 'tracestate') && typeof value === 'string') target[key] = value;
+      if (typeof value !== 'string') return;
+      if (key === 'traceparent') target.traceparent = value;
+      else if (key === 'tracestate') target.tracestate = value;
     },
   });
   return normalizePersistedTraceContext(carrier);
