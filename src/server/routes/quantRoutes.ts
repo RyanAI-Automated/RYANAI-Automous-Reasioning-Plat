@@ -234,16 +234,15 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
             userId,
           );
+          const accounts = await tx.$queryRawUnsafe<Array<{ cash_balance: string }>>(
+            'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1 FOR UPDATE',
+            userId,
+          );
           const prior = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
             'SELECT id, status FROM quant_paper_orders WHERE user_id = $1 AND client_order_id = $2',
             userId, request.body.client_order_id,
           );
           if (prior.length) return { duplicate: true, orderId: prior[0].id, status: prior[0].status };
-
-          const accounts = await tx.$queryRawUnsafe<Array<{ cash_balance: string }>>(
-            'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1 FOR UPDATE',
-            userId,
-          );
           const cash = Number(accounts[0]?.cash_balance ?? 0);
           const positions = await tx.$queryRawUnsafe<Array<{ quantity: string; average_entry_price: string }>>(
             'SELECT quantity::text, average_entry_price::text FROM quant_paper_positions WHERE user_id = $1 AND symbol = $2 FOR UPDATE',
