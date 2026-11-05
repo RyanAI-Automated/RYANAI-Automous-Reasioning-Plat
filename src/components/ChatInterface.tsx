@@ -81,11 +81,11 @@ export default function ChatInterface() {
           <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Model output</span>
           {lastRun && <span className="text-[10px] text-ink-500">Completed {lastRun}</span>}
         </div>
-        {running && <p role="status" className="mb-2 text-xs text-cyan-200">{progress || 'Streaming reasoning output…'}</p>}
+        {running && <p role="status" aria-live="polite" className="mb-2 text-xs text-cyan-200">{progress || 'Waiting for reasoning progress…'}</p>}
         {!running && !output && !error && <p className="text-xs text-ink-600">Output will appear here after a successful authenticated inference request.</p>}
-        {output && <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-200">{output}</pre>}
+        {output && <pre aria-live="polite" className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-200">{output}</pre>}
       </div>
-      <p className="text-[10px] text-ink-600">Output is streamed from the authenticated reasoning endpoint. Provider availability depends on server configuration; model catalog entries do not prove provider health.</p>
+      <p className="text-[10px] text-ink-600">Reasoning progress and brain handoffs are streamed from the authenticated API; the completed model response appears when the run finishes. Provider availability depends on server configuration, and model catalog entries do not prove provider health.</p>
     </section>
   );
 }
