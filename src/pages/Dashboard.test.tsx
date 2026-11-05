@@ -48,6 +48,7 @@ describe('System Dashboard workspace launcher', () => {
     for (const [path, label] of [
       ['#/cockpit', 'Command Cockpit'],
       ['#/operator', 'Operator Console'],
+      ['#/operations', 'Operations Center'],
       ['#/quant', 'Quant Lab'],
       ['#/workspace', 'Reasoning Workspace'],
       ['#/audiobook', 'Audiobook Studio'],
