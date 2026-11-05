@@ -5,7 +5,7 @@ import formbody from '@fastify/formbody';
 import rawBody from 'fastify-raw-body';
 import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
-import { claimInboundCommunication, recordCommunication, updateCommunicationStatus } from './history.js';
+import { beginOutboundCommunication, claimInboundCommunication, completeOutboundCommunication, markOutboundCommunicationUnknown, OutboundIdempotencyConflictError, recordCommunication, updateCommunicationStatus } from './history.js';
 import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
@@ -90,107 +90,82 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
-    const { channel, recipient, message, subject, contentSid, contentVariables } = request.body ?? {};
-    const target = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
-    const messageBody = message?.trim() ?? '';
+    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey } = request.body ?? {};
+    if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
+    const targetValue = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
+    const target = typeof targetValue === 'string' ? targetValue.trim() : '';
+    const messageBody = typeof message === 'string' ? message.trim() : '';
+    const key = typeof idempotencyKey === 'string' ? idempotencyKey.trim() : '';
     const isOwnerRecipient = channel === 'email'
-      ? target?.trim().toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase()
+      ? target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase()
       : Boolean(target && process.env.RYANAI_OWNER_PHONE && normalizePhone(target) === normalizePhone(process.env.RYANAI_OWNER_PHONE));
     const deliveryBody = isOwnerRecipient ? addressOwnerMessage(messageBody) : messageBody;
-    const approvedTemplateSid = contentSid?.trim() || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
-    if (!channel || !target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) {
-      return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
-    }
-    if (!['whatsapp', 'sms', 'voice', 'email'].includes(channel)) {
-      return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
-    }
+    const approvedTemplateSid = typeof contentSid === 'string' ? contentSid.trim() || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim() : process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
+    if (!key || key.length < 16 || key.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(key)) return reply.code(400).send({ success: false, error: 'A valid 16–128 character idempotency key is required.' });
+    if (!target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     if (channel === 'email') {
       if (!messageBody) return reply.code(400).send({ success: false, error: 'An email message body is required.' });
-      const smtp = smtpTransport();
-      if (!smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
-      try {
-        const sent = await smtp.transporter.sendMail({
-          from: smtp.from,
-          to: target,
-          subject: subject || 'RyanAI notification',
-          text: deliveryBody,
-        });
-        await recordCommunication(fastify.prisma, {
-          channel,
-          externalAddress: target.toLowerCase(),
-          direction: 'outbound',
-          body: deliveryBody,
-          providerMessageId: sent.messageId,
-          status: 'accepted',
-          metadata: { subject: subject || 'RyanAI notification' },
-        });
-        return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted' });
-      } catch (error) {
-        request.log.error({ err: error }, 'Email provider rejected message');
-        return reply.code(502).send({ success: false, error: 'Email provider delivery failed.' });
-      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid email address.' });
+      if (typeof subject !== 'string' || !subject.trim() || subject.trim().length > 180) return reply.code(400).send({ success: false, error: 'Email subject must contain 1–180 characters.' });
+    } else if (!E164.test(target)) {
+      return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
     }
-
-    const client = twilioClient();
-    if (!client) return reply.code(503).send({ success: false, error: 'Twilio is not configured.' });
-    if (!E164.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
-
+    const smtp = channel === 'email' ? smtpTransport() : null;
+    if (channel === 'email' && !smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
+    const client = channel !== 'email' ? twilioClient() : null;
+    if (channel !== 'email' && !client) return reply.code(503).send({ success: false, error: 'Twilio is not configured.' });
+    let from = '';
+    if (channel === 'whatsapp') from = process.env.TWILIO_WHATSAPP_NUMBER?.trim() || '';
+    else if (channel === 'sms' || channel === 'voice') from = process.env.TWILIO_PHONE_NUMBER?.trim() || '';
+    if (channel !== 'email' && !from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
+    if (channel === 'voice' && !process.env.TWILIO_VOICE_ACTION_URL?.trim()) return reply.code(503).send({ success: false, error: 'Twilio voice action URL is not configured.' });
+    const outboundBody = deliveryBody || '[WhatsApp approved template]';
+    let reservation;
     try {
+      reservation = await beginOutboundCommunication(fastify.prisma, {
+        channel,
+        externalAddress: channel === 'email' ? target.toLowerCase() : target,
+        body: outboundBody,
+        idempotencyKey: key,
+        ...(channel === 'email' ? { metadata: { subject: (subject as string).trim() } } : {}),
+      });
+    } catch (error) {
+      if (error instanceof OutboundIdempotencyConflictError) return reply.code(409).send({ success: false, error: error.message });
+      request.log.error({ err: error, channel }, 'Unable to reserve outbound communication');
+      return reply.code(503).send({ success: false, error: 'The communication could not be safely reserved. No provider request was sent.' });
+    }
+    if (reservation.replayed) return reply.code(202).send({
+      success: true, channel, providerId: reservation.providerMessageId, status: reservation.status, replayed: true,
+    });
+    try {
+      if (channel === 'email') {
+        const sent = await smtp!.transporter.sendMail({ from: smtp!.from, to: target, subject: (subject as string).trim(), text: deliveryBody });
+        await completeOutboundCommunication(fastify.prisma, { id: reservation.id, providerMessageId: sent.messageId, status: 'accepted' });
+        return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted', replayed: false });
+      }
       if (channel === 'whatsapp' || channel === 'sms') {
-        const from = channel === 'whatsapp'
-          ? process.env.TWILIO_WHATSAPP_NUMBER?.trim()
-          : process.env.TWILIO_PHONE_NUMBER?.trim();
-        if (!from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
-
-        const sent = await client.messages.create({
+        const sent = await client!.messages.create({
           from: channel === 'whatsapp' && !from.startsWith('whatsapp:') ? `whatsapp:${from}` : from,
           to: channel === 'whatsapp' ? `whatsapp:${target}` : target,
           ...(channel === 'whatsapp' && approvedTemplateSid
-            ? {
-                contentSid: approvedTemplateSid,
-                ...(contentVariables ? { contentVariables } : {}),
-              }
+            ? { contentSid: approvedTemplateSid, ...(typeof contentVariables === 'string' ? { contentVariables } : {}) }
             : { body: deliveryBody }),
-          ...(process.env.TWILIO_STATUS_CALLBACK_URL
-            ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL }
-            : {}),
+          ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
-
-        await recordCommunication(fastify.prisma, {
-          channel,
-          externalAddress: target,
-          direction: 'outbound',
-          body: deliveryBody || '[WhatsApp approved template]',
-          providerMessageId: sent.sid,
-          status: sent.status,
-        });
-        return reply.code(202).send({ success: true, channel, providerId: sent.sid, status: sent.status });
+        await completeOutboundCommunication(fastify.prisma, { id: reservation.id, providerMessageId: sent.sid, status: sent.status });
+        return reply.code(202).send({ success: true, channel, providerId: sent.sid, status: sent.status, replayed: false });
       }
-
-      const from = process.env.TWILIO_PHONE_NUMBER?.trim();
-      if (!from || !process.env.TWILIO_VOICE_ACTION_URL?.trim()) {
-        return reply.code(503).send({ success: false, error: 'Twilio voice caller ID or voice action URL is not configured.' });
-      }
-      const call = await client.calls.create({
-        to: target,
-        from,
-        twiml: twimlSay(deliveryBody),
-        ...(process.env.TWILIO_STATUS_CALLBACK_URL
-          ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL }
-          : {}),
+      const call = await client!.calls.create({
+        to: target, from, twiml: twimlSay(deliveryBody),
+        ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
       });
-      await recordCommunication(fastify.prisma, {
-        channel,
-        externalAddress: target,
-        direction: 'outbound',
-        body: deliveryBody,
-        providerMessageId: call.sid,
-        status: call.status,
-      });
-      return reply.code(202).send({ success: true, channel, providerId: call.sid, status: call.status });
+      await completeOutboundCommunication(fastify.prisma, { id: reservation.id, providerMessageId: call.sid, status: call.status });
+      return reply.code(202).send({ success: true, channel, providerId: call.sid, status: call.status, replayed: false });
     } catch (error) {
-      request.log.error({ err: error, channel }, 'Communication provider rejected request');
-      return reply.code(502).send({ success: false, error: 'Communication provider request failed.' });
+      try { await markOutboundCommunicationUnknown(fastify.prisma, reservation.id); }
+      catch (persistenceError) { request.log.error({ err: persistenceError, channel }, 'Unable to mark outbound communication outcome as unknown'); }
+      request.log.error({ err: error, channel }, 'Communication provider request or result persistence failed');
+      return reply.code(502).send({ success: false, error: 'Communication outcome is unknown. The idempotency key remains reserved to prevent duplicate dispatch.' });
     }
   });
 
@@ -330,9 +305,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     const providerId = body.MessageSid || body.CallSid;
     const status = body.MessageStatus || body.CallStatus;
     if (providerId && status) {
-      await updateCommunicationStatus(fastify.prisma, providerId, status, {
-        errorCode: body.ErrorCode || '',
-      });
+      await updateCommunicationStatus(fastify.prisma, providerId, status);
     }
     return { received: true };
   });

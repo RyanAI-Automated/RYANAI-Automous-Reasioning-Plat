@@ -34,6 +34,7 @@ export default function CommunicationsCenter() {
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -78,12 +79,17 @@ export default function CommunicationsCenter() {
     setNotice('');
     try {
       const result = await sendCommsMessage({
-        channel, message: message.trim(),
+        channel, message: message.trim(), idempotencyKey,
         ...(recipient.trim() ? { recipient: recipient.trim() } : {}),
         ...(channel === 'email' && subject.trim() ? { subject: subject.trim() } : {}),
       });
-      setNotice(`${result.channel} request accepted by provider (${result.status}). Delivery is confirmed only by a later provider status callback.`);
-      setMessage('');
+      setNotice(result.replayed
+        ? `Duplicate submission suppressed. Existing request status: ${result.status}. No second provider request was sent.`
+        : `${result.channel} request accepted by provider (${result.status}). Delivery is confirmed only by a later provider status callback.`);
+      if (!result.replayed || !['dispatching', 'dispatch_unknown'].includes(result.status)) {
+        setMessage('');
+        setIdempotencyKey(crypto.randomUUID());
+      }
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The message could not be sent.');
@@ -169,19 +175,19 @@ export default function CommunicationsCenter() {
           <form onSubmit={submit} className="space-y-3 border-t border-white/10 bg-slate-950/50 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-xs text-slate-400">Channel
-                <select value={channel} onChange={(event) => setChannel(event.target.value as CommsChannel)} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
+                <select value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); setIdempotencyKey(crypto.randomUUID()); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
                   {channels.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
               <label className="space-y-1 text-xs text-slate-400">Recipient (optional; defaults to owner)
-                <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+                <input value={recipient} onChange={(event) => { setRecipient(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
               </label>
             </div>
             {channel === 'email' && <label className="block space-y-1 text-xs text-slate-400">Subject
-              <input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+              <input value={subject} onChange={(event) => { setSubject(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
             </label>}
             <label className="block space-y-1 text-xs text-slate-400">Message
-              <textarea value={message} onChange={(event) => setMessage(event.target.value)} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
+              <textarea value={message} onChange={(event) => { setMessage(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
             </label>
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] text-slate-500">Provider acceptance is not a delivery receipt. Status callbacks update the timeline.</p>

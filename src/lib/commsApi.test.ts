@@ -28,11 +28,11 @@ describe('Comms API client', () => {
       success: true, channel: 'whatsapp', providerId: 'SM-test', status: 'accepted',
     }), { status: 202 }));
     await expect(sendCommsMessage({
-      channel: 'whatsapp', recipient: '+27710000000', message: 'Hello',
+      channel: 'whatsapp', recipient: '+27710000000', message: 'Hello', idempotencyKey: 'test-request-key-0001',
     })).resolves.toMatchObject({ success: true, providerId: 'SM-test' });
     expect(request).toHaveBeenCalledWith('/api/comms/send', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ channel: 'whatsapp', recipient: '+27710000000', message: 'Hello' }),
+      body: JSON.stringify({ channel: 'whatsapp', recipient: '+27710000000', message: 'Hello', idempotencyKey: 'test-request-key-0001' }),
     }));
   });
 

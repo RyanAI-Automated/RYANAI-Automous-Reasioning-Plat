@@ -372,6 +372,7 @@ model CommunicationMessage {
   direction         String
   body              String                    @db.Text
   providerMessageId String?                   @unique @map("provider_message_id")
+  idempotencyKey     String?                   @unique @map("idempotency_key")
   status            String                    @default("received")
   metadata          Json?
   createdAt         DateTime                  @default(now()) @db.Timestamptz(6) @map("created_at")

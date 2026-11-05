@@ -13,6 +13,7 @@ const { invoke, prismaMock } = vi.hoisted(() => ({
       findUnique: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       create: vi.fn().mockResolvedValue({}),
     },
   },
@@ -26,6 +27,7 @@ const token = 'synthetic-voice-auth-token';
 const voiceUrl = 'https://ryanai.example.test/api/webhooks/twilio/voice';
 const actionUrl = 'https://ryanai.example.test/api/webhooks/twilio/voice/respond';
 const smsUrl = 'https://ryanai.example.test/api/webhooks/twilio/sms';
+const statusUrl = 'https://ryanai.example.test/api/webhooks/twilio/status';
 
 async function send(path: string, url: string, payload: Record<string, string>, valid = true) {
   const app = Fastify();
@@ -52,11 +54,13 @@ beforeEach(() => {
   prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
   prismaMock.communicationMessage.upsert.mockResolvedValue({});
   prismaMock.communicationMessage.update.mockResolvedValue({});
+  prismaMock.communicationMessage.updateMany.mockResolvedValue({ count: 1 });
   prismaMock.communicationMessage.create.mockResolvedValue({});
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
   vi.stubEnv('TWILIO_SMS_WEBHOOK_URL', smsUrl);
+  vi.stubEnv('TWILIO_STATUS_WEBHOOK_URL', statusUrl);
   vi.stubEnv('RYANAI_OWNER_PHONE', '+15555550123');
   vi.stubEnv('RYANAI_OWNER_TITLE', 'Sir G');
   vi.stubEnv('RYANAI_OWNER_LANGUAGE', 've-ZA');
@@ -146,5 +150,17 @@ describe('Twilio conversational voice webhooks', () => {
     vi.stubEnv('TWILIO_AUTH_TOKEN', '');
     const response = await send('/api/webhooks/twilio/voice', voiceUrl, { CallSid: 'CA123', From: '+15555550123' });
     expect(response.statusCode).toBe(503);
+  });
+});
+
+
+describe('Twilio delivery status callbacks', () => {
+  it('updates status without replacing the existing message metadata', async () => {
+    const payload = { MessageSid: 'SM-delivered-1', MessageStatus: 'delivered', ErrorCode: '' };
+    const response = await send('/api/webhooks/twilio/status', statusUrl, payload);
+    expect(response.statusCode).toBe(200);
+    expect(prismaMock.communicationMessage.updateMany).toHaveBeenCalledWith({
+      where: { providerMessageId: 'SM-delivered-1' }, data: { status: 'delivered' },
+    });
   });
 });

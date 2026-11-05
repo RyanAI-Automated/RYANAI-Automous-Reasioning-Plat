@@ -79,6 +79,80 @@ export async function updateCommunicationStatus(
 }
 
 
+export class OutboundIdempotencyConflictError extends Error {
+  constructor() {
+    super('This idempotency key was already used for a different communication request.');
+    this.name = 'OutboundIdempotencyConflictError';
+  }
+}
+export interface BeginOutboundCommunicationInput {
+  channel: CommunicationChannel;
+  externalAddress: string;
+  body: string;
+  idempotencyKey: string;
+  metadata?: Prisma.InputJsonObject;
+}
+export interface BeginOutboundCommunicationResult {
+  id: string;
+  status: string;
+  providerMessageId: string | null;
+  replayed: boolean;
+}
+/** Reserve an outbound communication before contacting a provider. */
+export async function beginOutboundCommunication(
+  prisma: PrismaClient,
+  input: BeginOutboundCommunicationInput,
+): Promise<BeginOutboundCommunicationResult> {
+  const conversation = await prisma.communicationConversation.upsert({
+    where: { channel_externalAddress: { channel: input.channel, externalAddress: input.externalAddress } },
+    create: { channel: input.channel, externalAddress: input.externalAddress },
+    update: { updatedAt: new Date() },
+    select: { id: true },
+  });
+  try {
+    const created = await prisma.communicationMessage.create({
+      data: {
+        conversationId: conversation.id,
+        direction: 'outbound',
+        body: input.body,
+        idempotencyKey: input.idempotencyKey,
+        status: 'dispatching',
+        ...(input.metadata ? { metadata: input.metadata } : {}),
+      },
+      select: { id: true, status: true, providerMessageId: true },
+    });
+    return { id: created.id, status: created.status, providerMessageId: created.providerMessageId, replayed: false };
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { code?: unknown }).code : undefined;
+    if (code !== 'P2002') throw error;
+    const existing = await prisma.communicationMessage.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      select: { id: true, conversationId: true, direction: true, body: true, status: true, providerMessageId: true },
+    });
+    if (!existing) throw error;
+    if (existing.conversationId !== conversation.id || existing.direction !== 'outbound' || existing.body !== input.body) {
+      throw new OutboundIdempotencyConflictError();
+    }
+    return { id: existing.id, status: existing.status, providerMessageId: existing.providerMessageId, replayed: true };
+  }
+}
+/** Attach provider acceptance to the pre-existing outbound reservation. */
+export async function completeOutboundCommunication(
+  prisma: PrismaClient,
+  input: { id: string; providerMessageId: string; status: string },
+): Promise<void> {
+  await prisma.communicationMessage.update({
+    where: { id: input.id },
+    data: { providerMessageId: input.providerMessageId, status: input.status },
+  });
+}
+/** Keep ambiguous outcomes reserved instead of risking a duplicate dispatch. */
+export async function markOutboundCommunicationUnknown(prisma: PrismaClient, id: string): Promise<void> {
+  await prisma.communicationMessage.update({ where: { id }, data: { status: 'dispatch_unknown' } });
+}
+
+
 const INBOUND_PROCESSING_LEASE_MS = 5 * 60 * 1000;
 
 export interface InboundCommunicationClaim {

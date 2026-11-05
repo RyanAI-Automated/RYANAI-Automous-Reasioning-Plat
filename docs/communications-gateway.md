@@ -42,7 +42,7 @@ Every callback URL must exactly match its configured environment value because T
 
 ## API
 
-Owner-authenticated `POST /api/comms/send` accepts `{ "channel": "whatsapp|sms|voice|email", "recipient": "...", "message": "...", "subject": "..." }`. The server requires a verified Supabase session and the configured owner identity; administrator role alone is not sufficient for outbound sends. A 202 response means the provider accepted the request, not that the recipient received it. Use the provider ID and status callbacks to reconcile delivery.
+Owner-authenticated `POST /api/comms/send` accepts `{ "channel": "whatsapp|sms|voice|email", "recipient": "...", "message": "...", "subject": "..." }`. The server requires a verified Supabase session and the configured owner identity; administrator role alone is not sufficient for outbound sends. A 202 response means the provider accepted the request, not that the recipient received it. Use the provider ID and status callbacks to reconcile delivery. Each outbound request also requires a client-generated idempotency key. RyanAI persists a `dispatching` record before contacting Twilio or SMTP; a repeated key returns the existing result and never sends again. A transport timeout or persistence failure after dispatch is recorded as `dispatch_unknown` and remains reserved for manual reconciliation rather than risking a duplicate message or call.
 
 `GET /api/comms/status` is available to a verified owner or administrator and reports configuration presence only, not live connectivity. `GET /api/comms/conversations` is owner-only and returns bounded durable history.
 
@@ -67,6 +67,10 @@ The browser's selected voice and Twilio's telephony voice are separate provider/
 - Browser speech uses the selected locale and an installed device voice when available. Browser speech voice availability varies by operating system/browser; the UI reports when a matching voice is not installed.
 - Twilio currently documents Afrikaans (`af-ZA`) and South African English (`en-ZA`) voices, including Polly Ayanda, but does not list Tshivenda. Therefore phone-call TTS and speech recognition remain on the supported `en-ZA` path unless a future configured speech provider explicitly supports Venda. Text replies and language-aware reasoning can use Tshivenda; do not advertise Venda phone audio as verified until a real provider voice is added and tested.
 
+
+## Outbound dispatch idempotency
+
+The Comms browser generates a fresh idempotency key for each distinct draft and retains it while a request is unresolved. The API enforces uniqueness in PostgreSQL. Concurrent requests with the same key can produce at most one provider dispatch; reuse for a different recipient or message returns HTTP 409. The outbound row is created before the provider call and is updated with the provider ID/status after acceptance. If the provider request fails ambiguously, the row becomes `dispatch_unknown`; do not blindly retry with a new key until an operator has reconciled the provider result. This deliberately favours preventing duplicate calls/messages over automatic retry of an uncertain delivery.
 
 ## Authenticated Comms workspace API
 

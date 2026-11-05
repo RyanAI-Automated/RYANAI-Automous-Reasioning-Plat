@@ -50,7 +50,8 @@ export async function sendCommsMessage(input: {
   recipient?: string;
   message: string;
   subject?: string;
-}): Promise<{ success: boolean; channel: CommsChannel; providerId: string; status: string }> {
+  idempotencyKey: string;
+}): Promise<{ success: boolean; channel: CommsChannel; providerId: string | null; status: string; replayed?: boolean }> {
   const response = await authenticatedFetch('/api/comms/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
