@@ -88,7 +88,7 @@ fn build_reasoning_request(
 
 /// Submit an objective to the authenticated reasoning API used by the web workspace.
 /// The access token is received from the signed-in frontend session for this request only.
-#[command]
+#[command(rename_all = "camelCase")]
 pub async fn trigger_agent_objective(
     objective: String,
     access_token: String,
