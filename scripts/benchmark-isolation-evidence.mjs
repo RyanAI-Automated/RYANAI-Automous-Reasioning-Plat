@@ -54,6 +54,7 @@ const dockerRunArgv = [
   '--memory=256m', '--cpus=1', '--user=10001:10001',
   '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m',
   `--mount=type=bind,src=${root}/${probeScript},dst=/workspace/benchmark-isolation-container.mjs,readonly`,
+  `--mount=type=bind,src=${root}/scripts/benchmark-endpoint-policy.mjs,dst=/workspace/benchmark-endpoint-policy.mjs,readonly`,
   `--mount=type=bind,src=${root}/${policyFile},dst=/workspace/local-isolation-policy.json,readonly`,
   '--workdir=/workspace', imageDigest, 'node',
   '/workspace/benchmark-isolation-container.mjs', imageDigest
@@ -86,12 +87,37 @@ if (probeResult && (
   probeResult.verdict !== 'HARNESS_PASS_ONLY_NOT_GATE_PASS' ||
   probeResult.containerImageDigest !== imageDigest
 )) failures.push('Probe result does not attest the expected image digest and harness-only, no-network, no-model mode.');
+if (probeResult && (!Number.isInteger(probeResult.failedChecks) || probeResult.failedChecks !== 0)) {
+  failures.push('Probe result reports failed or uncounted checks.');
+}
+if (probeResult && (!Array.isArray(probeResult.networkInterfaces) ||
+    JSON.stringify(probeResult.networkInterfaces) !== JSON.stringify(['lo']))) {
+  failures.push('Probe result does not prove that only the loopback interface is present.');
+}
+if (probeResult) {
+  const observedEnv = probeResult.environmentVariableNames;
+  const allowedEnv = probeResult.allowedEnvironmentVariableNames;
+  if (!Array.isArray(observedEnv) || !Array.isArray(allowedEnv) ||
+      observedEnv.some(name => typeof name !== 'string') ||
+      allowedEnv.some(name => typeof name !== 'string') ||
+      JSON.stringify([...observedEnv].sort()) !== JSON.stringify([...allowedEnv].sort())) {
+    failures.push('Probe environment variable names do not exactly match the declared runtime allowlist.');
+  }
+}
 if (missingChecks.length > 0) failures.push('Required probe checks are missing: ' + missingChecks.join(', '));
 if (new Set(reportedCheckNames).size !== reportedCheckNames.length) failures.push('Probe result contains duplicate check names.');
 for (const check of checks) {
-  if (check.status !== 'PASS' || check.exitCode !== 0 || typeof check.command !== 'string' || !check.command || typeof check.observedCode !== 'string' || !check.observedCode) {
-    failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code/result evidence.`);
-    failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code evidence.`);
+  if (!check || typeof check !== 'object' || Array.isArray(check)) {
+    failures.push('Probe result contains a malformed check record.');
+    continue;
+  }
+  if (check.status !== 'PASS' || check.exitCode !== 0 ||
+      typeof check.command !== 'string' || !check.command ||
+      typeof check.observedCode !== 'string' || !check.observedCode) {
+    const detail = typeof check.failureReason === 'string' && check.failureReason
+      ? ': ' + check.failureReason
+      : '';
+    failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code/result evidence${detail}.`);
   }
 }
 
