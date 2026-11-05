@@ -67,6 +67,7 @@ export function evaluateScoringRecord(record) {
     return { verdict: 'INCOMPLETE', reason: 'Assertions require unique IDs, one pinned evaluator version, and explicit boolean outcomes.' };
   }
   if (assertionStatus.failed || record.assertions.some(item => item.passed === false)) {
+    return { verdict: 'FAIL', reason: 'At least one deterministic assertion failed.' };
     return { verdict: 'FAIL', reason: 'At least one deterministic assertion failed or its hashes do not match.' };
   }
   if (!validateHumanReview(record.humanReview)) {

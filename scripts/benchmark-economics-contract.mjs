@@ -78,6 +78,7 @@ export function compareRepeatability(first, second) {
   };
 }
 
+ 
 const isSha256 = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const isDateTime = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 

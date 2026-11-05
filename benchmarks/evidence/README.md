@@ -26,6 +26,8 @@ Run:
     node --test scripts/benchmark-genx-policy-contract.node-test.mjs
 
 The executable checks validate development dataset hashes, externally pinned
+Ed25519 custody attestations, provenance pins, deterministic scoring contracts,
+three-run repeatability, meter/tariff/amortization evidence, and ZAR arithmetic, and the current Gen-X policy function.
 Ed25519 custody attestations, signed provenance pins, deterministic scoring contracts,
 repeatability inputs, ZAR arithmetic, and the current Gen-X policy function.
 Signed custody assertions still require an independent runtime ACL probe. The
