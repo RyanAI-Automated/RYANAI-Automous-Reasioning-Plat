@@ -49,7 +49,7 @@ jobs:
           node --input-type=module -e '
             import { existsSync, readFileSync } from "node:fs";
             const files = [
-              "package.json", "package-lock.json", "vercel.json",
+              "package.json", "package-lock.json",
               ".bolt/config.json", ".devcontainer/devcontainer.json",
               "tsconfig.json", "tsconfig.base.json", "tsconfig.app.json",
               "tsconfig.server.json", "tsconfig.node.json", "tsconfig.mcp.json",
