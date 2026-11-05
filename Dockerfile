@@ -45,9 +45,11 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true
-RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
+RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
+    && update-ca-certificates \
+    && test -s /etc/ssl/cert.pem \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /app/logs \
