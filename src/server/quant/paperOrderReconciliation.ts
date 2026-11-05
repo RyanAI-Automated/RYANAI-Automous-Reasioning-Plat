@@ -49,8 +49,9 @@ function closeEnough(left: number, right: number, tolerance: number): boolean {
 /** Read-only reconciliation of an order's denormalized state against its fill ledger. */
 export function reconcilePaperOrder(snapshot: PaperOrderLedgerSnapshot): PaperOrderReconciliation {
   const reasons: string[] = [];
-  if (!snapshot.id || !snapshot.symbol || !['buy', 'sell'].includes(snapshot.side)) {
-    throw new Error('Paper order identity or side is invalid.');
+  if (!snapshot.id || !snapshot.symbol || !['buy', 'sell'].includes(snapshot.side) ||
+      !Array.isArray(snapshot.fills)) {
+    throw new Error('Paper order identity, side, or fill list is invalid.');
   }
   const numericValues = [
     snapshot.quantity,
@@ -107,6 +108,12 @@ export function reconcilePaperOrder(snapshot: PaperOrderLedgerSnapshot): PaperOr
   }
   if (snapshot.status === 'accepted' && ledgerFilledQuantity > QUANTITY_TOLERANCE) {
     reasons.push('accepted_status_with_fills');
+  }
+  if (snapshot.status === 'cancelled' && remainingQuantity <= QUANTITY_TOLERANCE) {
+    reasons.push('cancelled_status_without_remaining_quantity');
+  }
+  if (snapshot.status === 'rejected' && ledgerFilledQuantity > QUANTITY_TOLERANCE) {
+    reasons.push('rejected_status_with_fills');
   }
   if (!['accepted', 'partially_filled', 'filled', 'cancelled', 'rejected'].includes(snapshot.status)) {
     reasons.push('unknown_order_status');
