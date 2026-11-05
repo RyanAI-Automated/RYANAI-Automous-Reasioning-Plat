@@ -26,6 +26,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # PR updates supersede older runs for the same PR only. Main uses its own
+  # stable ref group and is never cancelled by a pull_request event.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   codacy-security-scan:
     permissions:
