@@ -15,6 +15,7 @@ interface MemoryVaultProps {
   open: boolean;
   userId: string;
   onClose: () => void;
+  presentation?: 'modal' | 'page';
 }
 
 const CATEGORIES = ['preference', 'project', 'note', 'decision', 'context'] as const;
@@ -26,7 +27,7 @@ function dateLabel(value: string | null): string {
 }
 
 /** Account-scoped UI for the same persistent memory records used by RyanAI reasoning. */
-export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps) {
+export default function MemoryVault({ open, userId, onClose, presentation = 'modal' }: MemoryVaultProps) {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
@@ -157,8 +158,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
     }
   }
 
-  return (
-    <Modal open={open} onClose={onClose} title="Memory Vault" icon={<Brain size={20} />}>
+  const content = (
       <div className="space-y-4">
         <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/5 p-3">
           <p className="text-xs leading-5 text-slate-300">
@@ -269,6 +269,20 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
           {loading ? 'Loading…' : 'Load more memories'}
         </button>}
       </div>
-    </Modal>
   );
+
+  if (presentation === 'page') {
+    return (
+      <section className="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:px-8">
+        <header>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Persistent personal context</p>
+          <h1 className="mt-2 text-3xl font-bold text-white">Memory Vault</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Review, search, correct and delete the account-scoped memories used by RyanAI reasoning. PostgreSQL remains the authoritative store.</p>
+        </header>
+        {content}
+      </section>
+    );
+  }
+
+  return <Modal open={open} onClose={onClose} title="Memory Vault" icon={<Brain size={20} />}>{content}</Modal>;
 }
