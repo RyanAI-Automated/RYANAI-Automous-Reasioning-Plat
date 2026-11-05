@@ -53,4 +53,16 @@ describe('read-only broker adapter certification', () => {
     expect(report.status).toBe('incomplete');
     expect(report.checks.find((item) => item.name === 'fill_reconciliation')?.passed).toBe(false);
   });
+  it('treats malformed provider probe responses as incomplete', async () => {
+    const adapter = {
+      id: 'malformed', mode: 'sandbox', liveTradingEnabled: false,
+      capabilities: { orderPreview: true, idempotentClientOrderIds: true, fillReconciliation: true, cancelOrders: true },
+      probe: async () => null,
+      placeOrder: async () => ({ status: 'unsupported' }),
+    } as unknown as CertificationAdapter;
+    const report = await certifyBrokerAdapter(adapter);
+    expect(report.status).toBe('incomplete');
+    expect(report.executionAllowed).toBe(false);
+  });
+
 });
