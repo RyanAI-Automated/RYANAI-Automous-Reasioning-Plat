@@ -7,7 +7,7 @@ import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { beginOutboundCommunication, claimInboundCommunication, completeOutboundCommunication, markOutboundCommunicationUnknown, OutboundIdempotencyConflictError, prepareOutboundCommunication, recordCommunication, updateCommunicationStatus } from './history.js';
 import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
-import { createCommsUploadIntents, createCommsStorageAdmin, cleanCommsAttachmentUrls, downloadCleanCommsAttachments, getCommsAttachmentScanStates, getCommsAttachmentStatuses } from './attachments.js';
+import { createCommsUploadIntents, createCommsStorageAdmin, cleanCommsAttachmentUrls, downloadCleanCommsAttachments, downloadResendMedia, getCommsAttachmentScanStates, getCommsAttachmentStatuses, getOwnerInboundUserId, storeInboundCommsAttachment, storeTwilioMediaForCommunication } from './attachments.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 import { areCommunicationAttachmentsEnabled, isCommunicationsEnabled } from './featureFlags.js';
 
@@ -67,6 +67,19 @@ async function askRyanAI(text: string, threadId: string): Promise<string> {
   const messages = (result as { messages?: Array<{ content?: unknown }> }).messages ?? [];
   const content = messages.at(-1)?.content;
   return typeof content === 'string' ? content : JSON.stringify(content) ?? 'I could not prepare a response.';
+}
+
+function parseTwilioMedia(body: Record<string, string | undefined>) {
+  const rawCount = body.NumMedia ?? '0';
+  if (!/^\d+$/.test(rawCount)) throw new Error('Invalid Twilio media count.');
+  const count = Number(rawCount);
+  if (!Number.isSafeInteger(count) || count < 0 || count > 8) throw new Error('Twilio media count must be between 0 and 8.');
+  return Array.from({ length: count }, (_, index) => {
+    const url = body[`MediaUrl${index}`];
+    const mimeType = body[`MediaContentType${index}`];
+    if (!url || !mimeType) throw new Error('Twilio media payload is incomplete.');
+    return { url, mimeType, index };
+  });
 }
 
 function smtpTransport() {
@@ -363,40 +376,69 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.post('/api/webhooks/twilio/sms', { preHandler: webhookAuth('TWILIO_SMS_WEBHOOK_URL') }, async (request, reply) => {
-    const body = request.body as { From?: string; Body?: string; MessageSid?: string };
+    const body = request.body as Record<string, string | undefined>;
     const sender = body.From ? normalizePhone(body.From) : '';
-    const text = body.Body?.trim().slice(0, MAX_MESSAGE_LENGTH);
+    const text = body.Body?.trim().slice(0, MAX_MESSAGE_LENGTH) || '';
     const owner = process.env.RYANAI_OWNER_PHONE?.trim();
-    if (!sender || !text || !body.MessageSid) return reply.code(400).send({ error: 'Invalid SMS webhook payload.' });
+    let media: ReturnType<typeof parseTwilioMedia>;
+    try { media = parseTwilioMedia(body); }
+    catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : 'Invalid Twilio media payload.' }); }
+    if (!sender || !body.MessageSid || (!text && media.length === 0)) return reply.code(400).send({ error: 'Invalid SMS webhook payload.' });
     if (!owner) return reply.code(503).send({ error: 'RyanAI owner contact is not configured.' });
     if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This assistant is privately configured.' });
-    reply.type('text/xml');
+    const ownerUserId = getOwnerInboundUserId();
+    if (media.length && !ownerUserId) return reply.code(503).send({ error: 'Inbound media storage requires the verified owner Supabase user ID.' });
+    let mediaStorageFailed = false;
     try {
       const claim = await claimInboundCommunication(fastify.prisma, {
-        channel: 'sms', externalAddress: sender,
-        body: text, providerMessageId: body.MessageSid, status: 'processing', ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
+        channel: 'sms',
+        externalAddress: sender,
+        body: text || `[${media.length} media attachment(s)]`,
+        providerMessageId: body.MessageSid,
+        status: 'processing',
+        ...(ownerUserId ? { ownerUserId } : {}),
+        ...(media.length ? { metadata: { mediaCount: media.length } } : {}),
       });
       if (!claim.claimed) {
         const previousReply = claim.existing?.metadata && typeof claim.existing.metadata === 'object'
           && !Array.isArray(claim.existing.metadata)
-          ? (claim.existing.metadata as { reply?: unknown }).reply
-          : undefined;
+          ? (claim.existing.metadata as { reply?: unknown }).reply : undefined;
+        reply.type('text/xml');
         if (typeof previousReply === 'string' && previousReply.length) {
           return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(previousReply.slice(0, 1600))}</Message></Response>`;
         }
         return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
       }
-      const answer = addressOwnerResponse(await askRyanAI(text, `sms_${sender.replace(/\D/g, '')}`));
+      if (media.length) {
+        try { await storeTwilioMediaForCommunication(fastify.prisma, body.MessageSid, media); }
+        catch (error) { mediaStorageFailed = true; throw error; }
+      }
+      const prompt = text
+        ? text + (media.length ? `\\n\\nThe sender attached ${media.length} file(s). They have been stored securely but have not been analyzed. Do not claim to have inspected their contents.` : '')
+        : `The sender attached ${media.length} file(s). They have been stored securely, but their contents have not been analyzed. Tell Sir they were received without claiming to inspect them.`;
+      const answer = addressOwnerResponse(await askRyanAI(prompt, `sms_${sender.replace(/\\D/g, '')}`));
       await fastify.prisma.communicationMessage.update({
-        where: { providerMessageId: body.MessageSid }, data: { status: 'replied', metadata: { reply: answer } },
+        where: { providerMessageId: body.MessageSid },
+        data: { status: 'replied', metadata: { reply: answer, mediaCount: media.length } },
       });
       await recordCommunication(fastify.prisma, {
         channel: 'sms', externalAddress: sender, direction: 'outbound', body: answer,
-        status: 'response_generated', metadata: { inReplyTo: body.MessageSid }, ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
+        status: 'response_generated', metadata: { inReplyTo: body.MessageSid },
+        ...(ownerUserId ? { ownerUserId } : {}),
       });
+      reply.type('text/xml');
       return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(answer.slice(0, 1600))}</Message></Response>`;
     } catch (error) {
+      if (mediaStorageFailed) {
+        await fastify.prisma.communicationMessage.updateMany({
+          where: { providerMessageId: body.MessageSid, status: 'processing' },
+          data: { status: 'attachment_failed' },
+        }).catch((persistenceError) => request.log.error({ err: persistenceError }, 'Unable to persist inbound media retry state'));
+        request.log.error({ err: error }, 'Inbound SMS media storage failed');
+        return reply.code(503).send({ error: 'Inbound media is temporarily unavailable; the provider may retry this webhook.' });
+      }
       request.log.error({ err: error }, 'RyanAI SMS conversation failed');
+      reply.type('text/xml');
       return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>RyanAI is temporarily unavailable. Please try again later.</Message></Response>`;
     }
   });
@@ -446,14 +488,51 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: 'This email assistant is privately configured.' });
       }
       const bodyText = (email.text || email.html?.replace(/<[^>]*>/g, ' ') || '').trim().slice(0, MAX_MESSAGE_LENGTH);
-      if (!bodyText) return reply.code(400).send({ error: 'Inbound email has no readable text body.' });
+      const listed = await resend.emails.receiving.attachments.list({ emailId: email.id });
+      if (listed.error || !listed.data) {
+        request.log.error({ error: listed.error }, 'Could not list inbound email attachments');
+        return reply.code(502).send({ error: 'Could not list inbound email attachments.' });
+      }
+      const inboundAttachments = listed.data.data ?? [];
+      if (inboundAttachments.length > 8 || listed.data.has_more) return reply.code(413).send({ error: 'Inbound email exceeds the eight-attachment limit.' });
+      if (!bodyText && inboundAttachments.length === 0) return reply.code(400).send({ error: 'Inbound email has no readable text body or supported attachments.' });
+      const ownerUserId = getOwnerInboundUserId();
+      if (inboundAttachments.length && !ownerUserId) return reply.code(503).send({ error: 'Inbound media storage requires the verified owner Supabase user ID.' });
       const claim = await claimInboundCommunication(fastify.prisma, {
-        channel: 'email', externalAddress: sender,
-        body: bodyText, providerMessageId: email.id, status: 'processing',
-        metadata: { subject: email.subject || '' }, ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
+        channel: 'email',
+        externalAddress: sender,
+        body: bodyText || `[${inboundAttachments.length} email attachment(s)]`,
+        providerMessageId: email.id,
+        status: 'processing',
+        metadata: { subject: email.subject || '', attachmentCount: inboundAttachments.length },
+        ...(ownerUserId ? { ownerUserId } : {}),
       });
       if (!claim.claimed) return { received: true, duplicate: true };
-      const answer = addressOwnerResponse(await askRyanAI(bodyText, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`));
+      if (inboundAttachments.length) {
+        const storedMessage = await fastify.prisma.communicationMessage.findUnique({
+          where: { providerMessageId: email.id },
+          select: { id: true, conversationId: true },
+        });
+        if (!storedMessage || !ownerUserId) throw new Error('Inbound email attachments lack an owner-bound communication message.');
+        for (const attachment of inboundAttachments) {
+          if (!attachment.download_url || !attachment.content_type) throw new Error('Resend attachment metadata is incomplete.');
+          const bytes = await downloadResendMedia(attachment.download_url);
+          await storeInboundCommsAttachment(fastify.prisma, {
+            ownerUserId,
+            messageId: storedMessage.id,
+            conversationId: storedMessage.conversationId,
+            fileName: attachment.filename || `resend-attachment-${attachment.id}`,
+            mimeType: attachment.content_type,
+            bytes,
+            source: 'inbound_resend',
+            providerMediaId: attachment.id,
+          });
+        }
+      }
+      const prompt = bodyText
+        ? bodyText + (inboundAttachments.length ? `\\n\\nThe email included ${inboundAttachments.length} securely stored file(s). Their contents have not been analyzed; do not claim to have inspected them.` : '')
+        : `The email included ${inboundAttachments.length} securely stored file(s). Their contents have not been analyzed. Tell Sir they were received without claiming to inspect them.`;
+      const answer = addressOwnerResponse(await askRyanAI(prompt, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`));
       const smtp = smtpTransport();
       if (!smtp) {
         await fastify.prisma.communicationMessage.update({
@@ -475,7 +554,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       return { received: true, replied: true };
     } catch (error) {
       request.log.error({ err: error }, 'Resend inbound email webhook failed');
-      return reply.code(400).send({ error: 'Invalid inbound email webhook or processing failure.' });
+      return reply.code(502).send({ error: 'Inbound email processing failed.' });
     }
   });
 };

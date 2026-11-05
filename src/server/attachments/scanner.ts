@@ -156,7 +156,7 @@ export async function purgeExpiredQuarantinedAttachments(
   const { data: candidates, error: queryError } = await supabase
     .from('ryanai_attachment_scans')
     .select('bucket_id, object_name')
-    .eq('bucket_id', 'ryanai-attachments')
+    .in('bucket_id', ['ryanai-attachments', 'ryanai-comms-attachments'])
     .eq('status', 'infected')
     .is('purged_at', null)
     .lt('scanned_at', cutoff)
