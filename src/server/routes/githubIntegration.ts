@@ -261,7 +261,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get('/api/github/connect', { preHandler: requireUser }, async (request, reply) => {
+  fastify.post('/api/github/connect', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in before connecting GitHub.' });
     const config = readGitHubAppConfig();
