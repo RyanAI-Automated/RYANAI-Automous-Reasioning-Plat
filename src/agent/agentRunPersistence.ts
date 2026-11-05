@@ -10,6 +10,8 @@ interface PersistableAgentRun {
   objective: string;
   attempts: number;
   worker_id: string;
+  execution_scope: unknown;
+  trace_context: unknown;
 }
 interface PersistableHandoff {
   id: string;
@@ -72,6 +74,32 @@ export async function persistAgentRunCompletion(
     },
   });
   if (completion.count !== 1) throw new Error('Agent run lease was lost before completion; stale worker result was discarded.');
+  const scope = run.execution_scope && typeof run.execution_scope === 'object' ? run.execution_scope as Record<string, unknown> : {};
+  const paDelegationId = typeof scope.paDelegationId === 'string' ? scope.paDelegationId : null;
+  if (paDelegationId) {
+    const delegation = await tx.paDelegation.findUnique({ where: { id: paDelegationId }, select: { id: true, traceId: true } });
+    if (delegation) {
+      await tx.paExecutionReceipt.upsert({
+        where: { delegationId: delegation.id },
+        create: {
+          delegationId: delegation.id,
+          agentRunId: run.id,
+          traceId: delegation.traceId,
+          attempt: run.attempts,
+          status: 'completed',
+          result: { synthesis: plan.synthesis, degraded: plan.degraded },
+        },
+        update: {
+          agentRunId: run.id,
+          traceId: delegation.traceId,
+          attempt: run.attempts,
+          status: 'completed',
+          result: { synthesis: plan.synthesis, degraded: plan.degraded },
+          error: null,
+        },
+      });
+    }
+  }
   await appendRunEvidence(tx, {
     runId: run.id,
     eventType: 'execution.completed',
