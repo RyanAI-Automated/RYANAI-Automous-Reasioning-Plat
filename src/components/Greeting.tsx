@@ -11,11 +11,14 @@ interface GreetingProps {
   userId?: string;
   displayName?: string | null;
   isOwner?: boolean;
+  preferredLanguage?: string;
+  preferredVoiceEnabled?: boolean;
 }
 
 const languageKey = (userId: string) => `ryanai:language:${userId}`;
 
-function getStoredRyanLanguage(userId: string, isOwner: boolean): string {
+function getStoredRyanLanguage(userId: string, isOwner: boolean, preferredLanguage?: string): string {
+  if (preferredLanguage && RYANAI_LANGUAGES.some((item) => item.code === preferredLanguage)) return preferredLanguage;
   try {
     const stored = window.localStorage.getItem(languageKey(userId));
     if (stored && RYANAI_LANGUAGES.some((language) => language.code === stored)) return stored;
@@ -31,9 +34,9 @@ function getStoredRyanPreference(key: string, legacyKey: string): string | null 
   }
 }
 
-export default function Greeting({ userId: accountId, displayName, isOwner = false }: GreetingProps) {
+export default function Greeting({ userId: accountId, displayName, isOwner = false, preferredLanguage, preferredVoiceEnabled }: GreetingProps) {
   const userId = accountId || displayName || 'guest';
-  const [language, setLanguage] = useState(() => getStoredRyanLanguage(userId, isOwner));
+  const [language, setLanguage] = useState(() => getStoredRyanLanguage(userId, isOwner, preferredLanguage));
   const [title, setTitle] = useState(() =>
     getStoredRyanPreference(`ryanai:title:${userId}`, `ryanai:preferred-title:${userId}`) ?? (isOwner ? 'Sir G' : ''),
   );
@@ -43,7 +46,9 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
     getStoredRyanPreference('ryanai:voice-uri', 'ryanai:voice-greeting-uri') ?? '',
   );
   const [voiceEnabled, setVoiceEnabled] = useState(() =>
-    getStoredRyanPreference('ryanai:voice-enabled', 'ryanai:voice-greetings-enabled') !== 'false',
+    typeof preferredVoiceEnabled === 'boolean'
+      ? preferredVoiceEnabled
+      : getStoredRyanPreference('ryanai:voice-enabled', 'ryanai:voice-greetings-enabled') !== 'false',
   );
   const spoken = useRef(false);
   const firstName = displayName?.trim().split(/\s+/)[0] || 'there';
@@ -91,6 +96,33 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
   }, [userId, language]);
 
   useEffect(() => {
+    if (preferredLanguage && RYANAI_LANGUAGES.some((item) => item.code === preferredLanguage)) {
+      setLanguage(preferredLanguage);
+    }
+  }, [preferredLanguage]);
+
+  useEffect(() => {
+    if (typeof preferredVoiceEnabled === 'boolean') setVoiceEnabled(preferredVoiceEnabled);
+  }, [preferredVoiceEnabled]);
+
+  useEffect(() => {
+    const handleLanguageChange = (event: Event) => {
+      const code = (event as CustomEvent<{ language?: string }>).detail?.language;
+      if (code && RYANAI_LANGUAGES.some((item) => item.code === code)) setLanguage(code);
+    };
+    const handleVoiceChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      if (typeof enabled === 'boolean') setVoiceEnabled(enabled);
+    };
+    window.addEventListener('ryanai:language-changed', handleLanguageChange);
+    window.addEventListener('ryanai:voice-enabled-changed', handleVoiceChange);
+    return () => {
+      window.removeEventListener('ryanai:language-changed', handleLanguageChange);
+      window.removeEventListener('ryanai:voice-enabled-changed', handleVoiceChange);
+    };
+  }, []);
+
+  useEffect(() => {
     if (voiceEnabled && voices.length && !spoken.current) {
       spoken.current = true;
       speak();
@@ -119,7 +151,11 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
   const toggleVoice = () => {
     const enabled = !voiceEnabled;
     setVoiceEnabled(enabled);
-    try { window.localStorage.setItem('ryanai:voice-enabled', String(enabled)); } catch { /* browser storage may be disabled */ }
+    try {
+      window.localStorage.setItem('ryanai:voice-enabled', String(enabled));
+      window.localStorage.setItem('ryanai:voice-greetings-enabled', String(enabled));
+    } catch { /* browser storage may be disabled */ }
+    window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled } }));
     if (enabled) speak();
     else window.speechSynthesis?.cancel();
   };
