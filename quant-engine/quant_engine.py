@@ -239,6 +239,10 @@ def run_walk_forward(payload: object) -> dict:
         raise ValueError("step_window must be at least test_window so out-of-sample folds do not overlap")
     if train_window + test_window > len(bars):
         raise ValueError("bars do not contain enough history for one train/test fold")
+    available_folds = 1 + (len(bars) - train_window - test_window) // step_window
+    planned_folds = min(max_folds, available_folds)
+    if len(parameter_grid) * planned_folds * train_window > 100_000:
+        raise ValueError("walk-forward evaluation exceeds the bounded compute budget")
 
     folds = []
     start = train_window
