@@ -407,4 +407,91 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
+
+  // Promote a completed, user-owned research experiment into a paper portfolio plan.
+  // Promotion allocates a target budget only; it does not place or schedule orders.
+  fastify.get('/api/quant/paper/strategies', async (request) => {
+    const strategies = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      "SELECT s.id, s.experiment_id, e.strategy, s.allocation_pct::text, s.enabled, s.created_at, (e.result -> 'metrics') AS metrics FROM quant_paper_strategies s INNER JOIN quant_experiments e ON e.id = s.experiment_id AND e.user_id = s.user_id WHERE s.user_id = $1 ORDER BY s.created_at DESC",
+      request.authUser!.id,
+    );
+    return { strategies, totalAllocationPct: strategies.filter((item) => item.enabled).reduce((sum, item) => sum + Number(item.allocation_pct), 0) };
+  });
+
+  fastify.post<{ Body: { experimentId: string; allocationPct: number } }>('/api/quant/paper/strategies', {
+    schema: {
+      body: {
+        type: 'object', additionalProperties: false,
+        required: ['experimentId', 'allocationPct'],
+        properties: {
+          experimentId: { type: 'string', minLength: 1, maxLength: 64 },
+          allocationPct: { type: 'number', minimum: 1, maximum: 100 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const userId = request.authUser!.id;
+    const experiment = await prisma.quantExperiment.findFirst({
+      where: { id: request.body.experimentId, userId, status: 'completed' },
+      select: { id: true, strategy: true, status: true, result: true },
+    });
+    if (!experiment || !experiment.result) {
+      return reply.code(404).send({ error: 'Completed research experiment not found for this account.' });
+    }
+
+    const promoted = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
+        userId,
+      );
+      await tx.$queryRawUnsafe<Array<{ user_id: string }>>(
+        'SELECT user_id FROM quant_paper_accounts WHERE user_id = $1 FOR UPDATE',
+        userId,
+      );
+      const allocations = await tx.$queryRawUnsafe<Array<{ allocated_pct: string }>>(
+        'SELECT COALESCE(SUM(allocation_pct), 0)::text AS allocated_pct FROM quant_paper_strategies WHERE user_id = $1 AND enabled = TRUE AND experiment_id <> $2',
+        userId, request.body.experimentId,
+      );
+      const committedPct = Number(allocations[0]?.allocated_pct ?? 0);
+      if (committedPct + request.body.allocationPct > 100) {
+        return { overAllocated: true as const, committedPct };
+      }
+      const rows = await tx.$queryRawUnsafe<Array<{ id: string; allocation_pct: string; enabled: boolean }>>(
+        'INSERT INTO quant_paper_strategies (user_id, experiment_id, allocation_pct, enabled, created_at, updated_at) VALUES ($1, $2, $3, TRUE, NOW(), NOW()) ON CONFLICT (user_id, experiment_id) DO UPDATE SET allocation_pct = EXCLUDED.allocation_pct, enabled = TRUE, updated_at = NOW() RETURNING id, allocation_pct::text, enabled',
+        userId, request.body.experimentId, request.body.allocationPct,
+      );
+      return { overAllocated: false as const, strategy: rows[0] };
+    });
+
+    if (promoted.overAllocated) {
+      return reply.code(409).send({
+        error: 'Paper strategy allocations cannot exceed 100% of the portfolio.',
+        committedAllocationPct: promoted.committedPct,
+        requestedAllocationPct: request.body.allocationPct,
+      });
+    }
+    return reply.code(201).send({
+      strategy: {
+        ...promoted.strategy,
+        experimentId: request.body.experimentId,
+        name: experiment.strategy,
+      },
+      mode: 'paper_plan_only',
+      executionEnabled: false,
+      message: 'Strategy added to the paper portfolio plan. No orders were placed.',
+    });
+  });
+
+  fastify.delete<{ Params: { experimentId: string } }>(
+    '/api/quant/paper/strategies/:experimentId',
+    async (request, reply) => {
+      const deleted = await prisma.$executeRawUnsafe(
+        'DELETE FROM quant_paper_strategies WHERE user_id = $1 AND experiment_id = $2',
+        request.authUser!.id, request.params.experimentId,
+      );
+      if (deleted === 0) return reply.code(404).send({ error: 'Paper portfolio strategy not found.' });
+      return { removed: true, experimentId: request.params.experimentId };
+    },
+  );
+
 };

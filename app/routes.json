@@ -37,6 +37,11 @@
       "path": "/quant"
     },
     {
+      "id": "trading",
+      "label": "Trading",
+      "path": "/trading"
+    },
+    {
       "id": "cockpit",
       "label": "Cockpit",
       "path": "/cockpit"

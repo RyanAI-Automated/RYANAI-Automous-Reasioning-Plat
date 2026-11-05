@@ -8,12 +8,20 @@ const comms = vi.hoisted(() => ({
   getCommsStatus: vi.fn(),
   getCommsConversations: vi.fn(),
   sendCommsMessage: vi.fn(),
+  prepareCommsAttachments: vi.fn(),
+  uploadCommsAttachment: vi.fn(),
+  getCommsAttachmentStatuses: vi.fn(),
+  getCommsAttachmentDownloadUrl: vi.fn(),
 }));
 
 vi.mock('@/lib/commsApi', () => ({
   getCommsStatus: comms.getCommsStatus,
   getCommsConversations: comms.getCommsConversations,
   sendCommsMessage: comms.sendCommsMessage,
+  prepareCommsAttachments: comms.prepareCommsAttachments,
+  uploadCommsAttachment: comms.uploadCommsAttachment,
+  getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,
+  getCommsAttachmentDownloadUrl: comms.getCommsAttachmentDownloadUrl,
 }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -62,6 +70,10 @@ beforeEach(() => {
     note: 'Configuration only.',
   });
   comms.getCommsConversations.mockResolvedValue(conversations);
+  comms.prepareCommsAttachments.mockResolvedValue({ success: true, messageId: 'message-1', replayed: false, attachments: [] });
+  comms.uploadCommsAttachment.mockResolvedValue(undefined);
+  comms.getCommsAttachmentStatuses.mockResolvedValue([]);
+  comms.getCommsAttachmentDownloadUrl.mockResolvedValue('https://storage.example.test/download');
   comms.sendCommsMessage.mockResolvedValue({
     success: true,
     channel: 'whatsapp',
@@ -120,9 +132,11 @@ describe('RyanAI Comms inbox controls', () => {
     expect(list?.textContent).not.toContain('+27110000001');
   });
 
-  it('explains that Comms attachments remain disabled until their own security controls exist', async () => {
+  it('exposes private file selection and clean-scan gated sharing', async () => {
     await render();
-    expect(container.textContent).toContain('Comms attachments are locked pending secure storage integration.');
-    expect(container.querySelector('input[type="file"]')).toBeNull();
+    expect(container.textContent).toContain('Private Comms attachments');
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.multiple).toBe(true);
   });
 });
