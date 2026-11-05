@@ -116,6 +116,33 @@
           }
         }
       }
+    },
+    "remote_credentials_mounted": {
+      "type": "boolean"
+    },
+    "cloud_fallback_enabled": {
+      "type": "boolean"
+    },
+    "os_egress_enforcement_evidence": {
+      "type": "boolean"
+    },
+    "ollama_loopback_only": {
+      "type": "boolean"
+    },
+    "provider_secret_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "endpoint_host": {
+      "type": "string",
+      "minLength": 1
+    },
+    "spend_ceiling_zar": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "explicit_evaluation_approval": {
+      "type": "boolean"
     }
   }
 }
