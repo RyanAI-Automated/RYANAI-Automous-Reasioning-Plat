@@ -20,7 +20,7 @@ RECENT CONFIGURATION AUDIT
 RELEASE GATES
 - Confirm the latest CI, integration, security, and container-build workflows pass for the release SHA.
 - Configure Render DATABASE_URL and REDIS_URL with real managed-service URLs before deploying the API.
-- Configure Vercel production deployment secrets and VERCEL_DEPLOY_ENABLED if Vercel production deployment is intended.
+- Configure Render and Railway staging targets only after their isolation and exact-commit CI/security gates are verified.
 - Verify the deployed frontend, API, database, Redis, MCP service, authentication, and provider requests in staging.
 - Confirm backup/restore and rollback procedures before production release.
 
