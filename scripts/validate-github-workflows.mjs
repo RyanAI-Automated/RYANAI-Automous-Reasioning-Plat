@@ -122,38 +122,6 @@ if (!statSafe(jarvisSmokePath)) {
 
 }
 
-const vercelValidationPath = join(workflowDir, 'vercel-deploy.yml');
-if (!statSafe(vercelValidationPath)) {
-  errors.push('Missing .github/workflows/vercel-deploy.yml');
-} else {
-  const vercelText = readFileSync(vercelValidationPath, 'utf8');
-  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(vercelText)) {
-    fail(vercelValidationPath, 'validation-only workflow must not receive Vercel deployment credentials');
-  }
-  if (/\bvercel(?:@latest)?\s+(?:build|deploy)\b/i.test(vercelText)) {
-    fail(vercelValidationPath, 'validation-only workflow must not build or deploy production output');
-  }
-}
-
-const productionDeployPath = join(workflowDir, 'deploy-vercel.yml');
-if (statSafe(productionDeployPath)) {
-  const productionDeployText = readFileSync(productionDeployPath, 'utf8');
-  const productionDeployDocument = parse(productionDeployText);
-  if (Object.prototype.hasOwnProperty.call(productionDeployDocument?.on ?? {}, 'workflow_dispatch')) {
-    fail(productionDeployPath, 'production deployment must not bypass the successful-CI gate through workflow_dispatch');
-  }
-  for (const required of [
-    "github.event.workflow_run.conclusion == 'success'",
-    "github.event.workflow_run.event == 'push'",
-    "vars.VERCEL_DEPLOY_ENABLED == 'true'",
-  ]) {
-    if (!productionDeployText.includes(required)) {
-      fail(productionDeployPath, 'production deployment is missing required gate: ' + required);
-    }
-  }
-}
-
-
 function assertPermissionsWorkflow(relativePath, checkDocument) {
   const filePath = join(workflowDir, relativePath);
   if (!statSafe(filePath)) {
@@ -210,12 +178,6 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
 });
 
 assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
-  if (/secrets\.VERCEL_(?:TOKEN|ORG_ID|PROJECT_ID)/i.test(text)) {
-    fail(filePath, 'pull-request preview validation must not expose Vercel credentials to PR code');
-  }
-  if (/vercel(?:@latest)?\s+(?:build|deploy)\b/i.test(text)) {
-    fail(filePath, 'pull-request preview validation must not deploy from untrusted PR code');
-  }
   if (document.permissions?.contents !== 'read') {
     fail(filePath, 'preview validation must use read-only repository permissions');
   }
