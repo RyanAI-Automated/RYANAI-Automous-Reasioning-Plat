@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { API_BASE_URL } from '@/lib/apiBaseUrl';
+import { appendLiveTranscript } from '@/lib/liveTranscript';
 
 type VoiceStatus = 'idle' | 'connecting' | 'listening' | 'error';
 
@@ -66,6 +67,8 @@ function decodePcm16(encoded: string): Float32Array {
 export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   const [status, setStatus] = useState<VoiceStatus>('idle');
   const [error, setError] = useState('');
+  const [inputTranscript, setInputTranscript] = useState('');
+  const [outputTranscript, setOutputTranscript] = useState('');
   const audioContext = useRef<AudioContext | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
   const mediaSource = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -127,6 +130,8 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
 
     setStatus('connecting');
     setError('');
+    setInputTranscript('');
+    setOutputTranscript('');
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -216,6 +221,18 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
           return;
         }
 
+        if (event.type === 'session.input_transcript.delta') {
+          const delta = event.delta;
+          if (typeof delta === 'string') setInputTranscript((current) => appendLiveTranscript(current, delta));
+          return;
+        }
+
+        if (event.type === 'session.output_transcript.delta') {
+          const delta = event.delta;
+          if (typeof delta === 'string') setOutputTranscript((current) => appendLiveTranscript(current, delta));
+          return;
+        }
+
         if (event.type === 'session.closed') {
           stop();
           return;
@@ -297,24 +314,38 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   };
 
   return (
-    <div className="absolute top-4 right-4 z-30 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-lg border border-cyan-500/60 bg-black/85 p-3 shadow-[0_0_15px_#0ff]">
-      <span className={`h-3 w-3 shrink-0 rounded-full ${
-        status === 'listening' ? 'bg-green-500 animate-pulse' :
-        status === 'connecting' ? 'bg-amber-400 animate-pulse' :
-        status === 'error' ? 'bg-rose-500' : 'bg-slate-500'
-      }`} />
-      <div className="min-w-0">
-        <button
-          type="button"
-          onClick={toggleVoiceLink}
-          className="text-left font-mono text-xs uppercase tracking-wider text-cyan-300 hover:text-white"
-        >
-          {status === 'listening' ? 'Terminate live voice' :
-            status === 'connecting' ? 'Cancel voice connection' :
-            status === 'error' ? 'Retry live voice' : 'Initialize live voice'}
-        </button>
-        {error && <p role="status" className="mt-1 max-w-56 text-[10px] text-rose-300">{error}</p>}
+    <div className="absolute top-4 right-4 z-30 flex w-80 max-w-[calc(100%-2rem)] flex-col gap-2 rounded-lg border border-cyan-500/60 bg-black/85 p-3 shadow-[0_0_15px_#0ff]">
+      <div className="flex items-center gap-3">
+        <span className={`h-3 w-3 shrink-0 rounded-full ${
+          status === 'listening' ? 'bg-green-500 animate-pulse' :
+          status === 'connecting' ? 'bg-amber-400 animate-pulse' :
+          status === 'error' ? 'bg-rose-500' : 'bg-slate-500'
+        }`} />
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={toggleVoiceLink}
+            className="text-left font-mono text-xs uppercase tracking-wider text-cyan-300 hover:text-white"
+          >
+            {status === 'listening' ? 'Terminate live voice' :
+              status === 'connecting' ? 'Cancel voice connection' :
+              status === 'error' ? 'Retry live voice' : 'Initialize live voice'}
+          </button>
+          {error && <p role="status" className="mt-1 max-w-56 text-[10px] text-rose-300">{error}</p>}
+        </div>
       </div>
+      {(status === 'listening' || inputTranscript || outputTranscript) && (
+        <section aria-label="Live voice transcript" aria-live="polite" className="max-h-56 space-y-3 overflow-y-auto rounded-md border border-white/10 bg-slate-950/95 p-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300">You · Voice to text</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">{inputTranscript || 'Listening for your speech…'}</p>
+          </div>
+          <div className="border-t border-white/10 pt-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-300">RyanAI · Text to voice</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">{outputTranscript || 'RyanAI’s spoken response will appear here.'}</p>
+          </div>
+        </section>
+      )}
     </div>
   );
 };
