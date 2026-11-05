@@ -246,4 +246,3 @@ const routeFromHash = (): Route => {
     </div>
   );
 }
-}
