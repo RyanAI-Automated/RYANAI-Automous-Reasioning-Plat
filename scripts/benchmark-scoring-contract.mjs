@@ -68,6 +68,7 @@ export function evaluateScoringRecord(record) {
   }
   if (assertionStatus.failed || record.assertions.some(item => item.passed === false)) {
     return { verdict: 'FAIL', reason: 'At least one deterministic assertion failed.' };
+    return { verdict: 'FAIL', reason: 'At least one deterministic assertion failed or its hashes do not match.' };
   }
   if (!validateHumanReview(record.humanReview)) {
     return { verdict: 'BLOCKED', reason: 'Independent, blinded, conflict-checked and calibrated human review is absent or incomplete.' };

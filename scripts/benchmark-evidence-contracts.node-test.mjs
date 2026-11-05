@@ -761,3 +761,184 @@ test('provenance validator rejects nested symlink escape', async () => {
     await rm(outside, { recursive: true, force: true });
   }
 });
+
+
+const scoringHash = 'a'.repeat(64);
+const passingAssertion = id => ({
+  id, passed: true, evaluatorVersion: 'fixture-scorer-v1',
+  expectedSha256: scoringHash, observedSha256: scoringHash
+});
+const independentReview = {
+  reviewerId: 'reviewer-fixture', rubricVersion: 'rubric-1',
+  blindCandidateId: 'candidate-blind-a', score: 4,
+  rationale: 'Synthetic fixture review.', reviewedAt: '2026-11-05T00:00:00.000Z',
+  independentReviewer: true, conflictOfInterestChecked: true,
+  conflictOfInterest: false, calibrationVersion: 'calibration-fixture-v1'
+};
+
+test('scoring contract rejects incomplete or unpinned deterministic assertions', () => {
+  assert.equal(evaluateScoringRecord({ assertions: [] }).verdict, 'INCOMPLETE');
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ id: 'schema', passed: true }]
+  }).verdict, 'INCOMPLETE');
+  assert.equal(evaluateScoringRecord({
+    assertions: [passingAssertion('schema'), passingAssertion('schema')]
+  }).verdict, 'INCOMPLETE');
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ ...passingAssertion('schema'), evaluatorVersion: '' }]
+  }).verdict, 'INCOMPLETE');
+});
+
+test('deterministic hash mismatch and safety violations always fail', () => {
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ ...passingAssertion('schema'), observedSha256: 'b'.repeat(64) }],
+    humanReview: independentReview
+  }).verdict, 'FAIL');
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ ...passingAssertion('schema'), passed: false, observedSha256: 'b'.repeat(64) }]
+  }).verdict, 'FAIL');
+  assert.equal(evaluateScoringRecord({
+    assertions: [passingAssertion('schema')],
+    safetyViolation: true
+  }).verdict, 'FAIL');
+});
+
+test('scoring PASS requires calibrated independent blinded conflict-checked human review', () => {
+  const assertions = [passingAssertion('schema')];
+  assert.equal(evaluateScoringRecord({ assertions }).verdict, 'BLOCKED');
+  assert.equal(evaluateScoringRecord({
+    assertions,
+    humanReview: { ...independentReview, independentReviewer: false }
+  }).verdict, 'BLOCKED');
+  assert.equal(evaluateScoringRecord({
+    assertions, humanReview: independentReview
+  }).verdict, 'PASS');
+  const first = evaluateScoringRecord({
+    assertions: [passingAssertion('schema'), passingAssertion('format')],
+    humanReview: independentReview
+  });
+  const second = evaluateScoringRecord({
+    assertions: [passingAssertion('format'), passingAssertion('schema')],
+    humanReview: independentReview
+  });
+  assert.deepEqual(first, second, 'scoring verdict must not depend on assertion order');
+});
+
+test('model input rejects nested scoring-oracle fields and cyclic payloads', () => {
+  assert.throws(
+    () => assertModelInputHasNoScoringOracle({
+      prompt: 'fixture', nested: { expectedAnswer: 'secret' }
+    }),
+    /Scoring oracle leaked/
+  );
+  assert.throws(
+    () => assertModelInputHasNoScoringOracle({ nested: { gold_answer: 'secret' } }),
+    /Scoring oracle leaked/
+  );
+  const cyclic = {};
+  cyclic.self = cyclic;
+  assert.throws(() => assertModelInputHasNoScoringOracle(cyclic), /Cyclic model input/);
+});
+
+function syntheticResourceMeasurement() {
+  return {
+    schemaVersion: '1.0.0',
+    measurementOwner: 'synthetic-meter-reviewer',
+    hardwareIdentity: 'synthetic-cpu-fixture-v1',
+    meter: {
+      source: 'synthetic-power-meter',
+      deviceId: 'fixture-meter-001',
+      calibrationEvidenceSha256: 'a'.repeat(64),
+      rawEvidenceSha256: 'b'.repeat(64),
+      startKwh: 10,
+      endKwh: 10.5,
+      startedAt: '2026-11-05T00:00:00.000Z',
+      endedAt: '2026-11-05T01:00:00.000Z'
+    },
+    idleBaselineKwh: 0.1,
+    tariff: {
+      rateZarPerKwh: 3.5,
+      source: 'synthetic-tariff-document',
+      evidenceSha256: 'c'.repeat(64),
+      effectiveAt: '2026-11-01T00:00:00.000Z'
+    },
+    hardwareAmortization: {
+      costZar: 2,
+      allocationMethod: 'synthetic-runtime-share',
+      evidenceSha256: 'd'.repeat(64)
+    }
+  };
+}
+
+test('resource cost requires auditable meter, calibration, tariff and amortization evidence', () => {
+  const measurement = syntheticResourceMeasurement();
+  const result = calculateMeasuredResourceCostZar({
+    measurement, attemptedTasks: 3, acceptedTasks: 1
+  });
+  assert.equal(result.status, 'MEASURED_INPUTS_VALIDATED_EXTERNAL_CONFIRMATION_REQUIRED');
+  assert.equal(result.gateVerdict, 'BLOCKED');
+  assert.equal(result.netEnergyKwh, 0.4);
+  assert.equal(result.energyCostZar, 1.4);
+  assert.equal(result.totalCostZar, 3.4);
+  assert.equal(result.costPerAttemptZar, 3.4 / 3);
+  assert.equal(result.costPerAcceptedTaskZar, 3.4);
+  assert.equal(calculateMeasuredResourceCostZar({
+    measurement: { ...measurement, meter: { ...measurement.meter, calibrationEvidenceSha256: '' } },
+    attemptedTasks: 3, acceptedTasks: 1
+  }).status, 'BLOCKED');
+  assert.equal(calculateMeasuredResourceCostZar({
+    measurement, attemptedTasks: 0, acceptedTasks: 0
+  }).status, 'BLOCKED');
+});
+
+const repeatabilityConfig = {
+  datasetSha256: 'a'.repeat(64),
+  promptConfigSha256: 'b'.repeat(64),
+  candidateIdentity: 'fixture-model@sha256:' + 'c'.repeat(64),
+  runtimeIdentity: 'fixture-runtime-v1',
+  hardwareIdentity: 'fixture-hardware-v1',
+  seed: 7,
+  concurrency: 1
+};
+const repeatabilityRuns = () => [
+  {
+    runId: 'trial-1', configuration: repeatabilityConfig,
+    outputSha256: 'd'.repeat(64), scorerRecordSha256: 'e'.repeat(64),
+    measurementEvidenceSha256: 'f'.repeat(64),
+    p95LatencyMs: 100, costPerAcceptedTaskZar: 1
+  },
+  {
+    runId: 'trial-2', configuration: repeatabilityConfig,
+    outputSha256: 'd'.repeat(64), scorerRecordSha256: 'e'.repeat(64),
+    measurementEvidenceSha256: '1'.repeat(64),
+    p95LatencyMs: 104, costPerAcceptedTaskZar: 1.02
+  },
+  {
+    runId: 'trial-3', configuration: repeatabilityConfig,
+    outputSha256: 'd'.repeat(64), scorerRecordSha256: 'e'.repeat(64),
+    measurementEvidenceSha256: '2'.repeat(64),
+    p95LatencyMs: 108, costPerAcceptedTaskZar: 1.04
+  }
+];
+
+test('repeatability requires three comparable runs with stable outputs and bounded metric spread', () => {
+  const runs = repeatabilityRuns();
+  const result = evaluateRepeatability(runs, { maxSpreadPct: 10 });
+  assert.equal(result.verdict, 'REPEATABLE');
+  assert.equal(result.gateVerdict, 'BLOCKED');
+  assert.equal(result.repetitionCount, 3);
+  assert.ok(result.latencySpreadPct < 10);
+  assert.ok(result.costSpreadPct < 10);
+  assert.equal(evaluateRepeatability(runs.slice(0, 2)).verdict, 'BLOCKED');
+  assert.equal(evaluateRepeatability([
+    ...runs.slice(0, 2), { ...runs[2], outputSha256: '3'.repeat(64) }
+  ]).verdict, 'NOT_REPEATABLE');
+  assert.equal(evaluateRepeatability([
+    ...runs.slice(0, 2), { ...runs[2], p95LatencyMs: 300 }
+  ]).verdict, 'NOT_REPEATABLE');
+  assert.equal(evaluateRepeatability([
+    ...runs.slice(0, 2), {
+      ...runs[2], configuration: { ...repeatabilityConfig, seed: 8 }
+    }
+  ]).verdict, 'NOT_COMPARABLE');
+});
