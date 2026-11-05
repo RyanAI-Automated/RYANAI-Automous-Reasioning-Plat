@@ -478,6 +478,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # The core validate job already runs npm run validate and workflow:validate.
+          # Do not wait on the separate path-filtered Configuration Validation workflow.
           required=(
             "Test agent API contracts"
             "Dependency audit"
@@ -486,7 +488,6 @@ jobs:
             "Analyze (python)"
             "TruffleHog secret audit"
             "Codacy Security Scan"
-            "Validate configuration files"
           )
           ready=false
           for attempt in $(seq 1 40); do
