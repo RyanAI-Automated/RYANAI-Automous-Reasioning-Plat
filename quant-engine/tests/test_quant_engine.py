@@ -60,6 +60,8 @@ class QuantEngineTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first["metrics"]["fold_count"], 4)
         self.assertFalse(first["look_ahead_leakage"])
+        self.assertEqual(first["folds"][0]["test_initial_position"], "long")
+        self.assertEqual(first["folds"][0]["out_of_sample_trades"][0]["date"], first["folds"][0]["test_period"]["start"])
         for fold in first["folds"]:
             self.assertGreater(fold["test_period"]["start"], fold["training_period"]["end"])
             for trade in fold["out_of_sample_trades"]:
