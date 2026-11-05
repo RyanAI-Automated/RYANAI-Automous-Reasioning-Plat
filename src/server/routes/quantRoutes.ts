@@ -569,16 +569,85 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             userId, symbol,
           );
           const held = Number(positions[0]?.quantity ?? 0);
+          if (request.body.side === 'sell' && held < quantity) throw new Error('INSUFFICIENT_PAPER_POSITION');
+
+          const exposureRows = await tx.$queryRawUnsafe<Array<{ gross_exposure: string }>>(
+            'SELECT COALESCE(SUM(quantity * last_price), 0)::text AS gross_exposure FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0',
+            userId,
+          );
+          const grossExposure = Number(exposureRows[0]?.gross_exposure ?? 0);
+          const heldMarkPrice = Number(positions[0]?.last_price ?? 0);
+          const symbolExposure = held * heldMarkPrice;
           if (request.body.side === 'buy') {
-            const exposureRows = await tx.$queryRawUnsafe<Array<{ gross_exposure: string }>>(
-              'SELECT COALESCE(SUM(quantity * last_price), 0)::text AS gross_exposure FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0',
-              userId,
-            );
-            const grossExposure = Number(exposureRows[0]?.gross_exposure ?? 0);
-            const symbolExposure = held * Number(positions[0]?.last_price ?? 0);
             if (symbolExposure + notional > Number(policy.max_position_notional)) throw new Error('PAPER_POSITION_RISK_LIMIT');
             if (grossExposure + notional > Number(policy.max_gross_exposure)) throw new Error('PAPER_GROSS_RISK_LIMIT');
           }
+
+          // Capture each UTC day's opening equity and the lifetime peak once.
+          // Marks are the latest stored paper fill prices, not live quotes.
+          await tx.$executeRawUnsafe(
+            `INSERT INTO quant_paper_daily_risk_state
+              (user_id, risk_date, starting_equity, current_equity, daily_loss, updated_at)
+             SELECT a.user_id, CURRENT_DATE,
+                    a.cash_balance + COALESCE(SUM(p.quantity * p.last_price), 0),
+                    a.cash_balance + COALESCE(SUM(p.quantity * p.last_price), 0),
+                    0, NOW()
+             FROM quant_paper_accounts a
+             LEFT JOIN quant_paper_positions p ON p.user_id = a.user_id AND p.quantity > 0
+             WHERE a.user_id = $1
+             GROUP BY a.user_id, a.cash_balance
+             ON CONFLICT (user_id, risk_date) DO NOTHING`,
+            userId,
+          );
+          await tx.$executeRawUnsafe(
+            `INSERT INTO quant_paper_portfolio_risk_state
+              (user_id, peak_equity, current_equity, max_drawdown_pct, updated_at)
+             SELECT a.user_id,
+                    a.cash_balance + COALESCE(SUM(p.quantity * p.last_price), 0),
+                    a.cash_balance + COALESCE(SUM(p.quantity * p.last_price), 0),
+                    0, NOW()
+             FROM quant_paper_accounts a
+             LEFT JOIN quant_paper_positions p ON p.user_id = a.user_id AND p.quantity > 0
+             WHERE a.user_id = $1
+             GROUP BY a.user_id, a.cash_balance
+             ON CONFLICT (user_id) DO NOTHING`,
+            userId,
+          );
+          const dailyRows = await tx.$queryRawUnsafe<Array<{ starting_equity: string }>>(
+            'SELECT starting_equity::text FROM quant_paper_daily_risk_state WHERE user_id = $1 AND risk_date = CURRENT_DATE FOR UPDATE',
+            userId,
+          );
+          const portfolioRows = await tx.$queryRawUnsafe<Array<{ peak_equity: string }>>(
+            'SELECT peak_equity::text FROM quant_paper_portfolio_risk_state WHERE user_id = $1 FOR UPDATE',
+            userId,
+          );
+          const assessment = assessPaperOrderRisk({
+            cashBalance: cash,
+            grossExposure,
+            heldQuantity: held,
+            heldMarkPrice,
+            orderQuantity: quantity,
+            referencePrice: price,
+            fee,
+            side: request.body.side,
+            startingDailyEquity: Number(dailyRows[0]?.starting_equity ?? (cash + grossExposure)),
+            lifetimePeakEquity: Number(portfolioRows[0]?.peak_equity ?? (cash + grossExposure)),
+            limits: {
+              maxDailyLoss: Number(policy.max_daily_loss),
+              maxDrawdownPct: Number(policy.max_drawdown_pct),
+            },
+          });
+          if (assessment.breach) {
+            await tx.$executeRawUnsafe(
+              `UPDATE quant_paper_risk_policies
+               SET emergency_stop = TRUE, trading_enabled = FALSE,
+                   emergency_stop_reason = $2, emergency_stopped_at = NOW(), updated_at = NOW()
+               WHERE user_id = $1`,
+              userId, assessment.breach,
+            );
+            return { duplicate: false, riskBlocked: true, riskReason: assessment.breach };
+          }
+
           const averageEntry = Number(positions[0]?.average_entry_price ?? 0);
           let realizedPnl = 0;
           if (request.body.side === 'buy') {
@@ -615,14 +684,42 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             'INSERT INTO quant_paper_trades (order_id, user_id, symbol, side, quantity, price, fee, realized_pnl, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
             orders[0].id, userId, symbol, request.body.side, quantity, price, fee, request.body.side === 'sell' ? realizedPnl : null,
           );
-          return { duplicate: false, orderId: orders[0].id, status: 'filled', symbol, side: request.body.side, quantity, fillPrice: price, fee, realizedPnl };
+          await tx.$executeRawUnsafe(
+            `UPDATE quant_paper_daily_risk_state
+             SET current_equity = $2, daily_loss = $3, updated_at = NOW()
+             WHERE user_id = $1 AND risk_date = CURRENT_DATE`,
+            userId, assessment.projectedEquity, assessment.dailyLoss,
+          );
+          await tx.$executeRawUnsafe(
+            `UPDATE quant_paper_portfolio_risk_state
+             SET peak_equity = $2, current_equity = $3,
+                 max_drawdown_pct = GREATEST(max_drawdown_pct, $4), updated_at = NOW()
+             WHERE user_id = $1`,
+            userId, assessment.peakEquityAfterOrder, assessment.projectedEquity, assessment.drawdownPct,
+          );
+          return {
+            duplicate: false, riskBlocked: false, orderId: orders[0].id,
+            status: 'filled', symbol, side: request.body.side, quantity,
+            fillPrice: price, fee, realizedPnl,
+          };
         });
+        if (result.riskBlocked) {
+          return reply.code(423).send({
+            error: result.riskReason === 'daily_loss_limit'
+              ? 'Emergency stop activated: the projected paper fill breaches the daily loss limit.'
+              : 'Emergency stop activated: the projected paper fill breaches the drawdown limit.',
+            emergencyStop: true,
+            reason: result.riskReason,
+            orderPlaced: false,
+          });
+        }
         if (result.duplicate) return reply.code(200).send(result);
         return reply.code(201).send({ ...result, mode: 'paper_simulation_only', brokerConnected: false });
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
         if (message === 'INSUFFICIENT_PAPER_CASH') return reply.code(409).send({ error: 'Insufficient simulated cash for this order, including fees.' });
         if (message === 'INSUFFICIENT_PAPER_POSITION') return reply.code(409).send({ error: 'You cannot sell more units than your simulated position holds.' });
+        if (message === 'PAPER_EMERGENCY_STOP') return reply.code(423).send({ error: 'Emergency stop is active. Explicitly reset it before placing paper orders.', emergencyStop: true });
         if (message === 'PAPER_TRADING_DISABLED') return reply.code(423).send({ error: 'Paper trading is paused by your risk policy.' });
         if (message === 'PAPER_ORDER_RISK_LIMIT') return reply.code(409).send({ error: 'Order exceeds your configured per-order risk limit.' });
         if (message === 'PAPER_POSITION_RISK_LIMIT') return reply.code(409).send({ error: 'Order would exceed your configured single-position exposure limit.' });
