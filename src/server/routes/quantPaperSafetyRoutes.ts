@@ -37,7 +37,7 @@ export const quantPaperSafetyRoutes: FastifyPluginAsync = async (fastify) => {
       dailyRisk: daily[0] ?? null,
       portfolioRisk: portfolio[0] ?? null,
       mode: 'paper_simulation_only',
-      enforcement: 'state_and_stop_controls_only_until_order_guard_is_connected',
+      enforcement: 'evaluated_before_each_paper_fill_using_stored_simulated_fill_marks_not_live_quotes',
     };
   });
 

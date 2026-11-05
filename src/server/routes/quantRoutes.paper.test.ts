@@ -5,8 +5,15 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   query: vi.fn(),
   transaction: vi.fn(),
-  riskPolicy: null as null | { max_order_notional: string; max_position_notional: string; max_gross_exposure: string; trading_enabled: boolean },
+  riskPolicy: null as null | {
+    max_order_notional: string; max_position_notional: string; max_gross_exposure: string;
+    max_daily_loss?: string; max_drawdown_pct?: string;
+    emergency_stop?: boolean; trading_enabled: boolean;
+  },
   position: null as null | { quantity: string; average_entry_price: string; last_price: string },
+  grossExposure: '0',
+  startingDailyEquity: '100000',
+  lifetimePeakEquity: '100000',
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
@@ -36,6 +43,9 @@ describe('Quant paper trading routes', () => {
     vi.clearAllMocks();
     mocks.riskPolicy = null;
     mocks.position = null;
+    mocks.grossExposure = '0';
+    mocks.startingDailyEquity = '100000';
+    mocks.lifetimePeakEquity = '100000';
     mocks.transaction.mockImplementation(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx));
     tx.$executeRawUnsafe.mockResolvedValue(1);
     tx.$queryRawUnsafe.mockImplementation(async (query: string) => {
@@ -43,7 +53,9 @@ describe('Quant paper trading routes', () => {
       if (query.includes('FROM quant_paper_risk_policies')) return mocks.riskPolicy ? [mocks.riskPolicy] : [];
       if (query.includes('SELECT id, status FROM quant_paper_orders')) return [];
       if (query.includes('SELECT quantity::text')) return mocks.position ? [mocks.position] : [];
-      if (query.includes('SUM(quantity * last_price)')) return [{ gross_exposure: '0' }];
+      if (query.includes('SELECT starting_equity::text')) return [{ starting_equity: mocks.startingDailyEquity }];
+      if (query.includes('SELECT peak_equity::text')) return [{ peak_equity: mocks.lifetimePeakEquity }];
+      if (query.includes('SUM(quantity * last_price)')) return [{ gross_exposure: mocks.grossExposure }];
       if (query.includes('RETURNING id')) return [{ id: 'paper-order-1' }];
       return [];
     });
@@ -147,6 +159,67 @@ describe('Quant paper trading routes', () => {
     });
     expect(response.statusCode).toBe(409);
     expect(response.json().error).toContain('single-position exposure');
+    await app.close();
+  });
+
+  it('blocks new paper orders while the emergency-stop latch is active', async () => {
+    mocks.riskPolicy = {
+      max_order_notional: '10000',
+      max_position_notional: '25000',
+      max_gross_exposure: '75000',
+      max_daily_loss: '5000',
+      max_drawdown_pct: '10',
+      emergency_stop: true,
+      trading_enabled: false,
+    };
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST', url: '/api/quant/paper/orders',
+      payload: {
+        symbol: 'AAPL', side: 'buy', quantity: 1,
+        reference_price: 100, client_order_id: 'paper-order-client-007',
+      },
+    });
+    expect(response.statusCode).toBe(423);
+    expect(response.json()).toMatchObject({ emergencyStop: true });
+    expect(tx.$executeRawUnsafe.mock.calls.some(([query]) => String(query).includes('INSERT INTO quant_paper_orders'))).toBe(false);
+    await app.close();
+  });
+
+  it('latches the emergency stop before recording an order that breaches daily loss', async () => {
+    mocks.riskPolicy = {
+      max_order_notional: '10000',
+      max_position_notional: '25000',
+      max_gross_exposure: '100000',
+      max_daily_loss: '1000',
+      max_drawdown_pct: '50',
+      emergency_stop: false,
+      trading_enabled: true,
+    };
+    mocks.position = { quantity: '1000', average_entry_price: '100', last_price: '100' };
+    mocks.grossExposure = '100000';
+    mocks.startingDailyEquity = '200000';
+    mocks.lifetimePeakEquity = '200000';
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST', url: '/api/quant/paper/orders',
+      payload: {
+        symbol: 'AAPL', side: 'sell', quantity: 1,
+        reference_price: 10, client_order_id: 'paper-order-client-008',
+      },
+    });
+    expect(response.statusCode).toBe(423);
+    expect(response.json()).toMatchObject({
+      emergencyStop: true,
+      reason: 'daily_loss_limit',
+      orderPlaced: false,
+    });
+    expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('SET emergency_stop = TRUE'),
+      'paper-user-a',
+      'daily_loss_limit',
+    );
+    expect(tx.$executeRawUnsafe.mock.calls.some(([query]) => String(query).includes('INSERT INTO quant_paper_orders'))).toBe(false);
     await app.close();
   });
 
