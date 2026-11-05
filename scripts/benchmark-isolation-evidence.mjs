@@ -90,6 +90,7 @@ if (missingChecks.length > 0) failures.push('Required probe checks are missing: 
 if (new Set(reportedCheckNames).size !== reportedCheckNames.length) failures.push('Probe result contains duplicate check names.');
 for (const check of checks) {
   if (check.status !== 'PASS' || check.exitCode !== 0 || typeof check.command !== 'string' || !check.command || typeof check.observedCode !== 'string' || !check.observedCode) {
+    failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code/result evidence.`);
     failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code evidence.`);
   }
 }
