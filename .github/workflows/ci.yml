@@ -315,6 +315,7 @@ jobs:
             src/lib/attachmentStoragePolicy.test.ts \
             src/lib/attachmentQuotaMigration.test.ts \
             src/lib/attachmentUpdateGuardMigration.test.ts \
+            src/lib/attachmentSignedUploadReservationMigration.test.ts \
             src/lib/attachments.test.ts \
             src/server/attachments/scanner.test.ts
       - name: Set up pinned Supabase CLI
@@ -332,7 +333,7 @@ jobs:
           for version in \
             20261030120000 20261030130000 20261030140000 \
             20261031100000 20261031110000 20261031120000 \
-            20261031130000 20261031150000 99999999999999; do
+            20261031130000 20261031150000 20261105130000 20261105193000 99999999999999; do
             grep -F "$version" /tmp/fresh-migration-list.txt
           done
           eval "$(supabase status -o env)"

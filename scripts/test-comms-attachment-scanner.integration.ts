@@ -155,14 +155,35 @@ async function main(): Promise<void> {
       ],
     });
 
+    const signedUploads: Array<{ objectName: string; bytes: Buffer; token: string }> = [];
     for (const [objectName, bytes] of [
       [cleanObjectName, cleanBytes],
       [infectedObjectName, infectedBytes],
     ] as const) {
-      const { error } = await supabase.storage.from(COMMS_ATTACHMENT_BUCKET).upload(objectName, bytes, {
-        contentType: 'text/plain',
-        upsert: false,
-      });
+      const { data: reservation, error: reservationError } = await supabase.storage
+        .from(COMMS_ATTACHMENT_BUCKET)
+        .createSignedUploadUrl(objectName);
+      if (reservationError) throw reservationError;
+      if (!reservation?.token) throw new Error('Storage did not return a signed-upload reservation token.');
+
+      const { data: prematureScan, error: prematureScanError } = await supabase
+        .from('ryanai_attachment_scans')
+        .select('object_name')
+        .eq('bucket_id', COMMS_ATTACHMENT_BUCKET)
+        .eq('object_name', objectName);
+      if (prematureScanError) throw prematureScanError;
+      assert.equal(prematureScan?.length ?? 0, 0, 'signed-upload reservations must not be scanned before bytes exist');
+
+      signedUploads.push({ objectName, bytes, token: reservation.token });
+    }
+
+    for (const upload of signedUploads) {
+      const { error } = await supabase.storage
+        .from(COMMS_ATTACHMENT_BUCKET)
+        .uploadToSignedUrl(upload.objectName, upload.token, upload.bytes, {
+          contentType: 'text/plain',
+          upsert: false,
+        });
       if (error) throw error;
     }
 

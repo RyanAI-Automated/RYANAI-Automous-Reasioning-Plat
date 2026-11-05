@@ -2,6 +2,56 @@
 INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 VALUES('ryanai-comms-attachments','ryanai-comms-attachments',false,20971520,ARRAY['image/png','image/jpeg','image/gif','image/webp','video/mp4','video/webm','audio/mpeg','audio/wav','audio/ogg','audio/mp4','application/pdf','text/plain','text/markdown','text/csv','application/json','application/xml','text/javascript','text/typescript','text/x-python','text/x-go','text/x-rust','text/x-java','text/css','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.presentationml.presentation','application/zip']::text[])
 ON CONFLICT(id) DO UPDATE SET public=false,file_size_limit=EXCLUDED.file_size_limit,allowed_mime_types=EXCLUDED.allowed_mime_types;
+
+-- Keep the Supabase migration chain independently replayable. The Prisma migration
+-- later applies the same objects with IF NOT EXISTS, but must not be a prerequisite
+-- for Storage triggers referencing Comms attachment metadata.
+ALTER TABLE public.communication_conversations
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID;
+CREATE INDEX IF NOT EXISTS communication_conversations_owner_updated_idx
+  ON public.communication_conversations (owner_user_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS public.communication_attachments (
+  id TEXT PRIMARY KEY,
+  communication_message_id TEXT NOT NULL,
+  owner_user_id UUID NOT NULL,
+  bucket_id TEXT NOT NULL DEFAULT 'ryanai-comms-attachments',
+  object_name TEXT NOT NULL UNIQUE,
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size BIGINT NOT NULL CHECK (size > 0),
+  source TEXT NOT NULL,
+  provider_media_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT communication_attachments_message_fkey
+    FOREIGN KEY (communication_message_id)
+    REFERENCES public.communication_messages(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX IF NOT EXISTS communication_attachments_owner_created_idx
+  ON public.communication_attachments (owner_user_id, created_at);
+CREATE INDEX IF NOT EXISTS communication_attachments_message_created_idx
+  ON public.communication_attachments (communication_message_id, created_at);
+ALTER TABLE public.communication_attachments ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.communication_attachments FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.communication_attachments TO service_role;
+
+CREATE TABLE IF NOT EXISTS public.communication_attachment_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  communication_attachment_id TEXT NOT NULL,
+  owner_user_id UUID NOT NULL,
+  event TEXT NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS communication_attachment_audit_attachment_created_idx
+  ON public.communication_attachment_audit (communication_attachment_id, created_at);
+CREATE INDEX IF NOT EXISTS communication_attachment_audit_owner_created_idx
+  ON public.communication_attachment_audit (owner_user_id, created_at);
+ALTER TABLE public.communication_attachment_audit ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.communication_attachment_audit FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.communication_attachment_audit TO service_role;
+
 CREATE OR REPLACE FUNCTION public.enforce_ryanai_comms_attachment_path_and_quota()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,storage AS $$
 DECLARE p text[]; u uuid; c text; m text; sz bigint; ub bigint; mb bigint; mf bigint; hr bigint;
