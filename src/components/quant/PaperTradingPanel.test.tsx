@@ -12,9 +12,11 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let container: HTMLDivElement;
 let root: Root;
+let emergencyStop = false;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  emergencyStop = false;
   api.fetch.mockImplementation(async (url: string) => {
     if (url === '/api/quant/paper') {
       return new Response(JSON.stringify({
@@ -42,11 +44,30 @@ beforeEach(() => {
     }
     if (url === '/api/quant/paper/risk') {
       return new Response(JSON.stringify({
-        tradingEnabled: true,
+        tradingEnabled: !emergencyStop,
         maxOrderNotional: 10000,
         maxPositionNotional: 25000,
         maxGrossExposure: 75000,
       }), { status: 200 });
+    }
+    if (url === '/api/quant/paper/risk/state') {
+      return new Response(JSON.stringify({
+        tradingEnabled: !emergencyStop,
+        emergencyStop,
+        emergencyStopReason: emergencyStop ? 'manual_emergency_stop' : null,
+        maxDailyLoss: 5000,
+        maxDrawdownPct: 10,
+        dailyRisk: { risk_date: '2026-11-05', starting_equity: '100000', current_equity: '99999.85', daily_loss: '0.15' },
+        portfolioRisk: { peak_equity: '100000', current_equity: '99999.85', max_drawdown_pct: '0.15' },
+      }), { status: 200 });
+    }
+    if (url === '/api/quant/paper/risk/emergency-stop' && init?.method === 'POST') {
+      emergencyStop = true;
+      return new Response(JSON.stringify({ emergencyStop: true, tradingEnabled: false }), { status: 200 });
+    }
+    if (url === '/api/quant/paper/risk/emergency-stop/reset' && init?.method === 'POST') {
+      emergencyStop = false;
+      return new Response(JSON.stringify({ emergencyStop: false, tradingEnabled: false }), { status: 200 });
     }
     if (url === '/api/quant/strategy-signals') {
       return new Response(JSON.stringify({
@@ -72,9 +93,27 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
 
 describe('paper trading performance summary', () => {
+  it('activates the emergency stop only after an explicit confirmation', async () => {
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    await act(async () => root.render(<PaperTradingPanel />));
+    await vi.waitFor(() => expect(container.textContent).toContain('Activate emergency stop'));
+    const button = Array.from(container.querySelectorAll('button'))
+      .find((item) => item.textContent?.includes('Activate emergency stop'));
+    expect(button).toBeTruthy();
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain('EMERGENCY STOP ACTIVE'));
+    expect(api.fetch).toHaveBeenCalledWith('/api/quant/paper/risk/emergency-stop', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ reason: 'manual_emergency_stop' }),
+    }));
+  });
+
   it('summarizes recorded exits and fees without calling them net portfolio return', async () => {
     await act(async () => root.render(<PaperTradingPanel />));
     await vi.waitFor(() => expect(container.textContent).toContain('Recorded performance'));
