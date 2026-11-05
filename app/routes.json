@@ -12,6 +12,11 @@
       "path": "/dashboard"
     },
     {
+      "id": "calculator",
+      "label": "Calculator",
+      "path": "/calculator"
+    },
+    {
       "id": "settings",
       "label": "Settings",
       "path": "/settings"

@@ -11,6 +11,11 @@ on:
         options:
           - "NO"
           - "APPLY"
+      migration_name:
+        description: Exact reviewed migration name from the production allowlist.
+        type: string
+        required: true
+        default: "20261102235000_engineering_evidence_workbench"
 
 permissions:
   contents: read
@@ -38,6 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CONFIRMATION: ${{ inputs.confirmation }}
+          MIGRATION_NAME: ${{ inputs.migration_name }}
         run: |
           set -euo pipefail
           [[ "$CONFIRMATION" == "APPLY" ]] || {
@@ -46,6 +52,10 @@ jobs:
           }
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::Invalid migration commit SHA."
+            exit 1
+          }
+          [[ "$MIGRATION_NAME" =~ ^[0-9]{14}_[a-z0-9_]+$ ]] || {
+            echo "::error::Invalid production migration name format."
             exit 1
           }
           MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
@@ -113,6 +123,7 @@ jobs:
     environment: production-migrations
     env:
       TARGET_SHA: ${{ needs.preflight.outputs.target_sha }}
+      PRODUCTION_MIGRATION_NAME: ${{ inputs.migration_name }}
       SUPABASE_URL: https://narsvpwymvlrhurqbthu.supabase.co
       SUPABASE_SSL_ROOT_CERT_PATH: /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
 
@@ -183,6 +194,7 @@ jobs:
           docker run --rm --network host \
             --env NODE_ENV=production \
             --env DATABASE_URL \
+            --env PRODUCTION_MIGRATION_NAME \
             --env SUPABASE_URL \
             --env SUPABASE_SESSION_POOLER_HOST \
             --env SUPABASE_SSL_ROOT_CERT_PATH \
