@@ -1,3 +1,4 @@
+import { areCommunicationAttachmentsEnabled } from './featureFlags.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { PrismaClient } from '@prisma/client';
 import { Buffer } from 'node:buffer';
@@ -95,6 +96,7 @@ export async function downloadResendMedia(rawUrl:string):Promise<Buffer> {
   throw new Error('Resend media redirect limit exceeded.');
 }
 export async function createCommsUploadIntents(prisma:PrismaClient,ownerUserId:string,messageId:string,files:readonly CommsAttachmentDescriptor[]) {
+  if (!areCommunicationAttachmentsEnabled()) throw new Error('Communication attachments are disabled.');
   validateCommsAttachmentDescriptors(files);
   const msg=await prisma.communicationMessage.findUnique({where:{id:messageId},select:{id:true,conversationId:true,conversation:{select:{ownerUserId:true}}}});
   if(!msg||msg.conversation.ownerUserId!==ownerUserId)throw new Error('Communication draft is not owned by this session.');
@@ -126,6 +128,7 @@ export async function createCommsUploadIntents(prisma:PrismaClient,ownerUserId:s
   }catch(error){if(created.length)await prisma.communicationAttachment.deleteMany({where:{id:{in:created}}});throw error;}
 }
 export async function storeInboundCommsAttachment(prisma:PrismaClient,input:{ownerUserId:string;messageId:string;conversationId:string;fileName:string;mimeType:string;bytes:Uint8Array;source:'inbound_twilio'|'inbound_resend';providerMediaId?:string}) {
+  if (!areCommunicationAttachmentsEnabled()) throw new Error('Communication attachments are disabled.');
   const mime=input.mimeType.toLowerCase(),bytes=Buffer.from(input.bytes);
   if(bytes.length>COMMS_ATTACHMENT_MAX_BYTES||!validateCommsFileSignature(bytes,mime))throw new Error('Inbound attachment signature or size is invalid.');
   const msg=await prisma.communicationMessage.findUnique({where:{id:input.messageId},select:{id:true,conversationId:true,conversation:{select:{ownerUserId:true}}}});

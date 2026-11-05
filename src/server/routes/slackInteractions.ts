@@ -4,6 +4,7 @@ import fastifyRawBody from 'fastify-raw-body';
 import querystring from 'querystring';
 import { verifySlackSignature } from '../../utils/slackVerification.js';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
+import { isCommunicationsEnabled } from '../comms/featureFlags.js';
 
 /** Return string content or its JSON representation, defaulting to empty text; serialization errors propagate. */
 const extractContent = (content: unknown): string =>
@@ -15,6 +16,10 @@ const extractContent = (content: unknown): string =>
  * Payload parsing and agent failures reach Fastify's error handler.
  */
 export const slackInteractionsPlugin: FastifyPluginAsync = async (fastify) => {
+  if (!isCommunicationsEnabled()) {
+    fastify.log.info('Slack interaction routes are disabled by configuration.');
+    return;
+  }
   // 1. Register raw-body plugin to preserve original request string
   await fastify.register(fastifyRawBody, {
     field: 'rawBody',

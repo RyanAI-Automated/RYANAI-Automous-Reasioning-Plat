@@ -4,6 +4,7 @@ import formbody from '@fastify/formbody';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
 import { claimInboundCommunication, recordCommunication } from '../comms/history.js';
 import { addressOwnerResponse, ownerCommunicationInstruction } from '../../shared/ryanIdentity.js';
+import { isCommunicationsEnabled } from '../comms/featureFlags.js';
 
 const extractContent = (content: unknown): string =>
   typeof content === 'string' ? content : JSON.stringify(content) ?? '';
@@ -19,6 +20,10 @@ function escapeXml(unsafe: string): string {
 }
 
 export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
+  if (!isCommunicationsEnabled()) {
+    fastify.log.info('Twilio webhook routes are disabled by configuration.');
+    return;
+  }
   await fastify.register(formbody);
 
   fastify.post('/api/webhooks/twilio/whatsapp', {
