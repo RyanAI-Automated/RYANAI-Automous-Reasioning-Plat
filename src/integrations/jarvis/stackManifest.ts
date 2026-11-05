@@ -34,7 +34,6 @@ interface StackTemplate {
     dockerCompose: string;
     kubernetes: string[];
     render: string;
-    vercel: string;
   };
   integrations: {
     jarvis: {
