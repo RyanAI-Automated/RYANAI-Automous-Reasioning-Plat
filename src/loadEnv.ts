@@ -10,6 +10,7 @@ if (process.env.NODE_ENV === 'production') {
     process.env.DATABASE_URL,
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SESSION_POOLER_HOST,
+    process.env.SUPABASE_SSL_ROOT_CERT_PATH,
   );
 
   if (pooler.changed && pooler.databaseUrl) {
