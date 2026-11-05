@@ -39,8 +39,6 @@ export default function PaperTradingPanel() {
   const [riskMessage, setRiskMessage] = useState('');
   const [strategySignals, setStrategySignals] = useState<StrategySignal[]>([]);
   const [selectedSignalId, setSelectedSignalId] = useState('');
-  const [proposalBudget, setProposalBudget] = useState('1000');
-  const [proposalMessage, setProposalMessage] = useState('');
   const [symbol, setSymbol] = useState('AAPL');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('1');
@@ -92,6 +90,9 @@ export default function PaperTradingPanel() {
   const exitWinRate = closedSellTrades.length > 0
     ? (winningExits / closedSellTrades.length) * 100
     : null;
+  const selectedSignal = strategySignals.find((signal) => signal.id === selectedSignalId)
+    ?? strategySignals[0]
+    ?? null;
 
   const saveRiskPolicy = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -181,6 +182,42 @@ export default function PaperTradingPanel() {
           This is not total net portfolio return: entry fees are reported separately, the ledger is limited to 50 recent fills,
           and open-position marks are based on the last manual simulated fill price rather than a live quote.
         </p>
+      </section>
+
+      <section aria-label="Recent research signals" className="space-y-3 rounded-xl border border-white/10 bg-slate-950/60 p-4">
+        <div>
+          <h3 className="font-semibold text-white">Recent research signals</h3>
+          <p className="mt-1 text-xs text-slate-500">Saved Quant Lab results for review. A signal is research output, not an order instruction.</p>
+        </div>
+        {strategySignals.length === 0 ? (
+          <p className="text-sm text-slate-500">No saved signals yet. Generate one in Quant Lab after importing a fresh dataset.</p>
+        ) : (
+          <>
+            <label className="block text-xs text-slate-400">Select saved signal
+              <select
+                aria-label="Select saved research signal"
+                value={selectedSignal?.id ?? ''}
+                onChange={(event) => setSelectedSignalId(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+              >
+                {strategySignals.map((signal) => (
+                  <option key={signal.id} value={signal.id}>
+                    {signal.symbol} · {signal.action.toUpperCase()} · {signal.sourceBarDate}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedSignal && (
+              <div className="grid gap-3 sm:grid-cols-4">
+                <Metric label="Symbol / action" value={`${selectedSignal.symbol} · ${selectedSignal.action.toUpperCase()}`} />
+                <Metric label="Research close" value={money(selectedSignal.referencePrice)} />
+                <Metric label="Source bar" value={selectedSignal.sourceBarDate} />
+                <Metric label="Strategy" value={selectedSignal.strategy.replaceAll('_', ' ')} />
+              </div>
+            )}
+          </>
+        )}
+        <p className="text-xs text-amber-200/80">No paper order is created or submitted from this signal panel. Review the research in Quant Lab and use the separate manual paper form only after checking its price and size.</p>
       </section>
 
       <form onSubmit={saveRiskPolicy} className="grid gap-4 rounded-xl border border-white/10 bg-slate-950/60 p-4 sm:grid-cols-2 xl:grid-cols-5">
