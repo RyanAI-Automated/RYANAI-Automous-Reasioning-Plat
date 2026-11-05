@@ -51,8 +51,41 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate --schema=prisma/schema.prisma
 
-      - name: Generate Prisma client
-        run: npx prisma generate --schema=prisma/schema.prisma
+      - name: Create disposable audiobook database
+        env:
+          PGPASSWORD: ci_password
+        run: |
+          docker run --rm --network host -e PGPASSWORD \
+            postgres:16-alpine createdb -h 127.0.0.1 -U ryanai ryanai_audiobook
+
+      - name: Validate isolated Neon audiobook Prisma schema
+        env:
+          AUDIOBOOK_DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_audiobook
+          AUDIOBOOK_DATABASE_URL_UNPOOLED: postgresql://ryanai:ci_password@localhost:5432/ryanai_audiobook
+        run: npx prisma validate --schema=prisma/audiobook/schema.prisma
+
+      - name: Generate platform and audiobook Prisma clients
+        run: npm run db:generate
+
+      - name: Apply isolated audiobook migrations to disposable PostgreSQL
+        env:
+          AUDIOBOOK_DATABASE_URL: postgresql://ryanai:ci_password@localhost:5432/ryanai_audiobook
+          AUDIOBOOK_DATABASE_URL_UNPOOLED: postgresql://ryanai:ci_password@localhost:5432/ryanai_audiobook
+        run: npm run db:audiobook:migrate
+
+      - name: Verify Neon audiobook identity bridge and ownership constraints
+        env:
+          PGPASSWORD: ci_password
+        run: |
+          docker run --rm --network host -e PGPASSWORD=ci_password \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/neon-audiobook-identity-bridge-smoke.sql:/tmp/neon-audiobook-identity-bridge-smoke.sql:ro" \
+            postgres:16-alpine psql -h 127.0.0.1 -U ryanai -d ryanai_audiobook \
+              -v ON_ERROR_STOP=1 -f /tmp/neon-audiobook-identity-bridge-smoke.sql
+
+      - name: Verify Neon audiobook migrations match Prisma schema
+        env:
+          AUDIOBOOK_DATABASE_URL_UNPOOLED: postgresql://ryanai:ci_password@localhost:5432/ryanai_audiobook
+        run: npx prisma migrate diff --from-url "$AUDIOBOOK_DATABASE_URL_UNPOOLED" --to-schema-datamodel prisma/audiobook/schema.prisma --exit-code
 
       - name: Provision minimal Supabase Auth roles and schema for CI
         run: |

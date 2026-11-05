@@ -12,6 +12,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyCors from '@fastify/cors';
 import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
+import { getAudiobookPrismaClient } from '../lib/audiobookPrisma.js';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
@@ -99,9 +100,14 @@ const fastify = Fastify({
   },
 });
 
-// Initialize and decorate Prisma Client
+// Initialize the core platform Prisma client and the separate optional Neon audiobook client.
 const prisma = new PrismaClient();
 fastify.decorate('prisma', prisma);
+const audiobookPrisma = getAudiobookPrismaClient();
+fastify.decorate('audiobookPrisma', audiobookPrisma);
+if (!audiobookPrisma) {
+  fastify.log.warn('Audiobook routes are disabled because AUDIOBOOK_DATABASE_URL is not configured.');
+}
 
 // Register CORS with an explicit origin allowlist. Reflecting every Origin while
 // allowing credentials would let arbitrary websites make authenticated API calls.
@@ -633,6 +639,7 @@ const shutdown = async () => {
   stopAgentPA?.();
   if (dbPool) await dbPool.end();
   if (prisma) await prisma.$disconnect();
+  if (audiobookPrisma) await audiobookPrisma.$disconnect();
   await fastify.close();
   process.exit(0);
 };
