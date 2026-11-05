@@ -7,6 +7,7 @@ import { prisma } from '../../lib/prisma.js';
 import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
 import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
 import { assessPaperOrderRisk } from '../quant/paperRisk.js';
+import { quantPaperProposalRoutes } from './quantPaperProposalRoutes.js';
 
 type Bar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
 type BacktestBody = {
@@ -886,4 +887,5 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  await fastify.register(quantPaperProposalRoutes);
 };

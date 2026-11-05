@@ -13,6 +13,21 @@ type StrategySignal = {
   generatedAt: string;
   sourceBarDate: string;
 };
+type PaperOrderProposal = {
+  id: string;
+  signalId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  quantity: number;
+  referencePrice: number;
+  notional: number;
+  status: 'pending' | 'confirming' | 'confirmed' | 'rejected' | 'expired';
+  expiresAt: string;
+  orderId: string | null;
+  reason: string | null;
+  strategy: string | null;
+  sourceBarDate: string | null;
+};
 type Snapshot = {
   mode: 'paper_simulation_only'; brokerConnected: false;
   risk: { maxOrderNotional: number; feeBps: number; shortSelling: boolean };
@@ -70,6 +85,12 @@ export default function PaperTradingPanel() {
   const [emergencyAction, setEmergencyAction] = useState(false);
   const [strategySignals, setStrategySignals] = useState<StrategySignal[]>([]);
   const [selectedSignalId, setSelectedSignalId] = useState('');
+  const [paperProposals, setPaperProposals] = useState<PaperOrderProposal[]>([]);
+  const [proposalLoadError, setProposalLoadError] = useState('');
+  const [proposalNotional, setProposalNotional] = useState('1000');
+  const [proposalCreating, setProposalCreating] = useState(false);
+  const [proposalActionId, setProposalActionId] = useState<string | null>(null);
+  const [proposalMessage, setProposalMessage] = useState('');
   const [symbol, setSymbol] = useState('AAPL');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('1');
@@ -82,16 +103,18 @@ export default function PaperTradingPanel() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [response, riskResponse, signalResponse, riskStateResponse] = await Promise.all([
+      const [response, riskResponse, signalResponse, riskStateResponse, proposalResponse] = await Promise.all([
         authenticatedFetch('/api/quant/paper'),
         authenticatedFetch('/api/quant/paper/risk'),
         authenticatedFetch('/api/quant/strategy-signals'),
         authenticatedFetch('/api/quant/paper/risk/state'),
+        authenticatedFetch('/api/quant/paper/proposals'),
       ]);
       const data = await response.json() as Snapshot & { error?: string };
       const riskData = await riskResponse.json() as RiskPolicy & { error?: string };
       const signalData = await signalResponse.json() as { signals?: StrategySignal[]; error?: string };
       const riskStateData = await riskStateResponse.json() as RiskState & { error?: string };
+      const proposalData = await proposalResponse.json() as { proposals?: PaperOrderProposal[]; error?: string };
       if (!response.ok) throw new Error(data.error || 'Paper trading account is unavailable.');
       if (!riskResponse.ok) throw new Error(riskData.error || 'Paper risk policy is unavailable.');
       if (!signalResponse.ok) throw new Error(signalData.error || 'Strategy signal history is unavailable.');
@@ -101,6 +124,15 @@ export default function PaperTradingPanel() {
       setRiskState(riskStateData);
       const signals = signalData.signals ?? [];
       setStrategySignals(signals);
+      if (proposalResponse.ok) {
+        setPaperProposals(proposalData.proposals ?? []);
+        setProposalLoadError('');
+      } else {
+        setPaperProposals([]);
+        setProposalLoadError(
+          proposalData.error || 'The proposal workflow is unavailable until its database migration is installed.',
+        );
+      }
       setSelectedSignalId((current) => current || signals[0]?.id || '');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load paper trading.');
@@ -229,6 +261,88 @@ export default function PaperTradingPanel() {
     }
   };
 
+  const createPaperProposal = async () => {
+    if (proposalLoadError) {
+      setProposalMessage('Paper proposal workflow is unavailable until its database migration is installed.');
+      return;
+    }
+    if (!selectedSignal) {
+      setProposalMessage('Select a saved strategy signal first.');
+      return;
+    }
+    if (selectedSignal.action === 'hold') {
+      setProposalMessage('Hold signals cannot create order proposals.');
+      return;
+    }
+    setProposalCreating(true);
+    setProposalMessage('');
+    try {
+      const response = await authenticatedFetch('/api/quant/paper/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signalId: selectedSignal.id,
+          notional: Number(proposalNotional),
+        }),
+      });
+      const data = await response.json() as { error?: string; proposal?: PaperOrderProposal };
+      if (!response.ok || !data.proposal) {
+        throw new Error(data.error || 'Paper order proposal could not be created.');
+      }
+      setProposalMessage(`Proposal created for ${data.proposal.symbol}: ${data.proposal.side.toUpperCase()} ${data.proposal.quantity} units. No order has been placed.`);
+      await refresh();
+    } catch (cause) {
+      setProposalMessage(cause instanceof Error ? cause.message : 'Paper order proposal could not be created.');
+    } finally {
+      setProposalCreating(false);
+    }
+  };
+
+  const confirmPaperProposal = async (proposal: PaperOrderProposal) => {
+    const confirmed = window.confirm(
+      `Confirm paper simulation: ${proposal.side.toUpperCase()} ${proposal.quantity} ${proposal.symbol} at ${money(proposal.referencePrice)} (estimated notional ${money(proposal.notional)})? This creates a simulated fill only.`,
+    );
+    if (!confirmed) return;
+    setProposalActionId(proposal.id);
+    setProposalMessage('');
+    try {
+      const response = await authenticatedFetch(`/api/quant/paper/proposals/${proposal.id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json() as { error?: string; order?: { orderId?: string } };
+      if (!response.ok) throw new Error(data.error || 'Paper proposal could not be confirmed.');
+      setProposalMessage(`Paper proposal confirmed. Simulated order ${data.order?.orderId ?? 'recorded'}.`);
+      await refresh();
+    } catch (cause) {
+      setProposalMessage(cause instanceof Error ? cause.message : 'Paper proposal could not be confirmed.');
+      await refresh();
+    } finally {
+      setProposalActionId(null);
+    }
+  };
+
+  const rejectPaperProposal = async (proposal: PaperOrderProposal) => {
+    setProposalActionId(proposal.id);
+    setProposalMessage('');
+    try {
+      const response = await authenticatedFetch(`/api/quant/paper/proposals/${proposal.id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'rejected_by_user' }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Proposal could not be rejected.');
+      setProposalMessage('Paper order proposal rejected. No order was placed.');
+      await refresh();
+    } catch (cause) {
+      setProposalMessage(cause instanceof Error ? cause.message : 'Proposal could not be rejected.');
+    } finally {
+      setProposalActionId(null);
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -334,7 +448,49 @@ export default function PaperTradingPanel() {
             )}
           </>
         )}
-        <p className="text-xs text-amber-200/80">No paper order is created or submitted from this signal panel. Review the research in Quant Lab and use the separate manual paper form only after checking its price and size.</p>
+        <p className="text-xs text-amber-200/80">A saved signal is research output. Creating a proposal does not place an order; confirmation is a separate action.</p>
+      </section>
+
+      <section aria-label="Strategy-driven paper order proposals" className="space-y-4 rounded-xl border border-cyan-300/20 bg-slate-950/60 p-4">
+        <div>
+          <h3 className="font-semibold text-white">Strategy-driven paper order proposals</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-400">Size a proposal from the selected signal's source close. The proposal expires after 24 hours and must be explicitly confirmed before a simulated order is recorded.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="block text-xs text-slate-400">Target notional
+            <input type="number" min="100" max="10000" step="100" value={proposalNotional} onChange={(event) => setProposalNotional(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white" />
+          </label>
+          <button type="button" onClick={() => void createPaperProposal()} disabled={proposalCreating || loading || Boolean(proposalLoadError) || !selectedSignal || selectedSignal.action === 'hold' || riskState.emergencyStop || !riskPolicy.tradingEnabled} className="self-end rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-50">{proposalCreating ? 'Creating…' : 'Create paper order proposal'}</button>
+        </div>
+        {proposalLoadError && <p role="status" className="rounded-lg border border-amber-300/20 p-3 text-xs text-amber-100">Proposal workflow unavailable: {proposalLoadError} Existing paper account and position data remain available. Apply the approved proposal migrations before enabling this section.</p>}
+        {proposalMessage && <p role="status" className="rounded-lg border border-white/10 p-3 text-xs text-slate-200">{proposalMessage}</p>}
+        {paperProposals.length === 0 ? (
+          <p className="text-sm text-slate-500">No paper order proposals yet. Generate a buy or sell signal in Quant Lab, then create a proposal here.</p>
+        ) : (
+          <ul className="space-y-2">
+            {paperProposals.map((proposal) => (
+              <li key={proposal.id} className="rounded-lg border border-white/10 bg-slate-900/70 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{proposal.symbol} · {proposal.side.toUpperCase()} · {proposal.strategy?.replaceAll('_', ' ') || 'strategy signal'}</p>
+                    <p className="mt-1 text-xs text-slate-400">{proposal.quantity} units at {money(proposal.referencePrice)} · notional {money(proposal.notional)}</p>
+                    <p className="mt-1 text-xs text-slate-500">Source bar {proposal.sourceBarDate || '—'} · expires {new Date(proposal.expiresAt).toLocaleString()}</p>
+                    {proposal.reason && <p className="mt-1 text-xs text-amber-200/80">{proposal.reason}</p>}
+                    {proposal.orderId && <p className="mt-1 text-xs text-emerald-200">Paper order {proposal.orderId}</p>}
+                  </div>
+                  <span className={`rounded-full border px-2 py-1 text-xs uppercase ${proposal.status === 'confirmed' ? 'border-emerald-300/30 text-emerald-200' : proposal.status === 'pending' ? 'border-amber-300/30 text-amber-200' : 'border-white/10 text-slate-400'}`}>{proposal.status}</span>
+                </div>
+                {proposal.status === 'pending' && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void confirmPaperProposal(proposal)} disabled={proposalActionId !== null || loading || Boolean(proposalLoadError) || riskState.emergencyStop || !riskPolicy.tradingEnabled} className="rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{proposalActionId === proposal.id ? 'Confirming…' : 'Confirm & simulate paper order'}</button>
+                    <button type="button" onClick={() => void rejectPaperProposal(proposal)} disabled={proposalActionId !== null || loading} className="rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-300 disabled:opacity-50">Reject proposal</button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs leading-5 text-amber-200/80">Confirmation rechecks the saved source data and current paper risk policy. An accepted proposal reaches only the RyanAI simulated paper ledger; there is no broker or live-market execution.</p>
       </section>
 
       <form onSubmit={saveRiskPolicy} className="grid gap-4 rounded-xl border border-white/10 bg-slate-950/60 p-4 sm:grid-cols-2 xl:grid-cols-5">
