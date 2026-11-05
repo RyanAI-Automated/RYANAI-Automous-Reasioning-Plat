@@ -67,7 +67,10 @@ async function fixture(options = {}) {
       requestId: options.requestId ?? 'synthetic-request-0001',
       approvalService,
       approvalServicePublicKeyPem: keyPair.publicKey.export({ type: 'spki', format: 'pem' }),
-      approvalServiceKeySha256: hash(keyPair.publicKey.export({ type: 'spki', format: 'der' })),
+      approvalServiceKeySha256: options.missingSignerPin
+        ? '' : options.wrongSignerPin
+          ? 'f'.repeat(64)
+          : hash(keyPair.publicKey.export({ type: 'spki', format: 'der' })),
       expectedServicePrincipal: 'synthetic-approval-service',
       auditStore
     }
