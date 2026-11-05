@@ -113,9 +113,6 @@
         "render": {
           "type": "string"
         },
-        "vercel": {
-          "type": "string"
-        },
         "railway": {
           "type": "string"
         }
