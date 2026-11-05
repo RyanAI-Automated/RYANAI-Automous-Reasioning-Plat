@@ -105,7 +105,7 @@ const originalListeners = new Map(
 );
 
 beforeAll(async () => {
-  vi.stubEnv('CORS_ORIGINS', 'https://frontend.vercel.app');
+  vi.stubEnv('CORS_ORIGINS', 'https://ryanai-web.onrender.com');
   await import('./launcher');
   await vi.waitFor(() => expect(state.listen).toHaveBeenCalledOnce());
 });
@@ -134,11 +134,11 @@ describe('launcher reasoning routes', () => {
     const response = await state.app!.inject({
       method: 'POST',
       url: '/api/reasoning/stream',
-      headers: { origin: 'https://frontend.vercel.app', authorization: 'Bearer test-token' },
+      headers: { origin: 'https://ryanai-web.onrender.com', authorization: 'Bearer test-token' },
       payload: { prompt: 'hello', language: 've-ZA' },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.headers['access-control-allow-origin']).toBe('https://frontend.vercel.app');
+    expect(response.headers['access-control-allow-origin']).toBe('https://ryanai-web.onrender.com');
     expect(response.headers['content-type']).toBe('text/event-stream');
     expect(response.body).toContain('"status":"complete","result":"answer"');
     expect(state.invoke).toHaveBeenCalledWith(expect.objectContaining({ language: 've-ZA' }));
@@ -206,7 +206,7 @@ describe('launcher reasoning routes', () => {
       method: 'OPTIONS',
       url: '/api/reasoning/stream',
       headers: {
-        origin: 'https://frontend.vercel.app',
+        origin: 'https://ryanai-web.onrender.com',
         'access-control-request-method': 'POST',
         'access-control-request-headers': 'content-type',
       },
