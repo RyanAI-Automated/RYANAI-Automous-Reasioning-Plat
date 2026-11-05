@@ -26,11 +26,10 @@ RUN npm run db:generate \
 FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
-    HOST=0.0.0.0 \
-    PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true \
-    NODE_USE_SYSTEM_CA=1
-    NODE_TLS_REJECT_UNAUTHORIZED=0
+    NODE_TLS_REJECT_UNAUTHORIZED=0 \
+    SSL_CERT_FILE=/etc/ssl/cert.pem \
+    SSL_CERT_DIR=/etc/ssl/certs
 RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0' \
