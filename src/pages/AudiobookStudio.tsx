@@ -81,6 +81,8 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
   const [project, setProject] = useState<Project>(initialProject);
   const [activeId, setActiveId] = useState(initialProject.chapters[0].id);
   const [busy, setBusy] = useState<'transcribe' | 'render' | 'book' | null>(null);
+  const [renderJobId, setRenderJobId] = useState<string | null>(null);
+  const [cancelingRender, setCancelingRender] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const reportStorageError = useCallback(() => {
@@ -264,6 +266,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
       const queuedData = await queued.json() as { job?: { id: string; status: string }; error?: string };
       if (!queued.ok || !queuedData.job?.id) throw new Error(queuedData.error || 'Could not queue audiobook render.');
       const jobId = queuedData.job.id;
+      setRenderJobId(jobId);
       let jobStatus = queuedData.job.status;
       setStatus('Render job queued. The server worker continues independently of this page.');
       while (jobStatus === 'queued' || jobStatus === 'running' || jobStatus === 'cancel_requested') {
@@ -273,8 +276,8 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
         if (!poll.ok || !data.job) throw new Error(data.error || 'Could not retrieve render job status.');
         jobStatus = data.job.status;
         if (jobStatus === 'running') setStatus('Rendering: ' + (data.job.progress?.completedChapters ?? 0) + '/' + (data.job.progress?.totalChapters ?? project.chapters.length) + ' chapters complete.');
-        if (jobStatus === 'failed') throw new Error(data.job.error || 'Audiobook rendering failed after its retry limit.');
-        if (jobStatus === 'cancelled') throw new Error('Audiobook rendering was cancelled.');
+        if (jobStatus === 'failed') { setRenderJobId(null); throw new Error(data.job.error || 'Audiobook rendering failed after its retry limit.'); }
+        if (jobStatus === 'cancelled') { setRenderJobId(null); setStatus('Audiobook rendering was cancelled.'); return; }
       }
       const downloadsResponse = await authenticatedFetch('/api/v1/audiobook-jobs/' + jobId + '/downloads');
       const downloadData = await downloadsResponse.json() as { downloads?: Array<{ chapterId: string; chapterTitle: string; url: string }>; error?: string };
@@ -291,9 +294,24 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
         files[item.id] = { url, name: (item.title.replace(/[^a-z0-9-_]/gi, '-').slice(0, 60) || 'chapter') + '.mp3' };
       }
       setRenderedFiles(current => ({ ...current, ...files }));
+      setRenderJobId(null);
       setStatus('Audiobook render completed. ' + Object.keys(files).length + ' chapter MP3 files are ready.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Audiobook rendering could not be completed.'); setStatus(''); }
     finally { setBusy(null); }
+  };
+
+  const cancelEntireBookRender = async () => {
+    if (!renderJobId || cancelingRender) return;
+    setCancelingRender(true); setError('');
+    try {
+      const response = await authenticatedFetch('/api/v1/audiobook-jobs/' + encodeURIComponent(renderJobId) + '/cancel', { method: 'POST' });
+      const result = await response.json() as { status?: string; error?: string };
+      if (!response.ok || !result.status) throw new Error(result.error || 'Could not cancel the audiobook render.');
+      setStatus(result.status === 'cancelled' ? 'Audiobook render cancelled.' : 'Cancellation requested. The worker will stop at its next safe checkpoint.');
+      if (result.status === 'cancelled') setRenderJobId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not cancel the audiobook render.');
+    } finally { setCancelingRender(false); }
   };
 
   const addChapter = () => { const next = newChapter(project.chapters.length + 1); setProject(p => ({ ...p, chapters: [...p.chapters, next] })); setActiveId(next.id); setAudioUrl(null); };
@@ -334,7 +352,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
             <button onClick={() => uploadRef.current?.click()} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-100 disabled:opacity-50"><FileAudio size={16} /> Transcribe recording</button>
             <input ref={uploadRef} type="file" accept="audio/*,video/mp4" className="hidden" onChange={e => void transcribe(e.target.files?.[0])} />
             <button onClick={recognition.toggle} disabled={!recognition.isSupported || busy !== null} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50 ${recognition.isListening ? 'border-rose-400/50 text-rose-200' : 'border-slate-700 text-slate-200'}`}>{recognition.isListening ? <MicOff size={16} /> : <Mic size={16} />}{recognition.isListening ? 'Stop live S2T' : 'Start live S2T'}</button>
-            <button onClick={() => void render()} disabled={busy !== null || !chapter.text.trim()} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"><WandSparkles size={16} />{busy === 'render' ? 'Generating…' : 'Generate chapter'}</button><button onClick={() => void renderEntireBook()} disabled={busy !== null || project.chapters.some(c => !c.text.trim())} className="rounded-lg border border-violet-400/40 px-3 py-2 text-sm text-violet-200 disabled:opacity-50">{busy === 'book' ? 'Rendering book…' : 'Render entire audiobook'}</button>
+            <button onClick={() => void render()} disabled={busy !== null || !chapter.text.trim()} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"><WandSparkles size={16} />{busy === 'render' ? 'Generating…' : 'Generate chapter'}</button><button onClick={() => void renderEntireBook()} disabled={busy !== null || project.chapters.some(c => !c.text.trim())} className="rounded-lg border border-violet-400/40 px-3 py-2 text-sm text-violet-200 disabled:opacity-50">{busy === 'book' ? 'Rendering book…' : 'Render entire audiobook'}</button>{renderJobId && <button type="button" onClick={() => void cancelEntireBookRender()} disabled={cancelingRender} className="rounded-lg border border-rose-400/40 px-3 py-2 text-sm text-rose-200 disabled:opacity-50">{cancelingRender ? 'Requesting cancellation…' : 'Cancel book render'}</button>}
           </div>
           {recognition.isListening && <p role="status" className="text-xs text-emerald-300">Microphone active. Final speech segments are appended to this chapter.</p>}
           {recognition.error && <p role="alert" className="text-sm text-rose-300">{recognition.error}</p>}{recognition.interimText && <p className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-2 text-sm text-emerald-100">Hearing: {recognition.interimText}</p>}
