@@ -104,17 +104,20 @@ try {
 
   // Insert a committed queue item without emitting NOTIFY. No task is
   // enqueued afterward, so the recovery sweep must be the worker wake-up path.
-  const missed = await prisma.agentRun.create({
-    data: {
-      userId,
-      objective: 'CI: recover a committed task when PostgreSQL notification is missed.',
-      status: 'queued',
-      approvalStatus: 'approved',
-      queueType: 'reasoning',
-    },
-    select: { id: true, createdAt: true },
+  const missed = await prisma.$transaction(async (tx) => {
+    const created = await tx.agentRun.create({
+      data: {
+        userId,
+        objective: 'CI: recover a committed task when PostgreSQL notification is missed.',
+        status: 'queued',
+        approvalStatus: 'approved',
+        queueType: 'reasoning',
+      },
+      select: { id: true, createdAt: true },
+    });
+    await tx.agentHandoff.createMany({ data: handoffFixture(created.id) });
+    return created;
   });
-  await prisma.agentHandoff.createMany({ data: handoffFixture(missed.id) });
   evidence.missedNotificationTaskId = missed.id;
   evidence.missedNotificationQueuedAt = missed.createdAt.toISOString();
 
