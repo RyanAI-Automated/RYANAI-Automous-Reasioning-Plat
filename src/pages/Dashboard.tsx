@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import {
   Activity,
   BookAudio,
@@ -48,12 +49,21 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
     const controller = new AbortController();
     const loadPAStatus = async () => {
       try {
-        const response = await fetch('/api/agent/ops/pa/status', {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
+        const response = await authenticatedFetch('/api/agent/ops/pa/status', {
           signal: controller.signal,
         });
-        const payload = await response.json() as { pa?: PAStatus; error?: string };
+        const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+        if (!contentType.includes('json')) {
+          throw new Error(
+            `PA status endpoint returned a non-JSON response (HTTP ${response.status}). Check the configured API origin.`,
+          );
+        }
+        let payload: { pa?: PAStatus; error?: string };
+        try {
+          payload = await response.json() as { pa?: PAStatus; error?: string };
+        } catch {
+          throw new Error(`PA status endpoint returned malformed JSON (HTTP ${response.status}).`);
+        }
         if (!response.ok || !payload.pa) throw new Error(payload.error || 'PA status is not available.');
         if (!disposed) {
           setPaStatus(payload.pa);
