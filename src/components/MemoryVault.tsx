@@ -91,11 +91,10 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
       });
       const payload = await response.json().catch(() => ({})) as { entry?: VaultEntry; error?: string };
       if (!response.ok || !payload.entry) throw new Error(payload.error || 'Could not save this memory.');
-      setEntries((current) => [payload.entry!, ...current]);
-      setHasMore(hasMore);
-      setNextCursor(nextCursor);
       setInput('');
       setNotice('Memory saved to your account and made available to RyanAI reasoning.');
+      // Reload the active filter so a new entry cannot corrupt filtered results or page cursors.
+      await refresh(undefined, false, activeSearch);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save this memory.');
     } finally {
@@ -125,9 +124,10 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
       });
       const payload = await response.json().catch(() => ({})) as { entry?: VaultEntry; error?: string };
       if (!response.ok || !payload.entry) throw new Error(payload.error || 'Could not update this memory.');
-      setEntries((current) => current.map((item) => item.id === entry.id ? payload.entry! : item));
       setEditingId(null);
       setNotice('Memory updated.');
+      // Editing can change whether an entry matches the active query and its page position.
+      await refresh(undefined, false, activeSearch);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not update this memory.');
     } finally {
@@ -146,9 +146,10 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
       });
       const payload = await response.json().catch(() => ({})) as { deleted?: boolean; error?: string };
       if (!response.ok || payload.deleted !== true) throw new Error(payload.error || 'Could not delete this memory.');
-      setEntries((current) => current.filter((item) => item.id !== entry.id));
       if (editingId === entry.id) setEditingId(null);
       setNotice('Memory deleted from your account.');
+      // Rebuild the first page so deleting a cursor row cannot strand later pages.
+      await refresh(undefined, false, activeSearch);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not delete this memory.');
     } finally {

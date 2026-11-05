@@ -209,6 +209,30 @@ describe('account-scoped Postgres Memory Vault API', () => {
     }));
   });
 
+  it('rejects a cursor that does not belong to the active search result set', async () => {
+    store.findFirst.mockResolvedValue(null);
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/user/memory?q=PROJECT&cursor=' + memoryId,
+      headers: { 'x-test-user': 'user-a' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(store.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: memoryId,
+        userId: 'user-a',
+        OR: [
+          { value: { contains: 'PROJECT', mode: 'insensitive' } },
+          { category: { contains: 'PROJECT', mode: 'insensitive' } },
+          { key: { contains: 'PROJECT', mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, createdAt: true },
+    });
+    expect(store.findMany).not.toHaveBeenCalled();
+  });
+
   it('rejects a cursor that is not owned by the authenticated account', async () => {
     store.findFirst.mockResolvedValue(null);
     const app = await createApp();
