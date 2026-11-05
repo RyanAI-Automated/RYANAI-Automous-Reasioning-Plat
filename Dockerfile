@@ -11,17 +11,28 @@ RUN apk add --no-cache libc6-compat \
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
-# One-shot migration image intentionally retains Prisma CLI and tsx.
+# One-shot migration image uses the same verified Supabase CA as the API image.
+# It is invoked only by the separately approved production-migration workflow.
 FROM api-deps AS migrate
 WORKDIR /app
+ENV NODE_ENV=production \
+    NODE_USE_SYSTEM_CA=1 \
+    NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt \
+    SUPABASE_SSL_ROOT_CERT_PATH=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
+COPY certs/supabase/prod-ca-2021.crt /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
+RUN apk add --no-cache ca-certificates \
+    && update-ca-certificates \
+    && test -s /etc/ssl/cert.pem \
+    && test -s /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
 COPY prisma ./prisma
 COPY src/db/migrate.ts ./src/db/migrate.ts
+COPY src/server/supabasePooler.ts ./src/server/supabasePooler.ts
+COPY scripts/verify-node-ca.sh ./scripts/verify-node-ca.sh
 RUN npm run db:generate \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx
-ENV NODE_ENV=production
 USER node
-CMD ["node", "--import", "tsx/esm", "src/db/migrate.ts"]
+CMD ["sh", "-c", "exec sh scripts/verify-node-ca.sh node --import tsx/esm src/db/migrate.ts"]
 
 # Build the server and prune development-only dependencies before runtime copy.
 FROM api-deps AS api-builder

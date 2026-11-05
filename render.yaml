@@ -4,14 +4,11 @@ version: "1"
 services:
   - type: web
     name: ryanai-web
-    env: docker
+    runtime: static
     repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
     branch: main
-    region: oregon
-    plan: free
-    dockerfilePath: ./Dockerfile
-    dockerTarget: web
-    healthCheckPath: /health
+    buildCommand: npm ci --legacy-peer-deps && npm run build:web
+    staticPublishPath: ./dist
     autoDeployTrigger: off
     envVars:
       - key: VITE_API_BASE_URL
@@ -27,7 +24,7 @@ services:
 
   - type: web
     name: ryanai-api
-    env: docker
+    runtime: docker
     repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
     branch: main
     region: oregon
@@ -129,8 +126,10 @@ services:
       - key: RYANAI_OWNER_EMAIL
         sync: false
 
+  # Provision the private Oregon Key Value resource only on an explicitly approved Blueprint sync.
   - type: keyvalue
     name: ryanai-redis
     plan: free
     region: oregon
+    ipAllowList: []
     maxmemoryPolicy: noeviction
