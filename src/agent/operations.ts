@@ -568,9 +568,9 @@ export function startAgentTaskWorker(options: {
     onStatusChange: (listenerStatus) => {
       const previousState = agentTaskWorkerStatus.listener?.state;
       updateStatus({ listener: listenerStatus });
-      if (listenerStatus.state === 'listening' && previousState !== 'listening') void drain('listener-connected');
-      updateStatus({ listener: listenerStatus });
-      if (listenerStatus.state === 'listening') void drain('listener-connected');
+      if (listenerStatus.state === 'listening' && previousState !== 'listening') {
+        void drain('listener-connected');
+      }
     },
     onNotification: (payload) => {
       updateStatus({ lastNotificationAt: new Date().toISOString(), lastNotificationPayload: payload ?? null });
