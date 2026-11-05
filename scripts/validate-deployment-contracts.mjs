@@ -4,10 +4,18 @@ import { parse as parseYaml } from 'yaml';
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const render = read('render.yaml');
 const renderConfig = parseYaml(render);
-const renderServices = renderConfig.projects?.[0]?.environments?.[0]?.services ?? [];
+const renderServices = Array.isArray(renderConfig.services)
+  ? renderConfig.services
+  : (renderConfig.projects?.[0]?.environments?.[0]?.services ?? []);
 const renderApi = renderServices.find((service) => service.name === 'ryanai-api');
 const renderWeb = renderServices.find((service) => service.name === 'ryanai-web');
 const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis');
+const expectedRenderServiceNames = ['ryanai-api', 'ryanai-web', 'ryanai-redis'];
+const renderServiceNames = renderServices.map((service) => service.name);
+const hasUniqueEnvKeys = (service) => {
+  const keys = (service?.envVars ?? []).map((item) => item.key);
+  return keys.length === new Set(keys).size;
+};
 const apiDockerfile = read('Dockerfile.api');
 const vercel = JSON.parse(read('vercel.json'));
 const railway = JSON.parse(read('railway.json'));
@@ -19,12 +27,17 @@ const ciWorkflow = read('.github/workflows/ci.yml');
 const railwayDeploy = read('.github/workflows/deploy-railway.yml');
 const checks = [
   ['Render API maps to the current service', renderApi?.name === 'ryanai-api'],
+  ['Render Blueprint uses top-level services declaration', Array.isArray(renderConfig.services)],
+  ['Render Blueprint has exactly the three expected unique resources', renderServices.length === 3 && expectedRenderServiceNames.every((name) => renderServiceNames.includes(name)) && new Set(renderServiceNames).size === 3],
+  ['Render API and frontend environment variable keys are unique', hasUniqueEnvKeys(renderApi) && hasUniqueEnvKeys(renderWeb)],
   ['Render services use canonical repository and main branch', renderApi?.repo === 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat' && renderWeb?.repo === renderApi?.repo && renderApi?.branch === 'main' && renderWeb?.branch === 'main'],
   ['Render API uses root context and Dockerfile.api', renderApi?.rootDir === '.' && renderApi?.dockerContext === '.' && renderApi?.dockerfilePath === './Dockerfile.api'],
   ['Render API clears Docker command override', renderApi?.dockerCommand === ''],
   ['Dockerfile.api declares runtime entrypoint and command', apiDockerfile.includes('ENTRYPOINT ["/usr/bin/dumb-init", "--"]') && apiDockerfile.includes('CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]')],
   ['Render API health check is configured', renderApi?.healthCheckPath === '/health'],
   ['Render API uses Oregon region', renderApi?.region === 'oregon'],
+  ['Render API and frontend keep auto-deploy disabled', renderApi?.autoDeployTrigger === 'off' && renderWeb?.autoDeployTrigger === 'off'],
+  ['Render preview generation remains disabled', renderConfig.previews?.generation === 'off'],
   ['Render Redis shares the API region', Boolean(renderRedis) && renderRedis.name === 'ryanai-redis' && renderRedis.region === renderApi?.region],
   ['Render frontend builds the Vite app from repository root', renderWeb?.rootDir === '.' && renderWeb?.buildCommand?.includes('npm run build:web') && renderWeb?.staticPublishPath === './dist'],
   ['Render frontend targets the official API origin', renderWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL' && item.value === 'https://ryanai-api.onrender.com')],
