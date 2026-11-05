@@ -137,14 +137,32 @@ if (!app.includes("(id !== 'admin' || isAdmin)")) {
 }
 const operatorPage = readText('src/pages/OperatorConsole.tsx');
 const adminPage = readText('src/pages/AdminConsole.tsx');
-for (const endpoint of ['/api/agent/ops/tasks', '/api/agent/ops/tasks']) {
-  if (!operatorPage.includes(endpoint)) fail('Operator console is missing authenticated task endpoints');
+if (!operatorPage.includes('/api/agent/ops/tasks')) {
+  fail('Operator console is missing authenticated task history and dispatch endpoints');
 }
 for (const endpoint of ['/api/admin/metrics', '/api/actions', '/api/engineering/jobs']) {
   if (!adminPage.includes(endpoint)) fail('Admin console is missing a protected control-plane endpoint: ' + endpoint);
 }
 if (!adminPage.includes('Approve and execute') || !adminPage.includes('Approve exact plan')) {
   fail('Admin console must expose separate, explicit approval controls');
+}
+const commsPage = readText('src/components/CommunicationsCenter.tsx');
+if (!commsPage.includes('Search messages or addresses') || !commsPage.includes('channelFilter')) {
+  fail('Comms inbox must expose message search and channel filtering');
+}
+if (!commsPage.includes('Comms attachments are locked pending secure storage integration.')) {
+  fail('Comms must not imply attachment support before its ownership and scanning path is ready');
+}
+const audiobookPage = readText('src/pages/AudiobookStudio.tsx');
+const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
+if (!audiobookPage.includes('Private audiobook library') || !audiobookPage.includes('createNewProject')) {
+  fail('Audiobook Studio must expose private project selection and creation');
+}
+if (!audiobookRoutes.includes("take: 50")) {
+  fail('Audiobook project listing must expose a bounded private library, not only one project');
+}
+if (!audiobookPage.includes('cancelEntireBookRender') || !audiobookPage.includes('/cancel')) {
+  fail('Audiobook Studio must expose the durable render cancellation API');
 }
 if (!app.includes("lazy(() => import('@/pages/QuantLab'))") || !app.includes("{route === 'quant' && <QuantLabPage />}")) {
   fail('Quant Lab route must lazy-load and render the QuantLab page');
