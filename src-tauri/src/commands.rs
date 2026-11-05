@@ -62,8 +62,9 @@ fn build_reasoning_request(
 
     let base = reqwest::Url::parse(base_url.trim())
         .map_err(|_| "RyanAI API URL is invalid.".to_string())?;
-    let loopback = base.host_str().map(is_loopback_host).unwrap_or(false);
-    if base.scheme() != "https" && !loopback {
+    let loopback_http =
+        base.scheme() == "http" && base.host_str().map(is_loopback_host).unwrap_or(false);
+    if base.scheme() != "https" && !loopback_http {
         return Err("RyanAI API URL must use HTTPS outside loopback development.".to_string());
     }
     if !base.username().is_empty()
@@ -180,6 +181,21 @@ mod tests {
     fn rejects_plain_http_for_non_loopback_hosts() {
         let error = build_reasoning_request(
             "http://api.example.test",
+            "inspect the service",
+            "signed-in-session-token",
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            "RyanAI API URL must use HTTPS outside loopback development."
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_schemes_even_for_loopback_hosts() {
+        let error = build_reasoning_request(
+            "ftp://localhost:2121",
             "inspect the service",
             "signed-in-session-token",
         )

@@ -21,7 +21,7 @@ async function getSignedInAccessToken(): Promise<string> {
 
   const { data, error } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token;
-  if (error || !accessToken) {
+  if (error || !accessToken || data.session?.user?.is_anonymous === true) {
     throw new Error('Sign in to continue.');
   }
 
