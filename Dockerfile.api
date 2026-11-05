@@ -29,6 +29,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true \
+    NODE_USE_SYSTEM_CA=1
     NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
     && apk upgrade --no-cache \
