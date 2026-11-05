@@ -32,7 +32,7 @@ describe('Quant paper trading routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.transaction.mockImplementation(async (callback) => callback(tx));
+    mocks.transaction.mockImplementation(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx));
     tx.$executeRawUnsafe.mockResolvedValue(1);
     tx.$queryRawUnsafe.mockImplementation(async (query: string) => {
       if (query.includes('SELECT cash_balance::text')) return [{ cash_balance: '100000' }];
@@ -84,11 +84,7 @@ describe('Quant paper trading routes', () => {
     });
     expect(response.statusCode).toBe(409);
     expect(response.json().error).toContain('cannot sell more units');
-    expect(tx.$executeRawUnsafe).not.toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO quant_paper_orders'),
-      expect.anything(), expect.anything(), expect.anything(), expect.anything(),
-      expect.anything(), expect.anything(), expect.anything(),
-    );
+    expect(tx.$executeRawUnsafe.mock.calls.some(([query]) => String(query).includes('INSERT INTO quant_paper_orders'))).toBe(false);
     await app.close();
   });
 
