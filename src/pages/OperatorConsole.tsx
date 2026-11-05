@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, Clock3, ListChecks, Play, RefreshCw, RotateCw, XCircle } from 'lucide-react';
+import { Activity, ListChecks, Play, RefreshCw, RotateCw, XCircle } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 interface Handoff {
