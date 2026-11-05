@@ -3,12 +3,12 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { audiobookProjectRoutes } from './audiobookProjects.js';
 
 const apps: FastifyInstance[] = [];
-const userId = 'audiobook-test-user';
+const userId = '00000000-0000-4000-8000-000000000042';
 
-async function createApp(prisma: Record<string, unknown>) {
+async function createApp(audiobookPrisma: Record<string, unknown> | null) {
   const app = Fastify();
   apps.push(app);
-  app.decorate('prisma', prisma as never);
+  app.decorate('audiobookPrisma', audiobookPrisma as never);
   app.decorateRequest('authUser', null);
   app.addHook('onRequest', async (request) => {
     if (request.headers.authorization === 'Bearer test-user') {
@@ -27,6 +27,14 @@ afterEach(async () => {
 });
 
 describe('RyanAI audiobook persistence routes', () => {
+  it('fails closed when the dedicated Neon audiobook database is not configured', async () => {
+    const findMany = vi.fn();
+    const app = await createApp(null);
+    const response = await app.inject({ method: 'GET', url: '/api/v1/audiobooks', headers: { authorization: 'Bearer test-user' } });
+    expect(response.statusCode).toBe(503);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
   it('rejects unauthenticated project listing before querying the database', async () => {
     const findMany = vi.fn();
     const app = await createApp({ audiobookProject: { findMany } });
@@ -89,19 +97,50 @@ describe('RyanAI audiobook persistence routes', () => {
     expect(findUnique).toHaveBeenCalledWith({ where: { userId_idempotencyKey: { userId, idempotencyKey: 'render-request-001' } } });
     expect(create).not.toHaveBeenCalled();
   });
-  it('preserves stable chapter UUIDs when creating a project', async () => {
+  it('persists only the verified Supabase subject before creating a project', async () => {
     const chapterId = '7f7a4d4e-4a76-4a2b-9e4a-1d3d8f12a4f0';
+    const identityUpsert = vi.fn().mockResolvedValue({ id: userId });
     const create = vi.fn().mockResolvedValue({ id: 'project-new' });
-    const app = await createApp({ audiobookProject: { create } });
+    const app = await createApp({
+      supabaseIdentity: { upsert: identityUpsert },
+      audiobookProject: { create },
+    });
     const response = await app.inject({
       method: 'POST', url: '/api/v1/audiobooks',
       headers: { authorization: 'Bearer test-user' },
       payload: { title: 'Stable IDs', language: 'en-ZA', chapters: [{ id: chapterId, title: 'Chapter 1', text: 'Hello.', voice: 'coral', speed: 1, style: '' }] },
     });
     expect(response.statusCode).toBe(201);
+    expect(identityUpsert).toHaveBeenCalledExactlyOnceWith({
+      where: { id: userId },
+      create: { id: userId },
+      update: {},
+    });
+    expect(identityUpsert.mock.invocationCallOrder[0]).toBeLessThan(create.mock.invocationCallOrder[0]);
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ chapters: { create: [expect.objectContaining({ id: chapterId })] } }),
     }));
+  });
+
+  it('fails closed when Neon cannot persist the verified identity', async () => {
+    const identityUpsert = vi.fn().mockRejectedValue(new Error('database unavailable'));
+    const create = vi.fn();
+    const app = await createApp({
+      supabaseIdentity: { upsert: identityUpsert },
+      audiobookProject: { create },
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/audiobooks',
+      headers: { authorization: 'Bearer test-user' },
+      payload: {
+        title: 'Bridge failure',
+        language: 'en-ZA',
+        chapters: [{ title: 'Chapter 1', text: 'Synthetic text.', voice: 'coral', speed: 1, style: '' }],
+      },
+    });
+    expect(response.statusCode).toBe(503);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('rejects a second render while a different project render is active', async () => {

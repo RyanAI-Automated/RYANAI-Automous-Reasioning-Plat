@@ -384,7 +384,7 @@ The tracked [`.env.example`](.env.example) is the canonical starting template. I
 | --- | --- |
 | `NODE_ENV` | Runtime mode; use `development` locally and `production` for deployment. |
 | `HOST`, `PORT` | API bind address and port. |
-| `DATABASE_URL` | PostgreSQL connection string. |
+| `DATABASE_URL` | PostgreSQL connection string for the existing RyanAI platform database. |\n| `AUDIOBOOK_DATABASE_URL` | Optional pooled Neon connection used only by audiobook API/worker persistence. Does not replace `DATABASE_URL`. |\n| `AUDIOBOOK_DATABASE_URL_UNPOOLED` | Optional direct Neon connection used only by audiobook migrations and other session-level operations. |
 | `REDIS_URL` | Redis connection string. |
 | `JWT_SECRET` | Server-side signing/authentication secret. |
 | `CORS_ORIGINS` | Comma-separated exact browser origins permitted by the API. |
@@ -415,7 +415,7 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 
 | Variable | Purpose / handling |
 | --- | --- |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Optional server-side Supabase configuration. |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Supabase Auth endpoint and server-side publishable key used to verify user sessions. |\n| `SUPABASE_ANON_KEY` | Legacy public key alias retained where needed. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-only credential. Never expose to the browser. |
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
@@ -611,11 +611,18 @@ Useful commands:
 npm run db:generate
 npm run db:migrate
 npm run db:setup
+
+# Separate Neon audiobook database (only when explicitly configured/approved):
+npm run db:audiobook:generate
+npm run db:audiobook:status
+# Review target branch and pending migration before running:
+npm run db:audiobook:migrate
 ```
 
-- `db:generate` generates the Prisma client.
-- `db:migrate` runs the repository migration entry point.
-- `db:setup` generates the client and runs the migration entry point.
+- `db:generate` generates both the platform Prisma client and the isolated audiobook client.
+- `db:migrate` runs the existing platform migration entry point.
+- `db:setup` generates both clients and runs only the existing platform migration entry point.
+- `db:audiobook:status` and `db:audiobook:migrate` operate only on `AUDIOBOOK_DATABASE_URL_UNPOOLED` via the separate `prisma/audiobook/` migration history. Do not point them at the main platform database or a production branch.
 
 For local development, inspect the migration runner and target database before applying changes. Never use `prisma db push` or a destructive reset against production as a shortcut. Before a production schema change:
 
