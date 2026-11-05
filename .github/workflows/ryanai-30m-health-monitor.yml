@@ -1,0 +1,195 @@
+name: RyanAI 30-minute health monitor
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC; runs at :00 and :30 each hour.
+    - cron: "0,30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+  statuses: read
+  issues: write
+
+concurrency:
+  group: ryanai-30-minute-health-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check PR #936 and public Render health endpoints
+        uses: actions/github-script@v7
+        env:
+          MONITOR_ISSUE_NUMBER: "940"
+          MONITORED_PR_NUMBER: "936"
+          API_HEALTH_URL: "https://ryanai-api.onrender.com/health"
+          FRONTEND_URL: "https://ryanai-web.onrender.com/"
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = Number(process.env.MONITOR_ISSUE_NUMBER);
+            const pr_number = Number(process.env.MONITORED_PR_NUMBER);
+
+            async function probe(url) {
+              const started = Date.now();
+              try {
+                const response = await fetch(url, {
+                  method: 'GET',
+                  redirect: 'follow',
+                  headers: { 'user-agent': 'RyanAI-GitHub-Health-Monitor/1.0' },
+                  signal: AbortSignal.timeout(12000),
+                });
+                return {
+                  level: response.ok ? 'up' : 'down',
+                  status: response.status,
+                  durationMs: Date.now() - started,
+                };
+              } catch (error) {
+                return {
+                  level: 'down',
+                  status: null,
+                  durationMs: Date.now() - started,
+                  error: error && typeof error.name === 'string' ? error.name : 'NetworkError',
+                };
+              }
+            }
+
+            function summarizeCi(checkRuns, combined) {
+              const runs = checkRuns.check_runs || [];
+              const counts = {
+                total: runs.length,
+                queued: runs.filter((run) => ['queued', 'pending', 'requested', 'waiting'].includes(run.status)).length,
+                inProgress: runs.filter((run) => ['in_progress'].includes(run.status)).length,
+                passed: runs.filter((run) => run.status === 'completed' && run.conclusion === 'success').length,
+                failed: runs.filter((run) => run.status === 'completed' && ['failure', 'timed_out', 'action_required', 'startup_failure'].includes(run.conclusion)).length,
+                neutral: runs.filter((run) => run.status === 'completed' && ['cancelled', 'skipped', 'neutral', 'stale'].includes(run.conclusion)).length,
+              };
+              const combinedState = combined.state || 'unknown';
+              const failing = counts.failed > 0 || combinedState === 'failure' || combinedState === 'error';
+              const pending = counts.queued > 0 || counts.inProgress > 0 || combinedState === 'pending';
+              let level = 'no-check-data';
+              if (failing) level = 'failing';
+              else if (pending) level = 'pending';
+              else if (counts.total > 0 || combinedState === 'success') level = 'passing';
+              return { level, combinedState, counts };
+            }
+
+            const [issueResponse, prResponse] = await Promise.all([
+              github.rest.issues.get({ owner, repo, issue_number }),
+              github.rest.pulls.get({ owner, repo, pull_number: pr_number }),
+            ]);
+            const issue = issueResponse.data;
+            const pr = prResponse.data;
+            const headSha = pr.head.sha;
+
+            const [checkRunsResult, combinedResult, api, frontend] = await Promise.all([
+              github.rest.checks.listForRef({ owner, repo, ref: headSha, per_page: 100 }),
+              github.rest.repos.getCombinedStatusForRef({ owner, repo, ref: headSha }).catch(() => ({ data: { state: 'unknown', statuses: [] } })),
+              probe(process.env.API_HEALTH_URL),
+              probe(process.env.FRONTEND_URL),
+            ]);
+
+            const ci = summarizeCi(checkRunsResult.data, combinedResult.data);
+            const prLevel = pr.merged ? 'merged' : (pr.state === 'closed' ? 'closed' : 'open');
+            const levels = {
+              pr: prLevel,
+              ci: ci.level,
+              api: api.level,
+              frontend: frontend.level,
+            };
+            const snapshot = {
+              checkedAt: new Date().toISOString(),
+              pr: {
+                number: pr.number,
+                state: pr.state,
+                merged: pr.merged,
+                url: pr.html_url,
+                headSha,
+                mergeCommitSha: pr.merge_commit_sha || null,
+              },
+              ci,
+              api,
+              frontend,
+              levels,
+            };
+
+            const startMarker = '<!-- RYANAI_MONITOR_STATE_START -->';
+            const endMarker = '<!-- RYANAI_MONITOR_STATE_END -->';
+            const body = issue.body || '';
+            const start = body.indexOf(startMarker);
+            const end = body.indexOf(endMarker);
+            let previous = null;
+            if (start >= 0 && end > start) {
+              const serialized = body.slice(start + startMarker.length, end).trim();
+              try { previous = JSON.parse(serialized); } catch { previous = null; }
+            }
+
+            const changed = [];
+            if (previous && previous.levels) {
+              for (const key of ['pr', 'ci', 'api', 'frontend']) {
+                if (previous.levels[key] !== levels[key]) {
+                  changed.push({ component: key, from: previous.levels[key], to: levels[key] });
+                }
+              }
+            }
+
+            const statusLine = (name, value, detail) => '| ' + name + ' | **' + value + '** | ' + detail + ' |';
+            const lines = [
+              'This issue stores the latest state for the scheduled RyanAI deployment monitor.',
+              '',
+              'Checks run every 30 minutes at :00 and :30 UTC (South Africa: :00 and :30 at UTC+2).',
+              '',
+              '## Latest snapshot',
+              '',
+              '| Component | State | Evidence |',
+              '|---|---|---|',
+              statusLine('PR #936', levels.pr, '[Open PR](https://github.com/' + owner + '/' + repo + '/pull/936), head `' + headSha.slice(0, 12) + '`'),
+              statusLine('GitHub CI', levels.ci, ci.counts.total + ' checks; ' + ci.counts.passed + ' passed, ' + ci.counts.failed + ' failed, ' + ci.counts.queued + ' queued, ' + ci.counts.inProgress + ' running; combined status: ' + ci.combinedState),
+              statusLine('Render API', levels.api, api.status === null ? (api.error || 'no HTTP response') : 'HTTP ' + api.status + ' in ' + api.durationMs + ' ms'),
+              statusLine('Render frontend', levels.frontend, frontend.status === null ? (frontend.error || 'no HTTP response') : 'HTTP ' + frontend.status + ' in ' + frontend.durationMs + ' ms'),
+              '',
+              '**Last checked:** ' + snapshot.checkedAt,
+              '',
+              '## Monitoring boundaries',
+              '- These are public HTTP health probes and GitHub checks. This workflow does not read Render secrets or authenticated Render control-plane deployment metadata.',
+              '- It does not deploy, restart services, change environment variables, run migrations, or send communications.',
+              '- Alerts are posted only when a high-level state changes; this issue body is refreshed on each run.',
+              '- GitHub may delay scheduled runs during high load.',
+              '',
+              startMarker,
+              JSON.stringify(snapshot),
+              endMarker,
+            ];
+            const updatedBody = lines.join('\n');
+
+            await github.rest.issues.update({ owner, repo, issue_number, body: updatedBody });
+
+            if (changed.length > 0) {
+              const descriptions = changed.map((item) =>
+                '- **' + item.component + ':** ' + item.from + ' → ' + item.to
+              ).join('\n');
+              const comment = [
+                '@rmnganyane-dev **RyanAI monitor detected a status change.**',
+                '',
+                descriptions,
+                '',
+                '**Current snapshot:**',
+                '- PR #936: ' + levels.pr,
+                '- GitHub CI: ' + levels.ci + ' (' + ci.counts.passed + '/' + ci.counts.total + ' passed; ' + ci.counts.failed + ' failed; ' + (ci.counts.queued + ci.counts.inProgress) + ' pending/running)',
+                '- API: ' + (api.status === null ? api.level + ' (' + (api.error || 'no HTTP response') + ')' : api.level + ' (HTTP ' + api.status + ')'),
+                '- Frontend: ' + (frontend.status === null ? frontend.level + ' (' + (frontend.error || 'no HTTP response') + ')' : frontend.level + ' (HTTP ' + frontend.status + ')'),
+                '',
+                '[View monitor run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId) + ' · [Monitor issue](https://github.com/' + owner + '/' + repo + '/issues/' + issue_number),
+              ].join('\n');
+              await github.rest.issues.createComment({ owner, repo, issue_number, body: comment });
+            } else if (!previous) {
+              core.info('Initial monitoring baseline saved; no notification sent.');
+            } else {
+              core.info('No high-level status change; snapshot refreshed without notification.');
+            }
