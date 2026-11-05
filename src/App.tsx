@@ -45,7 +45,6 @@ const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
 import { useAuth } from '@/hooks/useAuth';
-import { Analytics } from '@vercel/analytics/react';
 import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { DEFAULT_LANGUAGE, OWNER_DEFAULT_LANGUAGE } from '@/shared/languages';
@@ -226,7 +225,6 @@ export default function App() {
               </>}
           </main>
         </Suspense>
-        <Analytics />
       </div>
     </div>
   );
