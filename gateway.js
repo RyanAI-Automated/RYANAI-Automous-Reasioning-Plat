@@ -21,10 +21,10 @@ const redis = new Redis({
   maxRetriesPerRequest: 3
 });
 
-// 3. Register CORS for Vercel Frontend Integration
+// 3. Register CORS for the Render web frontend
 await fastify.register(cors, {
   // Allow your Vercel URL and local dev environment
-  origin: ['https://ryanai-automous-reasioning-plat.vercel.app', 'http://localhost:3000'],
+  origin: ['https://ryanai-web.onrender.com', 'http://localhost:3000'],
   methods: ['GET', 'POST']
 });
 
@@ -38,7 +38,7 @@ await fastify.register(websocket, {
 
 // A. Real-Time Console Telemetry Stream (WebSocket)
 fastify.get('/api/telemetry/stream', { websocket: true }, (socket, req) => {
-  fastify.log.info('Vercel frontend connected to telemetry stream');
+  fastify.log.info('Render web frontend connected to telemetry stream');
   
   // Subscribe to a local Redis channel where LangGraph and eBPF publish events
   const subscriber = new Redis();
@@ -50,13 +50,13 @@ fastify.get('/api/telemetry/stream', { websocket: true }, (socket, req) => {
   });
 
   socket.on('message', (msg) => {
-    // Handle incoming control commands from the Vercel UI
+    // Handle incoming control commands from the Render web UI
     fastify.log.info(`Received control command: ${msg}`);
   });
 
   socket.on('close', () => {
     subscriber.quit();
-    fastify.log.info('Vercel frontend disconnected');
+    fastify.log.info('Render web frontend disconnected');
   });
 });
 
@@ -94,7 +94,7 @@ const start = async () => {
   try {
     // Listen on all interfaces so Cloudflare Tunnel or ngrok can route to it
     await fastify.listen({ port: 8080, host: '0.0.0.0' });
-    fastify.log.info(`Gateway active. Expose port 8080 via Cloudflare Tunnel to connect Vercel.`);
+    fastify.log.info(`Gateway active. Expose port 8080 via Cloudflare Tunnel to connect Render web.`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
