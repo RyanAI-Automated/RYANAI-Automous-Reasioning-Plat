@@ -48,7 +48,7 @@ describe('RyanAI audiobook persistence routes', () => {
     const app = await createApp({ audiobookProject: { findMany } });
     const response = await app.inject({ method: 'GET', url: '/api/v1/audiobooks', headers: { authorization: 'Bearer test-user' } });
     expect(response.statusCode).toBe(200);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId } }));
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId }, take: 50, orderBy: { updatedAt: 'desc' } }));
   });
 
   it('does not disclose another user’s project when an ID is supplied', async () => {
