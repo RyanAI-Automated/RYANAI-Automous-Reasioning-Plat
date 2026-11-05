@@ -1,5 +1,8 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../../agent/approvalEngine.js', () => ({
+  humanInTheLoopAgent: { invoke: vi.fn() },
+}));
 import { commsPlugin } from './index.js';
 
 const { prisma } = vi.hoisted(() => ({
