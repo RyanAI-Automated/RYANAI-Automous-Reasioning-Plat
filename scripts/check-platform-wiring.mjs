@@ -118,7 +118,7 @@ if (!importsOrLazyLoads(
 )) {
   fail('Desktop cockpit must import or lazy-load AgentControlPanel');
 }
-for (const id of ['dashboard', 'operator', 'admin', 'quant', 'cockpit', 'workspace']) {
+for (const id of ['dashboard', 'operator', 'admin', 'quant', 'cockpit', 'memory', 'inference', 'github', 'workspace']) {
   if (!routes.routes?.some((route) => route.id === id)) {
     fail(`app/routes.json is missing the ${id} route`);
   }
@@ -145,6 +145,31 @@ for (const endpoint of ['/api/admin/metrics', '/api/actions', '/api/engineering/
 }
 if (!adminPage.includes('Approve and execute') || !adminPage.includes('Approve exact plan')) {
   fail('Admin console must expose separate, explicit approval controls');
+}
+const memoryComponent = readText('src/components/MemoryVault.tsx');
+const memoryPage = readText('src/pages/MemoryVaultPage.tsx');
+const inferencePage = readText('src/pages/InferenceConsole.tsx');
+const githubComponent = readText('src/components/GithubModal.tsx');
+const githubPage = readText('src/pages/GitHubIntegration.tsx');
+const commandCenter = readText('src/pages/CommandCenter.jsx');
+if (!app.includes("lazy(() => import('@/pages/MemoryVaultPage'))")
+  || !app.includes("{route === 'memory' && <MemoryVaultPage userId={user.id} />}")
+  || !memoryComponent.includes("presentation === 'page'")
+  || !memoryPage.includes('userId={userId}')
+  || !commandCenter.includes('<MemoryVault open={memoryOpen} userId={userId}')) {
+  fail('Memory Vault must be available as an account-scoped page and retain its workspace modal');
+}
+if (!app.includes("lazy(() => import('@/pages/InferenceConsole'))")
+  || !app.includes("{route === 'inference' && <InferenceConsolePage />}")
+  || !inferencePage.includes('/api/agent/ops/brains')
+  || !inferencePage.includes('STALE_AFTER_MS')) {
+  fail('Inference Console must use the authenticated brain health API and explicitly track stale snapshots');
+}
+if (!app.includes("lazy(() => import('@/pages/GitHubIntegration'))")
+  || !app.includes("{route === 'github' && <GitHubIntegrationPage />}")
+  || !githubComponent.includes("presentation === 'page'")
+  || !githubPage.includes('presentation="page"')) {
+  fail('GitHub Integration must be available as a standalone page using the existing verified OAuth UI');
 }
 const commsPage = readText('src/components/CommunicationsCenter.tsx');
 if (!commsPage.includes('Search messages or addresses') || !commsPage.includes('channelFilter')) {
