@@ -86,13 +86,16 @@ export function resolveTwil8bEvaluationConfig(
   return { endpoint, runtimeModel, modelRevision: revision, variant, maxOutputTokens: requestedTokens };
 }
 
-export class Twil8bEvaluationAdapter {
+class Twil8bEvaluationAdapter {
   constructor(
     private readonly config: Twil8bEvaluationConfig,
-    private readonly fetchImpl: FetchLike = fetch,
+    private readonly fetchImpl: FetchLike,
   ) {}
 
   async generate(prompt: string): Promise<Twil8bGeneration> {
+    if (process.env.NODE_ENV === 'production' || process.env.RYANAI_ENV === 'production') {
+      throw new Error('TwIL-8B evaluation adapter is disabled in production.');
+    }
     if (!prompt.trim()) throw new Error('TwIL-8B evaluation prompt must not be empty.');
     const response = await this.fetchImpl(`${this.config.endpoint}/chat/completions`, {
       method: 'POST',
@@ -134,9 +137,9 @@ export class Twil8bEvaluationAdapter {
   }
 }
 
+/** Factory is the only construction path; production routing has no import of this module. */
 export function createTwil8bEvaluationAdapter(
-  env: NodeJS.ProcessEnv = process.env,
   fetchImpl: FetchLike = fetch,
-): Twil8bEvaluationAdapter {
-  return new Twil8bEvaluationAdapter(resolveTwil8bEvaluationConfig(env), fetchImpl);
+): { generate(prompt: string): Promise<Twil8bGeneration> } {
+  return new Twil8bEvaluationAdapter(resolveTwil8bEvaluationConfig(), fetchImpl);
 }
