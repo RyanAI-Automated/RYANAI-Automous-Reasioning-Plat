@@ -141,6 +141,18 @@ describe('RyanAI Comms inbox controls', () => {
     expect(input.disabled).toBe(false);
   });
 
+  it('shows live workspace metrics and selected conversation context from persisted data', async () => {
+    await render();
+    expect(container.textContent).toContain('Communication overview');
+    expect(container.textContent).toContain('Messages loaded');
+    expect(container.textContent).toContain('2');
+    expect(container.textContent).toContain('Conversation details');
+    expect(container.textContent).toContain('Channel identity');
+    expect(container.textContent).toContain('+27110000001');
+    expect(container.textContent).toContain('Latest message status');
+    expect(container.textContent).toContain('Privacy boundary');
+  });
+
   it('disables attachment selection when the server reports the private-storage or scanner gate is off', async () => {
     comms.getCommsStatus.mockResolvedValueOnce({
       status: 'configuration_snapshot',
