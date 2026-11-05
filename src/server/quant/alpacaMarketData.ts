@@ -61,7 +61,11 @@ function normalizeBars(raw: unknown, now: Date): QuantBar[] {
     if (date <= previousDate) {
       throw new MarketDataError('invalid_payload', 'Market-data bars are not strictly chronological.', 502);
     }
-    if (![candidate.o, candidate.h, candidate.l, candidate.c].every(finitePositive)) {
+    const open = candidate.o;
+    const high = candidate.h;
+    const low = candidate.l;
+    const close = candidate.c;
+    if (![open, high, low, close].every(finitePositive)) {
       throw new MarketDataError('invalid_payload', 'Market-data provider returned a non-positive or non-finite OHLC value.', 502);
     }
     const volume = candidate.v === undefined ? 0 : candidate.v;
@@ -69,18 +73,18 @@ function normalizeBars(raw: unknown, now: Date): QuantBar[] {
       throw new MarketDataError('invalid_payload', 'Market-data provider returned invalid volume.', 502);
     }
     if (
-      candidate.h < Math.max(candidate.o, candidate.c, candidate.l) ||
-      candidate.l > Math.min(candidate.o, candidate.c, candidate.h)
+      (high as number) < Math.max(open as number, close as number, low as number) ||
+      (low as number) > Math.min(open as number, close as number, high as number)
     ) {
       throw new MarketDataError('invalid_payload', 'Market-data provider returned inconsistent OHLC values.', 502);
     }
 
     bars.push({
       date,
-      open: candidate.o,
-      high: candidate.h,
-      low: candidate.l,
-      close: candidate.c,
+      open: open as number,
+      high: high as number,
+      low: low as number,
+      close: close as number,
       volume,
     });
     previousDate = date;
