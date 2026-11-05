@@ -4,6 +4,7 @@ import {
   BookAudio,
   Cpu,
   MessageSquareText,
+  ListChecks,
   TrendingUp,
   AlertCircle,
   CheckCircle2,
@@ -99,6 +100,12 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
       title: 'Operator Console',
       description: 'Queue durable reasoning tasks and inspect persisted execution progress.',
       icon: Activity,
+    },
+    {
+      href: '#/operations',
+      title: 'Operations Center',
+      description: 'Queue durable agent tasks and inspect execution progress; administrators can review pending actions.',
+      icon: ListChecks,
     },
     ...(isAdmin ? [{
       href: '#/admin',
