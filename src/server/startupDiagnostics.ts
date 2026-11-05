@@ -27,6 +27,7 @@ const connectionHints: Record<string, string> = {
     'The database endpoint presented an expired TLS certificate.',
   ERR_SSL_WRONG_VERSION_NUMBER:
     'TLS negotiation failed. Confirm the PostgreSQL endpoint and port are correct.',
+    'The Supabase pooler returned an internal error. Verify the exact Session Pooler hostname and the postgres.<project-ref> username in the protected connection configuration.',
   '28P01':
     'Password authentication failed. Check the database credentials in DATABASE_URL.',
   '28000':
@@ -67,6 +68,11 @@ export function databaseFailureDiagnostic(error: unknown): string {
         // Error codes are safe diagnostic metadata; messages and URLs are not.
         unclassifiedCodes.add(detail.code);
       }
+    if (
+      typeof detail.code === 'string' &&
+      /^[A-Z][A-Z0-9_]{2,31}$|^\\d{5}$/.test(detail.code)
+    ) {
+      codes.add(detail.code);
     }
     if (detail.cause) pending.push(detail.cause);
     if (Array.isArray(detail.errors))
@@ -82,6 +88,11 @@ export function databaseFailureDiagnostic(error: unknown): string {
     return 'Cause unavailable. Check DATABASE_URL, the exact Supabase Session Pooler endpoint, PostgreSQL availability, and database server logs. Raw error details are omitted to protect credentials.';
   }
   return diagnostics.join(' ');
+  return [...codes]
+    .map((code) => connectionHints[code]
+      ? `${code}: ${connectionHints[code]}`
+      : `${code}: Unclassified PostgreSQL connection error. Verify the protected DATABASE_URL host, username, database name, and TLS mode. Raw error details are omitted.`)
+    .join(' ');
 }
 
 export interface StartupServices {

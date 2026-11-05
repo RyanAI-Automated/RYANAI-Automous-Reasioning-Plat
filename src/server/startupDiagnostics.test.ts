@@ -65,6 +65,25 @@ describe('safe database diagnostics', () => {
     ).toContain(hint);
   });
 
+  it('explains Supabase pooler tenant-routing errors without exposing connection details', () => {
+    const result = databaseFailureDiagnostic(new Error('private pooler details', { cause: { code: 'XX000' } }));
+    expect(result).toContain('XX000');
+    expect(result).toContain('exact Session Pooler hostname');
+    expect(result).toContain('postgres.<project-ref>');
+    expect(result).not.toContain('private pooler details');
+  });
+
+  it('reports an unclassified PostgreSQL code without including raw messages or credentials', () => {
+    const error = Object.assign(new Error('postgresql://user:secret@pooler/private'), {
+      code: '08006',
+    });
+    const result = databaseFailureDiagnostic(error);
+    expect(result).toContain('08006: Unclassified PostgreSQL connection error');
+    expect(result).toContain('protected DATABASE_URL');
+    expect(result).not.toContain('secret');
+    expect(result).not.toContain('pooler/private');
+  });
+
   it.each([
     undefined,
     null,
