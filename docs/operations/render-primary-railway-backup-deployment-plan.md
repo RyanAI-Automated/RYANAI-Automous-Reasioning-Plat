@@ -108,6 +108,8 @@ Until every gate is evidenced and approved, Railway is standby capacity only. Do
 
 - Render Web and API service configurations were retrieved read-only on 2026-11-05.
 - The live service inventory did not include a dedicated MCP HTTP service.
-- This document does not claim that the API or MCP service passed a live health probe.
-- No runtime log analysis, database query, migration, deployment, Blueprint sync, secret operation, resource creation, or failover was performed for this plan.
+- Render API build logs and service events were inspected read-only on 2026-11-05. The latest observed build/deploy attempt for commit `8531aea275e397a06a42fec880fc955adb29de21` failed during `npm run build:server` with TypeScript parse errors in `src/server/routes/quantPortfolioOptimizationRoutes.ts` at lines 162, 163, 268 and 269. The deploy event reports a non-zero build exit; this is a confirmed build blocker, not a runtime database/Redis diagnosis.
+- The API is therefore **not verified healthy**. The next API recovery step is to repair the syntax/build failure on a focused branch, obtain exact-head CI evidence, then re-check the Render build and only afterward test `/livez`, `/readyz` and `/health`.
+- The MCP service is absent from the inspected Render inventory, so no Render MCP runtime health result exists. MCP health must be validated independently after its listener/port/readiness contract and dedicated service are implemented and reviewed.
+- No database query, migration, deployment, Blueprint sync, secret operation, resource creation, or failover was performed for this plan.
 - This is a documentation-only proposal for human review, not a production release or PA-1 acceptance.
