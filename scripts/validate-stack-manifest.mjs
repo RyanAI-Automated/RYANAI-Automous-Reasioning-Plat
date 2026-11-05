@@ -111,7 +111,6 @@ if (manifest !== undefined) {
     const targets = [
       manifest.deploymentTargets?.dockerCompose,
       manifest.deploymentTargets?.render,
-      manifest.deploymentTargets?.vercel,
       manifest.deploymentTargets?.railway,
       ...(Array.isArray(manifest.deploymentTargets?.kubernetes) ? manifest.deploymentTargets.kubernetes : []),
     ];
@@ -122,6 +121,10 @@ if (manifest !== undefined) {
       } else if (!existsSync(targetPath)) {
         fail('Missing deployment target: ' + target);
       }
+    }
+
+    if (manifest.deploymentDefaults?.frontend !== 'render' || manifest.deploymentDefaults?.api !== 'render' || manifest.deploymentDefaults?.persistentWorkloads !== 'railway') {
+      fail('Deployment defaults must be Render for frontend/API and Railway for persistent workloads');
     }
 
     if (manifest.integrations?.jarvis?.enabledByDefault !== false) {
