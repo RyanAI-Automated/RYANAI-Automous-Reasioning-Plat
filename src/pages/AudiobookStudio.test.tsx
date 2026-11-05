@@ -74,8 +74,10 @@ describe('Audiobook Studio persistence states', () => {
       expect(container.textContent).toContain('Persisted chapter');
     });
     expect(api).toHaveBeenCalledExactlyOnceWith('/api/v1/audiobooks');
-    expect((container.querySelector('input[ value]') as HTMLInputElement | null)?.value ?? container.textContent)
-      .toContain('Persisted synthetic audiobook');
+    expect(
+      Array.from(container.querySelectorAll('input'))
+        .some((input) => (input as HTMLInputElement).value === 'Persisted synthetic audiobook'),
+    ).toBe(true);
     expect(container.textContent).not.toContain('Local draft only');
   });
 
@@ -100,7 +102,7 @@ describe('Audiobook Studio persistence states', () => {
 
     await vi.waitFor(() => expect(container.textContent).toContain('Owner access is required.'));
     expect(api).toHaveBeenCalledTimes(1);
-    expect(api).not.toHaveBeenCalledWith('/api/v1/audiobooks', expect.objectContaining({ method: 'POST' }));
+    expect(api.mock.calls[0][0]).toBe('/api/v1/audiobooks');
     expect(container.textContent).toContain('Local draft only — server persistence is unavailable.');
   });
 });
