@@ -79,7 +79,9 @@
     "src/main.tsx",
     "src/App.tsx",
     "src/services/api.ts",
-    "src/services/tauriBridge.ts"
+    "src/services/tauriBridge.ts",
+    "src/utils/**/*.ts",
+    "src/data/**/*.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",
