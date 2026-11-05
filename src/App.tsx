@@ -10,6 +10,7 @@ import {
   Mail,
   Orbit,
   ShieldCheck,
+  ListChecks,
   LogIn,
   LogOut,
   UserPlus,
@@ -27,6 +28,7 @@ const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCente
 const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const OperatorConsole = lazy(() => import('@/pages/OperatorConsole'));
+const OperationsCenter = lazy(() => import('@/pages/OperationsCenter'));
 const AdminConsole = lazy(() => import('@/pages/AdminConsole'));
 const QuantLabPage = lazy(() => import('@/pages/QuantLab'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
@@ -63,6 +65,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   signup: UserPlus,
   dashboard: LayoutDashboard,
   operator: Activity,
+  operations: ListChecks,
   admin: ShieldCheck,
   quant: TrendingUp,
   cockpit: Cpu,
@@ -192,6 +195,7 @@ export default function App() {
               : <>
                 {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}
                 {route === 'operator' && <OperatorConsole />}
+                {route === 'operations' && <OperationsCenter isAdmin={isAdmin} />}
                 {route === 'admin' && (isAdmin ? <AdminConsole key={user.id} userId={user.id} /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the RyanAI Admin Console.</p>)}
                 {route === 'quant' && <QuantLabPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
