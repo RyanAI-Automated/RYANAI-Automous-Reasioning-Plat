@@ -12,7 +12,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyCors from '@fastify/cors';
 import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
-import { getAudiobookPrismaClient } from '../lib/audiobookPrisma.js';
+import { getAudiobookPrismaClient } from './audiobookPrisma.js';
 import { connectRedis } from './connectRedis.js';
 import { databaseFailureDiagnostic } from './startupDiagnostics.js';
 import { assertProductionDependencies, resolveConnectionUrls } from './startupConfig.js';
