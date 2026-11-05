@@ -260,7 +260,6 @@ if (!dashboard.includes("href: '#/pa'") || !dashboard.includes('Personal Assista
 }
 
 // Product module integration contracts: frontend API paths, server routes, auth and mobile navigation.
-const adminPage = readText('src/pages/AdminConsole.tsx');
 const adminMetrics = readText('src/server/routes/metrics.ts');
 const pendingActions = readText('src/server/routes/pendingActions.ts');
 const engineeringEvidence = readText('src/server/routes/engineeringEvidenceRoutes.ts');
@@ -271,7 +270,6 @@ if (!['/api/admin/metrics', '/api/actions', '/api/engineering/jobs'].every((path
   fail('Admin Console API contracts must match server routes protected by requireAdmin');
 }
 
-const operatorPage = readText('src/pages/OperatorConsole.tsx');
 const agentOperations = readText('src/server/routes/agentOperations.ts');
 if (!operatorPage.includes("authenticatedFetch('/api/agent/ops/tasks'")
   || !agentOperations.includes("'/api/agent/ops/tasks'")
@@ -303,7 +301,6 @@ if (!memoryComponent.includes("authenticatedFetch('/api/user/memory")
   fail('Memory Vault must use authenticated account-scoped persistent memory APIs');
 }
 
-const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
 for (const [pagePath, serverPath] of [
   ['/api/v1/audiobooks', '/api/v1/audiobooks'],
   ['/api/audiobook-jobs/', '/api/audiobook-jobs/:jobId'],
