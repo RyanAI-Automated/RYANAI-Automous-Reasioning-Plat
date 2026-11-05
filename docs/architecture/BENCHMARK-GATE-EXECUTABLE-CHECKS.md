@@ -29,7 +29,7 @@ Verify a development dataset:
 
 Verify provenance:
 
-    node scripts/verify-benchmark-provenance.mjs <run-manifest> <artifact-root>
+    node scripts/verify-benchmark-provenance.mjs <run-manifest> <artifact-root> <external-trust-roots.json> <trust-roots-sha256>
 
 The isolation container uses network mode none, a read-only root filesystem,
 a read-only repository mount, dropped Linux capabilities, no-new-privileges,
@@ -46,8 +46,10 @@ model.
   signer identity, role separation, evidence scope, signature integrity and expiry;
   it still does not prove that the external held-out store enforces those controls
   at runtime. An independent ACL probe and externally retained trust-root pin remain required.
-- A revision string and local hash do not prove a provider's immutable model
-  snapshot; provider-side confirmation is still required.
+- A separately pinned Ed25519 auditor signature binds the exact local provenance
+  manifest and verified artifact identities. It does not prove a provider's
+  immutable model snapshot; provider-side attestation and independent review
+  are still required.
 - Synthetic scoring fixtures do not replace blinded human review or reviewer
   calibration.
 - ZAR calculations require measured energy, declared tariff and disclosed
