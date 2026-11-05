@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryanai.invalid/schemas/gate-evidence.schema.json",
+  "title": "RyanAI Six-Gate Evidence Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "profile",
+    "harness_commit",
+    "created_at",
+    "model_invocation_authorized",
+    "model_invocations",
+    "gates"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "enum": [
+        "A_OFFLINE_OLLAMA",
+        "B_REMOTE_PROVIDER"
+      ]
+    },
+    "harness_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "model_invocation_authorized": {
+      "const": false
+    },
+    "model_invocations": {
+      "const": 0
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gate_id",
+          "verdict",
+          "owner",
+          "procedure_version",
+          "evidence",
+          "independent_attestation",
+          "attested_at"
+        ],
+        "properties": {
+          "gate_id": {
+            "enum": [
+              "G1_ISOLATION",
+              "G2_DATASET",
+              "G3_PROVENANCE",
+              "G4_SCORING",
+              "G5_PERFORMANCE_ECONOMICS",
+              "G6_GENX_AUTHORIZATION"
+            ]
+          },
+          "verdict": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "BLOCKED"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "procedure_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          },
+          "independent_attestation": {
+            "type": "boolean"
+          },
+          "attested_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "remote_credentials_mounted": {
+      "type": "boolean"
+    },
+    "cloud_fallback_enabled": {
+      "type": "boolean"
+    },
+    "os_egress_enforcement_evidence": {
+      "type": "boolean"
+    },
+    "ollama_loopback_only": {
+      "type": "boolean"
+    },
+    "provider_secret_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "endpoint_host": {
+      "type": "string",
+      "minLength": 1
+    },
+    "spend_ceiling_zar": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "explicit_evaluation_approval": {
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "A_OFFLINE_OLLAMA"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "remote_credentials_mounted",
+          "cloud_fallback_enabled",
+          "os_egress_enforcement_evidence"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "B_REMOTE_PROVIDER"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "remote_credentials_mounted",
+          "provider_secret_name",
+          "endpoint_host",
+          "spend_ceiling_zar",
+          "explicit_evaluation_approval",
+          "cloud_fallback_enabled"
+        ]
+      }
+    }
+  ]
+}

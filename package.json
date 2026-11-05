@@ -57,6 +57,7 @@
     "test:integration": "tsx scripts/test-integration.ts --local",
     "test:platform": "vitest run test",
     "benchmark:api": "node scripts/benchmark-api.mjs",
+    "benchmark:gates:mock": "node scripts/benchmark-gate-contracts.mjs",
     "tunnel": "tsx scripts/tunnel.ts",
     "setup:cs-script": "node scripts/setup-cs-script.mjs",
     "orchestrate": "node scripts/orchestrate.mjs",

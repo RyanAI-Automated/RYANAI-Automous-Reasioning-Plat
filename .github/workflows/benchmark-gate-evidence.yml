@@ -1,0 +1,32 @@
+name: Benchmark Gate Evidence Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'benchmarks/contracts/gate-evidence.schema.json'
+      - 'benchmarks/evidence/**'
+      - 'scripts/validate-benchmark-gate-evidence*'
+      - '.github/workflows/benchmark-gate-evidence.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'benchmarks/contracts/gate-evidence.schema.json'
+      - 'benchmarks/evidence/**'
+      - 'scripts/validate-benchmark-gate-evidence*'
+      - '.github/workflows/benchmark-gate-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mock-only-contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate six-gate evidence contract tests
+        run: node --test scripts/validate-benchmark-gate-evidence.node-test.mjs
