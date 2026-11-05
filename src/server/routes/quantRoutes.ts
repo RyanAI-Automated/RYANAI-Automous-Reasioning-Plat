@@ -106,7 +106,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     return { imports };
   });
 
-  fastify.post<{ Body: { symbol: string; limit?: number } }>('/api/quant/market-data/imports', {
+  fastify.post<{ Body: { symbol: string; limit?: number; adjustment?: 'raw' | 'split' | 'dividend' | 'all' } }>('/api/quant/market-data/imports', {
     schema: {
       body: {
         type: 'object',
@@ -115,6 +115,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
         properties: {
           symbol: { type: 'string', minLength: 1, maxLength: 15 },
           limit: { type: 'integer', minimum: 30, maximum: 1000 },
+          adjustment: { type: 'string', enum: ['raw', 'split', 'dividend', 'all'] },
         },
       },
     },
@@ -124,6 +125,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       imported = await fetchAlpacaDailyBars({
         symbol: request.body.symbol,
         limit: request.body.limit ?? 250,
+        adjustment: request.body.adjustment ?? 'all',
         apiKey: process.env.ALPACA_API_KEY,
         apiSecret: process.env.ALPACA_API_SECRET,
       });
