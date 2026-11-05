@@ -59,15 +59,16 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
         select: { id: true, createdAt: true },
       });
       if (!cursorEntry) return reply.code(400).send({ error: 'Memory page cursor is unavailable for this account.' });
-      // Keep null timestamps at the end of the descending order so cursor
-      // comparisons remain deterministic for legacy rows with no createdAt.
+      // Read the nullable Prisma field once so TypeScript can narrow it
+      // reliably before constructing the non-null timestamp filters.
+      const cursorCreatedAt = cursorEntry.createdAt;
       const afterCursor: Prisma.MemoryEntryWhereInput =
-        cursorEntry.createdAt === null
+        cursorCreatedAt === null
           ? { createdAt: null, id: { lt: cursorEntry.id } }
           : {
               OR: [
-                { createdAt: { lt: cursorEntry.createdAt } },
-                { createdAt: cursorEntry.createdAt, id: { lt: cursorEntry.id } },
+                { createdAt: { lt: cursorCreatedAt } },
+                { createdAt: cursorCreatedAt, id: { lt: cursorEntry.id } },
                 { createdAt: null },
               ],
             };
