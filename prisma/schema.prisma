@@ -356,6 +356,7 @@ model CommunicationConversation {
   id              String                   @id @default(uuid())
   channel         String
   externalAddress String                   @map("external_address")
+  ownerUserId     String?                  @db.Uuid @map("owner_user_id")
   createdAt       DateTime                 @default(now()) @db.Timestamptz(6) @map("created_at")
   updatedAt       DateTime                 @default(now()) @updatedAt @db.Timestamptz(6) @map("updated_at")
   messages        CommunicationMessage[]
@@ -376,10 +377,31 @@ model CommunicationMessage {
   status            String                    @default("received")
   metadata          Json?
   createdAt         DateTime                  @default(now()) @db.Timestamptz(6) @map("created_at")
+  attachments       CommunicationAttachment[]
 
   @@index([conversationId, createdAt], map: "communication_messages_conversation_created_idx")
   @@index([status, createdAt], map: "communication_messages_status_created_idx")
   @@map("communication_messages")
+}
+
+
+model CommunicationAttachment {
+  id                     String                @id @default(uuid())
+  communicationMessageId String                @map("communication_message_id")
+  message                CommunicationMessage @relation(fields: [communicationMessageId], references: [id], onDelete: Cascade)
+  ownerUserId            String                @db.Uuid @map("owner_user_id")
+  bucketId               String                @default("ryanai-comms-attachments") @map("bucket_id")
+  objectName             String                @unique @map("object_name")
+  fileName               String                @map("file_name")
+  mimeType               String                @map("mime_type")
+  size                   BigInt
+  source                 String
+  providerMediaId        String?               @map("provider_media_id")
+  createdAt              DateTime              @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  @@index([ownerUserId, createdAt], map: "communication_attachments_owner_created_idx")
+  @@index([communicationMessageId, createdAt], map: "communication_attachments_message_created_idx")
+  @@map("communication_attachments")
 }
 
 // LangGraph's PostgresSaver owns these tables and their versioned DDL. They are
