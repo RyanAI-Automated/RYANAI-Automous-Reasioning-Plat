@@ -111,7 +111,7 @@ async function githubApi<T>(path: string, accessToken: string): Promise<T> {
   return await response.json() as T;
 }
 
-async function revokeGitHubToken(config: GitHubAppConfig, accessToken: string): Promise<boolean> {
+async function revokeGitHubGrant(config: GitHubAppConfig, accessToken: string): Promise<boolean> {
   try {
     const basic = Buffer.from(config.clientId + ':' + config.clientSecret).toString('base64');
     const response = await fetch(
@@ -309,7 +309,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
         ]);
         if (!account.id || typeof account.login !== 'string' ||
             repository.full_name !== GITHUB_APP_REPOSITORY || repository.permissions?.pull !== true) {
-          await revokeGitHubToken(config, accessToken);
+          await revokeGitHubGrant(config, accessToken);
           accessToken = undefined;
           throw new GitHubOAuthError('github_repository_access_not_verified');
         }
@@ -363,8 +363,8 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
     const config = readGitHubAppConfig();
     if (config) {
       try {
-        const accessToken = decryptGitHubSecret(connection.encryptedAccessToken, config.encryptionKey);
-        remoteRevoked = await revokeGitHubToken(config, accessToken);
+        const accessToken = await getUsableAccessToken(fastify, config, connection as StoredConnection);
+        if (accessToken) remoteRevoked = await revokeGitHubGrant(config, accessToken);
       } catch {
         remoteRevoked = false;
       }
