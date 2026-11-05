@@ -118,11 +118,15 @@ In explicit local mode, `createChatModel()` uses only `OLLAMA_URL` and the non-s
 
 If the endpoint is remote, malformed, or local-only memory is not explicitly enabled, the context tool returns a blocked status without querying PostgreSQL. Do not enable this setting until the local Ollama endpoint is actually running and verified. Configuration is not proof that Ollama or the selected model is installed or healthy; runtime health must be tested separately.
 
-## Attachment and multimodal status
+## Private Comms attachments and inbound media
 
-The private Supabase attachment pipeline currently validates file signatures, uses signed uploads, quarantines new objects, and permits authenticated reads only after the ClamAV scan state is clean. Its current path guard and ownership policies bind files to the chat `messages` and `conversations` tables. Communications history uses separate `communication_messages` and `communication_conversations` tables, so the existing upload path must not be reused for Comms until ownership linkage, path validation, scanning, signed reads, retention and audit behavior are extended and tested for those tables.
+Comms has a separate private bucket, `ryanai-comms-attachments`, and explicit `communication_attachments` metadata. Each object path is bound to the verified owner UUID, Comms conversation and Comms message. A Storage insert trigger verifies these records, enforces 20 MiB/file, 8 files/40 MiB/message, 500 MiB/owner and 100 uploads/hour, and enqueues the existing ClamAV scan. No browser Storage policies are created for this bucket: the owner-authenticated API issues signed upload URLs and only issues short-lived signed read URLs after the scan state is `clean`.
 
-Do not pass provider media URLs or unscanned bytes to an AI model. Multimodal processing is gated on the local inference foundation and secure attachment-to-communications ownership path. No image understanding, audio transcription, video analysis or document extraction through the Comms gateway is claimed as active by this design note.
+Twilio WhatsApp/SMS media and Resend inbound email attachments are downloaded server-side after signature and owner-sender verification, validated for size/type, and stored in the private bucket. Original provider URLs and unscanned bytes are never sent to the reasoning model. Outbound media is added to Twilio messages as short-lived signed URLs and to SMTP as bytes downloaded only after a clean scan. Voice call attachments and arbitrary media with approved WhatsApp templates are not supported.
+
+Inbound attachments require `RYANAI_OWNER_AUTH_USER_ID`, the UUID of the verified Supabase owner account. Webhooks have no user session and will not guess this ID. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are server-only requirements; never expose the service-role key in Vite/browser configuration.
+
+This implements secure media transport and storage, not image understanding, audio transcription, video analysis or document extraction. Those remain gated on the local inference foundation and a separately reviewed scan-clean multimodal processor.
 
 ## Python communications orchestration contracts
 
