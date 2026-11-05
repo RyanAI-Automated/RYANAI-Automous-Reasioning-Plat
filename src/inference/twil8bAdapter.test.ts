@@ -1,65 +1,81 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createTwil8bEvaluationAdapter,
   resolveTwil8bEvaluationConfig,
-  Twil8bEvaluationAdapter,
 } from './twil8bAdapter.js';
 
 const revision = 'a'.repeat(40);
-const baseEnv = (): NodeJS.ProcessEnv => ({
-  NODE_ENV: 'test',
-  RYANAI_ENV: 'test',
-  RYANAI_TWIL8B_EVALUATION: 'enabled',
-  RYANAI_TWIL8B_LICENSE_ACK: 'non-commercial-evaluation-only',
-  TWIL8B_ENDPOINT: 'http://127.0.0.1:8080/v1',
-  TWIL8B_RUNTIME_MODEL: 'twil8b-balanced',
-  TWIL8B_MODEL_REVISION: revision,
-  TWIL8B_VARIANT: 'balanced',
+
+function enableEvaluation(variant: 'balanced' | 'verbose' = 'balanced') {
+  vi.stubEnv('NODE_ENV', 'test');
+  vi.stubEnv('RYANAI_ENV', 'test');
+  vi.stubEnv('RYANAI_TWIL8B_EVALUATION', 'enabled');
+  vi.stubEnv('RYANAI_TWIL8B_LICENSE_ACK', 'non-commercial-evaluation-only');
+  vi.stubEnv('TWIL8B_ENDPOINT', 'http://127.0.0.1:8080/v1');
+  vi.stubEnv('TWIL8B_RUNTIME_MODEL', `twil8b-${variant}`);
+  vi.stubEnv('TWIL8B_MODEL_REVISION', revision);
+  vi.stubEnv('TWIL8B_VARIANT', variant);
+  vi.stubEnv('TWIL8B_MAX_OUTPUT_TOKENS', '8192');
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe('TwIL-8B evaluation-only adapter', () => {
   it('requires explicit opt-in, licence acknowledgement, exact revision and variant', () => {
-    const env = baseEnv();
-    expect(resolveTwil8bEvaluationConfig(env).variant).toBe('balanced');
-    expect(() => resolveTwil8bEvaluationConfig({ ...env, RYANAI_TWIL8B_EVALUATION: 'disabled' })).toThrow(/requires RYANAI_TWIL8B_EVALUATION/);
-    expect(() => resolveTwil8bEvaluationConfig({ ...env, RYANAI_TWIL8B_LICENSE_ACK: '' })).toThrow(/licence acknowledgement/);
-    expect(() => resolveTwil8bEvaluationConfig({ ...env, TWIL8B_MODEL_REVISION: 'main' })).toThrow(/exact/);
-    expect(() => resolveTwil8bEvaluationConfig({ ...env, TWIL8B_VARIANT: 'auto' })).toThrow(/balanced or verbose/);
+    enableEvaluation();
+    expect(resolveTwil8bEvaluationConfig().variant).toBe('balanced');
+    vi.stubEnv('RYANAI_TWIL8B_EVALUATION', 'disabled');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/requires RYANAI_TWIL8B_EVALUATION/);
+    vi.stubEnv('RYANAI_TWIL8B_EVALUATION', 'enabled');
+    vi.stubEnv('RYANAI_TWIL8B_LICENSE_ACK', '');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/licence acknowledgement/);
+    vi.stubEnv('RYANAI_TWIL8B_LICENSE_ACK', 'non-commercial-evaluation-only');
+    vi.stubEnv('TWIL8B_MODEL_REVISION', 'main');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/exact/);
+    vi.stubEnv('TWIL8B_MODEL_REVISION', revision);
+    vi.stubEnv('TWIL8B_VARIANT', 'auto');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/balanced or verbose/);
   });
 
   it('blocks production even when evaluation flags are set', () => {
-    const env = baseEnv();
-    env.NODE_ENV = 'production';
-    expect(() => resolveTwil8bEvaluationConfig(env)).toThrow(/disabled in production/);
-    env.NODE_ENV = 'test';
-    env.RYANAI_ENV = 'production';
-    expect(() => resolveTwil8bEvaluationConfig(env)).toThrow(/disabled in production/);
+    enableEvaluation();
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/disabled in production/);
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('RYANAI_ENV', 'production');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/disabled in production/);
   });
 
   it('rejects remote endpoints, credentials in URLs and unsupported ports', () => {
-    const env = baseEnv();
+    enableEvaluation();
     for (const endpoint of [
       'https://api.example.com/v1',
       'http://127.0.0.1:8081/v1',
       'http://user:password@localhost:8080/v1',
       'http://localhost:8080/v1?forward=1',
     ]) {
-      expect(() => resolveTwil8bEvaluationConfig({ ...env, TWIL8B_ENDPOINT: endpoint })).toThrow(/local/);
+      vi.stubEnv('TWIL8B_ENDPOINT', endpoint);
+      expect(() => resolveTwil8bEvaluationConfig()).toThrow(/local/);
     }
   });
 
   it('bounds output token budgets', () => {
-    const env = baseEnv();
-    expect(() => resolveTwil8bEvaluationConfig({ ...env, TWIL8B_MAX_OUTPUT_TOKENS: '32769' })).toThrow(/between 1 and 32768/);
-    expect(() => resolveTwil8bEvaluationConfig({ ...env, TWIL8B_MAX_OUTPUT_TOKENS: '1.5' })).toThrow(/integer/);
+    enableEvaluation();
+    vi.stubEnv('TWIL8B_MAX_OUTPUT_TOKENS', '32769');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/between 1 and 32768/);
+    vi.stubEnv('TWIL8B_MAX_OUTPUT_TOKENS', '1.5');
+    expect(() => resolveTwil8bEvaluationConfig()).toThrow(/integer/);
   });
 
   it('calls only the local OpenAI-compatible endpoint and returns revision provenance', async () => {
-    const env = baseEnv();
+    enableEvaluation();
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       choices: [{ message: { content: '42' }, finish_reason: 'stop' }],
     }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    const adapter = createTwil8bEvaluationAdapter(env, fetchMock as typeof fetch);
+    const adapter = createTwil8bEvaluationAdapter(fetchMock as typeof fetch);
     const result = await adapter.generate('What is 6 times 7?');
 
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -76,21 +92,21 @@ describe('TwIL-8B evaluation-only adapter', () => {
   });
 
   it('does not send empty prompts and fails closed on provider errors or malformed responses', async () => {
-    const env = baseEnv();
-    const ok = new Twil8bEvaluationAdapter(resolveTwil8bEvaluationConfig(env), vi.fn());
+    enableEvaluation();
+    const ok = createTwil8bEvaluationAdapter(vi.fn());
     await expect(ok.generate('  ')).rejects.toThrow(/must not be empty/);
 
-    const failed = new Twil8bEvaluationAdapter(resolveTwil8bEvaluationConfig(env), vi.fn(async () =>
+    const failed = createTwil8bEvaluationAdapter(vi.fn(async () =>
       new Response('unavailable', { status: 503 })));
     await expect(failed.generate('test')).rejects.toThrow(/HTTP 503/);
 
-    const malformed = new Twil8bEvaluationAdapter(resolveTwil8bEvaluationConfig(env), vi.fn(async () =>
+    const malformed = createTwil8bEvaluationAdapter(vi.fn(async () =>
       new Response(JSON.stringify({ choices: [] }), { status: 200 })));
     await expect(malformed.generate('test')).rejects.toThrow(/did not contain a completion/);
   });
 
   it('supports the verbose variant only when explicitly selected', () => {
-    const env = { ...baseEnv(), TWIL8B_VARIANT: 'verbose' };
-    expect(resolveTwil8bEvaluationConfig(env).variant).toBe('verbose');
+    enableEvaluation('verbose');
+    expect(resolveTwil8bEvaluationConfig().variant).toBe('verbose');
   });
 });
