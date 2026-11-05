@@ -67,6 +67,11 @@
       "path": "/inference"
     },
     {
+      "id": "github",
+      "label": "GitHub Integration",
+      "path": "/github"
+    },
+    {
       "id": "studio",
       "label": "RyanAI Studio",
       "path": "/studio"
