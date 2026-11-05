@@ -147,6 +147,10 @@ export function installAuthentication(fastify: FastifyInstance) {
       return;
     }
 
+    // The GitHub callback is bound to the one-time state created by an authenticated user.
+    if (request.method === 'GET' && path === '/api/github/callback') return;
+    if (path.startsWith('/api/github/')) return requireUser(request, reply);
+
     // Public auth signin route
     if (request.method === 'POST' && path === '/api/auth/signin') {
       return;
