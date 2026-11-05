@@ -90,7 +90,7 @@ afterEach(async () => {
 describe('GitHub App in-app authorization lifecycle', () => {
   it('requires a verified RyanAI session to start or inspect a connection', async () => {
     const app = await createApp();
-    const connect = await app.inject({ method: 'GET', url: '/api/github/connect' });
+    const connect = await app.inject({ method: 'POST', url: '/api/github/connect' });
     const status = await app.inject({ method: 'GET', url: '/api/github/status' });
     expect(connect.statusCode).toBe(401);
     expect(status.statusCode).toBe(401);
@@ -114,7 +114,7 @@ describe('GitHub App in-app authorization lifecycle', () => {
     vi.stubEnv('GITHUB_APP_CLIENT_SECRET', '');
     const app = await createApp();
     const response = await app.inject({
-      method: 'GET', url: '/api/github/connect',
+      method: 'POST', url: '/api/github/connect',
       headers: { authorization: 'Bearer test-user' },
     });
     expect(response.statusCode).toBe(503);
@@ -124,7 +124,7 @@ describe('GitHub App in-app authorization lifecycle', () => {
   it('starts an authenticated PKCE flow and stores only hashed state plus encrypted verifier', async () => {
     const app = await createApp();
     const response = await app.inject({
-      method: 'GET', url: '/api/github/connect',
+      method: 'POST', url: '/api/github/connect',
       headers: { authorization: 'Bearer test-user' },
     });
     expect(response.statusCode).toBe(200);
@@ -156,7 +156,7 @@ describe('GitHub App in-app authorization lifecycle', () => {
     store.state.create.mockImplementation(async ({ data }) => { pending = data; return data; });
     store.state.findUnique.mockImplementation(async () => pending);
     const authorization = await app.inject({
-      method: 'GET', url: '/api/github/connect',
+      method: 'POST', url: '/api/github/connect',
       headers: { authorization: 'Bearer test-user' },
     });
     const state = new URL(authorization.json().authorizationUrl).searchParams.get('state')!;
@@ -203,7 +203,7 @@ describe('GitHub App in-app authorization lifecycle', () => {
     store.state.create.mockImplementation(async ({ data }) => { pending = data; return data; });
     store.state.findUnique.mockImplementation(async () => pending);
     const authorization = await app.inject({
-      method: 'GET', url: '/api/github/connect',
+      method: 'POST', url: '/api/github/connect',
       headers: { authorization: 'Bearer test-user' },
     });
     const state = new URL(authorization.json().authorizationUrl).searchParams.get('state')!;
