@@ -44,6 +44,7 @@ async function sendWebhook(signature?: string, payload = body, host?: string) {
 }
 
 beforeEach(() => {
+  vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
   prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
   prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
   prismaMock.communicationMessage.upsert.mockResolvedValue({});
@@ -156,5 +157,14 @@ describe('Twilio webhook provider authentication', () => {
       },
       { configurable: { thread_id: 'whatsapp_15555550123' } },
     );
+  });
+});
+
+describe('Twilio communications feature gate', () => {
+  it('does not register provider webhooks when communications are disabled', async () => {
+    vi.stubEnv('COMMUNICATIONS_ENABLED', 'false');
+    const response = await sendWebhook();
+    expect(response.statusCode).toBe(404);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
