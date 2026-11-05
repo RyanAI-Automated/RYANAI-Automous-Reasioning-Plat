@@ -23,6 +23,12 @@ describe('Comms API client', () => {
     expect(request).toHaveBeenCalledWith('/api/comms/conversations?limit=100');
   });
 
+  it('uses the default conversation history limit for non-finite input', async () => {
+    request.mockResolvedValue(new Response(JSON.stringify({ conversations: [] }), { status: 200 }));
+    await expect(getCommsConversations(Number.NaN)).resolves.toEqual([]);
+    expect(request).toHaveBeenCalledWith('/api/comms/conversations?limit=50');
+  });
+
   it('sends through the authenticated API without exposing provider keys', async () => {
     request.mockResolvedValue(new Response(JSON.stringify({
       success: true, channel: 'whatsapp', providerId: 'SM-test', status: 'accepted',
