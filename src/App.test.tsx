@@ -50,6 +50,9 @@ vi.mock('@/pages/TradingTerminal', () => ({
 vi.mock('@/components/CommunicationsCenter', () => ({
   default: () => <div>Private communications</div>,
 }));
+vi.mock('@/pages/Calculator', () => ({
+  default: () => <div>Private calculator</div>,
+}));
 vi.mock('@/pages/AudiobookStudio', () => ({
   default: () => <div>Private audiobook studio</div>,
 }));
@@ -115,7 +118,7 @@ async function mount(hash: string) {
 }
 
 describe('application authentication boundary', () => {
-  it.each(['dashboard', 'cockpit', 'workspace', 'operator', 'operations', 'settings', 'admin'])(
+  it.each(['dashboard', 'calculator', 'cockpit', 'workspace', 'operator', 'operations', 'settings', 'admin'])(
     'blocks anonymous direct access to %s',
     async (route) => {
       await mount(`/${route}`);
@@ -169,7 +172,7 @@ describe('application authentication boundary', () => {
     await mount('/dashboard');
     await expectContent('Private dashboard');
 
-    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations', '/settings', '/trading']) {
+    for (const path of ['/dashboard', '/calculator', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations', '/settings', '/trading']) {
       expect(container.querySelector(`nav[aria-label="Main navigation"] a[href="#${path}"]`)).not.toBeNull();
       expect(container.querySelector(`nav[aria-label="Mobile navigation"] a[href="#${path}"]`)).not.toBeNull();
     }
@@ -202,6 +205,7 @@ describe('application authentication boundary', () => {
   });
 
   it.each([
+    ['calculator', 'Private calculator'],
     ['quant', 'Private quant lab'],
     ['trading', 'Private trading terminal'],
     ['audiobook', 'Private audiobook studio'],

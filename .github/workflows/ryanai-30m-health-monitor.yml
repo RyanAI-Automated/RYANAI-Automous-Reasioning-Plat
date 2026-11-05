@@ -22,6 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check out monitor logic
+        uses: actions/checkout@v4
+
+      - name: Test fail-closed CI summarizer
+        run: node --test scripts/ryanai-monitor-ci.test.cjs
+
       - name: Check PR #936 and public Render health endpoints
         uses: actions/github-script@v7
         env:
@@ -60,25 +66,7 @@ jobs:
               }
             }
 
-            function summarizeCi(checkRuns, combined) {
-              const runs = checkRuns.check_runs || [];
-              const counts = {
-                total: runs.length,
-                queued: runs.filter((run) => ['queued', 'pending', 'requested', 'waiting'].includes(run.status)).length,
-                inProgress: runs.filter((run) => ['in_progress'].includes(run.status)).length,
-                passed: runs.filter((run) => run.status === 'completed' && run.conclusion === 'success').length,
-                failed: runs.filter((run) => run.status === 'completed' && ['failure', 'timed_out', 'action_required', 'startup_failure'].includes(run.conclusion)).length,
-                neutral: runs.filter((run) => run.status === 'completed' && ['cancelled', 'skipped', 'neutral', 'stale'].includes(run.conclusion)).length,
-              };
-              const combinedState = combined.state || 'unknown';
-              const failing = counts.failed > 0 || combinedState === 'failure' || combinedState === 'error';
-              const pending = counts.queued > 0 || counts.inProgress > 0 || combinedState === 'pending';
-              let level = 'no-check-data';
-              if (failing) level = 'failing';
-              else if (pending) level = 'pending';
-              else if (counts.total > 0 || combinedState === 'success') level = 'passing';
-              return { level, combinedState, counts };
-            }
+            const { summarizeCi } = require(process.env.GITHUB_WORKSPACE + '/scripts/ryanai-monitor-ci.cjs');
 
             const [issueResponse, prResponse] = await Promise.all([
               github.rest.issues.get({ owner, repo, issue_number }),
@@ -150,7 +138,7 @@ jobs:
               '| Component | State | Evidence |',
               '|---|---|---|',
               statusLine('PR #936', levels.pr, '[Pull request](https://github.com/' + owner + '/' + repo + '/pull/936), head `' + headSha.slice(0, 12) + '`'),
-              statusLine('GitHub CI', levels.ci, ci.counts.total + ' checks; ' + ci.counts.passed + ' passed, ' + ci.counts.failed + ' failed, ' + ci.counts.queued + ' queued, ' + ci.counts.inProgress + ' running; combined status: ' + ci.combinedState),
+              statusLine('GitHub CI', levels.ci, ci.counts.total + ' checks; ' + ci.counts.passed + ' passed, ' + ci.counts.failed + ' failed, ' + ci.counts.queued + ' queued, ' + ci.counts.inProgress + ' running; required: ' + ci.counts.requiredPassed + '/' + ci.counts.requiredTotal + ' passed, ' + ci.counts.missingRequired + ' missing, ' + ci.counts.requiredPending + ' neutral/pending; combined status: ' + ci.combinedState),
               statusLine('Render API', levels.api, api.status === null ? (api.error || 'no HTTP response') : 'HTTP ' + api.status + ' in ' + api.durationMs + ' ms'),
               statusLine('Render frontend', levels.frontend, frontend.status === null ? (frontend.error || 'no HTTP response') : 'HTTP ' + frontend.status + ' in ' + frontend.durationMs + ' ms'),
               '',
@@ -181,7 +169,7 @@ jobs:
                 '',
                 '**Current snapshot:**',
                 '- PR #936: ' + levels.pr,
-                '- GitHub CI: ' + levels.ci + ' (' + ci.counts.passed + '/' + ci.counts.total + ' passed; ' + ci.counts.failed + ' failed; ' + (ci.counts.queued + ci.counts.inProgress) + ' pending/running)',
+                '- GitHub CI: ' + levels.ci + ' (' + ci.counts.passed + '/' + ci.counts.total + ' checks passed; required ' + ci.counts.requiredPassed + '/' + ci.counts.requiredTotal + '; ' + ci.counts.missingRequired + ' required missing; ' + ci.counts.failed + ' failed; ' + (ci.counts.queued + ci.counts.inProgress + ci.counts.requiredPending) + ' pending/neutral)',
                 '- API: ' + (api.status === null ? api.level + ' (' + (api.error || 'no HTTP response') + ')' : api.level + ' (HTTP ' + api.status + ')'),
                 '- Frontend: ' + (frontend.status === null ? frontend.level + ' (' + (frontend.error || 'no HTTP response') + ')' : frontend.level + ' (HTTP ' + frontend.status + ')'),
                 '',
