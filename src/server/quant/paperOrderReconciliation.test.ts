@@ -95,9 +95,11 @@ describe('paper order fill reconciliation', () => {
     expect(partial.remainingQuantity).toBe(5);
   });
 
-  it('rejects non-finite or negative ledger values', () => {
-    expect(() => reconcilePaperOrder(snapshot({
+  it('reports negative fill records as ledger discrepancies', () => {
+    const result = reconcilePaperOrder(snapshot({
       fills: [{ id: 'fill-1', clientFillId: 'x', quantity: -1, price: 100, fee: 0 }],
-    }))).toThrow(/finite and non-negative/);
+    }));
+    expect(result.consistent).toBe(false);
+    expect(result.discrepancyReasons).toContain('invalid_fill_record');
   });
 });
