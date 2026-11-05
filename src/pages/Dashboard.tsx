@@ -13,6 +13,7 @@ import {
 import { usePlatformHealth } from '@/hooks/usePlatformHealth';
 
 const STALE_AFTER_MS = 90_000;
+const PA_HEARTBEAT_STALE_AFTER_MS = 45_000;
 
 type PAStatus = {
   active: boolean;
@@ -71,6 +72,14 @@ export default function DashboardPage() {
   const hasTimestamp = Number.isFinite(reportedAt);
   const ageMs = hasTimestamp ? Math.max(0, now - reportedAt) : null;
   const isStale = ageMs !== null && ageMs > STALE_AFTER_MS;
+  const healthFresh = Boolean(health && hasTimestamp && !isStale);
+  const healthFreshnessUnknown = Boolean(health && !hasTimestamp);
+  const paHeartbeatAt = paStatus?.lastHeartbeat ? Date.parse(paStatus.lastHeartbeat) : Number.NaN;
+  const paHeartbeatKnown = Number.isFinite(paHeartbeatAt);
+  const paHeartbeatAge = paHeartbeatKnown ? Math.max(0, now - paHeartbeatAt) : null;
+  const paHeartbeatStale = !paHeartbeatKnown || paHeartbeatAge! > PA_HEARTBEAT_STALE_AFTER_MS;
+  const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && !paHeartbeatStale);
+  const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paStatus.workState;
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-8 sm:px-10">
@@ -82,9 +91,9 @@ export default function DashboardPage() {
             Live service health and operator shortcuts. Unknown or stale signals are never presented as healthy.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${isStale ? 'border-amber-300/30 bg-amber-300/5 text-amber-200' : health ? 'border-emerald-300/20 text-emerald-200' : 'border-slate-500/30 text-slate-300'}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${isStale ? 'border-amber-300/30 bg-amber-300/5 text-amber-200' : healthFresh ? 'border-emerald-300/20 text-emerald-200' : 'border-slate-500/30 text-slate-300'}`}>
               <Clock3 className="h-3.5 w-3.5" />
-              {checking && !health ? 'Checking health…' : hasTimestamp ? `Health signal ${isStale ? 'stale' : 'updated'} ${formatAge(ageMs!)} ago` : 'Health timestamp not reported'}
+              {checking && !health ? 'Checking health…' : hasTimestamp ? `Health signal ${isStale ? 'stale' : 'updated'} ${formatAge(ageMs!)} ago` : health ? 'Health timestamp missing · unverified' : 'Health timestamp not reported'}
             </span>
             {hasTimestamp && (
               <span className="text-slate-500">Reported at {new Date(reportedAt).toLocaleString()}</span>
@@ -98,6 +107,7 @@ export default function DashboardPage() {
 
       {error && <div role="alert" className="mt-6 flex items-start gap-3 rounded-xl border border-rose-400/20 bg-rose-400/5 p-4 text-sm text-rose-200"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
       {isStale && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">The API timestamp is more than 90 seconds old. Treat this snapshot as stale until a fresh health response is received.</div>}
+      {healthFreshnessUnknown && <div role="status" className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">The API returned a health payload without a timestamp. Service signals are shown as unverified until freshness can be established.</div>}
 
       <article className="mt-6 rounded-2xl border border-cyan-300/20 bg-slate-900/70 p-5" aria-live="polite">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -105,8 +115,8 @@ export default function DashboardPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Personal Assistant</p>
             <h2 className="mt-1 text-lg font-semibold text-white">PA Agent observer</h2>
           </div>
-          <span className={`rounded-full border px-3 py-1 text-xs ${paStatus?.workState === 'monitoring' ? 'border-emerald-300/30 text-emerald-200' : paStatus?.workState === 'degraded' ? 'border-amber-300/30 text-amber-200' : 'border-slate-500/30 text-slate-300'}`}>
-            {paStatus?.workState ?? 'Not reporting'}
+          <span className={`rounded-full border px-3 py-1 text-xs ${paMonitoring ? 'border-emerald-300/30 text-emerald-200' : paStatus?.workState === 'degraded' || paHeartbeatStale ? 'border-amber-300/30 text-amber-200' : 'border-slate-500/30 text-slate-300'}`}>
+            {paStateLabel}
           </span>
         </div>
         <p className="mt-3 text-sm text-slate-300">{paStatus?.lastReport ?? paError ?? 'Waiting for an authenticated PA observer report.'}</p>
@@ -117,15 +127,15 @@ export default function DashboardPage() {
           <InfoRow label="Observations" value={paStatus ? String(paStatus.observationsCompleted) : '—'} />
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          Last heartbeat: {paStatus?.lastHeartbeat ? new Date(paStatus.lastHeartbeat).toLocaleString() : 'Not received'} · Read-only monitoring; no messages, calls, file edits or privileged actions.
+          Last heartbeat: {paHeartbeatKnown ? new Date(paHeartbeatAt).toLocaleString() : 'Not received'} · {paHeartbeatStale ? 'Heartbeat is older than 45 seconds or missing; observer status is not live.' : 'Heartbeat is current.'} Read-only monitoring; no messages, calls, file edits or privileged actions.
         </p>
       </article>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatusCard title="API gateway" value={isStale ? 'Stale signal' : health?.status === 'online' ? 'Online' : checking ? 'Checking' : 'Unavailable'} icon={Server} healthy={isStale ? undefined : health?.status === 'online'} />
-        <StatusCard title="PostgreSQL" value={serviceLabel(health?.services?.database, checking, isStale)} icon={Database} healthy={isStale ? undefined : health?.services?.database} />
-        <StatusCard title="Redis" value={serviceLabel(health?.services?.redis, checking, isStale)} icon={Wifi} healthy={isStale ? undefined : health?.services?.redis} />
-        <StatusCard title="Agent checkpointer" value={serviceLabel(health?.services?.agentCheckpointer, checking, isStale)} icon={Activity} healthy={isStale ? undefined : health?.services?.agentCheckpointer} />
+        <StatusCard title="API gateway" value={healthServiceLabel(health?.status === 'online', checking, isStale, healthFresh)} icon={Server} healthy={healthFresh ? health?.status === 'online' : undefined} />
+        <StatusCard title="PostgreSQL" value={serviceLabel(health?.services?.database, checking, isStale, healthFresh)} icon={Database} healthy={healthFresh ? health?.services?.database : undefined} />
+        <StatusCard title="Redis" value={serviceLabel(health?.services?.redis, checking, isStale, healthFresh)} icon={Wifi} healthy={healthFresh ? health?.services?.redis : undefined} />
+        <StatusCard title="Agent checkpointer" value={serviceLabel(health?.services?.agentCheckpointer, checking, isStale, healthFresh)} icon={Activity} healthy={healthFresh ? health?.services?.agentCheckpointer : undefined} />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -178,11 +188,18 @@ function StatusCard({ title, value, icon: Icon, healthy }: { title: string; valu
   );
 }
 
-function serviceLabel(healthy: boolean | undefined, checking: boolean, stale: boolean) {
+function healthServiceLabel(online: boolean, checking: boolean, stale: boolean, fresh: boolean) {
   if (stale) return 'Stale signal';
+  if (!fresh) return checking ? 'Checking' : 'Freshness unknown';
+  return online ? 'Online' : 'Unavailable';
+}
+
+function serviceLabel(healthy: boolean | undefined, checking: boolean, stale: boolean, fresh: boolean) {
+  if (stale) return 'Stale signal';
+  if (!fresh) return checking ? 'Checking' : 'Freshness unknown';
   if (healthy === true) return 'Healthy';
   if (healthy === false) return 'Unavailable';
-  return checking ? 'Checking' : 'Not reported';
+  return 'Not reported';
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
