@@ -36,6 +36,8 @@ const checks = [
   ['Dockerfile.api declares runtime entrypoint and command', apiDockerfile.includes('ENTRYPOINT ["/usr/bin/dumb-init", "--"]') && apiDockerfile.includes('CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]')],
   ['Render API health check is configured', renderApi?.healthCheckPath === '/health'],
   ['Render API uses Oregon region', renderApi?.region === 'oregon'],
+  ['Render API and frontend keep auto-deploy disabled', renderApi?.autoDeployTrigger === 'off' && renderWeb?.autoDeployTrigger === 'off'],
+  ['Render preview generation remains disabled', renderConfig.previews?.generation === 'off'],
   ['Render Redis shares the API region', Boolean(renderRedis) && renderRedis.name === 'ryanai-redis' && renderRedis.region === renderApi?.region],
   ['Render frontend builds the Vite app from repository root', renderWeb?.rootDir === '.' && renderWeb?.buildCommand?.includes('npm run build:web') && renderWeb?.staticPublishPath === './dist'],
   ['Render frontend targets the official API origin', renderWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL' && item.value === 'https://ryanai-api.onrender.com')],
