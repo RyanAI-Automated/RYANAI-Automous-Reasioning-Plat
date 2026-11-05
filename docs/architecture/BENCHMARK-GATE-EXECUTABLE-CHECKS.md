@@ -7,7 +7,7 @@
 | Gate | Executable check | Current result boundary |
 |---|---|---|
 | 1. Isolation | Disposable Docker network namespace; loopback fixture and blocked public/private/DNS probes | Harness evidence only; actual runner deployment remains BLOCKED |
-| 2. Dataset | Development file SHA-256, task count, unique IDs, path/symlink checks, evaluator-key leakage checks, held-out evidence hashes | Structure and hashes only; external ACL needs independent review |
+| 2. Dataset | Development file SHA-256, task count, unique IDs, path/symlink checks, evaluator-key leakage checks, externally pinned trust roots, distinct Ed25519 signatures for custody, access audit and contamination review | Signed claims are verified; external ACL runtime enforcement still needs independent probing |
 | 3. Provenance | Harness commit, lockfile, prompt/config hashes, candidate revision pin and secret scan | Local hashes only; provider revision claims need confirmation |
 | 4. Scoring | Deterministic assertion completeness, safety override, scoring-oracle exclusion, blinded-review fields | Synthetic contract tests only; real reviewer calibration remains BLOCKED |
 | 5. Economics | Failure-inclusive task accounting, latency percentiles, repeatability inputs and measured ZAR formula | Synthetic arithmetic only; actual telemetry and tariff evidence remain BLOCKED |
@@ -25,7 +25,7 @@ Run the isolated container boundary probe:
 
 Verify a development dataset:
 
-    node scripts/verify-benchmark-dataset.mjs <manifest> <dataset-root> <evidence-root>
+    node scripts/verify-benchmark-dataset.mjs <manifest> <dataset-root> <evidence-root> <external-trust-roots.json> <trust-roots-sha256>
 
 Verify provenance:
 
@@ -41,8 +41,11 @@ model.
 
 - A container probe does not certify the developer workstation, production
   runner, or future Ollama deployment.
-- Hashing ACL, access-log and contamination-review artifacts does not prove
-  that the external held-out store enforces those controls.
+- Signed ACL, access-log and contamination-review artifacts are verified against
+  a separately supplied, SHA-256-pinned Ed25519 trust-root file. This validates
+  signer identity, role separation, evidence scope, signature integrity and expiry;
+  it still does not prove that the external held-out store enforces those controls
+  at runtime. An independent ACL probe and externally retained trust-root pin remain required.
 - A revision string and local hash do not prove a provider's immutable model
   snapshot; provider-side confirmation is still required.
 - Synthetic scoring fixtures do not replace blinded human review or reviewer

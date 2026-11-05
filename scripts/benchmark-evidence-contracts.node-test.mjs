@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { verifyBenchmarkDataset } from './verify-benchmark-dataset.mjs';
@@ -18,6 +18,98 @@ import {
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 
+const custodyRoles = {
+  aclEvidence: 'data-custodian',
+  accessAudit: 'security-reviewer',
+  contaminationReview: 'contamination-reviewer'
+};
+
+function canonicalJson(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
+  return '{' + Object.keys(value).sort().map(key =>
+    JSON.stringify(key) + ':' + canonicalJson(value[key])
+  ).join(',') + '}';
+}
+
+async function createHeldoutBundle(temp, options = {}) {
+  const evidenceRoot = path.join(temp, 'evidence');
+  await mkdir(evidenceRoot, { recursive: true });
+  const datasetVersion = options.datasetVersion ?? 'synthetic-heldout-v1';
+  const datasetSha256 = options.datasetSha256 ?? hash('synthetic-heldout-content-v1');
+  const storageRef = 'external://synthetic-evaluator-vault/heldout-v1';
+  const issuedAt = new Date(Date.now() - 60_000).toISOString();
+  const expiresAt = new Date(Date.now() + (options.expired ? -1_000 : 3_600_000)).toISOString();
+  const keys = [];
+  const attestations = {};
+  for (const [kind, role] of Object.entries(custodyRoles)) {
+    const pair = generateKeyPairSync('ed25519');
+    const publicKeyDer = pair.publicKey.export({ type: 'spki', format: 'der' });
+    const keyId = hash(publicKeyDer);
+    const principalId = options.sharedPrincipal ? 'synthetic-shared-principal' : 'synthetic-' + role;
+    keys.push({
+      keyId, role, principalId,
+      publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
+      revoked: options.revokedRole === role
+    });
+    const payload = {
+      schemaVersion: '1.0.0',
+      evidenceType: kind,
+      datasetVersion,
+      heldoutDatasetSha256: datasetSha256,
+      storageRef,
+      evaluatorOnly: true,
+      modelRunnerAccess: false,
+      issuedAt,
+      expiresAt,
+      keyId,
+      principalId,
+      algorithm: 'Ed25519',
+      ...(kind === 'aclEvidence' ? {
+        acl: {
+          enforced: true, evaluatorOnly: true, modelRunnerDenied: true,
+          writesDisabled: true, auditEnabled: true, policyVersion: 'acl-v1'
+        }
+      } : {}),
+      ...(kind === 'accessAudit' ? {
+        audit: {
+          eventCount: 1, unauthorizedAccessCount: 0, logSha256: 'a'.repeat(64),
+          windowStart: issuedAt, windowEnd: new Date(Date.now()).toISOString()
+        }
+      } : {}),
+      ...(kind === 'contaminationReview' ? {
+        review: {
+          outcome: 'CLEAN', contaminationFound: false, blindReview: true,
+          sourcesReviewed: ['synthetic-source-a']
+        }
+      } : {})
+    };
+    let signature = sign(null, Buffer.from(canonicalJson(payload)), pair.privateKey).toString('base64');
+    if (options.tamperKind === kind) signature = 'A'.repeat(signature.length);
+    const bytes = Buffer.from(JSON.stringify({ ...payload, signature }));
+    const fileName = kind + '.json';
+    await writeFile(path.join(evidenceRoot, fileName), bytes);
+    attestations[kind] = { path: fileName, sha256: hash(bytes) };
+  }
+  const trustRootsPath = path.join(temp, 'external-trust-roots.json');
+  const trustRootsBytes = Buffer.from(JSON.stringify({ schemaVersion: '1.0.0', keys }));
+  await writeFile(trustRootsPath, trustRootsBytes);
+  return {
+    evidenceRoot,
+    trustRootsPath,
+    trustRootsSha256: hash(trustRootsBytes),
+    heldout: {
+      storageRef,
+      datasetSha256,
+      evaluatorOnly: true,
+      modelRunnerAccess: false,
+      ...attestations
+    }
+  };
+}
+
 test('dataset validator verifies development hashes and evaluator-only attestations', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-dataset-'));
   const dataset = path.join(temp, 'dataset');
@@ -31,14 +123,7 @@ test('dataset validator verifies development hashes and evaluator-only attestati
       toolPermissions: []
     }) + '\n';
     await writeFile(path.join(dataset, 'development', 'tasks.jsonl'), task);
-    const attestations = {};
-    for (const name of ['aclEvidence', 'accessAudit', 'contaminationReview']) {
-      const content = 'synthetic ' + name;
-      await writeFile(path.join(evidence, name + '.txt'), content);
-      attestations[name] = {
-        path: name + '.txt', sha256: hash(content)
-      };
-    }
+    const custody = await createHeldoutBundle(temp);
     const manifest = {
       schemaVersion: '1.0.0', visibility: 'DEVELOPMENT_ONLY',
       version: 'synthetic-1',
@@ -46,15 +131,12 @@ test('dataset validator verifies development hashes and evaluator-only attestati
         path: 'development/tasks.jsonl',
         sha256: hash(task), taskCount: 1
       }],
-      heldout: {
-        storageRef: 'external://evaluator-vault/heldout-v1',
-        evaluatorOnly: true, modelRunnerAccess: false,
-        ...attestations
-      }
+      heldout: custody.heldout
     };
     await writeFile(path.join(dataset, 'manifest.json'), JSON.stringify(manifest));
     const result = await verifyBenchmarkDataset(
-      path.join(dataset, 'manifest.json'), dataset, evidence
+      path.join(dataset, 'manifest.json'), dataset, custody.evidenceRoot,
+      custody.trustRootsPath, custody.trustRootsSha256
     );
     assert.equal(result.taskCount, 1);
     assert.equal(result.gateVerdict, 'BLOCKED');
@@ -77,12 +159,7 @@ test('dataset validator rejects hash tampering and evaluator labels in model inp
       }, toolPermissions: []
     }) + '\n';
     await writeFile(path.join(dataset, 'development', 'tasks.jsonl'), task);
-    const names = ['aclEvidence', 'accessAudit', 'contaminationReview'];
-    const attestations = {};
-    for (const name of names) {
-      await writeFile(path.join(evidence, name), name);
-      attestations[name] = { path: name, sha256: hash(name) };
-    }
+    const custody = await createHeldoutBundle(temp, { datasetVersion: 'synthetic-2' });
     const manifest = {
       schemaVersion: '1.0.0', visibility: 'DEVELOPMENT_ONLY',
       version: 'synthetic-2',
@@ -90,16 +167,79 @@ test('dataset validator rejects hash tampering and evaluator labels in model inp
         path: 'development/tasks.jsonl',
         sha256: hash(task), taskCount: 1
       }],
-      heldout: {
-        storageRef: 'external://vault/heldout',
-        evaluatorOnly: true, modelRunnerAccess: false,
-        ...attestations
-      }
+      heldout: custody.heldout
     };
     await writeFile(path.join(dataset, 'manifest.json'), JSON.stringify(manifest));
     await assert.rejects(
-      verifyBenchmarkDataset(path.join(dataset, 'manifest.json'), dataset, evidence),
+      verifyBenchmarkDataset(
+        path.join(dataset, 'manifest.json'), dataset, custody.evidenceRoot,
+        custody.trustRootsPath, custody.trustRootsSha256
+      ),
       /evaluator-only field/
+    );
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+
+test('held-out custody requires valid independent Ed25519 attestations', async () => {
+  for (const options of [
+    { tamperKind: 'aclEvidence' },
+    { expired: true },
+    { sharedPrincipal: true },
+    { revokedRole: 'security-reviewer' }
+  ]) {
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-custody-invalid-'));
+    try {
+      const dataset = path.join(temp, 'dataset');
+      await mkdir(path.join(dataset, 'development'), { recursive: true });
+      const task = JSON.stringify({
+        taskId: 'synthetic-custody-001', modelInput: { prompt: 'fixture' }, toolPermissions: []
+      }) + '\n';
+      await writeFile(path.join(dataset, 'development', 'tasks.jsonl'), task);
+      const custody = await createHeldoutBundle(temp, options);
+      const manifest = {
+        schemaVersion: '1.0.0', visibility: 'DEVELOPMENT_ONLY', version: 'synthetic-heldout-v1',
+        files: [{ path: 'development/tasks.jsonl', sha256: hash(task), taskCount: 1 }],
+        heldout: custody.heldout
+      };
+      const manifestPath = path.join(dataset, 'manifest.json');
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      await assert.rejects(
+        verifyBenchmarkDataset(
+          manifestPath, dataset, custody.evidenceRoot,
+          custody.trustRootsPath, custody.trustRootsSha256
+        )
+      );
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  }
+});
+
+test('held-out custody rejects a trust-root hash that was not pinned out of band', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-custody-unpinned-'));
+  try {
+    const dataset = path.join(temp, 'dataset');
+    await mkdir(path.join(dataset, 'development'), { recursive: true });
+    const task = JSON.stringify({
+      taskId: 'synthetic-custody-002', modelInput: { prompt: 'fixture' }, toolPermissions: []
+    }) + '\n';
+    await writeFile(path.join(dataset, 'development', 'tasks.jsonl'), task);
+    const custody = await createHeldoutBundle(temp);
+    const manifestPath = path.join(dataset, 'manifest.json');
+    await writeFile(manifestPath, JSON.stringify({
+      schemaVersion: '1.0.0', visibility: 'DEVELOPMENT_ONLY', version: 'synthetic-heldout-v1',
+      files: [{ path: 'development/tasks.jsonl', sha256: hash(task), taskCount: 1 }],
+      heldout: custody.heldout
+    }));
+    await assert.rejects(
+      verifyBenchmarkDataset(
+        manifestPath, dataset, custody.evidenceRoot,
+        custody.trustRootsPath, 'f'.repeat(64)
+      ),
+      /trust-root SHA-256 mismatch/
     );
   } finally {
     await rm(temp, { recursive: true, force: true });
@@ -250,6 +390,7 @@ test('provenance validator rejects secret-bearing non-secret config', async () =
   try {
     const files = {
       'package-lock.json': 'lock',
+      'dataset-manifest.json': 'synthetic-dataset-manifest',
       'prompt.txt': 'prompt',
       'config.json': '{"api_key":"synthetic-secret-value-123456"}'
     };
