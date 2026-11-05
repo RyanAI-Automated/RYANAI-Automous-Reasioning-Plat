@@ -2,9 +2,35 @@ import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
 import { reconcilePaperOrder, type PaperOrderLedgerSnapshot } from '../quant/paperOrderReconciliation.js';
 import { prisma } from '../../lib/prisma.js';
+import { DisabledBrokerAdapter } from '../quant/brokerAdapter.js';
+import { certifyBrokerAdapter, type CertificationAdapter } from '../quant/brokerAdapterCertification.js';
 
 export const quantPaperSafetyRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
+
+  fastify.get('/api/quant/broker/certification', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async () => {
+    const disabled = new DisabledBrokerAdapter();
+    const adapter: CertificationAdapter = {
+      id: disabled.id,
+      mode: 'disabled',
+      liveTradingEnabled: false,
+      capabilities: {
+        orderPreview: false, idempotentClientOrderIds: false,
+        fillReconciliation: false, cancelOrders: false,
+      },
+      probe: async () => ({ status: 'disabled', reason: 'No provider is configured or approved.' }),
+      placeOrder: async (..._args: unknown[]) => disabled.placeOrder(),
+    };
+    const report = await certifyBrokerAdapter(adapter);
+    return {
+      ...report,
+      providerAdaptersRegistered: 0,
+      note: 'No provider adapter or credential scope is configured. Certification is read-only and never places, previews, or cancels orders.',
+    };
+  });
+
 
 
   fastify.get<{ Querystring: { limit?: string } }>('/api/quant/paper/reconciliation', {
