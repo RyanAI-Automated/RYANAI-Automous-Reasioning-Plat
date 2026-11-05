@@ -36,6 +36,59 @@ function canonicalJson(value) {
   ).join(',') + '}';
 }
 
+
+async function createProvenanceAttestation(temp, artifactRoot, manifest, files, options = {}) {
+  const pair = generateKeyPairSync('ed25519');
+  const keyId = hash(pair.publicKey.export({ type: 'spki', format: 'der' }));
+  const principalId = 'synthetic-provenance-auditor';
+  const candidates = manifest.candidates.map(candidate => ({
+    id: candidate.id,
+    provider: candidate.provider,
+    model: candidate.model,
+    immutableRevision: candidate.immutableRevision,
+    revisionKind: candidate.revisionKind,
+    runtimeVersion: candidate.runtimeVersion,
+    promptSha256: hash(files[candidate.promptTemplate.path]),
+    configSha256: hash(files[candidate.nonSecretConfig.path])
+  }));
+  const issuedAt = new Date(Date.now() - 60_000).toISOString();
+  const expiresAt = new Date(Date.now() + (options.expired ? -1_000 : 3_600_000)).toISOString();
+  const payload = {
+    schemaVersion: '1.0.0',
+    evidenceType: 'benchmark-provenance',
+    harnessCommit: manifest.harnessCommit,
+    datasetManifestSha256: manifest.dataset.manifestSha256,
+    runtimeLockSha256: manifest.runtimeLock.sha256,
+    candidates: options.mismatchCandidates ? [] : candidates,
+    issuedAt,
+    expiresAt,
+    keyId,
+    principalId,
+    role: 'provenance-auditor',
+    algorithm: 'Ed25519'
+  };
+  let signature = sign(null, Buffer.from(canonicalJson(payload)), pair.privateKey).toString('base64');
+  if (options.tamperSignature) signature = 'A'.repeat(signature.length);
+  const bytes = Buffer.from(JSON.stringify({ ...payload, signature }));
+  const attestationPath = path.join(artifactRoot, 'provenance-attestation.json');
+  await writeFile(attestationPath, bytes);
+  const trustRootsPath = path.join(temp, 'provenance-trust-roots.json');
+  const trustBytes = Buffer.from(JSON.stringify({
+    schemaVersion: '1.0.0',
+    keys: [{
+      keyId, principalId, role: 'provenance-auditor',
+      publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
+      revoked: options.revoked === true
+    }]
+  }));
+  await writeFile(trustRootsPath, trustBytes);
+  return {
+    reference: { path: 'provenance-attestation.json', sha256: hash(bytes) },
+    trustRootsPath,
+    trustRootsSha256: hash(trustBytes)
+  };
+}
+
 async function createHeldoutBundle(temp, options = {}) {
   const evidenceRoot = path.join(temp, 'evidence');
   await mkdir(evidenceRoot, { recursive: true });
@@ -248,8 +301,10 @@ test('held-out custody rejects a trust-root hash that was not pinned out of band
   }
 });
 
-test('provenance validator checks lock, prompt, config hashes and immutable identity', async () => {
+test('provenance validator verifies pinned artifacts and an external Ed25519 attestation', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-'));
+  const artifactRoot = path.join(temp, 'artifacts');
+  await mkdir(artifactRoot);
   try {
     const files = {
       'package-lock.json': '{"lockfileVersion":3}',
@@ -258,7 +313,7 @@ test('provenance validator checks lock, prompt, config hashes and immutable iden
       'config.json': '{"temperature":0,"maxOutputTokens":128}'
     };
     for (const [name, content] of Object.entries(files)) {
-      await writeFile(path.join(temp, name), content);
+      await writeFile(path.join(artifactRoot, name), content);
     }
     const manifest = {
       schemaVersion: '1.0.0', modelInvocation: false,
@@ -278,13 +333,66 @@ test('provenance validator checks lock, prompt, config hashes and immutable iden
         nonSecretConfig: { path: 'config.json', sha256: hash(files['config.json']) }
       }]
     };
-    const manifestPath = path.join(temp, 'run-manifest.json');
+    const signed = await createProvenanceAttestation(temp, artifactRoot, manifest, files);
+    manifest.provenanceAttestation = signed.reference;
+    const manifestPath = path.join(artifactRoot, 'run-manifest.json');
     await writeFile(manifestPath, JSON.stringify(manifest));
-    const result = await verifyBenchmarkProvenance(manifestPath, temp);
+    const result = await verifyBenchmarkProvenance(
+      manifestPath, artifactRoot, signed.trustRootsPath, signed.trustRootsSha256
+    );
     assert.equal(result.gateVerdict, 'BLOCKED');
     assert.equal(result.candidates[0].revisionKind, 'digest');
+    assert.equal(result.status, 'SIGNED_PROVENANCE_ATTESTATION_VALID_PROVIDER_REVISION_CONFIRMATION_REQUIRED');
+    assert.equal(result.provenanceAttestation.principalId, 'synthetic-provenance-auditor');
+    assert.equal(result.modelInvocation, false);
   } finally {
     await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('provenance validator rejects bad, expired, revoked and scope-mismatched attestations', async () => {
+  for (const options of [
+    { tamperSignature: true },
+    { expired: true },
+    { revoked: true },
+    { mismatchCandidates: true }
+  ]) {
+    const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-attestation-invalid-'));
+    const artifactRoot = path.join(temp, 'artifacts');
+    await mkdir(artifactRoot);
+    try {
+      const files = {
+        'package-lock.json': 'lock',
+        'dataset-manifest.json': 'dataset',
+        'prompt.txt': 'prompt',
+        'config.json': '{"temperature":0}'
+      };
+      for (const [name, value] of Object.entries(files)) await writeFile(path.join(artifactRoot, name), value);
+      const manifest = {
+        schemaVersion: '1.0.0', modelInvocation: false,
+        harnessCommit: 'a'.repeat(40),
+        dataset: { manifestPath: 'dataset-manifest.json', manifestSha256: hash('dataset') },
+        runtimeLock: { path: 'package-lock.json', sha256: hash('lock') },
+        candidates: [{
+          id: 'fixture', provider: 'fixture', model: 'fixture-v1',
+          immutableRevision: 'sha256:' + 'c'.repeat(64), revisionKind: 'digest',
+          runtimeVersion: 'fixture-runtime-1',
+          promptTemplate: { path: 'prompt.txt', sha256: hash('prompt') },
+          nonSecretConfig: { path: 'config.json', sha256: hash('{"temperature":0}') }
+        }]
+      };
+      const signed = await createProvenanceAttestation(temp, artifactRoot, manifest, files, options);
+      manifest.provenanceAttestation = signed.reference;
+      const manifestPath = path.join(artifactRoot, 'run-manifest.json');
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      await assert.rejects(
+        verifyBenchmarkProvenance(
+          manifestPath, artifactRoot, signed.trustRootsPath, signed.trustRootsSha256
+        )
+      );
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
   }
 });
 

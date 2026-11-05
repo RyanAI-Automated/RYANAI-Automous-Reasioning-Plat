@@ -29,7 +29,7 @@ Verify a development dataset:
 
 Verify provenance:
 
-    node scripts/verify-benchmark-provenance.mjs <run-manifest> <artifact-root>
+    node scripts/verify-benchmark-provenance.mjs <run-manifest> <artifact-root> <external-trust-roots.json> <trust-roots-sha256>
 
 The isolation container uses network mode none, a read-only root filesystem,
 a read-only repository mount, dropped Linux capabilities, no-new-privileges,
@@ -56,6 +56,14 @@ model.
   and raw-meter evidence hashes, effective tariff evidence, hardware amortization
   evidence, and failure-inclusive task denominators. Validated metadata does not
   prove instrument authenticity; independent telemetry review remains required.
+- A separately pinned Ed25519 auditor signature binds the exact local provenance
+  manifest and verified artifact identities. It does not prove a provider's
+  immutable model snapshot; provider-side attestation and independent review
+  are still required.
+- Synthetic scoring fixtures do not replace blinded human review or reviewer
+  calibration.
+- ZAR calculations require measured energy, declared tariff and disclosed
+  amortisation assumptions. No estimate is reported as measured.
 - The current Gen-X policy is a synchronous application policy function.
   The tests do not prove durable audit storage or an external approval service
   is available and fail-closed during an outage.
