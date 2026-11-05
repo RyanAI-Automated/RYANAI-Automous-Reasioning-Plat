@@ -152,3 +152,16 @@ model_registry:
     authority: none
     activation: offline_benchmark_only_pending_licence_review
     evaluation_required: true
+  - id: specialist.kimi_k31_pro
+    provider: alibaba_cloud_model_studio
+    provider_model_id: kimi-k3.1-pro
+    role: multimodal_long_context_reasoning
+    status: evaluation_only
+    task_families: [long_context_reasoning, multimodal_understanding, coding, agentic_task_execution, research]
+    modalities:
+      input: [text, image]
+      output: [text]
+    context_window_tokens: 1048576
+    authority: none
+    activation: offline_benchmark_only_pending_privacy_cost_region_and_api_review
+    evaluation_required: true
