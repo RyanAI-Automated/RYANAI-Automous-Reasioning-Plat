@@ -5,7 +5,7 @@ import { auditAgentReadiness } from './audit-agent-readiness.mjs';
 
 test('deployment targets remain disabled unless explicitly enabled', () => {
   const results = auditDeploymentTargets({});
-  assert.equal(results.length, 6);
+  assert.equal(results.length, 5);
   assert.ok(results.every((target) => target.status === 'DISABLED'));
   assert.ok(results.every((target) => target.deploymentAttempted === false));
 });
@@ -252,4 +252,15 @@ test('production migration and Render deployment require independent environment
   const migrationRunner = await readFile(new URL('../src/db/migrate.ts', import.meta.url), 'utf8');
   assert.ok(migrationRunner.includes("searchParams.get('sslmode') !== 'verify-full'"));
   assert.ok(migrationRunner.includes("searchParams.get('sslaccept') !== 'strict'"));
+});
+
+test('Render and Railway are the only default deployment providers with distinct roles', () => {
+  const results = auditDeploymentTargets({});
+  const defaults = results.filter((target) => target.default);
+  assert.deepEqual(defaults.map((target) => target.name), ['Render', 'Railway']);
+  assert.deepEqual(defaults.map((target) => target.role), [
+    'frontend-delivery-and-api',
+    'Docker-and-persistent-workloads',
+  ]);
+  assert.ok(defaults.every((target) => target.status === 'DISABLED'));
 });
