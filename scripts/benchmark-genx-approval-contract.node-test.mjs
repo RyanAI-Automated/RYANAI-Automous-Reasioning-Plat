@@ -67,6 +67,7 @@ async function fixture(options = {}) {
       requestId: options.requestId ?? 'synthetic-request-0001',
       approvalService,
       approvalServicePublicKeyPem: keyPair.publicKey.export({ type: 'spki', format: 'pem' }),
+      approvalServiceKeySha256: hash(keyPair.publicKey.export({ type: 'spki', format: 'der' })),
       expectedServicePrincipal: 'synthetic-approval-service',
       auditStore
     }
@@ -124,7 +125,8 @@ test('forged, unauthenticated, wrong-service, expired and requester-self-approve
     { wrongService: true },
     { expired: true },
     { mismatchRequest: true },
-    { sameApprover: true }
+    { sameApprover: true },
+    { missingSignerPin: true }
   ]) {
     const f = await fixture(options);
     try {
