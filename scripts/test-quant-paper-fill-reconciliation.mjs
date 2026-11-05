@@ -68,12 +68,12 @@ async function seedPostMigrationFixtures() {
 
   await prisma.$executeRawUnsafe(`
     INSERT INTO quant_paper_trades
-      (id, order_id, user_id, symbol, side, quantity, price, fee, client_fill_id, created_at)
+      (id, order_id, user_id, symbol, side, quantity, price, fee, created_at)
     VALUES
       ('quant-recon-partial-fill-1', 'quant-recon-partial', $1, 'NVDA', 'buy',
-       2, 100, 0.10, 'partial-fill-1', NOW()),
+       2, 100, 0.10, NOW()),
       ('quant-recon-partial-fill-2', 'quant-recon-partial', $1, 'NVDA', 'buy',
-       2, 102, 0.10, 'partial-fill-2', NOW())
+       2, 102, 0.10, NOW())
   `, USER_A);
 
   await prisma.$executeRawUnsafe(`
@@ -122,12 +122,20 @@ try {
     'historical order without a trade must be surfaced as inconsistent');
   assert.ok(historicalMissingTrade.discrepancyReasons.includes('stored_filled_quantity_mismatch'));
 
-  const partial = reconcilePaperOrder(await snapshot('quant-recon-partial'));
+  const partialSnapshot = await snapshot('quant-recon-partial');
+  const partial = reconcilePaperOrder(partialSnapshot);
   assert.equal(partial.consistent, true, 'two partial fills must reconcile');
   assert.equal(partial.ledgerFilledQuantity, 4);
   assert.equal(partial.remainingQuantity, 6);
   assert.equal(partial.averageFillPrice, 101);
   assert.equal(partial.ledgerFee, 0.2);
+  assert.deepEqual(
+    partialSnapshot.fills.map((fill) => fill.clientFillId).sort(),
+    [
+      'paper:partial-client-order:quant-recon-partial-fill-1',
+      'paper:partial-client-order:quant-recon-partial-fill-2',
+    ],
+  );
 
   const duplicateSnapshot = await snapshot('quant-recon-duplicate');
   const duplicateBefore = reconcilePaperOrder(duplicateSnapshot);
