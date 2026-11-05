@@ -90,6 +90,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
+      AUDIOBOOK_DATABASE_URL: ${AUDIOBOOK_DATABASE_URL:-}
       REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       RYANAI_OPENAI_GATEWAY_TOKEN: ${RYANAI_OPENAI_GATEWAY_TOKEN:-}
