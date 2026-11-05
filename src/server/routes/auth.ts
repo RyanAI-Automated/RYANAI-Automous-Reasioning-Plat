@@ -153,6 +153,12 @@ export function installAuthentication(fastify: FastifyInstance) {
     if (request.method === 'GET' && path === '/api/github/callback') return;
     if (path.startsWith('/api/github/')) return requireUser(request, reply);
 
+    // The GitHub App callback is public because it is bound to the one-time,
+    // short-lived state created for a previously authenticated RyanAI user.
+    // Every other in-app GitHub integration route requires that user session.
+    if (request.method === 'GET' && path === '/api/github/callback') return;
+    if (path.startsWith('/api/github/')) return requireUser(request, reply);
+
     // Public auth signin route
     if (request.method === 'POST' && path === '/api/auth/signin') {
       return;
