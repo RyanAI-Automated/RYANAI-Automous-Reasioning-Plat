@@ -31,6 +31,7 @@ test('container runner passes no host environment and mounts only three allowlis
   assert.match(runner, /--user=10001:10001/);
   assert.match(runner, /benchmark-isolation-container\.mjs,readonly/);
   assert.match(runner, /benchmark-endpoint-policy\.mjs,readonly/);
+  assert.match(runner, /benchmark-endpoint-policy\.mjs,readonly/);
   assert.match(runner, /local-isolation-policy\.json,readonly/);
   assert.doesNotMatch(runner, /src=\$\(pwd\)|--env-file|--env\s| -e\s|docker\.sock/);
 });

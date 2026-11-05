@@ -91,6 +91,7 @@ if (new Set(reportedCheckNames).size !== reportedCheckNames.length) failures.pus
 for (const check of checks) {
   if (check.status !== 'PASS' || check.exitCode !== 0 || typeof check.command !== 'string' || !check.command || typeof check.observedCode !== 'string' || !check.observedCode) {
     failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code/result evidence.`);
+    failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code evidence.`);
   }
 }
 
