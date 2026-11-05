@@ -71,7 +71,7 @@ export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
     if (!audio) return reply.code(400).send({ error: 'Provide a supported audio file (maximum 16 MB) as valid base64.' });
 
     const form = new FormData();
-    form.append('file', new Blob([audio.bytes], { type: audio.mimeType }), audio.fileName);
+    form.append('file', new Blob([Uint8Array.from(audio.bytes)], { type: audio.mimeType }), audio.fileName);
     form.append('model', 'gpt-4o-mini-transcribe');
     form.append('response_format', 'json');
 
