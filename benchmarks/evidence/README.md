@@ -27,7 +27,7 @@ Run:
 
 The executable checks validate development dataset hashes, externally pinned
 Ed25519 custody attestations, provenance pins, deterministic scoring contracts,
-repeatability inputs, ZAR arithmetic, and the current Gen-X policy function.
+three-run repeatability, meter/tariff/amortization evidence, and ZAR arithmetic, and the current Gen-X policy function.
 Signed custody assertions still require an independent runtime ACL probe. The
 checks do not prove provider-side revision claims, actual model performance,
 durable audit persistence, or production runner isolation.
