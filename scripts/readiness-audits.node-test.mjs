@@ -227,6 +227,7 @@ test('boolean false secret-presence indicators are treated as missing', () => {
 });
 
 
+
 test('production migration and Render deployment require independent environment reviewers', async () => {
   const { readFile } = await import('node:fs/promises');
   const migration = await readFile(new URL('../.github/workflows/migrate-production.yml', import.meta.url), 'utf8');
@@ -240,6 +241,8 @@ test('production migration and Render deployment require independent environment
     assert.ok(workflow.includes('.type == "required_reviewers"'));
     assert.ok(workflow.includes('.prevent_self_review == true'));
     assert.ok(workflow.includes('((.reviewers // []) | length > 0)'));
+  }
+  assert.ok(migration.includes('== "APPLY"'));
     assert.ok(workflow.includes('No production') || workflow.includes('No Render API deployment'));
   }
   assert.ok(migration.includes('inputs.confirmation'));
@@ -251,4 +254,5 @@ test('production migration and Render deployment require independent environment
   const migrationRunner = await readFile(new URL('../src/db/migrate.ts', import.meta.url), 'utf8');
   assert.ok(migrationRunner.includes("searchParams.get('sslmode') !== 'verify-full'"));
   assert.ok(migrationRunner.includes("searchParams.get('sslaccept') !== 'strict'"));
+});
 });

@@ -28,8 +28,10 @@ trigger a deployment.
 A repository administrator must configure these settings directly in GitHub.
 This PR does not create or modify secrets or environment settings:
 
-- Create the `production-migrations` environment and require an independent
-  reviewer approval before its job can access environment secrets.
+- Create the `production-migrations` environment, require at least one
+  independent reviewer, and enable **Prevent self-review**. The workflow
+  verifies these controls through GitHub's Environment API before it reads the
+  database secret or invokes the migration container.
 - Add `PRODUCTION_DATABASE_URL` as an environment secret. It must contain the
   current Supabase PostgreSQL connection URL. Do not put it in repository
   files, logs, pull requests, or chat.
@@ -65,8 +67,9 @@ The **Deploy API to Render** workflow is also manual. It requires the explicit
 `DEPLOY` input and a successful **Production database migrations** workflow
 run for the same exact `main` SHA. It independently verifies current main,
 CI/security, provider checks, Redis availability, Render configuration, and
-the live API health endpoint. The `production` environment remains the
-separate production deployment approval boundary.
+the live API health endpoint. The `production` environment must also require an independent reviewer and
+  have **Prevent self-review** enabled. The workflow checks these settings
+  before accessing the Render API credential or invoking a deployment.
 
 A migration success for an older commit cannot authorize deployment of a
 newer one. Run the migration workflow again for the current main commit.
