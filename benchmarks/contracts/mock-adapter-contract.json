@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0.0",
+  "mode": "fixture-only",
+  "modelInvocation": false,
+  "networkAccess": false,
+  "credentialAccess": false,
+  "contract": {
+    "input": ["taskId", "fixtureId", "request"],
+    "output": ["taskId", "fixtureId", "response", "adapterStatus"],
+    "allowedStatuses": ["FIXTURE_RESPONSE", "FIXTURE_MISS", "CONTRACT_REJECTED"],
+    "fixtureMissBehavior": "FAIL_CLOSED",
+    "unknownFixtureBehavior": "FAIL_CLOSED",
+    "responseMustBeDeterministic": true,
+    "responseMustDeclareFixtureProvenance": true,
+    "mustRejectProviderEndpointConfiguration": true,
+    "mustRejectCredentialConfiguration": true,
+    "mustNotInstantiateProviderSdk": true
+  },
+  "forbiddenCapabilities": [
+    "http",
+    "https",
+    "dns",
+    "provider-sdk",
+    "credential-resolution",
+    "cloud-fallback",
+    "production-database",
+    "deployment"
+  ]
+}
