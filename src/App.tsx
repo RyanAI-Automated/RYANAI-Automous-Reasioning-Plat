@@ -10,6 +10,7 @@ import {
   Mail,
   Orbit,
   ShieldCheck,
+  Settings,
   ListChecks,
   LogIn,
   LogOut,
@@ -30,6 +31,7 @@ const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const OperatorConsole = lazy(() => import('@/pages/OperatorConsole'));
 const OperationsCenter = lazy(() => import('@/pages/OperationsCenter'));
 const AdminConsole = lazy(() => import('@/pages/AdminConsole'));
+const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
 const QuantLabPage = lazy(() => import('@/pages/QuantLab'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
@@ -38,6 +40,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
 import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
+import { DEFAULT_LANGUAGE, OWNER_DEFAULT_LANGUAGE } from '@/shared/languages';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -67,6 +70,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   operator: Activity,
   operations: ListChecks,
   admin: ShieldCheck,
+  settings: Settings,
   quant: TrendingUp,
   cockpit: Cpu,
   workspace: MessageSquareText,
@@ -186,7 +190,7 @@ export default function App() {
         </header>
         <Suspense fallback={<p role="status" className="p-8 text-slate-300">Loading RyanAI workspace…</p>}>
           <main id="main-content" key={user?.id ?? 'signed-out'} tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto focus:outline-none">
-            {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
+            {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} preferredLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : undefined} preferredVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} />}
             {error && <p role="alert" className="p-4 text-rose-300">{error}</p>}
             {isOAuthConsentRoute ? loading ? <p role="status" className="p-8 text-slate-300">Restoring your session before authorization…</p> : user ? <OAuthConsentPage key={user.id} userId={user.id} /> : <AuthPage key="oauth-signin" mode="signin" />
               : route === 'landing' ? <LandingPage />
@@ -194,6 +198,7 @@ export default function App() {
               : !user ? <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
               : <>
                 {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}
+                {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} />}
                 {route === 'operator' && <OperatorConsole />}
                 {route === 'operations' && <OperationsCenter isAdmin={isAdmin} />}
                 {route === 'admin' && (isAdmin ? <AdminConsole key={user.id} userId={user.id} /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the RyanAI Admin Console.</p>)}
