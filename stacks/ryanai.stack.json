@@ -65,7 +65,6 @@
       "k8s/ryanai-databases.yaml"
     ],
     "render": "render.yaml",
-    "vercel": ".github/workflows/deploy-vercel.yml",
     "railway": "railway.json"
   },
   "integrations": {
