@@ -34,7 +34,12 @@ interface StackTemplate {
     dockerCompose: string;
     kubernetes: string[];
     render: string;
-    vercel: string;
+    railway: string;
+  };
+  deploymentDefaults: {
+    frontend: 'render';
+    api: 'render';
+    persistentWorkloads: 'railway';
   };
   integrations: {
     jarvis: {
