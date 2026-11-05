@@ -27,7 +27,7 @@ function check(name: string, passed: boolean, detail: string): BrokerAdapterCert
 /** Read-only certification. It never calls placeOrder, cancel, or preview methods. */
 export async function certifyBrokerAdapter(adapter: CertificationAdapter): Promise<BrokerAdapterCertificationReport> {
   const checkedAt = new Date().toISOString();
-  const adapterId = typeof adapter.id === 'string' ? adapter.id : '';
+  const adapterId = typeof adapter.id === 'string' ? adapter.id.trim() : '';
   const checks = [check('adapter_identity', adapterId.length > 0, adapterId ? 'Adapter identity is present.' : 'Adapter identity is missing.')];
   const safeMode = adapter.mode === 'disabled' || adapter.mode === 'sandbox';
   const executionDisabled = adapter.liveTradingEnabled === false && safeMode;
@@ -45,6 +45,11 @@ export async function certifyBrokerAdapter(adapter: CertificationAdapter): Promi
     return { adapterId, mode: adapter.mode, status: 'incomplete', certified: false,
       adapterLiveTradingEnabled: false, executionAllowed: false, placeOrderInvoked: false, checkedAt, checks };
   }
+  if (!probe || typeof probe !== 'object' || typeof probe.status !== 'string') {
+    checks.push(check('read_only_probe', false, 'Provider returned an invalid read-only probe response.'));
+    return { adapterId, mode: adapter.mode, status: 'incomplete', certified: false,
+      adapterLiveTradingEnabled: false, executionAllowed: false, placeOrderInvoked: false, checkedAt, checks };
+  }
   if (adapter.mode === 'disabled') {
     const disabled = probe.status === 'disabled';
     checks.push(check('disabled_adapter_probe', disabled,
@@ -54,8 +59,9 @@ export async function certifyBrokerAdapter(adapter: CertificationAdapter): Promi
       placeOrderInvoked: false, checkedAt, checks };
   }
   const validProbe = probe.status === 'sandbox_ready' && probe.environment === 'sandbox' &&
-    probe.readOnly === true && !!probe.provider.trim() && !!probe.accountId.trim() &&
-    Number.isFinite(Date.parse(probe.checkedAt));
+    probe.readOnly === true && typeof probe.provider === 'string' && probe.provider.trim().length > 0 &&
+    typeof probe.accountId === 'string' && probe.accountId.trim().length > 0 &&
+    typeof probe.checkedAt === 'string' && Number.isFinite(Date.parse(probe.checkedAt));
   checks.push(check('read_only_sandbox_probe', validProbe,
     validProbe ? 'Provider confirms a read-only sandbox account.' : 'A valid read-only sandbox probe is required.'));
   for (const [key, name] of [
