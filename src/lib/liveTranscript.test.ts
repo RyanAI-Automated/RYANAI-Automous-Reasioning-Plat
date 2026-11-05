@@ -13,7 +13,7 @@ describe('live voice transcript accumulation', () => {
 
   it('retains only the newest characters once the session limit is reached', () => {
     const current = 'a'.repeat(MAX_LIVE_TRANSCRIPT_CHARS - 2);
-    const expected = 'a'.repeat(MAX_LIVE_TRANSCRIPT_CHARS - 6) + 'bcde';
+    const expected = 'a'.repeat(MAX_LIVE_TRANSCRIPT_CHARS - 4) + 'bcde';
     expect(appendLiveTranscript(current, 'bcde')).toBe(expected);
     expect(appendLiveTranscript(current, 'bcde')).toHaveLength(MAX_LIVE_TRANSCRIPT_CHARS);
   });
