@@ -11,7 +11,6 @@ import {
   Play,
   RefreshCw,
   ShieldCheck,
-  Square,
   Terminal,
   X,
 } from 'lucide-react';
@@ -218,21 +217,6 @@ export default function CodingStudio() {
       await loadJob(job.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Coding task could not be queued.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const cancelTask = async (taskId: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await authenticatedFetch(`/api/engineering/coding-tasks/${encodeURIComponent(taskId)}/cancel`, { method: 'POST' });
-      const payload = await response.json() as { error?: string; status?: string };
-      if (!response.ok) throw new Error(payload.error || 'Coding task could not be cancelled.');
-      setStatus(`Coding task ${taskId}: ${payload.status || 'cancel request accepted'}.`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Coding task could not be cancelled.');
     } finally {
       setBusy(false);
     }
