@@ -20,7 +20,7 @@ describe('GLiNER adapter contract', () => {
     const result = {
       entities: [
         { start: 0, end: 5, text: 'Sir G', label: 'PERSON', score: 0.98 },
-        { start: 18, end: 24, text: 'RyanAI', label: 'ORGANIZATION', score: 0.91 },
+        { start: 15, end: 21, text: 'RyanAI', label: 'ORGANIZATION', score: 0.91 },
       ],
     };
     expect(validateGlinerExtractionResult(result, request)).toBe(true);
