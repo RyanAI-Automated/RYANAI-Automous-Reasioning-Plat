@@ -34,7 +34,7 @@ async function startFakeClamAv(): Promise<{ port: number; close: () => Promise<v
       if (!hasTerminator) return;
       replied = true;
       const infected = request.includes(Buffer.from(INFECTED_FIXTURE_MARKER));
-      socket.end(infected ? 'stream: synthetic-test-signature FOUND\\0' : 'stream: OK\\0');
+      socket.end(infected ? 'stream: synthetic-test-signature FOUND\0' : 'stream: OK\0');
     });
   });
 
@@ -99,8 +99,8 @@ async function main(): Promise<void> {
   const messageId = randomUUID();
   const cleanAttachmentId = randomUUID();
   const infectedAttachmentId = randomUUID();
-  const cleanBytes = Buffer.from('Synthetic clean Comms attachment fixture.\\n', 'utf8');
-  const infectedBytes = Buffer.from(`Synthetic file fixture: ${INFECTED_FIXTURE_MARKER}\\n`, 'utf8');
+  const cleanBytes = Buffer.from('Synthetic clean Comms attachment fixture.\n', 'utf8');
+  const infectedBytes = Buffer.from(`Synthetic file fixture: ${INFECTED_FIXTURE_MARKER}\n`, 'utf8');
   const cleanObjectName = `${ownerUserId}/${conversationId}/${messageId}/${cleanAttachmentId}.txt`;
   const infectedObjectName = `${ownerUserId}/${conversationId}/${messageId}/${infectedAttachmentId}.txt`;
   const objectNames = [cleanObjectName, infectedObjectName];
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
       infectedDownloadBlocked: true,
       cleanDownloadVerified: true,
       providerTraffic: 'none',
-    }) + '\\n');
+    }) + '\n');
   } finally {
     scannerStop?.();
     if (clamAv) await clamAv.close().catch(() => undefined);
