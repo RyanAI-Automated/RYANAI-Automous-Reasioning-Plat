@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   Activity,
+  BrainCircuit,
   Cpu,
   Code2,
   LayoutDashboard,
@@ -32,6 +33,7 @@ const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCente
 const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
 const CalculatorPage = lazy(() => import('@/pages/Calculator'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const PAAgentPage = lazy(() => import('@/pages/PAAgent'));
 const CodingStudio = lazy(() => import('@/pages/CodingStudio'));
 const OperatorConsole = lazy(() => import('@/pages/OperatorConsole'));
 const OperationsCenter = lazy(() => import('@/pages/OperationsCenter'));
@@ -73,6 +75,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   signin: LogIn,
   signup: UserPlus,
   dashboard: LayoutDashboard,
+  pa: BrainCircuit,
   calculator: CalculatorIcon,
   operator: Activity,
   operations: ListChecks,
@@ -207,6 +210,7 @@ export default function App() {
               : !user ? <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
               : <>
                 {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}
+                {route === 'pa' && <PAAgentPage />}
                 {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} />}
                 {route === 'operator' && <OperatorConsole />}
                 {route === 'operations' && <OperationsCenter isAdmin={isAdmin} />}
