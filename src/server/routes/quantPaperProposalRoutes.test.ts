@@ -146,7 +146,6 @@ describe('strategy-driven paper order proposals', () => {
       'proposal-user-a',
     );
     expect(mocks.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO quant_paper_order_proposals'))).toBe(true);
-    expect(app.printRoutes()).toContain('/api/quant/paper/proposals');
     await app.close();
   });
 
@@ -196,6 +195,106 @@ describe('strategy-driven paper order proposals', () => {
       'proposal-a',
       'proposal-user-a',
       'paper-order-a',
+    );
+    await app.close();
+  });
+
+  it('rejects a signal that belongs to another authenticated user', async () => {
+    mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM quant_strategy_signals s')) return [];
+      return [];
+    });
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/quant/paper/proposals',
+      payload: { signalId: 'another-users-signal', notional: 1000 },
+    });
+    expect(response.statusCode).toBe(404);
+    expect(mocks.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO quant_paper_order_proposals'))).toBe(false);
+    await app.close();
+  });
+
+  it('blocks proposal creation while the paper account is paused or emergency-stopped', async () => {
+    mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM quant_strategy_signals s')) return [mocks.signal];
+      if (sql.includes('FROM quant_paper_risk_policies')) {
+        return [{
+          max_order_notional: '2000',
+          max_position_notional: '5000',
+          max_gross_exposure: '10000',
+          trading_enabled: false,
+          emergency_stop: true,
+        }];
+      }
+      return [];
+    });
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/quant/paper/proposals',
+      payload: { signalId: 'signal-a', notional: 1000 },
+    });
+    expect(response.statusCode).toBe(423);
+    expect(response.json().error).toContain('emergency stop is active');
+    expect(mocks.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO quant_paper_order_proposals'))).toBe(false);
+    await app.close();
+  });
+
+  it('lists proposals only for the authenticated account', async () => {
+    mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM quant_paper_order_proposals p')) {
+        return [{
+          ...mocks.proposal,
+          status: 'pending',
+          strategy: 'sma_crossover',
+          signal_action: 'buy',
+          source_bar_date: '2026-11-04',
+        }];
+      }
+      return [];
+    });
+    const app = await createApp();
+    const response = await app.inject({ method: 'GET', url: '/api/quant/paper/proposals' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      proposals: [{
+        id: 'proposal-a',
+        symbol: 'SPY',
+        side: 'buy',
+        strategy: 'sma_crossover',
+        status: 'pending',
+        sourceBarDate: '2026-11-04',
+      }],
+      executionEnabled: false,
+    });
+    expect(mocks.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE p.user_id = $1'),
+      'proposal-user-a',
+    );
+    await app.close();
+  });
+
+  it('rejects confirmation when the saved source market data has become stale', async () => {
+    mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('RETURNING id, signal_id, market_data_import_id')) return [mocks.proposal];
+      if (sql.includes('SELECT last_bar_at, is_stale')) {
+        return [{ last_bar_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), is_stale: false }];
+      }
+      return [];
+    });
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/quant/paper/proposals/proposal-a/confirm',
+      payload: {},
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toContain('source data is stale');
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.stringContaining("SET status = 'rejected'"),
+      'proposal-a',
+      'proposal-user-a',
     );
     await app.close();
   });
