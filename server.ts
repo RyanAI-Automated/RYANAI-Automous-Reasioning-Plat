@@ -9,7 +9,7 @@ const server = Fastify({
 });
 
 // CORS: set CORS_ORIGINS to a comma-separated list, e.g.
-//   CORS_ORIGINS=https://your-app.vercel.app,https://app.example.com
+//   CORS_ORIGINS=https://your-render-frontend.onrender.com,https://app.example.com
 // In production, an unset value blocks cross-origin browser calls.
 const allowedOrigins = (process.env.CORS_ORIGINS || "")
   .split(",")

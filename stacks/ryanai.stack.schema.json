@@ -9,8 +9,9 @@
     "version",
     "repository",
     "services",
+    "integrations",
     "deploymentTargets",
-    "integrations"
+    "deploymentDefaults"
   ],
   "properties": {
     "$schema": {
@@ -97,7 +98,6 @@
         "dockerCompose",
         "kubernetes",
         "render",
-        "vercel",
         "railway"
       ],
       "properties": {
@@ -111,9 +111,6 @@
           }
         },
         "render": {
-          "type": "string"
-        },
-        "vercel": {
           "type": "string"
         },
         "railway": {
@@ -158,6 +155,26 @@
             }
           },
           "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "deploymentDefaults": {
+      "type": "object",
+      "required": [
+        "frontend",
+        "api",
+        "persistentWorkloads"
+      ],
+      "properties": {
+        "frontend": {
+          "const": "render"
+        },
+        "api": {
+          "const": "render"
+        },
+        "persistentWorkloads": {
+          "const": "railway"
         }
       },
       "additionalProperties": false

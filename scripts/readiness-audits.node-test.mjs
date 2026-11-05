@@ -5,7 +5,7 @@ import { auditAgentReadiness } from './audit-agent-readiness.mjs';
 
 test('deployment targets remain disabled unless explicitly enabled', () => {
   const results = auditDeploymentTargets({});
-  assert.equal(results.length, 6);
+  assert.equal(results.length, 5);
   assert.ok(results.every((target) => target.status === 'DISABLED'));
   assert.ok(results.every((target) => target.deploymentAttempted === false));
 });
@@ -207,20 +207,35 @@ test('Render API repair runs inside core CI, waits for security, and never deplo
 });
 
 
-test('Render production deployment requires the API credential, not a stale deploy hook', () => {
-  const missing = auditDeploymentTargets({ RENDER_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Render');
+test('Render staging is blocked until a separate isolated staging service is configured', () => {
+  const missing = auditDeploymentTargets({ RENDER_STAGING_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Render');
   assert.equal(missing.status, 'BLOCKED');
-  assert.deepEqual(missing.missing, ['RENDER_API_KEY']);
-  const ready = auditDeploymentTargets({ RENDER_DEPLOY_ENABLED: 'true', RENDER_API_KEY: 'present-for-test-only' }).find((target) => target.name === 'Render');
+  assert.deepEqual(missing.missing, ['RENDER_API_KEY', 'RENDER_STAGING_SERVICE_ID', 'RENDER_STAGING_API_URL', 'RENDER_STAGING_ISOLATION_CONFIRMED']);
+  const ready = auditDeploymentTargets({
+    RENDER_STAGING_DEPLOY_ENABLED: 'true',
+    RENDER_API_KEY: 'test-only',
+    RENDER_STAGING_SERVICE_ID: 'staging-service-id',
+    RENDER_STAGING_API_URL: 'https://staging.example.test',
+    RENDER_STAGING_ISOLATION_CONFIRMED: 'true',
+  }).find((target) => target.name === 'Render');
   assert.equal(ready.status, 'READY');
   assert.equal(ready.deploymentAttempted, false);
+});
+
+test('Railway staging is blocked until an isolated project and environment are configured', () => {
+  const missing = auditDeploymentTargets({ RAILWAY_STAGING_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Railway');
+  assert.equal(missing.status, 'BLOCKED');
+  assert.deepEqual(missing.missing, ['RAILWAY_STAGING_TOKEN', 'RAILWAY_STAGING_PROJECT_ID', 'RAILWAY_STAGING_SERVICE_ID', 'RAILWAY_STAGING_ENVIRONMENT_ID', 'RAILWAY_STAGING_ISOLATION_CONFIRMED']);
 });
 
 
 test('boolean false secret-presence indicators are treated as missing', () => {
   const result = auditDeploymentTargets({
-    RENDER_DEPLOY_ENABLED: 'true',
+    RENDER_STAGING_DEPLOY_ENABLED: 'true',
     RENDER_API_KEY: 'false',
+    RENDER_STAGING_SERVICE_ID: 'staging-service-id',
+    RENDER_STAGING_API_URL: 'https://staging.example.test',
+    RENDER_STAGING_ISOLATION_CONFIRMED: 'true',
   }).find((target) => target.name === 'Render');
   assert.equal(result.status, 'BLOCKED');
   assert.deepEqual(result.missing, ['RENDER_API_KEY']);
@@ -252,4 +267,15 @@ test('production migration and Render deployment require independent environment
   const migrationRunner = await readFile(new URL('../src/db/migrate.ts', import.meta.url), 'utf8');
   assert.ok(migrationRunner.includes("searchParams.get('sslmode') !== 'verify-full'"));
   assert.ok(migrationRunner.includes("searchParams.get('sslaccept') !== 'strict'"));
+});
+
+test('Render and Railway are the only default deployment providers with distinct roles', () => {
+  const results = auditDeploymentTargets({});
+  const defaults = results.filter((target) => target.default);
+  assert.deepEqual(defaults.map((target) => target.name), ['Render', 'Railway']);
+  assert.deepEqual(defaults.map((target) => target.role), [
+    'frontend-delivery-and-api',
+    'Docker-and-persistent-workloads',
+  ]);
+  assert.ok(defaults.every((target) => target.status === 'DISABLED'));
 });

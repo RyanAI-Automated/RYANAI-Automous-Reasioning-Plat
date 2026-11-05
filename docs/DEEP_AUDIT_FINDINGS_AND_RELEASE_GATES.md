@@ -2,7 +2,7 @@
 
 **Audit date:** 2026-10-29  
 **Repository:** `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`  
-**Scope:** Structural review plus targeted inspection of the primary Fastify launcher, alternate server entry points, reasoning clients, agent tools, Jarvis bridge, GitHub Actions and Vercel deployment evidence.
+**Scope:** Structural review plus targeted inspection of the primary Fastify launcher, alternate server entry points, reasoning clients, agent tools, Jarvis bridge, GitHub Actions and Render and Railway deployment evidence.
 
 > This is a targeted audit snapshot, not a declaration that every page, API handler, agent module, and integration has received a file-by-file review. Findings are labelled by the evidence actually inspected. A search that did not find a reference is not proof that a feature is absent.
 
@@ -18,8 +18,8 @@
 
 ## Deployment findings
 
-- The Vercel production build failed in `vite.config.ts` with: `Set VITE_API_BASE_URL to the HTTPS origin of your separate API deployment`.
-- The repository's Render blueprint documents `https://ryanai-api.onrender.com` as the API origin. A Vercel `VITE_API_BASE_URL` variable was added for production and preview using that documented origin.
+- The former hosted frontend build required a separately configured HTTPS API origin; the Vite configuration is now deployment-neutral and uses the configured Render API origin.
+- The repository's Render blueprint documents `https://ryanai-api.onrender.com` as the API origin. The Render frontend build uses `VITE_API_BASE_URL` with the documented API origin.
 - The failed deployments were already in progress when the environment variable was created. A later production deployment for main commit `82d29e4dca0fdc4e17ed2976eb70b5c68545b262` was observed in `BUILDING` state; the build and live API still require confirmation.
 - The API host's live health endpoint was not verified from the audit execution environment. Do not assume the Render API is healthy simply because the URL is present in configuration.
 - Do not launch repeated production deployments to test the change. Inspect the current build first and respect Vercel's daily deployment quota.

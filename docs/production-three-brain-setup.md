@@ -21,13 +21,13 @@ The corresponding endpoint and model overrides are `NVIDIA_API_ENDPOINT`/`NVIDIA
 
 Use the hosting provider's encrypted environment-variable UI. Never add the values to Git, a Docker build argument, a client-side `VITE_*` variable, issue, or chat. Restart/redeploy the API after setting them so the process loads the new environment.
 
-Vercel is configured as the Vite frontend in this repository. Finding no model-provider keys in the Vercel project is therefore not evidence that the API runtime is missing them; Vercel should not receive these server secrets when the API is hosted separately.
+Render is the default hosted frontend delivery provider and Railway is the default Docker/persistent-workload provider. Model-provider credentials belong only in the approved server-side runtime secret store; never expose them to the browser or frontend build.
 
 ## 2. Put the admin test token on the test runner, not the API
 
 `TEST_ADMIN_ACCESS_TOKEN` is read by `scripts/test-e2e-flow.ts`. It is a **Supabase admin user's access JWT** used by the test runner to authenticate against the API. The probe route itself does not read this environment variable: it uses the normal authenticated request context and requires `request.authUser.role === 'admin'`.
 
-Configure the token as an encrypted GitHub Actions repository or environment secret for the workflow/job that runs the live E2E probe. Also set the non-secret runner variable `RYANAI_LIVE_PROVIDER_TESTS=true`. Do not put this test token in Vercel's frontend environment or expose it to browser code. Do not commit it.
+Configure the token as an encrypted GitHub Actions repository or environment secret for the workflow/job that runs the live E2E probe. Also set the non-secret runner variable `RYANAI_LIVE_PROVIDER_TESTS=true`. Do not put this test token in the frontend build environment or expose it to browser code. Do not commit it.
 
 The test runner needs the following:
 - `TEST_ADMIN_ACCESS_TOKEN`: admin user's Supabase access JWT, stored as a CI secret.
@@ -39,35 +39,35 @@ If user-authenticated E2E checks are also required, configure `TEST_USER_ACCESS_
 
 The live test calls `POST /api/agent/ops/brains/probe` and requires all three returned brain statuses to be `HEALTHY`. The route is rate-limited to one probe per five minutes and is restricted to authenticated admins. Run it deliberately; each probe makes billable provider calls.
 
-## 3. Correct the Render API service source before deploying
+## 3. Use the approved Render and Railway defaults
 
-The checked Render service previously associated with this project is not the intended production source: it points to the personal fork `rmnganyane-dev/RYANAI-Automous-Reasioning-Plat`, has auto-deploy disabled, and has no configured health-check path. Do not trigger a deployment from that stale service.
+- **Render** delivers the web frontend and the configured web/API services.
+- **Railway** is the default Docker and persistent-workload provider.
+- The official repository is `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`.
 
-The repository's Render Blueprint defines a dedicated API service using `Dockerfile.api` and `/health`. In the Render dashboard, create or reconnect the API service to:
+The checked Render API and web services are connected to the official repository, but pull-request preview generation is currently disabled. Do not treat the existing production services as staging. A separate Render staging service must be created and verified before the staging workflow can run.
 
-- Repository: `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`
-- Branch: `main`
-- Runtime: Docker
-- Dockerfile: `Dockerfile.api`
-- Health check path: `/health`
-- Region: Frankfurt is the configured South Africa-nearby option in the current Blueprint.
+The authenticated Railway account must be `ganyane.ntsiyeni@gmail.com`. Its currently visible RyanAI-related project contains only a production environment and a service linked to an unrelated repository. Do not repoint or redeploy that service. Create a separate RyanAI staging project/environment and service linked to the official repository before enabling the Railway staging workflow.
 
-Provision the required runtime dependencies before promoting the API: `DATABASE_URL`, `REDIS_URL`, and the server-side Supabase settings used by the selected auth configuration. Add the provider secrets in section 1. Apply the `render.yaml` Blueprint or mirror its non-secret settings in the service dashboard. Verify the service's connected repository and deployed commit before running the live probe.
+## 4. Staging deployment gate
 
-Do not overwrite an existing service's environment with a partial list. Merge/update only the named variables, preserving database, Redis, Supabase, and other integration settings.
+Both provider workflows are manual-only and staging-only. Each requires:
+1. An open pull request whose head SHA exactly matches the requested commit.
+2. All required CI and security checks completed successfully for that exact SHA.
+3. An explicit `STAGE` confirmation.
+4. A separately identified staging service/project/environment.
+5. A verified isolation confirmation flag after checking databases, storage, networking, and credentials are not shared with production.
 
-## 4. Vercel deployment gate
+The Render workflow also verifies that the service name begins with `ryanai-staging`, the official repository is connected, auto-deploy is disabled, and the target service ID is not the production API service. The Railway workflow refuses to use the currently known unrelated Railway project.
 
-The Vercel project serves the Vite frontend; it does not supply the three-brain API runtime. The previously observed Vercel deployment was canceled, with a Hobby build-rate-limit/24-hour retry condition and a Verified Commits warning. The current `main` merge commit was verified by GitHub, so retain Verified Commits and retry after the provider's rate limit resets (or use an eligible plan). Do not disable commit verification or weaken repository protections to force a deployment.
-
-After a successful Vercel deployment, verify the frontend URL and confirm its `VITE_API_BASE_URL` points to the verified API origin. Then verify `GET /health` on the API and run the authenticated three-brain probe.
+No production deployment or database migration is performed by these workflows. Production promotion and migrations require separate approvals.
 
 ## 5. Release evidence required
 
 Do not mark the three-brain stack production-ready until all of these are evidenced:
-1. The API service is connected to the official repository and a known `main` commit.
+1. The API service is connected to the official repository and a known commit.
 2. API health returns HTTP 200 and reports `online`.
 3. All three provider credentials are present in the API runtime without exposing their values.
 4. The authenticated live probe reports `primary`, `secondary`, and `logic` as `HEALTHY`.
-5. The production frontend points to that API and passes its availability check.
+5. The frontend points to the verified API and passes its availability check.
 6. Database-backed task/handoff recovery is verified against the deployed database and worker, not inferred from source code alone.

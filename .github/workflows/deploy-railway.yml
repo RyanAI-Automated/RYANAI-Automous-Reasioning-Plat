@@ -1,53 +1,108 @@
-name: Deploy API to Railway
+name: Deploy API to Railway staging
 
 on:
-  workflow_run:
-    workflows: ["CI - Build, Test, and Integrate"]
-    branches: [main]
-    types: [completed]
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Select STAGE only to deploy this open PR head to an isolated Railway staging environment.
+        type: choice
+        required: true
+        default: "NO"
+        options:
+          - "NO"
+          - "STAGE"
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
-  group: railway-production
+  group: railway-staging
   cancel-in-progress: false
 
 jobs:
   deploy:
+    name: Deploy reviewed PR head to isolated Railway staging
     if: >-
-      ${{ vars.RAILWAY_DEPLOY_ENABLED == 'true' &&
-        (github.event_name == 'workflow_dispatch' ||
-        (github.event.workflow_run.conclusion == 'success' &&
-         github.event.workflow_run.event == 'push' &&
-         github.event.workflow_run.head_branch == 'main')) }}
+      ${{
+        inputs.confirmation == 'STAGE' &&
+        vars.RAILWAY_STAGING_DEPLOY_ENABLED == 'true' &&
+        vars.RAILWAY_STAGING_ISOLATION_CONFIRMED == 'true'
+      }}
     runs-on: ubuntu-latest
-    environment: production
+    environment: staging
     timeout-minutes: 20
+    env:
+      TARGET_SHA: ${{ github.sha }}
+
     steps:
-      - name: Check out validated main commit
+      - name: Check out exact PR head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Validate Railway deployment configuration
+          ref: ${{ github.sha }}
+
+      - name: Require an open PR whose head is this exact commit
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
-          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test -n "$RAILWAY_TOKEN" || { echo "::error::Missing RAILWAY_TOKEN secret"; exit 1; }
-          test -n "$RAILWAY_PROJECT_ID" || { echo "::error::Missing RAILWAY_PROJECT_ID variable"; exit 1; }
-          test -n "$RAILWAY_SERVICE_ID" || { echo "::error::Missing RAILWAY_SERVICE_ID variable"; exit 1; }
-          test -n "$RAILWAY_ENVIRONMENT_ID" || { echo "::error::Missing RAILWAY_ENVIRONMENT_ID variable"; exit 1; }
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/pulls" > linked-prs.json
+          jq -e --arg sha "$TARGET_SHA" '[.[] | select(.state == "open" and .head.sha == $sha)] | length > 0' linked-prs.json >/dev/null || {
+            echo "::error::Staging is limited to an open PR head at the exact requested SHA."
+            exit 1
+          }
+
+      - name: Require exact-head CI and security checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          required=(
+            "Validate (typecheck, lint, test, build)"
+            "MCP server and workflow worker"
+            "Issue 435 migrations and attachment security"
+            "Test agent API contracts"
+            "Dependency audit"
+            "Trivy filesystem scan"
+            "Analyze (javascript-typescript)"
+            "Analyze (python)"
+            "TruffleHog secret audit"
+            "Codacy Security Scan"
+          )
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs?per_page=100" > check-pages.json
+          jq -s '[.[].check_runs[]]' check-pages.json > checks.json
+          for name in "${required[@]}"; do
+            jq -e --arg name "$name" '
+              [.[] | select(.name == $name)] as $matches
+              | ($matches | length) > 0
+                and all($matches[]; .status == "completed" and .conclusion == "success")
+            ' checks.json >/dev/null || {
+              echo "::error::Required check is missing, queued, skipped, cancelled, or failed: $name"
+              exit 1
+            }
+          done
+
+      - name: Validate isolated Railway staging target
+        env:
+          RAILWAY_STAGING_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          RAILWAY_STAGING_PROJECT_ID: ${{ vars.RAILWAY_STAGING_PROJECT_ID }}
+          RAILWAY_STAGING_SERVICE_ID: ${{ vars.RAILWAY_STAGING_SERVICE_ID }}
+          RAILWAY_STAGING_ENVIRONMENT_ID: ${{ vars.RAILWAY_STAGING_ENVIRONMENT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$RAILWAY_STAGING_TOKEN" || { echo "::error::Missing Railway staging token"; exit 1; }
+          test -n "$RAILWAY_STAGING_PROJECT_ID" || { echo "::error::Missing isolated Railway staging project"; exit 1; }
+          test -n "$RAILWAY_STAGING_SERVICE_ID" || { echo "::error::Missing isolated Railway staging service"; exit 1; }
+          test -n "$RAILWAY_STAGING_ENVIRONMENT_ID" || { echo "::error::Missing Railway staging environment"; exit 1; }
+          test "$RAILWAY_STAGING_PROJECT_ID" != "fc58568d-a5f2-4ad1-8a6f-41a5b32962e7" || { echo "::error::Refusing to use the existing unrelated Railway project"; exit 1; }
+
       - name: Install Railway CLI
         run: npm install --global @railway/cli
-      - name: Deploy validated API source
+
+      - name: Deploy exact PR commit to Railway staging
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
-          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_STAGING_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_STAGING_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_STAGING_ENVIRONMENT_ID }}
         run: railway up --ci --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE_ID" --environment "$RAILWAY_ENVIRONMENT_ID" --detach

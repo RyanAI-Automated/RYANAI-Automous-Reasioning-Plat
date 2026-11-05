@@ -33,6 +33,5 @@ sast:
       - "build/**"
       - ".next/**"
       - ".turbo/**"
-      - ".vercel/**"
       - "coverage/**"
       - "src-tauri/target/**"

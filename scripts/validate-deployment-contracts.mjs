@@ -30,12 +30,9 @@ const commsPlugin = read('src/server/comms/index.ts');
 const commsAttachments = read('src/server/comms/attachments.ts');
 const twilioWebhook = read('src/server/routes/twilioWebhook.ts');
 const slackInteractions = read('src/server/routes/slackInteractions.ts');
-const vercel = JSON.parse(read('vercel.json'));
 const railway = JSON.parse(read('railway.json'));
 const renderRepair = read('.github/workflows/guarded-render-api-source-repair.yml');
 const renderDeploy = read('.github/workflows/deploy-render.yml');
-const vercelDeploy = read('.github/workflows/deploy-vercel.yml');
-const vercelCliDeploy = read('.github/workflows/deploy.yml');
 const ciWorkflow = read('.github/workflows/ci.yml');
 const railwayDeploy = read('.github/workflows/deploy-railway.yml');
 
@@ -91,14 +88,13 @@ const checks = [
   ['Render API source repair workflow is manual and does not deploy', renderRepair.includes('workflow_dispatch:') && renderRepair.includes("inputs.confirmation == 'REPAIR-ONLY'") && !renderRepair.includes('workflow_run:') && !renderRepair.includes('/deploys')],
   ['Render API config repair runs only after the core CI dependencies', ciWorkflow.includes('render-api-config-repair:') && ciWorkflow.includes('needs: [validate, subprojects, integration, issue-435-supabase]') && ciWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/main'")],
   ['Render CI config repair is PATCH-only and keeps auto-deploy disabled', ciWorkflow.includes('--request PATCH') && ciWorkflow.includes('autoDeployTrigger":"off"') && !ciWorkflow.includes('/deploys')],
-  ['Render deployment requires explicit enablement and approval', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
-  ['Render deployment verifies the exact provider commit before promotion', renderDeploy.includes('provider-verification.yml') && renderDeploy.includes('--commit "$TARGET_SHA"') && renderDeploy.includes('headSha == env.TARGET_SHA') && renderDeploy.includes('conclusion != "success"')],
-  ['Render checks Redis availability before API rollout', renderDeploy.includes('ryanai-redis') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "oregon"')],
-  ['Vercel builds the Vite frontend to dist', vercel.framework === 'vite' && vercel.outputDirectory === 'dist' && vercel.buildCommand.includes('build:web')],
-  ['Vercel deployment remains explicitly approval-gated', vercelDeploy.includes("vars.VERCEL_DEPLOY_ENABLED == 'true'")],
-  ['Vercel CLI deployment and CI target the official Render API origin', vercelCliDeploy.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com') && ciWorkflow.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com')],
+  ['Render deployment requires explicit enablement and approval', renderDeploy.includes("vars.RENDER_STAGING_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_STAGING_ISOLATION_CONFIRMED == 'true'")],
+  ['Render staging deploys only the exact open PR head after CI/security passes', renderDeploy.includes('commits/${TARGET_SHA}/pulls') && renderDeploy.includes('head.sha == $sha') && renderDeploy.includes('check-runs') && renderDeploy.includes('conclusion == "success"') && renderDeploy.includes('inputs.confirmation == \'STAGE\'')],
+  ['Render staging deploy refuses production service IDs and verifies staging service identity', renderDeploy.includes('RENDER_STAGING_SERVICE_ID') && renderDeploy.includes('ryanai-staging') && renderDeploy.includes('srv-dbk4giu7bikc7394a4r0')],
   ['Railway uses Dockerfile.api and /health', railway.build?.dockerfilePath === 'Dockerfile.api' && railway.deploy?.healthcheckPath === '/health'],
-  ['Railway deployment remains explicitly approval-gated', railwayDeploy.includes("vars.RAILWAY_DEPLOY_ENABLED == 'true'")],
+  ['Render is the default frontend and API delivery provider', renderWeb?.runtime === 'static' && renderApi?.runtime === 'docker'],
+  ['Railway is the default Docker and persistent-workload provider', railway.build?.dockerfilePath === 'Dockerfile.api' && railway.deploy?.healthcheckPath === '/health'],
+  ['Railway staging deploy is manual, limited to exact open PR heads, and isolated', railwayDeploy.includes('workflow_dispatch:') && !railwayDeploy.includes('workflow_run:') && railwayDeploy.includes("inputs.confirmation == 'STAGE'") && railwayDeploy.includes("vars.RAILWAY_STAGING_ISOLATION_CONFIRMED == 'true'") && railwayDeploy.includes('RAILWAY_STAGING_PROJECT_ID') && railwayDeploy.includes('RAILWAY_STAGING_ENVIRONMENT_ID') && railwayDeploy.includes('commits/${TARGET_SHA}/pulls')],
 ];
 
 for (const [name, passed] of checks) console.log((passed ? 'PASS' : 'FAIL') + ' | ' + name);
