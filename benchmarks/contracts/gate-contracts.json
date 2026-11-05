@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "mode": "mock-only-readiness",
+  "modelInvocation": false,
+  "gates": [
+    {"id":1,"name":"offline-isolation","passEvidence":["network-policy.json","positive-negative-egress-tests.json","environment-mount-audit.json","blocked-connection-log.json"]},
+    {"id":2,"name":"dataset-integrity","passEvidence":["dataset-manifest.json","dataset-file-sha256.json","access-control-audit.json","contamination-review.json"]},
+    {"id":3,"name":"provenance","passEvidence":["run-manifest.json","prompt-config-hashes.json","runtime-lock-hashes.json","immutable-model-identity.json"]},
+    {"id":4,"name":"scoring-validity","passEvidence":["scorer-contract-tests.json","rubric-version.json","reviewer-calibration.json","safety-slice-accounting.json"]},
+    {"id":5,"name":"performance-economics","passEvidence":["telemetry.jsonl","repeatability-check.json","task-accounting.json","cost-breakdown-zar.json"]},
+    {"id":6,"name":"genx-authorization","passEvidence":["adversarial-test-results.json","policy-decision-traces.json","audit-integrity.json"]}
+  ],
+  "verdictRule":"UNKNOWN_OR_MISSING_EVIDENCE_IS_NOT_PASS"
+}
