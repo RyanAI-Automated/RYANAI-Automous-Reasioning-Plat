@@ -5,6 +5,7 @@ import { usePlatformHealth } from '@/hooks/usePlatformHealth';
 import { API_BASE_URL } from '@/lib/apiBaseUrl';
 import { API_ROUTES } from '@/config/core';
 import { DEFAULT_MODEL } from '@/lib/models';
+import { getSnapshotFreshness } from '@/lib/healthFreshness';
 
 type BrainId = 'primary' | 'secondary' | 'logic';
 interface BrainHealth { brain: BrainId; model?: string; status: string; latencyMs?: number | null; lastError?: string | null; }
@@ -14,6 +15,7 @@ interface StreamEvent { status?: 'processing' | 'complete'; message?: string; re
 const labels: Record<BrainId, string> = { primary: 'NVIDIA', secondary: 'Qwen', logic: 'Logic' };
 const regions = ['Perception', 'Planning', 'Reasoning', 'Memory', 'Verification', 'Execution'] as const;
 const BRAIN_SNAPSHOT_STALE_AFTER_MS = 60_000;
+const API_SNAPSHOT_STALE_AFTER_MS = 90_000;
 
 /** Cockpit renders only provider health and activity actually reported by the API. */
 export default function RyanAICockpit() {
@@ -125,9 +127,21 @@ export default function RyanAICockpit() {
 
   const byId = new Map(brains.map((brain) => [brain.brain, brain]));
   const checkedAtMs = checkedAt ? Date.parse(checkedAt) : Number.NaN;
-  const brainSnapshotKnown = Number.isFinite(checkedAtMs);
-  const brainSnapshotStale = brainSnapshotKnown && now - checkedAtMs > BRAIN_SNAPSHOT_STALE_AFTER_MS;
-  const brainSnapshotFresh = brainSnapshotKnown && !brainSnapshotStale;
+  const brainSnapshotFreshness = getSnapshotFreshness(checkedAt, now, BRAIN_SNAPSHOT_STALE_AFTER_MS);
+  const brainSnapshotKnown = brainSnapshotFreshness !== 'unknown' && Number.isFinite(checkedAtMs);
+  const brainSnapshotStale = brainSnapshotFreshness === 'stale';
+  const brainSnapshotFresh = brainSnapshotFreshness === 'fresh';
+  const brainSnapshotUnverified = brainSnapshotFreshness === 'unknown';
+  const apiSnapshotFreshness = getSnapshotFreshness(health?.timestamp, now, API_SNAPSHOT_STALE_AFTER_MS);
+  const apiOnline = apiSnapshotFreshness === 'fresh' && health?.status === 'online';
+  const apiStateLabel = apiSnapshotFreshness === 'stale'
+    ? 'API telemetry stale'
+    : apiSnapshotFreshness === 'unknown'
+      ? checking ? 'Checking API' : 'API status unverified'
+      : health?.status === 'online' ? 'API online' : 'API unavailable';
+  const apiServiceValue = (value: boolean | undefined) => apiSnapshotFreshness === 'fresh'
+    ? reported(value)
+    : apiSnapshotFreshness === 'stale' ? 'Telemetry stale' : 'Not verified';
   const healthyCount = brainSnapshotFresh ? brains.filter((brain) => brain.status === 'HEALTHY').length : 0;
 
   return (
@@ -138,26 +152,27 @@ export default function RyanAICockpit() {
           <h1 className="mt-2 text-3xl font-bold text-white">RyanAI Command Cockpit</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-400">Live service health, authenticated reasoning activity and independently reported brain readiness.</p>
         </div>
-        <div className={'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ' + (health?.status === 'online' ? 'border-emerald-300/30 text-emerald-200' : 'border-rose-300/30 text-rose-200')}>
+        <div className={'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ' + (apiOnline ? 'border-emerald-300/30 text-emerald-200' : apiSnapshotFreshness === 'stale' || apiSnapshotFreshness === 'unknown' ? 'border-amber-300/30 text-amber-200' : 'border-rose-300/30 text-rose-200')}>
           <Activity className="h-4 w-4" />
-          {health?.status === 'online' ? 'API online' : checking ? 'Checking API' : 'API unavailable'}
+          {apiStateLabel}
         </div>
       </header>
       {healthError && <Alert tone="error">{healthError}</Alert>}
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ServiceValue icon={<Database className="h-4 w-4" />} label="PostgreSQL" value={reported(health?.services?.database)} />
-        <ServiceValue icon={<Wifi className="h-4 w-4" />} label="Redis" value={reported(health?.services?.redis)} />
-        <ServiceValue icon={<Cpu className="h-4 w-4" />} label="Reasoning graph" value={health?.activeGraph || 'Not reported'} />
+        <ServiceValue icon={<Database className="h-4 w-4" />} label="PostgreSQL" value={apiServiceValue(health?.services?.database)} />
+        <ServiceValue icon={<Wifi className="h-4 w-4" />} label="Redis" value={apiServiceValue(health?.services?.redis)} />
+        <ServiceValue icon={<Cpu className="h-4 w-4" />} label="Reasoning graph" value={apiSnapshotFreshness === 'fresh' ? health?.activeGraph || 'Not reported' : apiSnapshotFreshness === 'stale' ? 'Telemetry stale' : 'Not verified'} />
         <ServiceValue icon={<ShieldAlert className="h-4 w-4" />} label="Provider readiness" value={brainSnapshotStale ? 'Telemetry stale' : !brainSnapshotKnown || !brains.length ? 'Not reported' : healthyCount + '/3 verified healthy'} />
       </div>
 
       <section className="mt-7 rounded-2xl border border-cyan-400/20 bg-slate-950/80 p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs uppercase tracking-[0.18em] text-cyan-300">Neural core network</p><h2 className="mt-1 text-xl font-semibold text-white">Three-brain status</h2></div>
-          <span className={brainSnapshotStale ? 'text-xs text-amber-200' : 'text-xs text-slate-500'}>{brainSnapshotStale ? 'Brain snapshot stale · last read ' + new Date(checkedAtMs).toLocaleTimeString() : checkedAt ? 'Health snapshot ' + new Date(checkedAt).toLocaleTimeString() : 'Awaiting provider health snapshot'}</span>
+          <span className={brainSnapshotStale ? 'text-xs text-amber-200' : 'text-xs text-slate-500'}>{brainSnapshotStale ? 'Brain snapshot stale · last read ' + new Date(checkedAtMs).toLocaleTimeString() : brainSnapshotUnverified && checkedAt ? 'Brain timestamp unverified' : checkedAt ? 'Health snapshot ' + new Date(checkedAt).toLocaleTimeString() : 'Awaiting provider health snapshot'}</span>
         </div>
         {brainError && <Alert tone="warning">{brainError}</Alert>}
         {brainSnapshotStale && <Alert tone="warning">No fresh brain snapshot has arrived in over 60 seconds. Last-known provider states are marked stale and are not counted as currently healthy.</Alert>}
+        {brainSnapshotUnverified && <Alert tone="warning">A valid brain snapshot timestamp has not been verified. Provider states are not counted as currently healthy.</Alert>}
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
           {(['primary', 'secondary', 'logic'] as BrainId[]).map((id) => <BrainCard key={id} id={id} health={byId.get(id)} activity={brainActivity(id, handoffs)} snapshotFresh={brainSnapshotFresh} snapshotStale={brainSnapshotStale} />)}
         </div>
@@ -174,7 +189,7 @@ export default function RyanAICockpit() {
           <textarea id="cockpit-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} maxLength={20000} rows={4} placeholder="Describe the question or task for RyanAI…" className="mt-4 w-full resize-y rounded-xl border border-white/10 bg-slate-950 p-4 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-300/50" />
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs text-slate-500">{prompt.length.toLocaleString()} / 20,000 characters</span>
-            <button type="submit" disabled={sending || !prompt.trim() || !health || health.status !== 'online'} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={sending || !prompt.trim() || !apiOnline} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
               {sending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {sending ? 'Reasoning…' : 'Run request'}
             </button>
