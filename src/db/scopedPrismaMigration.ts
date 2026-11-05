@@ -7,6 +7,39 @@ export const PRODUCTION_MIGRATION_ALLOWLIST = Object.freeze([
   '20261102235000_engineering_evidence_workbench',
 ]);
 
+export function assertOnlyApprovedMigrationPending({
+  localMigrationNames,
+  appliedMigrationNames,
+  unresolvedMigrationNames = [],
+  migrationName,
+}) {
+  if (!PRODUCTION_MIGRATION_ALLOWLIST.includes(migrationName)) {
+    throw new Error('Requested production migration is not in the reviewed allowlist.');
+  }
+
+  if (unresolvedMigrationNames.length > 0) {
+    throw new Error('The production database has an unfinished or rolled-back Prisma migration.');
+  }
+
+  const localNames = [...new Set(localMigrationNames)].sort();
+  const appliedNames = [...new Set(appliedMigrationNames)];
+  const localSet = new Set(localNames);
+  const missingLocal = appliedNames.filter((name) => !localSet.has(name));
+  if (missingLocal.length > 0) {
+    throw new Error('The production database contains migration history missing from this checkout.');
+  }
+
+  const appliedSet = new Set(appliedNames);
+  const pending = localNames.filter((name) => !appliedSet.has(name));
+  if (pending.length !== 1 || pending[0] !== migrationName) {
+    throw new Error(
+      'Production migration preflight expected exactly one pending, allowlisted migration; refusing to apply a broader migration set.',
+    );
+  }
+
+  return { migrationName, pendingMigrations: pending };
+}
+
 export async function stageApprovedPrismaMigration({
   prismaDirectory,
   migrationName,
