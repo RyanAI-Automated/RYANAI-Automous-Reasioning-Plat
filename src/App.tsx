@@ -126,7 +126,9 @@ export default function App() {
     const syncRoute = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', syncRoute);
     return () => window.removeEventListener('hashchange', syncRoute);
-   const visibleDestinations = destinations.filter(({ id }) =>
+  }, []);
+
+  const visibleDestinations = destinations.filter(({ id }) =>
     user ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
       : id === 'landing' || id === 'signin' || id === 'signup',
   );
@@ -193,7 +195,5 @@ export default function App() {
         <Analytics />
       </div>
     </div>
-  );
-}/div>
   );
 }
