@@ -1,10 +1,16 @@
 name: Deploy API to Render
 
 on:
-  workflow_run:
-    workflows: ["Production database migrations"]
-    branches: [main]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Select DEPLOY only after reviewing the successful migration run for this exact main commit.
+        type: choice
+        required: true
+        default: "NO"
+        options:
+          - "NO"
+          - "DEPLOY"
 
 permissions:
   contents: read
@@ -19,10 +25,8 @@ jobs:
     name: Deploy validated API commit to official Render service
     if: >-
       ${{
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'workflow_dispatch' &&
-        github.event.workflow_run.name == 'Production database migrations' &&
-        github.event.workflow_run.head_branch == 'main' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.confirmation == 'DEPLOY' &&
         vars.RENDER_DEPLOY_ENABLED == 'true' &&
         vars.RENDER_DEPLOY_APPROVED == 'true'
       }}
@@ -30,7 +34,7 @@ jobs:
     timeout-minutes: 25
     environment: production
     env:
-      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      TARGET_SHA: ${{ github.sha }}
       RENDER_SERVICE_ID: srv-dbk4giu7bikc7394a4r0
       RENDER_WORKSPACE_ID: tea-d5ogqtcoud1c73b266f0
       RENDER_REDIS_NAME: ryanai-redis
@@ -45,6 +49,28 @@ jobs:
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid deployment SHA"; exit 1; }
           MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$TARGET_SHA" == "$MAIN_SHA" ]] || { echo "::error::Workflow run is not for current main"; exit 1; }
+
+      - name: Require successful production migrations for the exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run list --workflow migrate-production.yml --commit "$TARGET_SHA" \
+            --json databaseId,status,conclusion,event,headSha,headBranch,createdAt --limit 50 > migration-runs.json
+          jq -e --arg sha "$TARGET_SHA" '
+            [ .[] | select(
+                .headSha == $sha
+                and .headBranch == "main"
+                and .event == "workflow_dispatch"
+                and .status == "completed"
+              ) ]
+            | sort_by(.createdAt)
+            | last
+            | select(.conclusion == "success")
+          ' migration-runs.json > /dev/null || {
+            echo "::error::No successful production migration run exists for this exact main commit."
+            exit 1
+          }
 
       - name: Require successful CI and security checks for the exact commit
         env:
