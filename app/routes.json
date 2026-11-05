@@ -12,6 +12,16 @@
       "path": "/dashboard"
     },
     {
+      "id": "operator",
+      "label": "Operator",
+      "path": "/operator"
+    },
+    {
+      "id": "admin",
+      "label": "Admin",
+      "path": "/admin"
+    },
+    {
       "id": "quant",
       "label": "Quant Lab",
       "path": "/quant"
