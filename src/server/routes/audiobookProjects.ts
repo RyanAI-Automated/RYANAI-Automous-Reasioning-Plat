@@ -70,7 +70,7 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
     const db = getAudiobookDatabase(fastify, reply);
     if (!db) return;
     const projects = await db.audiobookProject.findMany({
-      where: { userId }, orderBy: { updatedAt: 'desc' }, take: 1,
+      where: { userId }, orderBy: { updatedAt: 'desc' }, take: 50,
       include: { chapters: { orderBy: { position: 'asc' } } },
     });
     return { projects };
