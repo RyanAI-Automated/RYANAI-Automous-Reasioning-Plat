@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, AlertCircle, BrainCircuit, Download, File, Mail, MessageCircle, Paperclip, Phone, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
+import { Activity, BrainCircuit, Download, Mail, MessageCircle, Paperclip, Phone, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import {
   getCommsAttachmentDownloadUrl, getCommsAttachmentStatuses, getCommsConversations,
   getCommsStatus, prepareCommsAttachments, sendCommsMessage, uploadCommsAttachment,
@@ -59,12 +60,21 @@ export default function CommunicationsCenter() {
   const [message, setMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
+  const [attachmentStatuses, setAttachmentStatuses] = useState<CommsAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [conversationSearch, setConversationSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState<'all' | CommsChannel>('all');
+
+  function startNewDraft() {
+    setIdempotencyKey(crypto.randomUUID());
+    setAttachmentIds([]);
+    setAttachmentStatuses([]);
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -188,11 +198,58 @@ export default function CommunicationsCenter() {
     setNotice('');
     try {
       const attachmentIds = selectedFiles.length ? await uploadAndWaitForClean(selectedFiles) : [];
+      let currentIds = attachmentIds;
+      if (selectedFiles.length) {
+        if (channel === 'voice') throw new Error('Voice calls cannot include file attachments.');
+        if (selectedFiles.length > 8 || selectedFiles.reduce((sum, file) => sum + file.size, 0) > 40 * 1024 * 1024) {
+          throw new Error('Choose at most 8 files with a combined size no larger than 40 MiB.');
+        }
+        const prepared = await prepareCommsAttachments({
+          channel,
+          message: message.trim(),
+          idempotencyKey,
+          files: selectedFiles.map(file => ({ name: file.name, mimeType: file.type, size: file.size })),
+          ...(recipient.trim() ? { recipient: recipient.trim() } : {}),
+          ...(channel === 'email' && subject.trim() ? { subject: subject.trim() } : {}),
+        });
+        currentIds = prepared.attachments.map(item => item.id);
+        setAttachmentIds(currentIds);
+        const beforeUpload = await getCommsAttachmentStatuses(currentIds);
+        const byId = new Map(beforeUpload.map(item => [item.id, item]));
+        for (const [index, intent] of prepared.attachments.entries()) {
+          if (byId.get(intent.id)?.status !== 'missing') continue;
+          const file = selectedFiles[index];
+          if (!file) throw new Error('The selected attachment list changed; please select the files again.');
+          await uploadCommsAttachment(intent, file);
+        }
+        const states = await getCommsAttachmentStatuses(currentIds);
+        setAttachmentStatuses(states);
+        if (states.some(item => item.status === 'missing')) {
+          throw new Error('One or more files are not uploaded yet. Retry to finish the secure upload.');
+        }
+        setSelectedFiles([]);
+        if (states.some(item => item.status !== 'clean')) {
+          setNotice('Files are uploaded and queued for malware scanning. RyanAI will send only after every scan is clean. Press Check and send again to refresh.');
+          return;
+        }
+      } else if (currentIds.length) {
+        const states = await getCommsAttachmentStatuses(currentIds);
+        setAttachmentStatuses(states);
+        if (states.some(item => item.status !== 'clean')) {
+          setNotice(states.some(item => item.status === 'infected' || item.status === 'failed')
+            ? 'An attachment was blocked by the security scanner. Remove the files and select clean replacements.'
+            : 'Attachments are still being scanned. Press Check and send again after every file is clean.');
+          return;
+        }
+      }
       const result = await sendCommsMessage({
-        channel, message: message.trim(), idempotencyKey,
+        channel,
+        message: message.trim(),
+        idempotencyKey,
         ...(recipient.trim() ? { recipient: recipient.trim() } : {}),
         ...(channel === 'email' && subject.trim() ? { subject: subject.trim() } : {}),
         ...(attachmentIds.length ? { attachmentIds } : {}),
+        ...(currentIds.length ? { attachmentIds: currentIds } : {}),
       });
       setNotice(result.replayed
         ? `Duplicate submission suppressed. Existing request status: ${result.status}. No second provider request was sent.`
@@ -201,6 +258,9 @@ export default function CommunicationsCenter() {
         setMessage('');
         setSelectedFiles([]);
         setIdempotencyKey(crypto.randomUUID());
+        setAttachmentIds([]);
+        setAttachmentStatuses([]);
+        startNewDraft();
       }
       await refresh();
     } catch (cause) {
@@ -208,6 +268,28 @@ export default function CommunicationsCenter() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function downloadAttachment(attachment: CommsAttachment) {
+    try {
+      const url = await getCommsAttachmentDownloadUrl(attachment.id);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.name;
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Attachment download is unavailable.');
+    }
+  }
+
+  function clearAttachmentDraft() {
+    setSelectedFiles([]);
+    setAttachmentIds([]);
+    setAttachmentStatuses([]);
+    startNewDraft();
   }
 
   return (
@@ -247,6 +329,10 @@ export default function CommunicationsCenter() {
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
         <div><p className="font-semibold">Secure attachments are currently unavailable.</p><p className="mt-1 text-xs leading-5 text-amber-100/70">The private bucket, owner-linked records and malware scanner must all be enabled. No file is sent or exposed while these controls are unavailable.</p></div>
       </div>}
+      <div role="note" aria-label="Attachment security" className="flex items-start gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-4 text-sm text-cyan-100">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
+        <div><p className="font-semibold">Private Comms attachments</p><p className="mt-1 text-xs leading-5 text-cyan-100/70">Files use the separate private Comms bucket. Sending and downloading are blocked until malware scans are clean. Images, audio, video and documents are stored securely but are not yet interpreted by RyanAI.</p></div>
+      </div>
       {error && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-950/30 p-3 text-sm text-rose-200">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-3 text-sm text-cyan-100">{notice}</p>}
 
@@ -294,6 +380,15 @@ export default function CommunicationsCenter() {
                       <button type="button" disabled={attachment.status !== 'clean'} onClick={() => void openAttachment(attachment)} aria-label={`Download ${attachment.name}`} className="rounded p-1 text-cyan-200 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-30"><Download className="h-4 w-4" /></button>
                     </div>)}
                   </div> : null}
+                  {item.attachments?.map((attachment) => (
+                    <div key={attachment.id} className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/40 p-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs text-slate-200">{attachment.name}</p>
+                        <p className="mt-0.5 text-[10px] text-slate-500">{Math.ceil(attachment.size / 1024)} KB · {attachment.status}</p>
+                      </div>
+                      {attachment.status === 'clean' && <button type="button" onClick={() => void downloadAttachment(attachment)} className="inline-flex shrink-0 items-center gap-1 rounded-md border border-cyan-400/30 px-2 py-1 text-[10px] text-cyan-200 hover:bg-cyan-400/10"><Download className="h-3 w-3" />Download</button>}
+                    </div>
+                  ))}
                   <p className="mt-2 flex items-center gap-2 text-[10px] text-slate-400"><Activity className="h-3 w-3" />{item.direction} · {item.status} · {dateLabel(item.createdAt)}</p>
                 </article>
               </div>
@@ -305,6 +400,7 @@ export default function CommunicationsCenter() {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-xs text-slate-400">Channel
                 <select disabled={sending} value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); setIdempotencyKey(crypto.randomUUID()); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
+                <select value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); startNewDraft(); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
                   {channels.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
@@ -334,8 +430,32 @@ export default function CommunicationsCenter() {
             {attachmentsEnabled && channel === 'voice' && <p className="text-[11px] text-slate-500">Attachments are not supported for voice calls.</p>}
             <div className="flex items-center justify-between gap-3">
               <p className="flex items-center gap-1 text-[11px] text-slate-500"><AlertCircle className="h-3 w-3" /> Provider acceptance is not a delivery receipt. Status callbacks update the timeline.</p>
+                <input value={recipient} onChange={(event) => { setRecipient(event.target.value); startNewDraft(); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+              </label>
+            </div>
+            {channel === 'email' && <label className="block space-y-1 text-xs text-slate-400">Subject
+              <input value={subject} onChange={(event) => { setSubject(event.target.value); startNewDraft(); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+            </label>}
+            <label className="block space-y-1 text-xs text-slate-400">Message
+              <textarea value={message} onChange={(event) => { setMessage(event.target.value); startNewDraft(); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
+            </label>
+            <div className="space-y-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5">
+                <Paperclip className="h-4 w-4 text-cyan-300" /> Attach files
+                <input type="file" multiple disabled={sending || channel === 'voice'} accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="sr-only" onChange={(event) => { setSelectedFiles(Array.from(event.target.files ?? [])); setAttachmentIds([]); setAttachmentStatuses([]); setIdempotencyKey(crypto.randomUUID()); }} />
+              </label>
+              {selectedFiles.length > 0 && <div className="space-y-1 rounded-lg border border-white/10 p-2">
+                {selectedFiles.map((file, index) => <p key={index} className="truncate text-xs text-slate-400">{file.name} · {Math.ceil(file.size / 1024)} KB</p>)}
+              </div>}
+              {attachmentStatuses.length > 0 && <div className="space-y-1 rounded-lg border border-white/10 p-2">
+                {attachmentStatuses.map(file => <p key={file.id} className="truncate text-xs text-slate-400">{file.name} · scan: {file.status}</p>)}
+              </div>}
+              {attachmentIds.length > 0 && <button type="button" onClick={clearAttachmentDraft} disabled={sending} className="text-xs text-rose-300 hover:text-rose-200">Remove attached files</button>}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] text-slate-500">Provider acceptance is not a delivery receipt. Attachments are sent only after clean scans.</p>
               <button type="submit" disabled={sending || !message.trim()} className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
-                <Send className="h-4 w-4" />{sending ? 'Sending…' : 'Send'}
+                <Send className="h-4 w-4" />{sending ? 'Working…' : attachmentIds.length ? 'Check scan & send' : 'Send'}
               </button>
             </div>
           </form>

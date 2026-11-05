@@ -11,6 +11,8 @@ const comms = vi.hoisted(() => ({
   prepareCommsAttachments: vi.fn(),
   getCommsAttachmentStatuses: vi.fn(),
   uploadCommsAttachment: vi.fn(),
+  uploadCommsAttachment: vi.fn(),
+  getCommsAttachmentStatuses: vi.fn(),
   getCommsAttachmentDownloadUrl: vi.fn(),
 }));
 
@@ -21,6 +23,8 @@ vi.mock('@/lib/commsApi', () => ({
   prepareCommsAttachments: comms.prepareCommsAttachments,
   getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,
   uploadCommsAttachment: comms.uploadCommsAttachment,
+  uploadCommsAttachment: comms.uploadCommsAttachment,
+  getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,
   getCommsAttachmentDownloadUrl: comms.getCommsAttachmentDownloadUrl,
 }));
 
@@ -70,6 +74,10 @@ beforeEach(() => {
     note: 'Configuration only.',
   });
   comms.getCommsConversations.mockResolvedValue(conversations);
+  comms.prepareCommsAttachments.mockResolvedValue({ success: true, messageId: 'message-1', replayed: false, attachments: [] });
+  comms.uploadCommsAttachment.mockResolvedValue(undefined);
+  comms.getCommsAttachmentStatuses.mockResolvedValue([]);
+  comms.getCommsAttachmentDownloadUrl.mockResolvedValue('https://storage.example.test/download');
   comms.sendCommsMessage.mockResolvedValue({
     success: true,
     channel: 'whatsapp',
@@ -133,5 +141,11 @@ describe('RyanAI Comms inbox controls', () => {
     expect(container.textContent).toContain('Secure attachments are currently unavailable.');
     expect(container.textContent).toContain('Disabled · scanner required');
     expect(container.querySelector('input[type="file"]')).toBeNull();
+  it('exposes private file selection and clean-scan gated sharing', async () => {
+    await render();
+    expect(container.textContent).toContain('Private Comms attachments');
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.multiple).toBe(true);
   });
 });

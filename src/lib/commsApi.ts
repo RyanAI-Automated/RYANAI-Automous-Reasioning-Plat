@@ -9,6 +9,14 @@ export interface CommsAttachment {
   size: number;
   status: string;
 }
+export interface CommsAttachmentUploadIntent {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploadPath: string;
+  uploadToken: string;
+}
 export interface CommsMessage {
   id: string;
   direction: 'inbound' | 'outbound';
@@ -70,6 +78,7 @@ export async function prepareCommsAttachments(input: {
   idempotencyKey: string;
   files: Array<{ name: string; mimeType: string; size: number }>;
 }): Promise<{ success: boolean; messageId: string; replayed: boolean; attachments: CommsUploadIntent[] }> {
+}): Promise<{ success: boolean; messageId: string; replayed: boolean; attachments: CommsAttachmentUploadIntent[] }> {
   const response = await authenticatedFetch('/api/comms/attachments/prepare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -90,6 +99,21 @@ export async function getCommsAttachmentStatuses(ids: string[]): Promise<CommsAt
   if (!ids.length || ids.length > 8) throw new Error('Choose between 1 and 8 attachments.');
   const query = new URLSearchParams({ ids: ids.join(',') });
   const response = await authenticatedFetch(`/api/comms/attachments/status?${query.toString()}`);
+export async function uploadCommsAttachment(intent: CommsAttachmentUploadIntent, file: File): Promise<void> {
+  if (!supabase) throw new Error('Secure file upload is unavailable because Supabase client configuration is missing.');
+  const { error } = await supabase.storage
+    .from('ryanai-comms-attachments')
+    .uploadToSignedUrl(intent.uploadPath, intent.uploadToken, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+  if (error) throw new Error(error.message || 'Attachment upload failed.');
+}
+
+export async function getCommsAttachmentStatuses(ids: readonly string[]): Promise<CommsAttachment[]> {
+  if (!ids.length) return [];
+  const query = new URLSearchParams({ ids: ids.join(',') });
+  const response = await authenticatedFetch('/api/comms/attachments/status?' + query.toString());
   const body = await readJson<{ attachments: CommsAttachment[] }>(response);
   return Array.isArray(body.attachments) ? body.attachments : [];
 }
@@ -98,6 +122,9 @@ export async function getCommsAttachmentDownloadUrl(id: string): Promise<string>
   const response = await authenticatedFetch(`/api/comms/attachments/${encodeURIComponent(id)}/download`);
   const body = await readJson<{ url?: string }>(response);
   if (!body.url) throw new Error('The clean attachment download is not available.');
+  const response = await authenticatedFetch('/api/comms/attachments/' + encodeURIComponent(id) + '/download');
+  const body = await readJson<{ url?: string }>(response);
+  if (typeof body.url !== 'string' || !body.url.startsWith('https://')) throw new Error('The clean attachment download URL was not returned.');
   return body.url;
 }
 
