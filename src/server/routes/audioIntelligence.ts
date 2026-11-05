@@ -56,7 +56,7 @@ function decodeAudio(body: AudioBody): { bytes: Buffer; mimeType: string; fileNa
           ? hasPrefix(0x1a, 0x45, 0xdf, 0xa3)
           : bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
   if (!signatureValid) return null;
-  return { bytes, mimeType, fileName: \`audio.\${extension}\` };
+  return { bytes, mimeType, fileName: `audio.${extension}` };
 }
 
 export const audioIntelligenceRoutes: FastifyPluginAsync = async (fastify) => {
