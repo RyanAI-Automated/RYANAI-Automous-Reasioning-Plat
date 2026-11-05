@@ -14,6 +14,7 @@ export interface ReadinessResult {
     database: boolean;
     redis: boolean;
     agentCheckpointer: boolean;
+    agentQueueListener: boolean;
     api: boolean;
   };
 }
