@@ -17,6 +17,12 @@ const auth = vi.hoisted(() => ({
     | null,
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
+vi.mock('@/lib/authenticatedFetch', () => ({
+  authenticatedFetch: vi.fn().mockRejectedValue(new Error('API unavailable')),
+}));
+vi.mock('@/components/Greeting', () => ({
+  default: () => <div data-testid="primary-multilingual-greeting">Primary multilingual greeting</div>,
+}));
 vi.mock('@/pages/LandingPage', () => ({
   default: () => <div>Public landing</div>,
 }));
@@ -39,7 +45,8 @@ const session = {
 } as Session;
 
 beforeEach(() => {
-  vi.resetAllMocks();
+  vi.clearAllMocks();
+  auth.listener = null;
   auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
   auth.signOut.mockResolvedValue({ error: null });
   auth.onAuthStateChange.mockImplementation((listener) => {
@@ -105,6 +112,13 @@ describe('application authentication boundary', () => {
     expect(container.querySelector('nav a[href="#/cockpit"]')).toBeNull();
     expect(container.querySelector('nav a[href="#/workspace"]')).toBeNull();
     expect(container.querySelector('a.skip-link[href="#main-content"]')).not.toBeNull();
+  });
+  it('renders one personalized multilingual greeting for an authenticated account', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/dashboard');
+    await expectContent('Primary multilingual greeting');
+    expect(container.querySelectorAll('[data-testid="primary-multilingual-greeting"]')).toHaveLength(1);
+    expect(container.textContent).not.toContain('RyanAI · Personal welcome');
   });
   it('shows protected destinations after an authenticated session is restored', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });

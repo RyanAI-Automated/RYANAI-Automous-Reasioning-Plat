@@ -23,22 +23,28 @@ function getStoredRyanLanguage(userId: string, isOwner: boolean): string {
   return isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE;
 }
 
+function getStoredRyanPreference(key: string, legacyKey: string): string | null {
+  try {
+    return window.localStorage.getItem(key) ?? window.localStorage.getItem(legacyKey);
+  } catch {
+    return null;
+  }
+}
+
 export default function Greeting({ userId: accountId, displayName, isOwner = false }: GreetingProps) {
   const userId = accountId || displayName || 'guest';
   const [language, setLanguage] = useState(() => getStoredRyanLanguage(userId, isOwner));
-  const [title, setTitle] = useState(() => {
-    try {
-      return window.localStorage.getItem(`ryanai:title:${userId}`) ?? (isOwner ? 'Sir G' : '');
-    } catch { return isOwner ? 'Sir G' : ''; }
-  });
+  const [title, setTitle] = useState(() =>
+    getStoredRyanPreference(`ryanai:title:${userId}`, `ryanai:preferred-title:${userId}`) ?? (isOwner ? 'Sir G' : ''),
+  );
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceStatus, setVoiceStatus] = useState('Voice settings ready');
-  const [voiceUri, setVoiceUri] = useState(() => {
-    try { return window.localStorage.getItem('ryanai:voice-uri') ?? ''; } catch { return ''; }
-  });
-  const [voiceEnabled, setVoiceEnabled] = useState(() => {
-    try { return window.localStorage.getItem('ryanai:voice-enabled') !== 'false'; } catch { return true; }
-  });
+  const [voiceUri, setVoiceUri] = useState(() =>
+    getStoredRyanPreference('ryanai:voice-uri', 'ryanai:voice-greeting-uri') ?? '',
+  );
+  const [voiceEnabled, setVoiceEnabled] = useState(() =>
+    getStoredRyanPreference('ryanai:voice-enabled', 'ryanai:voice-greetings-enabled') !== 'false',
+  );
   const spoken = useRef(false);
   const firstName = displayName?.trim().split(/\s+/)[0] || 'there';
   const address = title || firstName;
