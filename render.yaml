@@ -65,6 +65,8 @@ services:
           property: connectionString
       - key: SUPABASE_URL
         value: https://narsvpwymvlrhurqbthu.supabase.co
+      - key: SUPABASE_SESSION_POOLER_HOST
+        value: aws-1-eu-west-1.pooler.supabase.com
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
