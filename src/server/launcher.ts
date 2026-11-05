@@ -3,7 +3,7 @@ import '../loadEnv.js';
 
 // Tracing must precede application imports.
 import '../instrument.js';
-import '../telemetry.js';
+import { shutdownTelemetry } from '../telemetry.js';
 
 import Fastify, { FastifyReply, FastifyRequest } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
@@ -673,6 +673,7 @@ const shutdown = async () => {
   if (prisma) await prisma.$disconnect();
   if (audiobookPrisma) await audiobookPrisma.$disconnect();
   await fastify.close();
+  await shutdownTelemetry();
   process.exit(0);
 };
 

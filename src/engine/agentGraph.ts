@@ -7,6 +7,7 @@ import { z } from "zod";
 import { systemDiagnosticsTool } from "../tools/systemTools.js";
 import { queryStackOverflow } from "../tools/stackoverflow.js";
 import { evaluateGenXSecurityEvent } from "../security/genxPolicy.js";
+import { withTelemetrySpan } from "../telemetry/core.js";
 
 // Define LangGraph State Annotation
 const GraphState = Annotation.Root({
@@ -20,7 +21,7 @@ type State = typeof GraphState.State;
 
 // Define Tools
 const diagnosticsToolWrapper = tool(
-  async ({ queryType }) => {
+  async ({ queryType }) => withTelemetrySpan('agent.tool.invoke', { 'agent.tool': 'system_diagnostics' }, async (span) => {
     const policy = evaluateGenXSecurityEvent({
       agentId: "reasoning-agent",
       principal: "authenticated-runtime",
@@ -28,10 +29,12 @@ const diagnosticsToolWrapper = tool(
       action: "READ",
       target: queryType,
     });
+    span.setAttribute('agent.policy_outcome', policy.decision);
     if (policy.decision !== "ALLOW") return `Gen-X blocked tool invocation: ${policy.ruleId}`;
     const result = await systemDiagnosticsTool.invoke({ queryType });
     return typeof result === "string" ? result : JSON.stringify(result);
-  },
+  }),
+
   {
     name: "system_diagnostics",
     description: "Inspects local GPU, memory, or general system telemetry.",
@@ -47,18 +50,20 @@ export const stackOverflowTool = new DynamicStructuredTool({
   schema: z.object({
     query: z.string().describe("The programming or architectural query to search"),
   }),
-  func: async ({ query }) => {
+  func: async ({ query }) => withTelemetrySpan('agent.tool.invoke', { 'agent.tool': 'query_stackoverflow_agents' }, async (span) => {
     const policy = evaluateGenXSecurityEvent({
       agentId: "reasoning-agent",
       principal: "authenticated-runtime",
       toolName: "query_stackoverflow_agents",
       action: "READ",
     });
+    span.setAttribute('agent.policy_outcome', policy.decision);
     if (policy.decision !== "ALLOW") return `Gen-X blocked tool invocation: ${policy.ruleId}`;
     // Search-only tool; retrieved content remains untrusted input.
     const result = await queryStackOverflow({ query });
     return JSON.stringify(result);
-  },
+  }),
+
 });
 
 const tools = [diagnosticsToolWrapper, stackOverflowTool];
@@ -83,7 +88,7 @@ function shouldContinue(state: State) {
 
 async function callModel(state: State) {
   const messages = state.messages;
-  const response = await model.invoke(messages);
+  const response = await withTelemetrySpan('agent.model.invoke', { 'agent.operation': 'reasoning' }, async () => model.invoke(messages));
   return { messages: [response] };
 }
 
