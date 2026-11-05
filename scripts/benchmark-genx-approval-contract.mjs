@@ -252,7 +252,10 @@ function sanitizedAuditRecord(event, policy, details) {
     action: event.action,
     environment: event.environment ?? null,
     targetSha256: event.target ? sha256(Buffer.from(event.target)) : null,
-    commandPresent: event.command !== undefined,
+    commandPresent: event.command !== undefined && event.command !== null,
+    commandSha256: event.command === undefined || event.command === null
+      ? null
+      : sha256(Buffer.from(typeof event.command === 'string' ? event.command : canonicalJson(event.command))),
     policyDecision: policy.decision,
     policyRuleId: policy.ruleId,
     approvalStatus: details.approvalStatus,
