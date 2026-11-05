@@ -42,3 +42,32 @@ describe('private attachment Storage authorization migrations', () => {
     expect(quarantine).toContain('GRANT EXECUTE ON FUNCTION public.finish_ryanai_attachment_scan(text,text,text,text) TO service_role');
   });
 });
+
+
+const commsAttachmentMigration = readMigration('20261105130000_comms_secure_attachments.sql');
+const commsPrismaMigration = readFileSync(
+  new URL('../../prisma/migrations/20261105130000_comms_secure_attachments/migration.sql', import.meta.url),
+  'utf8',
+);
+const prismaSchema = readFileSync(new URL('../../prisma/schema.prisma', import.meta.url), 'utf8');
+
+describe('private Comms attachment metadata and audit authorization', () => {
+  it('keeps Comms attachment metadata and audit tables unavailable to browser roles', () => {
+    expect(commsAttachmentMigration).toContain('ALTER TABLE public.communication_attachments ENABLE ROW LEVEL SECURITY');
+    expect(commsAttachmentMigration).toContain('ALTER TABLE public.communication_attachment_audit ENABLE ROW LEVEL SECURITY');
+    expect(commsAttachmentMigration).toContain('REVOKE ALL ON TABLE public.communication_attachments FROM PUBLIC, anon, authenticated');
+    expect(commsAttachmentMigration).toContain('REVOKE ALL ON TABLE public.communication_attachment_audit FROM PUBLIC, anon, authenticated');
+    expect(commsAttachmentMigration).toContain('GRANT ALL ON TABLE public.communication_attachments TO service_role');
+    expect(commsAttachmentMigration).toContain('GRANT ALL ON TABLE public.communication_attachment_audit TO service_role');
+    expect(commsPrismaMigration).toContain('CREATE TABLE IF NOT EXISTS "communication_attachment_audit"');
+    expect(prismaSchema).toContain('model CommunicationAttachmentAudit');
+  });
+
+  it('records reservation, scan lifecycle, quarantine purge and orphan cleanup events', () => {
+    for (const event of [
+      'attachment_reserved', 'scan_queued', 'scan_started', 'scan_clean',
+      'scan_infected', 'scan_failed', 'quarantine_purged', 'orphan_purged',
+    ]) expect(commsAttachmentMigration).toContain(`'${event}'`);
+    expect(commsAttachmentMigration).toContain('AFTER INSERT OR UPDATE ON public.ryanai_attachment_scans');
+  });
+});
