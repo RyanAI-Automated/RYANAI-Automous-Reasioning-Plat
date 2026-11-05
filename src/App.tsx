@@ -31,6 +31,8 @@ const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
+const MemoryVaultPage = lazy(() => import('@/pages/MemoryVaultPage'));
+const InferenceConsolePage = lazy(() => import('@/pages/InferenceConsole'));
 const CalculatorPage = lazy(() => import('@/pages/Calculator'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const PAAgentPage = lazy(() => import('@/pages/PAAgent'));
@@ -83,6 +85,8 @@ const routeIcons: Record<Route, LucideIcon> = {
   quant: TrendingUp,
   trading: Wallet,
   cockpit: Cpu,
+  memory: BrainCircuit,
+  inference: Cpu,
   workspace: MessageSquareText,
   comms: Mail,
   audiobook: BookAudio,
@@ -220,6 +224,8 @@ export default function App() {
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
                 {route === 'studio' && (isAdmin ? <CodingStudio /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open RyanAI Studio.</p>)}
+                {route === 'memory' && <MemoryVaultPage userId={user.id} />}
+                {route === 'inference' && <InferenceConsolePage />}
                 {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
                 {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email!} userFullName={displayName} /></div>}
               </>}
