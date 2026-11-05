@@ -85,16 +85,17 @@ export function createMarketDataStreamSupervisor(options: {
   const connect = async (run: number) => {
     if (stopped || run !== generation) return;
     setState({ status: 'connecting', attempt: attempt + 1 });
+    let failed = false;
     try {
       const next = options.createStream({
         onBar: (bar) => {
           if (!stopped && run === generation) options.onBar(bar);
         },
-        onError: (error) => scheduleRetry(error.message, run),
+        onError: (error) => { failed = true; scheduleRetry(error.message, run); },
       });
       stream = next;
       await next.connect();
-      if (stopped || run !== generation) {
+      if (failed || stopped || run !== generation) {
         if (stream === next) closeCurrent();
         return;
       }
@@ -173,6 +174,7 @@ export function createMarketDataFanout(options: {
         listeners.set(normalized, group);
       }
       if (subscriberCount >= maxSubscribers) throw new Error('Market-data subscriber limit reached.');
+      if (group.has(listener)) throw new Error('Listener is already subscribed to this symbol.');
       group.add(listener);
       subscriberCount += 1;
       let active = true;
