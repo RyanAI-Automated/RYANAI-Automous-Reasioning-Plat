@@ -19,7 +19,10 @@ ALTER TABLE "quant_paper_orders"
       ABS(("filled_quantity" + "remaining_quantity") - "quantity") <= 0.00000001
     ),
   ADD CONSTRAINT "quant_paper_orders_average_fill_check"
-    CHECK ("filled_quantity" = 0 OR "average_fill_price" > 0);
+    CHECK (
+      ("filled_quantity" = 0 AND "average_fill_price" IS NULL) OR
+      ("filled_quantity" > 0 AND "average_fill_price" IS NOT NULL AND "average_fill_price" > 0)
+    );
 
 -- Preserve compatibility with the existing atomic paper-fill route. The
 -- current route writes a fully-filled order and a single fill row in one tx.
