@@ -15,6 +15,8 @@ import { assertBrainProbeResponse, BRAIN_PROBE_CHALLENGE, BRAIN_PROBE_ORDER } fr
 import { buildAgentRunExecutionPrompt, planQueuedAgentRun } from './agentRunExecution.js';
 import type { ExecutionChange } from './executionPlanner.js';
 import { recordRunEvidence, appendRunEvidence } from './engineeringEvidence.js';
+import { withTelemetrySpan } from '../telemetry/core.js';
+import { captureQueueTraceContext, runWithQueueTraceContext } from '../telemetry/queueContext.js';
 
 const brains = {
   primary: { ...resolveBrainProviderConfig('primary'), client: primaryBrain },
@@ -172,6 +174,7 @@ interface ClaimedAgentRun {
   id: string;
   user_id: string;
   objective: string;
+  trace_context: unknown;
   attempts: number;
   max_attempts: number;
   worker_id: string;
@@ -215,7 +218,7 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
     'UPDATE "agent_runs" SET "status" = \'running\', "worker_id" = $1, "locked_at" = NOW(), "attempts" = "attempts" + 1 ' +
     'WHERE "id" = (SELECT "id" FROM "agent_runs" WHERE "queue_type" = \'reasoning\' AND "approval_status" = \'approved\' AND ("plan_snapshot" IS NULL OR ("approved_plan_hash" = "plan_hash" AND "approved_commit_sha" = "base_commit_sha" AND "approved_diff_hash" = "proposed_diff_hash")) AND "cancel_requested_at" IS NULL AND (("status" = \'queued\' AND "next_attempt_at" <= NOW()) OR ("status" = \'running\' AND "locked_at" < NOW() - INTERVAL \'3 minutes\' AND "attempts" < "max_attempts" AND "next_attempt_at" <= NOW())) ' +
     'ORDER BY "created_at" ASC LIMIT 1 FOR UPDATE SKIP LOCKED) ' +
-    'RETURNING "id", "user_id", "objective", "attempts", "max_attempts", "worker_id", "execution_scope", "approval_status", "steering_notes", "cancel_requested_at", "plan_snapshot", "plan_hash", "base_commit_sha", "proposed_diff_hash", "approved_plan_hash", "approved_commit_sha", "approved_diff_hash"',
+    'RETURNING "id", "user_id", "objective", "trace_context", "attempts", "max_attempts", "worker_id", "execution_scope", "approval_status", "steering_notes", "cancel_requested_at", "plan_snapshot", "plan_hash", "base_commit_sha", "proposed_diff_hash", "approved_plan_hash", "approved_commit_sha", "approved_diff_hash"',
     workerId,
   );
   return rows[0] ?? null;
@@ -313,7 +316,7 @@ async function processAgentRun(
 export async function dispatchAutonomousTask(userId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId, objective, executionScope, status: 'queued' },
+      data: { userId, objective, executionScope, traceContext: captureQueueTraceContext(), status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
@@ -345,7 +348,7 @@ export async function dispatchAutonomousTask(userId: string, objective: string, 
 export async function dispatchJarvisTask(actorId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId: actorId, objective, executionScope, status: 'queued' },
+      data: { userId: actorId, objective, executionScope, traceContext: captureQueueTraceContext(), status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
@@ -528,7 +531,7 @@ export function startAgentTaskWorker(options: {
           const claimedAt = new Date().toISOString();
           updateStatus({ lastClaimedTask: { runId: run.id, trigger: taskTrigger, claimedAt } });
           inFlight += 1;
-          void processAgentRun(run, options.testBrainInvoker)
+          void runWithQueueTraceContext(run.trace_context, () => withTelemetrySpan('agent.queue.process', { 'agent.operation': 'queue' }, async () => processAgentRun(run, options.testBrainInvoker)))
             .then(async () => {
               const persisted = await prisma.agentRun.findUnique({ where: { id: run.id }, select: { status: true } });
               updateStatus({
