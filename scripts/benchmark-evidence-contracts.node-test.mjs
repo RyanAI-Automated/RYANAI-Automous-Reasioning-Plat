@@ -236,3 +236,40 @@ test('economics blocks invented costs and repeatability mismatches', () => {
   assert.equal(compareRepeatability(first, { ...first }).verdict, 'CONFIGURATION_MATCH');
   assert.equal(compareRepeatability(first, { ...first, seed: 8 }).verdict, 'NOT_COMPARABLE');
 });
+
+test('provenance validator rejects secret-bearing non-secret config', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-secret-'));
+  try {
+    const files = {
+      'package-lock.json': 'lock',
+      'prompt.txt': 'prompt',
+      'config.json': '{"api_key":"synthetic-secret-value-123456"}'
+    };
+    for (const [name, content] of Object.entries(files)) {
+      await writeFile(path.join(temp, name), content);
+    }
+    const manifest = {
+      schemaVersion: '1.0.0', modelInvocation: false,
+      harnessCommit: 'a'.repeat(40),
+      dataset: { manifestSha256: 'b'.repeat(64) },
+      runtimeLock: { path: 'package-lock.json', sha256: hash('lock') },
+      candidates: [{
+        id: 'fixture', provider: 'fixture', model: 'fixture-model-v1',
+        immutableRevision: 'sha256:' + 'c'.repeat(64),
+        revisionKind: 'digest', runtimeVersion: 'fixture-1',
+        promptTemplate: { path: 'prompt.txt', sha256: hash('prompt') },
+        nonSecretConfig: {
+          path: 'config.json', sha256: hash(files['config.json'])
+        }
+      }]
+    };
+    const manifestPath = path.join(temp, 'run-manifest.json');
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await assert.rejects(
+      verifyBenchmarkProvenance(manifestPath, temp),
+      /Potential secret material/
+    );
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
