@@ -19,7 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   emergencyStop = false;
   proposalRecords = [];
-  api.fetch.mockImplementation(async (url: string) => {
+  api.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
     if (url === '/api/quant/paper') {
       return new Response(JSON.stringify({
         mode: 'paper_simulation_only',
@@ -94,7 +94,9 @@ beforeEach(() => {
       return new Response(JSON.stringify({ proposals: proposalRecords, executionEnabled: false }), { status: 200 });
     }
     if (url === '/api/quant/paper/proposals/proposal-1/confirm' && init?.method === 'POST') {
-      proposalRecords = proposalRecords.map((item) => ({ ...item, status: 'confirmed', orderId: 'paper-order-proposal-1' }));
+      proposalRecords = proposalRecords.map((item) => ({
+        ...item, status: 'confirmed', orderId: 'paper-order-proposal-1',
+      }));
       return new Response(JSON.stringify({
         proposalId: 'proposal-1',
         status: 'confirmed',
@@ -104,7 +106,9 @@ beforeEach(() => {
       }), { status: 201 });
     }
     if (url === '/api/quant/paper/proposals/proposal-1/reject' && init?.method === 'POST') {
-      proposalRecords = proposalRecords.map((item) => ({ ...item, status: 'rejected', reason: 'rejected_by_user' }));
+      proposalRecords = proposalRecords.map((item) => ({
+        ...item, status: 'rejected', reason: 'rejected_by_user',
+      }));
       return new Response(JSON.stringify({ proposalId: 'proposal-1', status: 'rejected' }), { status: 200 });
     }
     if (url === '/api/quant/strategy-signals') {
@@ -164,7 +168,7 @@ describe('paper trading performance summary', () => {
       create?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    await vi.waitFor(() => expect(container.textContent).toContain('proposal created for SPY'.toLowerCase()));
+    await vi.waitFor(() => expect(container.textContent).toContain('Proposal created for SPY'));
     await vi.waitFor(() => expect(container.textContent).toContain('Confirm & simulate paper order'));
     expect(container.textContent).toContain('1.66666666 units');
     expect(api.fetch).toHaveBeenCalledWith('/api/quant/paper/proposals', expect.objectContaining({
