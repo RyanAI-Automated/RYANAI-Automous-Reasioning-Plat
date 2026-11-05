@@ -51,7 +51,8 @@ async function send(path: string, url: string, payload: Record<string, string>, 
 
 beforeEach(() => {
   vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
-  prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });\n  prismaMock.communicationConversation.findFirst.mockResolvedValue({ id: 'conversation-1', messages: [{ direction: 'inbound', body: 'Please confirm the delivery window.', status: 'received', createdAt: new Date('2026-11-05T10:00:00.000Z') }] });
+  prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
+  prismaMock.communicationConversation.findFirst.mockResolvedValue({ id: 'conversation-1', messages: [{ direction: 'inbound', body: 'Please confirm the delivery window.', status: 'received', createdAt: new Date('2026-11-05T10:00:00.000Z') }] });
   prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
   prismaMock.communicationMessage.upsert.mockResolvedValue({});
   prismaMock.communicationMessage.update.mockResolvedValue({});
