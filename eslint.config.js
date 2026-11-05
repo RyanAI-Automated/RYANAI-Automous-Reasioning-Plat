@@ -12,7 +12,6 @@ export default tseslint.config(
       'node_modules/**',
       '.next/**',
       '.turbo/**',
-      '.vercel/**',
       'coverage/**',
       'src-tauri/target/**',
       'src-tauri/gen/**',
