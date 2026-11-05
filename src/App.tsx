@@ -211,7 +211,7 @@ export default function App() {
                 {route === 'trading' && <TradingTerminalPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
-                {route === 'studio' && <CodingStudio />}\n                {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
+                {route === 'studio' && (isAdmin ? <CodingStudio /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open RyanAI Studio.</p>)}\n                {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
                 {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email!} userFullName={displayName} /></div>}
               </>}
           </main>
