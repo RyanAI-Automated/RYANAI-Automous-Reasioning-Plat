@@ -178,6 +178,7 @@ test('Render API repair runs inside core CI, waits for security, and never deplo
   assert.ok(!fallback.includes('workflow_run:'));
   assert.ok(!fallback.includes('/deploys'));
   assert.ok(blueprint.includes('services:'));
+  assert.ok(blueprint.includes('autoDeployTrigger: \\"off\\"'));
   assert.ok(!blueprint.includes('projects:'));
   assert.ok(blueprint.includes('name: ryanai-api'));
   assert.ok(blueprint.includes('repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat'));
