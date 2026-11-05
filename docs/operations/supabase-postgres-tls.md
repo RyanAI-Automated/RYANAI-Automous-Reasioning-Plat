@@ -1,43 +1,58 @@
 # Supabase PostgreSQL TLS trust on Render
 
-RyanAI's API uses Node.js 24 and node-postgres to check PostgreSQL during startup. A
-`SELF_SIGNED_CERT_IN_CHAIN` or `UNABLE_TO_VERIFY_LEAF_SIGNATURE` error means the
-server certificate chain is not trusted by the runtime. Do not work around this
-by setting `NODE_TLS_REJECT_UNAUTHORIZED=0`, `rejectUnauthorized: false`, or
-otherwise disabling certificate verification.
+RyanAI's production API image bundles the public **Supabase Root 2021 CA** at
+`/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt`. The image installs
+it into the Alpine trust store and configures Node.js 24 to use both system and
+additional CA certificates. The app also passes the same path into the
+PostgreSQL connection URL as `sslrootcert` with `sslmode=verify-full` and
+Prisma's strict certificate acceptance setting.
 
-## Configure the Supabase root certificate
+A `SELF_SIGNED_CERT_IN_CHAIN` or `UNABLE_TO_VERIFY_LEAF_SIGNATURE` error means
+the server certificate chain is not trusted. Do not work around this by setting
+`NODE_TLS_REJECT_UNAUTHORIZED=0`, `rejectUnauthorized: false`, or otherwise
+disabling certificate verification.
+
+## Standard deployment
+
+No extra Render secret file is required when Supabase is using its Root 2021 CA.
+The certificate is public trust material, not a private key or database
+credential. Its source and SHA-256 fingerprint are documented in
+[`certs/supabase/README.md`](../../certs/supabase/README.md).
+
+The API image sets:
+
+- `NODE_USE_SYSTEM_CA=1` to use the container's installed system roots.
+- `NODE_EXTRA_CA_CERTS` to add the bundled Supabase Root 2021 CA.
+- `SUPABASE_SSL_ROOT_CERT_PATH` so the Session Pooler URL resolver passes the
+  same certificate to node-postgres and Prisma.
+- `sslmode=verify-full` and `sslaccept=strict` so CA and hostname checks remain
+  enabled.
+
+The API container runs `scripts/verify-node-ca.sh` before starting. If
+`NODE_EXTRA_CA_CERTS` is missing, unreadable, or not PEM certificate material,
+the container refuses to start.
+
+## If Supabase changes the project CA
 
 1. In the correct Supabase project, open **Database → SSL Configuration** and
-   download that project's root CA certificate. Use the certificate supplied by
-   the project dashboard; do not guess a CA or substitute a certificate from
-   another project.
-2. In Render, open the **ryanai-api** service and select **Environment → Secret
-   Files → Add Secret File**.
-3. Upload the certificate as a PEM file, for example
-   `supabase-prod-ca.pem`. Render makes it available inside the Docker service
-   at `/etc/secrets/supabase-prod-ca.pem`.
-4. Add the environment variable:
+   download the current root CA certificate. Do not guess or substitute a
+   certificate from another project.
+2. Verify its subject, validity, and SHA-256 fingerprint against the project
+   dashboard or Supabase's published documentation.
+3. Prefer updating the versioned certificate in
+   `certs/supabase/prod-ca-2021.crt` through a reviewed GitHub PR. Do not commit
+   database credentials or private keys.
+4. If an emergency operator-managed certificate is required, upload the
+   verified PEM as a Render Secret File and set both variables on `ryanai-api`:
    ```env
-   NODE_EXTRA_CA_CERTS=/etc/secrets/supabase-prod-ca.pem
+   NODE_EXTRA_CA_CERTS=/etc/secrets/supabase-root-ca.pem
+   SUPABASE_SSL_ROOT_CERT_PATH=/etc/secrets/supabase-root-ca.pem
    ```
-5. Save the environment change and allow the service to restart/redeploy so the
-   Node process reads the CA bundle at startup.
+5. Restart/redeploy only after approval. Node reads `NODE_EXTRA_CA_CERTS` when
+   the process starts, so changing it requires a new process.
 
-The certificate is public trust material, not a database password. Keep the
-`DATABASE_URL` and all credentials in Render's protected environment settings.
-Do not commit the downloaded certificate or database connection string to Git.
-
-## Runtime behavior
-
-- The API image sets `NODE_USE_SYSTEM_CA=1`, so Node.js 24 includes the
-  container's installed operating-system CA store in its trusted roots.
-- `NODE_EXTRA_CA_CERTS` adds the Supabase project CA to Node's normal trust
-  bundle. Node reads it when the process starts.
-- The API container entrypoint checks that a configured CA path is readable and
-  contains PEM certificate material before launching the API.
-- TLS certificate-chain and hostname verification remain enabled. An untrusted
-  or mismatched certificate must continue to fail closed.
+Keep `DATABASE_URL` and all credentials in Render's protected environment
+settings. Never paste them into Git, issue comments, pull requests, or chat.
 
 ## Verification after an approved restart
 
@@ -52,4 +67,5 @@ Check the Render API logs for all of the following:
    works through the configured Session Pooler connection.
 
 A successful Docker build or the presence of the CA file is not proof of live
-database connectivity. Never disable TLS verification to make a health check pass.
+database connectivity. Never disable TLS verification to make a health check
+pass.
