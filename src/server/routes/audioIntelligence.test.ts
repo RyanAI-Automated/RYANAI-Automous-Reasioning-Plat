@@ -83,6 +83,11 @@ describe('RyanAI audio intelligence routes', () => {
     const init = provider.mock.calls[0][1] as RequestInit;
     expect(init.method).toBe('POST');
     expect(init.headers).toMatchObject({ Authorization: 'Bearer test-key' });
+    const uploadedFile = (init.body as FormData).get('file');
+    expect(uploadedFile).toBeInstanceOf(Blob);
+    expect(new Uint8Array(await (uploadedFile as Blob).arrayBuffer())).toEqual(
+      new Uint8Array(Buffer.from('ID3mock-audio')),
+    );
   });
 
   it('validates voice, speed and chapter length before synthesis', async () => {
