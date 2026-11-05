@@ -139,7 +139,8 @@ test('approval request signature binds exact command content and execution envir
     const firstAudit = firstJournal.entries.find(item => item.type === 'authorization.audit');
     assert.equal(firstAudit.commandPresent, true);
     assert.equal(firstAudit.environment, 'staging');
-    assert.equal(firstAudit.commandSha256, undefined, 'audit contract must not emit raw command hash unless its schema supports it');
+    assert.equal(firstAudit.commandSha256, hash(firstCommand));
+    assert.equal(JSON.stringify(firstAudit).includes(firstCommand), false, 'audit record must not retain raw command text');
   } finally {
     await rm(first.temp, { recursive: true, force: true });
     await rm(second.temp, { recursive: true, force: true });
