@@ -44,7 +44,7 @@ export const SOUTH_AFRICAN_BANKS: SouthAfricanBank[] = [
   { id: 'gbs', name: 'GBS Mutual Bank', category: 'mutual' },
 ];
 
-export const SOUTH_AFRICAN_BANK_SOURCE = 'South African Reserve Bank / Corporation for Deposit Insurance (CODI) member-bank list, July 2026 update.';
+export const SOUTH_AFRICAN_BANK_SOURCE = 'South African Reserve Bank / Corporation for Deposit Insurance (CODI) member-bank list, July 2026 update, supplemented by the SARB Register of Co-operative Banks.';
 
 export const BANK_CATEGORY_LABELS: Record<SouthAfricanBankCategory, string> = {
   commercial: 'Commercial banks',
