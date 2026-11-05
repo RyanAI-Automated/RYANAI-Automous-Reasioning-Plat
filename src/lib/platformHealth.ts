@@ -2,7 +2,7 @@ import { API_BASE_URL } from './apiBaseUrl';
 import { API_ROUTES } from '@/config/core';
 
 export interface PlatformHealth {
-  status: string;
+  status: 'online' | 'degraded';
   service?: string;
   timestamp?: string;
   services?: Record<string, boolean>;
@@ -11,9 +11,9 @@ export interface PlatformHealth {
 }
 
 /**
- * Fetch the health payload and require an online status, with a five-second deadline.
- * Rejects HTTP errors, invalid JSON, offline status, and network failures. A deadline
- * abort becomes a timeout error; caller cancellation preserves the fetch error.
+ * Fetch the runtime readiness payload with a five-second deadline.
+ * HTTP 503 is a valid degraded-readiness response when it contains the
+ * sanitized service snapshot. Error bodies are never copied into UI messages.
  */
 export async function getPlatformHealth(
   signal?: AbortSignal,
@@ -29,23 +29,26 @@ export async function getPlatformHealth(
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
-    const body = await response.text();
 
-    if (!response.ok) {
-      throw new Error(
-        `API health check failed (HTTP ${response.status})${body ? `: ${body.slice(0, 200)}` : ''}`,
-      );
+    if (response.status !== 200 && response.status !== 503) {
+      throw new Error(`API health check failed (HTTP ${response.status}).`);
     }
 
     let health: PlatformHealth;
     try {
-      health = JSON.parse(body) as PlatformHealth;
+      health = (await response.json()) as PlatformHealth;
     } catch {
       throw new Error('API health endpoint returned invalid JSON.');
     }
-    if (health.status !== 'online') {
-      throw new Error('RyanAI API did not report an online status.');
+
+    if (
+      (health.status !== 'online' && health.status !== 'degraded') ||
+      (response.status === 200 && health.status !== 'online') ||
+      (response.status === 503 && health.status !== 'degraded')
+    ) {
+      throw new Error('API health endpoint returned an invalid readiness status.');
     }
+
     return health;
   } catch (error) {
     if (controller.signal.aborted && !signal?.aborted) {
