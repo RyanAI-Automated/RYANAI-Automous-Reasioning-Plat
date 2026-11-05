@@ -279,6 +279,7 @@ model AgentRun {
   evidence AgentRunEvidence[]
   codingTasks CodingTask[]
   queueType String @default("reasoning") @map("queue_type")
+  @@index([queueType, status, createdAt], map: "agent_runs_queue_type_status_created_idx")
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([status, lockedAt])
@@ -485,9 +486,9 @@ model QuantExperiment {
 model CodingTask {
   id String @id @default(uuid())
   userId String @map("user_id")
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   workbenchRunId String @map("workbench_run_id")
-  workbenchRun AgentRun @relation(fields: [workbenchRunId], references: [id], onDelete: Cascade)
+  workbenchRun AgentRun @relation(fields: [workbenchRunId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   approvalId String @map("approval_id")
   planHash String @map("plan_hash")
   baseCommitSha String @map("base_commit_sha")
@@ -526,7 +527,7 @@ model AudiobookProject {
   chapters  AudiobookChapter[]
   renderJobs AudiobookRenderJob[]
   createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([userId, updatedAt(sort: Desc)], map: "audiobook_projects_user_updated_idx")
   @@map("audiobook_projects")
@@ -541,7 +542,7 @@ model AudiobookChapter {
   position           Int
   narrationSettings  Json            @default("{}") @map("narration_settings")
   createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([projectId, position], map: "audiobook_chapters_project_position_key")
   @@index([projectId, position], map: "audiobook_chapters_project_position_idx")
@@ -568,7 +569,7 @@ model AudiobookRenderJob {
   nextAttemptAt  DateTime        @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
   cancelRequestedAt DateTime?    @map("cancel_requested_at") @db.Timestamptz(6)
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
 
   @@unique([userId, idempotencyKey], map: "audiobook_render_jobs_user_idempotency_key")

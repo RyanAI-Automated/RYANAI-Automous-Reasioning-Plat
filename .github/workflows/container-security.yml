@@ -165,7 +165,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [api, web, mcp]
+        image: [api, web, mcp, migrate]
     steps:
       - name: Download SARIF artifact
         uses: actions/download-artifact@v4
