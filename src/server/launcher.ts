@@ -35,6 +35,7 @@ import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { quantRoutes } from './routes/quantRoutes.js';
+import { quantPaperReconciliationRoutes } from './routes/quantPaperReconciliationRoutes.js';
 import { quantReconciliationRoutes } from './routes/quantReconciliationRoutes.js';
 import { quantStreamingRoutes } from './routes/quantStreamingRoutes.js';
 import { quantPaperSafetyRoutes } from './routes/quantPaperSafetyRoutes.js';
@@ -534,6 +535,7 @@ async function registerPlugins() {
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
   await fastify.register(quantRoutes);
+  await fastify.register(quantPaperReconciliationRoutes);
   await fastify.register(quantStreamingRoutes);
   await fastify.register(quantReconciliationRoutes);
   await fastify.register(quantPaperSafetyRoutes);
