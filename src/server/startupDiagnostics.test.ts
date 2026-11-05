@@ -59,6 +59,10 @@ describe('safe database diagnostics', () => {
     ['ENOTFOUND', 'hostname could not be resolved'],
     ['3D000', 'database does not exist'],
     ['ETIMEDOUT', 'Connection timed out'],
+    ['EHOSTUNREACH', 'host is unreachable'],
+    ['ENETUNREACH', 'network route to the database is unavailable'],
+    ['ERR_TLS_CERT_ALTNAME_INVALID', 'TLS certificate does not match'],
+    ['ESSLREQUIRED', 'requires TLS'],
   ])('provides actionable guidance for %s', (code, hint) => {
     expect(
       databaseFailureDiagnostic(new Error('', { cause: { code } })),
@@ -80,6 +84,31 @@ describe('safe database diagnostics', () => {
       expect(result).not.toContain('secret');
     },
   );
+
+  it('reports a safe unclassified Node network code without raw messages', () => {
+    const error = Object.assign(new Error('private transport details'), {
+      code: 'ERR_SOCKET_UNAVAILABLE',
+    });
+    const result = databaseFailureDiagnostic(error);
+    expect(result).toContain('ERR_SOCKET_UNAVAILABLE');
+    expect(result).not.toContain('private transport details');
+  });
+
+  it('recognizes a missing or malformed password without exposing the message', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string'),
+    );
+    expect(result).toContain('usable password string');
+    expect(result).not.toContain('SCRAM');
+  });
+
+  it('recognizes Supavisor TLS and tenant errors without echoing usernames', () => {
+    const tls = databaseFailureDiagnostic(new Error('ClientHandler: (ESSLREQUIRED) SSL connection is required for user: postgres'));
+    expect(tls).toContain('requires TLS');
+    const tenant = databaseFailureDiagnostic(new Error('ClientHandler: (ENOTFOUND) tenant/user postgres.sensitive-ref not found'));
+    expect(tenant).toContain('project-specific username');
+    expect(tenant).not.toContain('sensitive-ref');
+  });
 
   it('terminates when causes form a cycle', () => {
     const error: { cause?: unknown } = {};
