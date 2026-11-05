@@ -143,7 +143,7 @@ describe('RyanAI Comms inbox controls', () => {
 
   it('shows live workspace metrics and selected conversation context from persisted data', async () => {
     await render();
-    expect(container.textContent).toContain('Communication overview');
+    expect(container.querySelector('section[aria-label="Communication overview"]')).not.toBeNull();
     expect(container.textContent).toContain('Messages loaded');
     expect(container.textContent).toContain('2');
     expect(container.textContent).toContain('Conversation details');
