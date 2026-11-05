@@ -1,0 +1,1365 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-05",
+  "mode": "READ_ONLY_STATIC_GITHUB_SOURCE_INVENTORY",
+  "sourceCommit": "fcee4fa008188f444cabb91deb3fe71291a3a761",
+  "sourceBranch": "main",
+  "filesDiscovered": 1149,
+  "commandsExecuted": false,
+  "environmentValuesRead": false,
+  "packages": [
+    {
+      "path": "mcp-server/package.json",
+      "name": "ryanai-mcp-manager",
+      "packageManager": null,
+      "nodeEngine": ">=22.12.0",
+      "scripts": [
+        {
+          "name": "check",
+          "command": "node --check index.js && node --check stdio.js && node --check http.js && node --check provider-router.js && node --check health-url.js && node --test health-url.node.js tool-registry.node.js provider-router.node.js && node check-dependency-policy.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "start",
+          "command": "node stdio.js",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "start:http",
+          "command": "node http.js",
+          "status": "NOT_EXECUTED"
+        }
+      ]
+    },
+    {
+      "path": "package.json",
+      "name": "ryan-app",
+      "packageManager": "npm@10.9.2",
+      "nodeEngine": "24.x",
+      "scripts": [
+        {
+          "name": "agent:pa",
+          "command": "cross-env NODE_ENV=development tsx src/server/launcher.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "api:preflight",
+          "command": "node scripts/activate-apis.mjs preflight",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "api:report",
+          "command": "node scripts/activate-apis.mjs report",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "api:start",
+          "command": "node scripts/activate-apis.mjs start",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "api:verify",
+          "command": "node scripts/activate-apis.mjs verify",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "app:check",
+          "command": "npm run typecheck",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "audit:agents",
+          "command": "node scripts/audit-agent-readiness.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "audit:deployments",
+          "command": "node scripts/audit-deployment-readiness.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "audit:inspector",
+          "command": "node scripts/ai-inspector-audit.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "audit:repository-inventory",
+          "command": "node scripts/repository-inventory.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "benchmark:api",
+          "command": "node scripts/benchmark-api.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "benchmark:evidence:bundle",
+          "command": "node scripts/benchmark-evidence-bundle.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "benchmark:gates:mock",
+          "command": "node scripts/benchmark-gate-contracts.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "benchmark:isolation:container",
+          "command": "bash scripts/benchmark-isolation-container.sh",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build",
+          "command": "tsc -p tsconfig.app.json && vite build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build:api",
+          "command": "npm run build:server",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build:client",
+          "command": "tsc -p tsconfig.app.json && vite build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build:cuda",
+          "command": "node-gyp rebuild",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build:desktop",
+          "command": "tauri build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build:server",
+          "command": "tsc -p tsconfig.server.json && node scripts/copy-server-assets.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "build:web",
+          "command": "npm run build:client",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "cmake:build",
+          "command": "node scripts/cmake.mjs --build native/local-inference/build --config Release",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "cmake:configure",
+          "command": "node scripts/cmake.mjs -S native/local-inference -B native/local-inference/build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "core:check",
+          "command": "python scripts/check-python-core.py",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "core:platform",
+          "command": "python scripts/ryan_cli.py",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "core:run",
+          "command": "python scripts/ryan_cli.py",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:audiobook:generate",
+          "command": "prisma generate --schema=prisma/audiobook/schema.prisma",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:audiobook:migrate",
+          "command": "prisma migrate deploy --schema=prisma/audiobook/schema.prisma",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:audiobook:status",
+          "command": "prisma migrate status --schema=prisma/audiobook/schema.prisma",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:generate",
+          "command": "prisma generate && npm run db:audiobook:generate",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:migrate",
+          "command": "node --import tsx/esm src/db/migrate.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:migration:audit",
+          "command": "node scripts/audit-prisma-migration-readiness.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:push",
+          "command": "prisma db push",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "db:setup",
+          "command": "npm run db:generate && npm run db:migrate",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "deploy:validate",
+          "command": "node scripts/validate-deployment-contracts.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev",
+          "command": "concurrently --kill-others --names api,web,mcp \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:mcp\"",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:all",
+          "command": "npm run dev",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:api",
+          "command": "cross-env NODE_ENV=development tsx watch src/server/launcher.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:api:desktop",
+          "command": "cross-env NODE_ENV=development PORT=3002 tsx watch src/server/launcher.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:client",
+          "command": "vite",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:desktop",
+          "command": "tauri dev",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:desktop:services",
+          "command": "node scripts/dev-desktop.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:mcp",
+          "command": "npm --prefix mcp-server run start:http",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:server",
+          "command": "tsx watch src/server/launcher.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:tunnel",
+          "command": "concurrently \"npm run dev:api\" \"npm run tunnel\"",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:web",
+          "command": "vite",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev:web:desktop",
+          "command": "cross-env VITE_PORT=1422 VITE_API_BASE_URL=http://127.0.0.1:3002 vite",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "docker:build",
+          "command": "docker compose build --no-cache",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "docker:down",
+          "command": "docker compose down",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "docker:health",
+          "command": "docker compose exec -T api wget -q -O - http://127.0.0.1:3000/health",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "docker:logs",
+          "command": "docker compose logs -f",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "docker:ps",
+          "command": "docker compose ps",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "docker:up",
+          "command": "docker compose up --build --detach --wait",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "frontend:agent",
+          "command": "node scripts/frontend-platform-agent.mjs --audit",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "frontend:agent:dry-run",
+          "command": "node scripts/frontend-platform-agent.mjs --fix --dry-run",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "frontend:agent:fix",
+          "command": "node scripts/frontend-platform-agent.mjs --fix",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "frontend:validate",
+          "command": "npm run workflow:validate && npm run frontend:agent",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "ghostunnel:validate",
+          "command": "node scripts/validate-ghostunnel-contract.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "index:check",
+          "command": "node scripts/check-index-html.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "infra:down",
+          "command": "docker compose down",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "infra:logs",
+          "command": "docker compose logs -f",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "infra:up",
+          "command": "docker compose up -d",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "install:all",
+          "command": "npm ci --legacy-peer-deps && npm --prefix mcp-server ci && npm --prefix workflows-ryanai ci",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "jarvis:publish-stack",
+          "command": "node --import tsx/esm scripts/jarvis-sync.ts publish-stack",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "jarvis:status",
+          "command": "node --import tsx/esm scripts/jarvis-sync.ts status",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "jarvis:submit-patch",
+          "command": "node --import tsx/esm scripts/jarvis-sync.ts submit-patch",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "lint",
+          "command": "eslint . --max-warnings 0",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "mcp:check",
+          "command": "npm --prefix mcp-server run check",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "mcp:health",
+          "command": "node scripts/check-mcp-health.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "mcp:http",
+          "command": "npm --prefix mcp-server run start:http",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "mcp:start",
+          "command": "npm --prefix mcp-server start",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "mcp:system",
+          "command": "tsx src/mcp/runSystemServer.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "model-governance:validate",
+          "command": "node scripts/validate-model-governance.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "native:addon:build",
+          "command": "npm run build:cuda",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "native:build",
+          "command": "npm run build:cuda && npm run cmake:build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "native:configure",
+          "command": "npm run cmake:configure",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "native:local:build",
+          "command": "node scripts/cmake.mjs --build native/local-inference/build --config Release",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "native:local:configure",
+          "command": "node scripts/cmake.mjs -S native/local-inference -B native/local-inference/build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "orchestrate",
+          "command": "node scripts/orchestrate.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "platform:wiring:check",
+          "command": "node scripts/check-platform-wiring.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "prebuild",
+          "command": "npm run db:generate",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "prebuild:server",
+          "command": "npm run db:generate",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "pretypecheck",
+          "command": "npm run db:generate",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "preview",
+          "command": "vite preview --host",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "provider-verification:validate",
+          "command": "node scripts/validate-provider-verification.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "release",
+          "command": "powershell -ExecutionPolicy Bypass -File ./build-installer.ps1",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "rust:build",
+          "command": "cargo build --manifest-path src-tauri/Cargo.toml --all-targets",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "rust:check",
+          "command": "cargo check --manifest-path src-tauri/Cargo.toml",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "rust:fetch",
+          "command": "cargo fetch --manifest-path src-tauri/Cargo.toml",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "setup:cs-script",
+          "command": "node scripts/setup-cs-script.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "ship",
+          "command": "npm run validate && npm run docker:build",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "stack:validate",
+          "command": "node scripts/validate-stack-manifest.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "start",
+          "command": "node dist/server/server/launcher.js",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "start:dev",
+          "command": "tsx src/server/launcher.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "startup:verify",
+          "command": "node scripts/startup-verify.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "tauri",
+          "command": "tauri",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "telemetry:collect",
+          "command": "node --import tsx/esm --import=./src/telemetry.ts src/mcp/systemServer.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test",
+          "command": "node --test scripts/verify-node-ca.test.mjs && vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs --exclude scripts/genaicode-adapter.test.mjs --exclude scripts/container-sandbox-runner.test.mjs --exclude scripts/coding-task-queue.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox && npm run test:coding-queue && npm run test:benchmark:contracts && npm run test:server-assets",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:agent-notifications",
+          "command": "node --import tsx/esm scripts/test-agent-notifications.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:agent-operations",
+          "command": "vitest run src/agent/operationsCore.test.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:api-activation",
+          "command": "node --test scripts/activate-apis.node.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:benchmark:contracts",
+          "command": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-endpoint-policy.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs scripts/benchmark-genx-approval-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs && vitest run src/server/routes/pendingActions.auth.test.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:coding-queue",
+          "command": "node --test scripts/coding-task-queue.test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:comms-attachments:integration",
+          "command": "tsx scripts/test-comms-attachment-scanner.integration.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:comms-callback:integration",
+          "command": "RUN_COMMS_POSTGRES_INTEGRATION=true vitest run src/server/comms/index.postgres.integration.test.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:comms-orchestration",
+          "command": "python3 -m unittest discover -s comms-orchestration/tests -v",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:container-sandbox",
+          "command": "node --test scripts/container-sandbox-runner.test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:cs-script",
+          "command": "node --test scripts/check-cs-script.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:e2e",
+          "command": "tsx scripts/test-e2e-flow.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:genaicode",
+          "command": "node --test scripts/genaicode-adapter.test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:ghostunnel",
+          "command": "node --test scripts/validate-ghostunnel-contract.node-test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:integration",
+          "command": "tsx scripts/test-integration.ts --local",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:legacy-server-entrypoints",
+          "command": "node --test scripts/legacy-server-entrypoints.node-test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:migration:audit",
+          "command": "node --test scripts/audit-prisma-migration-readiness.node-test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:model-governance",
+          "command": "node --test scripts/validate-model-governance.node-test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:platform",
+          "command": "vitest run test",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:quant-engine",
+          "command": "python3 -m unittest discover -s quant-engine/tests -v",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:readiness-audits",
+          "command": "node --test scripts/readiness-audits.node-test.mjs scripts/validate-deployment-contracts.node-test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:repository-inventory",
+          "command": "node --test scripts/repository-inventory.test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:server-assets",
+          "command": "node --test scripts/copy-server-assets.node-test.mjs scripts/audiobook-prisma-boundary.node-test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:stack-validator",
+          "command": "node --test scripts/validate-stack-manifest.test.mjs",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "test:workflows",
+          "command": "node --import tsx --test workflows/analyze.node-test.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "tunnel",
+          "command": "tsx scripts/tunnel.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "typecheck",
+          "command": "tsc -p tsconfig.app.json --noEmit",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "typecheck:mobile-agent",
+          "command": "tsc -p tsconfig.mobile-agent.json",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "validate",
+          "command": "npm run model-governance:validate && npm run test:model-governance && npm run ghostunnel:validate && npm run test:ghostunnel && npm run index:check && npm run platform:wiring:check && npm run test:legacy-server-entrypoints && npm run typecheck && npm run typecheck:mobile-agent && npm run lint && npm run test && npm run test:repository-inventory && npm run test:cs-script && npm run test:api-activation && npm run test:workflows && npm run workflows:check && npm run test:stack-validator && npm run test:readiness-audits && npm run test:migration:audit && npm run deploy:validate && npm run stack:validate && npm run build && npm run build:server && npm run test:comms-orchestration",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "worker:audiobook",
+          "command": "tsx scripts/audiobook-render-worker.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "worker:coding",
+          "command": "tsx scripts/coding-task-worker.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "workflow:agent",
+          "command": "node scripts/github-workflow-agent.mjs --audit",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "workflow:agent:fix",
+          "command": "node scripts/github-workflow-agent.mjs --fix",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "workflow:validate",
+          "command": "node scripts/validate-github-workflows.mjs && npm run provider-verification:validate",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "workflows:check",
+          "command": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
+          "status": "NOT_EXECUTED"
+        }
+      ]
+    },
+    {
+      "path": "workflows-ryanai/package.json",
+      "name": "openai-agent-workflow",
+      "packageManager": null,
+      "nodeEngine": null,
+      "scripts": [
+        {
+          "name": "build",
+          "command": "tsc",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "dev",
+          "command": "tsx src/main.ts",
+          "status": "NOT_EXECUTED"
+        },
+        {
+          "name": "start",
+          "command": "node dist/main.js",
+          "status": "NOT_EXECUTED"
+        }
+      ]
+    }
+  ],
+  "packageScriptCount": 138,
+  "workflows": [
+    {
+      "path": ".github/workflows/agent-regression.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/ai-inspector-audit.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/apisec-scan.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/aws.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/azure-kubernetes-service-kustomize.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/benchmark-contracts.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/benchmark-gate-evidence.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/build.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/c-cpp.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/ci-cd.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/codacy.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/codeql.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/config.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/container-security.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/database.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/datadog-synthetics.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/dependency-review.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/deploy-railway.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/deploy-render.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/deploy-vercel.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/deploy.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/desktop-build.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/docker-build.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/docker-publish.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/docker.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/docs.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/enforce-main-protection.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/fortify.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/frontend-platform-maintainer.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/generator-generic-ossf-slsa3-publish.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/github-workflow-maintainer.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/google.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/greetings.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/guarded-render-api-source-repair.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/jarvis-staging-smoke.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/main.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/migrate-production.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/native-engine.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/performance.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/preview.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/prisma-pgvector-upgrade.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/provider-verification.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/python-package-conda.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/realtime-voice-live.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/render-blueprint-validation.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/ryanai-30m-health-monitor.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/sbom.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/secret-scan.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/security.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/smoke-test.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/stale.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/summary.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/triage.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/update-patch-log.yml",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": ".github/workflows/vercel-deploy.yml",
+      "status": "NOT_EXECUTED"
+    }
+  ],
+  "repositoryScriptPaths": [
+    {
+      "path": "scripts/activate-apis.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/activate-apis.node.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/ai-inspector-audit.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/audiobook-prisma-boundary.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/audiobook-render-worker.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/audit-agent-readiness.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/audit-deployment-readiness.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/audit-prisma-migration-readiness.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/audit-prisma-migration-readiness.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/backup-on-startup.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/backup-production-db.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-api.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-contracts.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-economics-contract.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-endpoint-policy.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-endpoint-policy.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-evidence-bundle.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-evidence-contracts.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-gate-contracts.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-genx-approval-contract.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-genx-approval-contract.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-genx-policy-contract.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-genx-policy-contract.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-isolation-container.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-isolation-container.sh",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-isolation-evidence.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-isolation-evidence.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-isolation.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/benchmark-scoring-contract.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/build-api.js",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/check-cs-script.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/check-index-html.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/check-mcp-health.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/check-platform-wiring.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/check-python-core.py",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/check-websocket.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/cmake.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/coding-task-queue.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/coding-task-worker.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/container-sandbox-runner.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/copy-server-assets.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/copy-server-assets.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/dev-all.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/dev-desktop.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/dev-local.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/docker-web-mirror.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/frontend-platform-agent.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/genaicode-adapter.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/github-workflow-agent.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/health-config.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/jarvis-sync.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/legacy-server-entrypoints.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/orchestrate.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/orchestrate.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/provider-live-probe.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/readiness-audits.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/recover-workspace-patch.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/redis-probe.d.mts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/redis-probe.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/redis-probe.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/repository-inventory.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/repository-inventory.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/ryan_benchmark.py",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/ryan_cli.py",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/ryan_master_boot.py",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/ryan_status.py",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/setup-cs-script.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/src/agent/tools/csScriptTool.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/startup-verify.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/startup-verify.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-agent-notifications.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-agent-queue.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-comms-attachment-scanner.integration.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-e2e-flow.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-integration.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-legacy-pgvector-upgrade.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-realtime-voice-live.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-signin.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/test-startup-resilience.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/tunnel.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/update-patch-log.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-benchmark-gate-evidence.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-benchmark-gate-evidence.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-deployment-contracts.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-deployment-contracts.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-ghostunnel-contract.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-ghostunnel-contract.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-github-workflows.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-model-governance.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-model-governance.node-test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-provider-verification.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-stack-manifest.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/validate-stack-manifest.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/verify-benchmark-dataset.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/verify-benchmark-provenance.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/verify-env.ts",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/verify-node-ca.sh",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/verify-node-ca.test.mjs",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "path": "scripts/wait-for-regression-services.mjs",
+      "status": "NOT_EXECUTED"
+    }
+  ],
+  "notes": [
+    "Inventory generated from the GitHub main tree and package manifests at sourceCommit; no repository commands were executed.",
+    "NOT_EXECUTED is inventory state, not a pass or failure.",
+    "Workflow paths are present in source; runtime completion must be checked against exact-head Actions results.",
+    "No environment variable values or secrets were read."
+  ]
+}
