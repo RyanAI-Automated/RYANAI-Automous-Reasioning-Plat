@@ -11,17 +11,20 @@ const TRACEPARENT_PATTERN = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/i;
 export function normalizePersistedTraceContext(value: unknown): PersistedTraceContext | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const input = value as Record<string, unknown>;
-  const traceparent = typeof input.traceparent === 'string' && TRACEPARENT_PATTERN.test(input.traceparent)
-    ? input.traceparent
+  const candidate = typeof input.traceparent === 'string' ? input.traceparent : undefined;
+  const traceParts = candidate && TRACEPARENT_PATTERN.test(candidate) ? candidate.split('-') : [];
+  const traceparent = traceParts.length === 4
+    && !/^0+$/.test(traceParts[1])
+    && !/^0+$/.test(traceParts[2])
+    ? candidate
     : undefined;
   const tracestate = typeof input.tracestate === 'string'
     && input.tracestate.length <= 512
     && /^[\x20-\x7e]*$/.test(input.tracestate)
     ? input.tracestate
     : undefined;
-  return traceparent || tracestate
-    ? { ...(traceparent ? { traceparent } : {}), ...(tracestate ? { tracestate } : {}) }
-    : null;
+  if (!traceparent) return null;
+  return { traceparent, ...(tracestate ? { tracestate } : {}) };
 }
 
 /** Capture active trace context for a durable job; never persist baggage. */
