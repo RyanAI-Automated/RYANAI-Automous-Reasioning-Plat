@@ -150,8 +150,11 @@ const commsPage = readText('src/components/CommunicationsCenter.tsx');
 if (!commsPage.includes('Search messages or addresses') || !commsPage.includes('channelFilter')) {
   fail('Comms inbox must expose message search and channel filtering');
 }
-if (!commsPage.includes('Secure attachments are currently unavailable.') || !commsPage.includes('Security scanning is still pending') || !commsPage.includes('attachment.status !== \'clean\'')) {
-  fail('Comms must expose scan-gated attachment upload and clean-only downloads without bypassing storage controls');
+if (!commsPage.includes('Private Comms attachments')
+  || !commsPage.includes('getCommsAttachmentStatuses')
+  || !commsPage.includes("item.status !== 'clean'")
+  || !commsPage.includes("attachment.status === 'clean'")) {
+  fail('Comms must retain private attachment upload, scan-gated dispatch, and clean-only downloads');
 }
 const audiobookPage = readText('src/pages/AudiobookStudio.tsx');
 const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
