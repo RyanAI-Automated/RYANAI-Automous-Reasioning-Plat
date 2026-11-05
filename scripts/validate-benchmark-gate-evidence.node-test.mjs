@@ -70,3 +70,17 @@ test('rejects any attempt to record model invocation during this phase', () => {
   bundle.model_invocations = 1;
   assert.ok(validateBenchmarkGateEvidence(bundle).some((error) => error.includes('model_invocations must be zero')));
 });
+
+test('accepts a PASS only with hashed evidence and independent attestation', () => {
+  const bundle = validBundle();
+  bundle.ollama_loopback_only = true;
+  bundle.gates[0] = {
+    ...bundle.gates[0],
+    verdict: 'PASS',
+    owner: 'security-reviewer',
+    evidence: [{ path: 'evidence/isolation.json', sha256: 'b'.repeat(64) }],
+    independent_attestation: true,
+    attested_at: '2026-11-05T00:01:00.000Z',
+  };
+  assert.deepEqual(validateBenchmarkGateEvidence(bundle), []);
+});
