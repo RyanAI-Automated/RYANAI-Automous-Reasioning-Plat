@@ -32,6 +32,22 @@ test('API image uses system CAs without disabling TLS verification', async () =>
   }
 });
 
+test('one-shot migration image uses the verified Supabase CA and fails closed on missing trust', async () => {
+  const rootDockerfile = await readFile(path.join(repositoryRoot, 'Dockerfile'), 'utf8');
+  const start = rootDockerfile.indexOf('FROM api-deps AS migrate\n');
+  assert.notEqual(start, -1, 'migration build stage must exist');
+  const remainder = rootDockerfile.slice(start);
+  const nextStage = remainder.indexOf('\nFROM ', 'FROM api-deps AS migrate\n'.length);
+  const stage = nextStage === -1 ? remainder : remainder.slice(0, nextStage);
+  assert.match(stage, /NODE_USE_SYSTEM_CA=1/);
+  assert.match(stage, /NODE_EXTRA_CA_CERTS=\/usr\/local\/share\/ca-certificates\/supabase-prod-ca-2021\.crt/);
+  assert.match(stage, /SUPABASE_SSL_ROOT_CERT_PATH=\/usr\/local\/share\/ca-certificates\/supabase-prod-ca-2021\.crt/);
+  assert.match(stage, /COPY certs\/supabase\/prod-ca-2021\.crt/);
+  assert.match(stage, /scripts\/verify-node-ca\.sh/);
+  assert.match(stage, /--import tsx\/esm src\/db\/migrate\.ts/);
+  assert.doesNotMatch(stage, /NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0/);
+});
+
 test('startup continues when no additional CA bundle is configured', {
   skip: process.platform === 'win32' ? 'The container entrypoint is exercised in Linux CI/WSL.' : false,
 }, () => {
