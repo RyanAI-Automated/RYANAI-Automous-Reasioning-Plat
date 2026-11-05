@@ -931,12 +931,13 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             );
           }
           const orders = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-            "INSERT INTO quant_paper_orders (user_id, client_order_id, symbol, side, quantity, reference_price, fill_price, fee, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'filled', NOW()) RETURNING id",
+            "INSERT INTO quant_paper_orders (user_id, client_order_id, symbol, side, quantity, reference_price, fill_price, fee, status, filled_quantity, remaining_quantity, average_fill_price, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'filled', $5, 0, $6, NOW(), NOW()) RETURNING id",
             userId, request.body.client_order_id, symbol, request.body.side, quantity, price, fee,
           );
           await tx.$executeRawUnsafe(
-            'INSERT INTO quant_paper_trades (order_id, user_id, symbol, side, quantity, price, fee, realized_pnl, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
-            orders[0].id, userId, symbol, request.body.side, quantity, price, fee, request.body.side === 'sell' ? realizedPnl : null,
+            'INSERT INTO quant_paper_trades (order_id, user_id, symbol, side, quantity, price, fee, realized_pnl, client_fill_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())',
+            orders[0].id, userId, symbol, request.body.side, quantity, price, fee,
+            request.body.side === 'sell' ? realizedPnl : null, `paper:${request.body.client_order_id}`,
           );
           await tx.$executeRawUnsafe(
             `UPDATE quant_paper_daily_risk_state
