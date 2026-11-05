@@ -207,13 +207,25 @@ test('Render API repair runs inside core CI, waits for security, and never deplo
 });
 
 
-test('Render production deployment requires the API credential, not a stale deploy hook', () => {
-  const missing = auditDeploymentTargets({ RENDER_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Render');
+test('Render staging is blocked until a separate isolated staging service is configured', () => {
+  const missing = auditDeploymentTargets({ RENDER_STAGING_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Render');
   assert.equal(missing.status, 'BLOCKED');
-  assert.deepEqual(missing.missing, ['RENDER_API_KEY']);
-  const ready = auditDeploymentTargets({ RENDER_DEPLOY_ENABLED: 'true', RENDER_API_KEY: 'present-for-test-only' }).find((target) => target.name === 'Render');
+  assert.deepEqual(missing.missing, ['RENDER_API_KEY', 'RENDER_STAGING_SERVICE_ID', 'RENDER_STAGING_API_URL', 'RENDER_STAGING_ISOLATION_CONFIRMED']);
+  const ready = auditDeploymentTargets({
+    RENDER_STAGING_DEPLOY_ENABLED: 'true',
+    RENDER_API_KEY: 'test-only',
+    RENDER_STAGING_SERVICE_ID: 'staging-service-id',
+    RENDER_STAGING_API_URL: 'https://staging.example.test',
+    RENDER_STAGING_ISOLATION_CONFIRMED: 'true',
+  }).find((target) => target.name === 'Render');
   assert.equal(ready.status, 'READY');
   assert.equal(ready.deploymentAttempted, false);
+});
+
+test('Railway staging is blocked until an isolated project and environment are configured', () => {
+  const missing = auditDeploymentTargets({ RAILWAY_STAGING_DEPLOY_ENABLED: 'true' }).find((target) => target.name === 'Railway');
+  assert.equal(missing.status, 'BLOCKED');
+  assert.deepEqual(missing.missing, ['RAILWAY_STAGING_TOKEN', 'RAILWAY_STAGING_PROJECT_ID', 'RAILWAY_STAGING_SERVICE_ID', 'RAILWAY_STAGING_ENVIRONMENT_ID', 'RAILWAY_STAGING_ISOLATION_CONFIRMED']);
 });
 
 
