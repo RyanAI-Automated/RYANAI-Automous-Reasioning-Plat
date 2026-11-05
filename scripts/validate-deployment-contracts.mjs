@@ -30,6 +30,7 @@ const checks = [
   ['Render Blueprint uses top-level services declaration', Array.isArray(renderConfig.services)],
   ['Render Blueprint has exactly the three expected unique resources', renderServices.length === 3 && expectedRenderServiceNames.every((name) => renderServiceNames.includes(name)) && new Set(renderServiceNames).size === 3],
   ['Render API and frontend environment variable keys are unique', hasUniqueEnvKeys(renderApi) && hasUniqueEnvKeys(renderWeb)],
+  ['Render pooler host is supplied explicitly instead of inferred from project region', renderApi?.envVars?.some((item) => item.key === 'SUPABASE_SESSION_POOLER_HOST' && item.sync === false) && !render.includes('aws-1-eu-west-1.pooler.supabase.com')],
   ['Render services use canonical repository and main branch', renderApi?.repo === 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat' && renderWeb?.repo === renderApi?.repo && renderApi?.branch === 'main' && renderWeb?.branch === 'main'],
   ['Render API uses root context and Dockerfile.api', renderApi?.rootDir === '.' && renderApi?.dockerContext === '.' && renderApi?.dockerfilePath === './Dockerfile.api'],
   ['Render API clears Docker command override', renderApi?.dockerCommand === ''],
