@@ -162,7 +162,7 @@ describe('Quant market-data and signal routes', () => {
     const app = await appForUser();
     const response = await app.inject({ method: 'GET', url: '/api/quant/market-data/imports' });
     expect(response.statusCode).toBe(200);
-    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE s.user_id = $1'), userId);
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE user_id = $1'), userId);
     await app.close();
   });
 
@@ -238,7 +238,7 @@ describe('Quant market-data and signal routes', () => {
     const response = await app.inject({ method: 'GET', url: '/api/quant/strategy-signals' });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ signals: [{ id: 'signal-owned-a' }], executionEnabled: false });
-    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE user_id = $1'), userId);
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('WHERE s.user_id = $1'), userId);
     await app.close();
   });
 });
