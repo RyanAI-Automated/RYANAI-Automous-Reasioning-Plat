@@ -8,6 +8,7 @@ on:
       - '.env.example'
       - 'docs/CLOUDFLARE_MCP_INTEGRATION.md'
       - 'tests/mcpjungle/**'
+      - 'scripts/docker-init/**'
       - '.github/workflows/docker-build.yml'
   pull_request:
     branches: [main, master]
@@ -29,6 +30,7 @@ on:
       - 'scripts/copy-server-assets.mjs'
       - 'mcp-server/**'
       - 'tests/mcpjungle/**'
+      - 'scripts/docker-init/**'
       - '.github/workflows/docker-build.yml'
   workflow_dispatch:
 
