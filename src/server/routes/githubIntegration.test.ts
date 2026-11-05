@@ -7,6 +7,7 @@ import {
   GITHUB_APP_REPOSITORY,
 } from '../githubAppOAuth.js';
 import { githubIntegrationRoutes } from './githubIntegration.js';
+import { installAuthentication } from './auth.js';
 
 const store = vi.hoisted(() => ({
   state: { create: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn() },
@@ -56,6 +57,7 @@ async function createApp() {
       request.authUser = { id: userId, email: 'owner@example.test', role: 'user', isOwner: false };
     }
   });
+  installAuthentication(app);
   await app.register(githubIntegrationRoutes);
   await app.ready();
   return app;
@@ -86,6 +88,28 @@ afterEach(async () => {
 });
 
 describe('GitHub App in-app authorization lifecycle', () => {
+  it('requires a verified RyanAI session to start or inspect a connection', async () => {
+    const app = await createApp();
+    const connect = await app.inject({ method: 'GET', url: '/api/github/connect' });
+    const status = await app.inject({ method: 'GET', url: '/api/github/status' });
+    expect(connect.statusCode).toBe(401);
+    expect(status.statusCode).toBe(401);
+    expect(store.state.create).not.toHaveBeenCalled();
+    expect(store.connection.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('allows the public callback to reach one-time state validation without an application session', async () => {
+    const app = await createApp();
+    const callback = await app.inject({
+      method: 'GET',
+      url: '/api/github/callback?code=synthetic-code&state=unknown-state',
+    });
+    expect(callback.statusCode).toBe(400);
+    expect(callback.json().error).toContain('state is expired or invalid');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(store.connection.upsert).not.toHaveBeenCalled();
+  });
+
   it('fails closed when the GitHub App is not registered or its encryption key is missing', async () => {
     vi.stubEnv('GITHUB_APP_CLIENT_SECRET', '');
     const app = await createApp();
