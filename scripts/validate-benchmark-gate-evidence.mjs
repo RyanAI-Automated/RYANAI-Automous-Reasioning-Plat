@@ -55,8 +55,8 @@ export function validateBenchmarkGateEvidence(bundle) {
       require(isIsoDate(gate.attested_at), `${id}: PASS requires an attested_at timestamp`);
     }
     for (const artifact of Array.isArray(gate.evidence) ? gate.evidence : []) {
-      require(typeof artifact.path === 'string' && artifact.path.length > 0, `${id}: evidence artifact path is required`);
-      require(isSha256(artifact.sha256), `${id}: evidence artifact SHA-256 must be 64 lowercase hex characters`);
+      require(typeof artifact?.path === 'string' && artifact.path.length > 0, `${id}: evidence artifact path is required`);
+      require(isSha256(artifact?.sha256), `${id}: evidence artifact SHA-256 must be 64 lowercase hex characters`);
     }
   }
 
