@@ -9,6 +9,7 @@ import {
   Mail,
   Orbit,
   LogIn,
+  LogOut,
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
@@ -108,13 +109,13 @@ const routeFromHash = (): Route => {
                 title="Sign out"
                 className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-50"
               >
-                <LogIn className="h-4 w-4 rotate-180" />
+                <LogOut className="h-4 w-4" />
               </button>
             </div>
           ) : (
             <p className="px-2 py-2 text-[11px] text-slate-600">Secure sign-in required for operator tools.</p>
           )}
-          <p className="mt-3 px-2 text-[9px] font-mono uppercase tracking-[0.14em] text-slate-700">RyanAI · {APP_ENV.toUpperCase()}</p>
+          <p className="mt-3 px-2 text-[9px] font-mono uppercase tracking-[0.14em] text-slate-700">RyanAI · {import.meta.env.MODE.toUpperCase()}</p>
         </div>
       </aside>
 
