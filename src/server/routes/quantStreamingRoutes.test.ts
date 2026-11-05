@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeQuantStreamRequest } from './quantStreamingRoutes.js';
+import { marketBarPayloadHash, normalizeQuantStreamRequest } from './quantStreamingRoutes.js';
 
 describe('normalizeQuantStreamRequest', () => {
   it('normalizes symbols and defaults to IEX', () => {
@@ -17,7 +17,6 @@ describe('normalizeQuantStreamRequest', () => {
   });
 });
 
-import { marketBarPayloadHash } from './quantStreamingRoutes.js';
 
 describe('marketBarPayloadHash', () => {
   const bar = {
