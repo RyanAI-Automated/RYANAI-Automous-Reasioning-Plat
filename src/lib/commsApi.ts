@@ -106,6 +106,28 @@ export async function getCommsAttachmentDownloadUrl(id: string): Promise<string>
   return body.url;
 }
 
+export type CommsAssistOperation = 'summarize' | 'draft' | 'translate' | 'extract_tasks';
+
+export interface CommsAssistResult {
+  operation: CommsAssistOperation;
+  output: string;
+  sourceMessageCount: number;
+}
+
+export async function assistCommsConversation(input: {
+  operation: CommsAssistOperation;
+  conversationId: string;
+  language?: string;
+  instruction?: string;
+}): Promise<CommsAssistResult> {
+  const response = await authenticatedFetch('/api/comms/assist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return readJson<CommsAssistResult>(response);
+}
+
 export async function sendCommsMessage(input: {
   channel: CommsChannel;
   recipient?: string;

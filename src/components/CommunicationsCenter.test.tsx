@@ -7,7 +7,7 @@ import CommunicationsCenter from './CommunicationsCenter';
 const comms = vi.hoisted(() => ({
   getCommsStatus: vi.fn(),
   getCommsConversations: vi.fn(),
-  sendCommsMessage: vi.fn(),
+  sendCommsMessage: vi.fn(),\n  assistCommsConversation: vi.fn(),
   prepareCommsAttachments: vi.fn(),
   uploadCommsAttachment: vi.fn(),
   getCommsAttachmentStatuses: vi.fn(),
@@ -74,7 +74,7 @@ beforeEach(() => {
   comms.uploadCommsAttachment.mockResolvedValue(undefined);
   comms.getCommsAttachmentStatuses.mockResolvedValue([]);
   comms.getCommsAttachmentDownloadUrl.mockResolvedValue('https://storage.example.test/download');
-  comms.sendCommsMessage.mockResolvedValue({
+  comms.assistCommsConversation.mockResolvedValue({ operation: 'summarize', output: 'Summary: delivery window remains open.', sourceMessageCount: 1 });\n  comms.sendCommsMessage.mockResolvedValue({
     success: true,
     channel: 'whatsapp',
     providerId: 'provider-message',
@@ -171,6 +171,20 @@ describe('RyanAI Comms inbox controls', () => {
     expect(approve).toBeTruthy();
     await act(async () => approve?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(comms.sendCommsMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs owner-scoped conversation intelligence without dispatching a message', async () => {
+    await render();
+    const summarize = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Summarize'));
+    expect(summarize).toBeTruthy();
+    await act(async () => summarize?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(comms.assistCommsConversation).toHaveBeenCalledWith({
+      operation: 'summarize',
+      conversationId: 'conversation-whatsapp',
+      language: undefined,
+    });
+    expect(container.textContent).toContain('Summary: delivery window remains open.');
+    expect(comms.sendCommsMessage).not.toHaveBeenCalled();
   });
 
   it('disables attachment selection when the server reports the private-storage or scanner gate is off', async () => {
