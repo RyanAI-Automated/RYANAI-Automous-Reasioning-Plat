@@ -1,75 +1,20 @@
 {
   "defaultRoute": "landing",
   "routes": [
-    {
-      "id": "landing",
-      "label": "Home",
-      "path": "/"
-    },
-    {
-      "id": "dashboard",
-      "label": "Dashboard",
-      "path": "/dashboard"
-    },
-    {
-      "id": "settings",
-      "label": "Settings",
-      "path": "/settings"
-    },
-    {
-      "id": "operator",
-      "label": "Operator",
-      "path": "/operator"
-    },
-    {
-      "id": "operations",
-      "label": "Operations",
-      "path": "/operations"
-    },
-    {
-      "id": "admin",
-      "label": "Admin",
-      "path": "/admin"
-    },
-    {
-      "id": "quant",
-      "label": "Quant Lab",
-      "path": "/quant"
-    },
-    {
-      "id": "trading",
-      "label": "Trading",
-      "path": "/trading"
-    },
-    {
-      "id": "cockpit",
-      "label": "Cockpit",
-      "path": "/cockpit"
-    },
-    {
-      "id": "comms",
-      "label": "Comms",
-      "path": "/comms"
-    },
-    {
-      "id": "audiobook",
-      "label": "Audiobooks",
-      "path": "/audiobook"
-    },
-    {
-      "id": "workspace",
-      "label": "Workspace",
-      "path": "/workspace"
-    },
-    {
-      "id": "signin",
-      "label": "Sign in",
-      "path": "/signin"
-    },
-    {
-      "id": "signup",
-      "label": "Sign up",
-      "path": "/signup"
-    }
+    { "id": "landing", "label": "Home", "path": "/" },
+    { "id": "dashboard", "label": "Dashboard", "path": "/dashboard" },
+    { "id": "settings", "label": "Settings", "path": "/settings" },
+    { "id": "operator", "label": "Operator", "path": "/operator" },
+    { "id": "operations", "label": "Operations", "path": "/operations" },
+    { "id": "admin", "label": "Admin", "path": "/admin" },
+    { "id": "quant", "label": "Quant Lab", "path": "/quant" },
+    { "id": "trading", "label": "Trading", "path": "/trading" },
+    { "id": "cockpit", "label": "Cockpit", "path": "/cockpit" },
+    { "id": "studio", "label": "RyanAI Studio", "path": "/studio" },
+    { "id": "comms", "label": "Comms", "path": "/comms" },
+    { "id": "audiobook", "label": "Audiobooks", "path": "/audiobook" },
+    { "id": "workspace", "label": "Workspace", "path": "/workspace" },
+    { "id": "signin", "label": "Sign in", "path": "/signin" },
+    { "id": "signup", "label": "Sign up", "path": "/signup" }
   ]
 }
