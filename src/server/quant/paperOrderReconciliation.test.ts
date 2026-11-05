@@ -69,6 +69,32 @@ describe('paper order fill reconciliation', () => {
     expect(result.discrepancyReasons).toContain('filled_status_without_full_quantity');
   });
 
+
+  it('supports accepted and partial-fill lifecycle states without false full-fill claims', () => {
+    const accepted = reconcilePaperOrder(snapshot({
+      status: 'accepted',
+      storedFilledQuantity: 0,
+      storedRemainingQuantity: 10,
+      storedAverageFillPrice: null,
+      storedFee: 0,
+      fills: [],
+    }));
+    expect(accepted.consistent).toBe(true);
+    expect(accepted.remainingQuantity).toBe(10);
+
+    const partial = reconcilePaperOrder(snapshot({
+      status: 'partially_filled',
+      storedFilledQuantity: 5,
+      storedRemainingQuantity: 5,
+      storedAverageFillPrice: 100,
+      storedFillPrice: 100,
+      storedFee: 0.25,
+      fills: [{ id: 'fill-1', clientFillId: 'partial-1', quantity: 5, price: 100, fee: 0.25 }],
+    }));
+    expect(partial.consistent).toBe(true);
+    expect(partial.remainingQuantity).toBe(5);
+  });
+
   it('rejects non-finite or negative ledger values', () => {
     expect(() => reconcilePaperOrder(snapshot({
       fills: [{ id: 'fill-1', clientFillId: 'x', quantity: -1, price: 100, fee: 0 }],
