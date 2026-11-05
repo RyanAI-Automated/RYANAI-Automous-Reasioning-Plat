@@ -111,6 +111,7 @@ test('provenance validator checks lock, prompt, config hashes and immutable iden
   try {
     const files = {
       'package-lock.json': '{"lockfileVersion":3}',
+      'dataset-manifest.json': '{"schemaVersion":"1.0.0"}',
       'prompt.txt': 'Synthetic benchmark prompt.',
       'config.json': '{"temperature":0,"maxOutputTokens":128}'
     };
@@ -120,7 +121,10 @@ test('provenance validator checks lock, prompt, config hashes and immutable iden
     const manifest = {
       schemaVersion: '1.0.0', modelInvocation: false,
       harnessCommit: 'a'.repeat(40),
-      dataset: { manifestSha256: 'b'.repeat(64) },
+      dataset: {
+        manifestPath: 'dataset-manifest.json',
+        manifestSha256: hash(files['dataset-manifest.json'])
+      },
       runtimeLock: {
         path: 'package-lock.json', sha256: hash(files['package-lock.json'])
       },
@@ -147,6 +151,7 @@ test('provenance validator rejects mutable aliases and secret-bearing config', a
   try {
     const files = {
       'package-lock.json': 'lock',
+      'dataset-manifest.json': 'synthetic-dataset-manifest',
       'prompt.txt': 'prompt',
       'config.json': '{"api_key":"do-not-use-real-secrets"}'
     };
@@ -156,7 +161,10 @@ test('provenance validator rejects mutable aliases and secret-bearing config', a
     const manifest = {
       schemaVersion: '1.0.0', modelInvocation: false,
       harnessCommit: 'a'.repeat(40),
-      dataset: { manifestSha256: 'b'.repeat(64) },
+      dataset: {
+        manifestPath: 'dataset-manifest.json',
+        manifestSha256: hash(files['dataset-manifest.json'])
+      },
       runtimeLock: { path: 'package-lock.json', sha256: hash('lock') },
       candidates: [{
         id: 'fixture', provider: 'fixture', model: 'latest',
@@ -251,7 +259,10 @@ test('provenance validator rejects secret-bearing non-secret config', async () =
     const manifest = {
       schemaVersion: '1.0.0', modelInvocation: false,
       harnessCommit: 'a'.repeat(40),
-      dataset: { manifestSha256: 'b'.repeat(64) },
+      dataset: {
+        manifestPath: 'dataset-manifest.json',
+        manifestSha256: hash(files['dataset-manifest.json'])
+      },
       runtimeLock: { path: 'package-lock.json', sha256: hash('lock') },
       candidates: [{
         id: 'fixture', provider: 'fixture', model: 'fixture-model-v1',
@@ -271,5 +282,73 @@ test('provenance validator rejects secret-bearing non-secret config', async () =
     );
   } finally {
     await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('provenance validator rejects a tampered dataset manifest hash', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-dataset-hash-'));
+  try {
+    const files = {
+      'package-lock.json': 'lock',
+      'dataset-manifest.json': 'actual-dataset-manifest',
+      'prompt.txt': 'prompt',
+      'config.json': '{"temperature":0}'
+    };
+    for (const [name, value] of Object.entries(files)) await writeFile(path.join(temp, name), value);
+    const manifest = {
+      schemaVersion: '1.0.0', modelInvocation: false,
+      harnessCommit: 'a'.repeat(40),
+      dataset: { manifestPath: 'dataset-manifest.json', manifestSha256: 'b'.repeat(64) },
+      runtimeLock: { path: 'package-lock.json', sha256: hash('lock') },
+      candidates: [{
+        id: 'fixture', provider: 'fixture', model: 'fixture-v1',
+        immutableRevision: 'sha256:' + 'c'.repeat(64), revisionKind: 'digest',
+        runtimeVersion: 'fixture-runtime-1',
+        promptTemplate: { path: 'prompt.txt', sha256: hash('prompt') },
+        nonSecretConfig: { path: 'config.json', sha256: hash(files['config.json']) }
+      }]
+    };
+    const manifestPath = path.join(temp, 'run-manifest.json');
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await assert.rejects(
+      verifyBenchmarkProvenance(manifestPath, temp),
+      /Provenance SHA-256 mismatch: dataset-manifest.json/
+    );
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('provenance validator rejects nested symlink escape', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-symlink-'));
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-outside-'));
+  try {
+    await mkdir(path.join(temp, 'linked'));
+    await writeFile(path.join(outside, 'prompt.txt'), 'prompt');
+    await writeFile(path.join(temp, 'package-lock.json'), 'lock');
+    await writeFile(path.join(temp, 'dataset-manifest.json'), 'dataset');
+    await writeFile(path.join(temp, 'config.json'), '{"temperature":0}');
+    await writeFile(path.join(temp, 'run-manifest.json'), JSON.stringify({
+      schemaVersion: '1.0.0', modelInvocation: false,
+      harnessCommit: 'a'.repeat(40),
+      dataset: { manifestPath: 'dataset-manifest.json', manifestSha256: hash('dataset') },
+      runtimeLock: { path: 'package-lock.json', sha256: hash('lock') },
+      candidates: [{
+        id: 'fixture', provider: 'fixture', model: 'fixture-v1',
+        immutableRevision: 'sha256:' + 'c'.repeat(64), revisionKind: 'digest',
+        runtimeVersion: 'fixture-runtime-1',
+        promptTemplate: { path: 'linked/prompt.txt', sha256: hash('prompt') },
+        nonSecretConfig: { path: 'config.json', sha256: hash('{"temperature":0}') }
+      }]
+    }));
+    const { symlink } = await import('node:fs/promises');
+    await symlink(outside, path.join(temp, 'linked'), 'dir');
+    await assert.rejects(
+      verifyBenchmarkProvenance(path.join(temp, 'run-manifest.json'), temp),
+      /Provenance symlinks are forbidden/
+    );
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   }
 });
