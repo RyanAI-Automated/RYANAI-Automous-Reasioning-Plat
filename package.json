@@ -117,6 +117,7 @@
     "audit:agents": "node scripts/audit-agent-readiness.mjs",
     "test:readiness-audits": "node --test scripts/readiness-audits.node-test.mjs scripts/validate-deployment-contracts.node-test.mjs",
     "test:agent-operations": "vitest run src/agent/operationsCore.test.ts",
+    "test:agent-notifications": "node --import tsx/esm scripts/test-agent-notifications.mjs",
     "provider-verification:validate": "node scripts/validate-provider-verification.mjs",
     "model-governance:validate": "node scripts/validate-model-governance.mjs",
     "test:model-governance": "node --test scripts/validate-model-governance.node-test.mjs",
