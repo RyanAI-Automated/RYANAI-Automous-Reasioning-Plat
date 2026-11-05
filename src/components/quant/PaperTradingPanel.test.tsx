@@ -14,12 +14,14 @@ let container: HTMLDivElement;
 let root: Root;
 let emergencyStop = false;
 let proposalRecords: Array<Record<string, unknown>> = [];
+let proposalEndpointAvailable = true;
 
 beforeEach(() => {
   vi.clearAllMocks();
   emergencyStop = false;
   proposalRecords = [];
-  api.fetch.mockImplementation(async (url: string) => {
+  proposalEndpointAvailable = true;
+  api.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
     if (url === '/api/quant/paper') {
       return new Response(JSON.stringify({
         mode: 'paper_simulation_only',
@@ -72,6 +74,11 @@ beforeEach(() => {
       return new Response(JSON.stringify({ emergencyStop: false, tradingEnabled: false }), { status: 200 });
     }
     if (url === '/api/quant/paper/proposals') {
+      if (!proposalEndpointAvailable) {
+        return new Response(JSON.stringify({
+          error: 'The proposal migration is not installed.',
+        }), { status: 503 });
+      }
       if (init?.method === 'POST') {
         const proposal = {
           id: 'proposal-1',
@@ -94,7 +101,9 @@ beforeEach(() => {
       return new Response(JSON.stringify({ proposals: proposalRecords, executionEnabled: false }), { status: 200 });
     }
     if (url === '/api/quant/paper/proposals/proposal-1/confirm' && init?.method === 'POST') {
-      proposalRecords = proposalRecords.map((item) => ({ ...item, status: 'confirmed', orderId: 'paper-order-proposal-1' }));
+      proposalRecords = proposalRecords.map((item) => ({
+        ...item, status: 'confirmed', orderId: 'paper-order-proposal-1',
+      }));
       return new Response(JSON.stringify({
         proposalId: 'proposal-1',
         status: 'confirmed',
@@ -104,7 +113,9 @@ beforeEach(() => {
       }), { status: 201 });
     }
     if (url === '/api/quant/paper/proposals/proposal-1/reject' && init?.method === 'POST') {
-      proposalRecords = proposalRecords.map((item) => ({ ...item, status: 'rejected', reason: 'rejected_by_user' }));
+      proposalRecords = proposalRecords.map((item) => ({
+        ...item, status: 'rejected', reason: 'rejected_by_user',
+      }));
       return new Response(JSON.stringify({ proposalId: 'proposal-1', status: 'rejected' }), { status: 200 });
     }
     if (url === '/api/quant/strategy-signals') {
@@ -152,6 +163,16 @@ describe('paper trading performance summary', () => {
     }));
   });
 
+  it('keeps the existing paper terminal usable while the proposal migration is unavailable', async () => {
+    proposalEndpointAvailable = false;
+    await act(async () => root.render(<PaperTradingPanel />));
+    await vi.waitFor(() => expect(container.textContent).toContain('Proposal workflow unavailable'));
+    expect(container.textContent).toContain('Paper Trading Terminal');
+    expect(container.textContent).toContain('Recorded performance');
+    expect(container.textContent).toContain('Virtual equity');
+    expect(container.textContent).toContain('The proposal migration is not installed.');
+  });
+
   it('creates, reviews and explicitly confirms a strategy-driven paper proposal', async () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
     await act(async () => root.render(<PaperTradingPanel />));
@@ -164,7 +185,7 @@ describe('paper trading performance summary', () => {
       create?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    await vi.waitFor(() => expect(container.textContent).toContain('proposal created for SPY'.toLowerCase()));
+    await vi.waitFor(() => expect(container.textContent).toContain('Proposal created for SPY'));
     await vi.waitFor(() => expect(container.textContent).toContain('Confirm & simulate paper order'));
     expect(container.textContent).toContain('1.66666666 units');
     expect(api.fetch).toHaveBeenCalledWith('/api/quant/paper/proposals', expect.objectContaining({
