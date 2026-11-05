@@ -22,7 +22,7 @@ projects:
               - key: VITE_SUPABASE_PUBLISHABLE_KEY
                 sync: false
               - key: VITE_API_BASE_URL
-                value: https://ryanai-automous-reasioning-plat.onrender.com
+                value: https://ryanai-api.onrender.com
               - key: VITE_APP_ENV
                 value: production
             routes:
@@ -30,13 +30,13 @@ projects:
                 source: /*
                 destination: /index.html
           - type: web
-            name: RYANAI-Automous-Reasioning-Plat
+            name: ryanai-api
             runtime: docker
             repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
             branch: main
             rootDir: .
             plan: free
-            region: virginia
+            region: oregon
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
             autoDeployTrigger: "off"
@@ -54,7 +54,7 @@ projects:
                 sync: false
               - key: REDIS_URL
                 fromService:
-                  name: ryanai-redis-virginia
+                  name: ryanai-redis
                   type: keyvalue
                   property: connectionString
               - key: SUPABASE_URL
@@ -144,8 +144,8 @@ projects:
               - key: RYANAI_OWNER_EMAIL
                 sync: false
           - type: keyvalue
-            name: ryanai-redis-virginia
+            name: ryanai-redis
             plan: free
-            region: virginia
+            region: oregon
             maxmemoryPolicy: noeviction
             ipAllowList: [] # Internal access only
