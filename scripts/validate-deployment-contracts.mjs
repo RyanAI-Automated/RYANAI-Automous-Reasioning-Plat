@@ -32,7 +32,7 @@ const checks = [
   ['Render repair starts only after successful main-branch CI or explicit repair confirmation', renderRepair.includes('workflow_run:') && renderRepair.includes('CI - Build, Test, and Integrate') && renderRepair.includes("github.event.workflow_run.conclusion == 'success'") && renderRepair.includes("inputs.confirmation == 'REPAIR-ONLY'")],
   ['Render repair is config-only and never calls the deploy endpoint', renderRepair.includes('--request PATCH') && renderRepair.includes('autoDeployTrigger":"off"') && !renderRepair.includes('/deploys')],
   ['Render repair verifies the Docker settings in the actual service response shape', renderRepair.includes('serviceDetails.envSpecificDetails.dockerCommand') && renderRepair.includes('serviceDetails.envSpecificDetails.dockerContext')],
-  ['Render repair checks the official health endpoint', renderRepair.includes('https://ryanai-api.onrender.com/health')],
+  ['Render repair checks the official health endpoint', renderRepair.includes('"healthCheckPath":"/health"')],
   ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('ryanai-redis') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "oregon"')],
   ['Render production deployment is explicitly approval-gated', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
   ['Render deploy targets the official service after successful CI', renderDeploy.includes('srv-dbk4giu7bikc7394a4r0') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
