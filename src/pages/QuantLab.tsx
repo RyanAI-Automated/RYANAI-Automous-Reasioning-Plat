@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, BarChart3, BrainCircuit, History, Play, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
-import PaperTradingPanel from '@/components/quant/PaperTradingPanel';
 
 type EquityPoint = { date: string; equity: number };
 type Trade = { date: string; side: 'buy' | 'sell'; price: number; quantity: number; fee: number; realized_pnl?: number };
@@ -37,6 +36,10 @@ export default function QuantLabPage() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [allocationPct, setAllocationPct] = useState('10');
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [promotionNotice, setPromotionNotice] = useState('');
+  const [promotionError, setPromotionError] = useState('');
 
   const fetchHistory = useCallback(async () => {
     const response = await authenticatedFetch('/api/quant/experiments');
@@ -101,6 +104,26 @@ export default function QuantLabPage() {
       setResult(data.experiment.result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to open saved experiment.');
+    }
+  };
+
+  const promoteExperiment = async (experimentId: string) => {
+    setPromotionError('');
+    setPromotionNotice('');
+    setPromotingId(experimentId);
+    try {
+      const response = await authenticatedFetch('/api/quant/paper/strategies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ experimentId, allocationPct: Number(allocationPct) }),
+      });
+      const data = await response.json() as { error?: string; message?: string };
+      if (!response.ok) throw new Error(data.error || 'Strategy could not be added to the paper portfolio.');
+      setPromotionNotice(data.message || 'Strategy added to the paper portfolio plan.');
+    } catch (cause) {
+      setPromotionError(cause instanceof Error ? cause.message : 'Strategy promotion failed.');
+    } finally {
+      setPromotingId(null);
     }
   };
 
@@ -209,13 +232,21 @@ export default function QuantLabPage() {
         </form>
 
         <aside className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-white">Recent experiments</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Recent experiments</h2>
+            <p className="mt-1 text-xs text-slate-500">Promote completed research into the separate Trading Terminal as a paper allocation plan.</p>
+          </div>
+          <label className="block text-xs text-slate-400">Target portfolio allocation (%)
+            <input type="number" min="1" max="100" step="1" value={allocationPct} onChange={(event) => setAllocationPct(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white" />
+          </label>
+          {promotionError && <p role="alert" className="rounded-lg border border-rose-400/30 p-3 text-xs text-rose-200">{promotionError}</p>}
+          {promotionNotice && <p role="status" className="rounded-lg border border-emerald-300/20 p-3 text-xs text-emerald-200">{promotionNotice} <a href="#/trading" className="underline">Open Trading Terminal</a></p>}
           {historyLoading ? <p className="text-sm text-slate-400">Loading saved runs…</p> :
             experiments.length === 0 ? <p className="text-sm text-slate-400">No saved experiments yet. Run a backtest to create your first traceable result.</p> :
             <ul className="space-y-3">
               {experiments.map((item) => (
-                <li key={item.id}>
-                  <button type="button" onClick={() => void openExperiment(item.id)} className="w-full rounded-xl border border-white/10 bg-slate-950/60 p-3 text-left transition hover:border-cyan-300/40">
+                <li key={item.id} className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                  <button type="button" onClick={() => void openExperiment(item.id)} className="w-full text-left transition hover:text-cyan-100">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-white">{item.strategy.replaceAll('_', ' ')}</span>
                       <span className="text-[10px] uppercase tracking-wider text-emerald-300">{item.status}</span>
@@ -224,14 +255,13 @@ export default function QuantLabPage() {
                     {item.result?.metrics && <p className="mt-2 text-xs text-slate-300">Return: {item.result.metrics.total_return_pct}% · Max drawdown: {item.result.metrics.max_drawdown_pct}%</p>}
                     <span className="mt-2 inline-block text-xs text-cyan-200">Open saved result →</span>
                   </button>
+                  {item.status === 'completed' && item.result && <button type="button" onClick={() => void promoteExperiment(item.id)} disabled={promotingId !== null || !Number.isFinite(Number(allocationPct)) || Number(allocationPct) < 1 || Number(allocationPct) > 100} className="mt-3 w-full rounded-lg border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-xs font-medium text-cyan-100 disabled:opacity-50">{promotingId === item.id ? 'Adding paper strategy…' : 'Add to paper portfolio'}</button>}
                 </li>
               ))}
             </ul>
           }
         </aside>
       </div>
-
-      <PaperTradingPanel />
 
       {result && (
         <section aria-live="polite" className="space-y-5 rounded-2xl border border-cyan-400/20 bg-slate-900/70 p-5 sm:p-6">
