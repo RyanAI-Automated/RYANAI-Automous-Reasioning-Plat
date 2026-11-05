@@ -231,8 +231,11 @@ test('Railway staging is blocked until an isolated project and environment are c
 
 test('boolean false secret-presence indicators are treated as missing', () => {
   const result = auditDeploymentTargets({
-    RENDER_DEPLOY_ENABLED: 'true',
+    RENDER_STAGING_DEPLOY_ENABLED: 'true',
     RENDER_API_KEY: 'false',
+    RENDER_STAGING_SERVICE_ID: 'staging-service-id',
+    RENDER_STAGING_API_URL: 'https://staging.example.test',
+    RENDER_STAGING_ISOLATION_CONFIRMED: 'true',
   }).find((target) => target.name === 'Render');
   assert.equal(result.status, 'BLOCKED');
   assert.deepEqual(result.missing, ['RENDER_API_KEY']);
