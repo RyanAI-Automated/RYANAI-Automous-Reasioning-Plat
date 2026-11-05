@@ -8,7 +8,7 @@ const mutableAliases = new Set(['latest', 'default', 'stable', 'auto']);
 
 async function readPinnedFile(root, relative, expectedHash) {
   if (typeof relative !== 'string' || !relative || path.isAbsolute(relative) ||
-      relative.includes('\\\\') || path.posix.normalize(relative) !== relative ||
+      relative.includes(String.fromCharCode(92)) || path.posix.normalize(relative) !== relative ||
       relative.split('/').includes('..')) {
     throw new Error('Provenance artifact paths must be normalized relative paths.');
   }
@@ -33,9 +33,9 @@ async function readPinnedFile(root, relative, expectedHash) {
 function assertNoSecretMaterial(bytes, label) {
   const content = bytes.toString('utf8');
   const patterns = [
-    /["']?(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["']?\\s*[:=]\\s*["']?[A-Za-z0-9._~+/-]{8,}["']?/i,
-    /\\bBearer\\s+[A-Za-z0-9._~+/-]{12,}/i,
-    /\\bsk-[A-Za-z0-9]{16,}/
+    /["']?(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["']?\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{8,}["']?/i,
+    /\bBearer\s+[A-Za-z0-9._~+/-]{12,}/i,
+    /\bsk-[A-Za-z0-9]{16,}/
   ];
   if (patterns.some(pattern => pattern.test(content))) {
     throw new Error('Potential secret material found in ' + label);
