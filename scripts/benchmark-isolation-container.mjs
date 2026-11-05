@@ -58,7 +58,7 @@ async function requestLoopback(host) {
 }
 
 const DENIED_NETWORK_CODES = new Set([
-  'ENETUNREACH', 'EHOSTUNREACH', 'ETIMEDOUT', 'EACCES', 'EPERM'
+  'ENETUNREACH', 'EHOSTUNREACH', 'ETIMEDOUT', 'ETIMEOUT', 'EACCES', 'EPERM'
 ]);
 
 async function expectTcpBlocked(host, port) {
