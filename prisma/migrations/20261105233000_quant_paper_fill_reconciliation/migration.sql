@@ -60,7 +60,7 @@ BEGIN
     IF order_client_id IS NULL THEN
       RAISE EXCEPTION 'paper fill references an unknown order';
     END IF;
-    NEW.client_fill_id := 'paper:' || order_client_id;
+    NEW.client_fill_id := 'paper:' || order_client_id || ':' || NEW.id::text;
   END IF;
   RETURN NEW;
 END;
