@@ -35,3 +35,9 @@ CREATE UNIQUE INDEX "quant_paper_trades_user_client_fill_id_key"
 
 CREATE INDEX "quant_paper_trades_user_order_idx"
   ON "quant_paper_trades"("user_id", "order_id");
+
+-- Reserve explicit lifecycle values for future simulated partial/cancelled fills.
+ALTER TABLE "quant_paper_orders"
+  DROP CONSTRAINT "quant_paper_orders_status_check",
+  ADD CONSTRAINT "quant_paper_orders_status_check"
+    CHECK ("status" IN ('accepted', 'partially_filled', 'filled', 'cancelled', 'rejected'));
