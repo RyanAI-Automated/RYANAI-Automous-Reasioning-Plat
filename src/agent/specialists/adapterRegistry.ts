@@ -106,6 +106,8 @@ export interface SpecialistInvocationRequest {
   readonly requestId: string;
   readonly input: unknown;
   readonly signal: AbortSignal;
+  /** Optional per-call deadline; the registry enforces the configured maximum. */
+  readonly timeoutMs?: number;
 }
 
 export interface SpecialistInvocationResult<Output = unknown> {
@@ -127,7 +129,8 @@ export type SpecialistRegistryErrorCode =
   | 'policy_denied'
   | 'unsafe_activation'
   | 'invalid_input'
-  | 'cancelled';
+  | 'cancelled'
+  | 'timeout';
 
 export class SpecialistRegistryError extends Error {
   readonly code: SpecialistRegistryErrorCode;
@@ -145,6 +148,10 @@ export interface SpecialistAdapterRegistryOptions {
   readonly getPolicy: (modelId: SpecialistModelId) => SpecialistPolicyRecord | null;
   /** Must delegate to Gen-X; no permissive/default authorizer is provided. */
   readonly authorizer: SpecialistInvocationAuthorizer;
+  /** Defaults to 30s; each request is bounded by maxTimeoutMs. */
+  readonly defaultTimeoutMs?: number;
+  /** Defaults to 120s; prevents a caller from requesting unbounded inference. */
+  readonly maxTimeoutMs?: number;
   readonly now?: () => Date;
 }
 
@@ -162,6 +169,17 @@ export interface SpecialistAdapterRegistry {
 export function createSpecialistAdapterRegistry(
   options: SpecialistAdapterRegistryOptions,
 ): SpecialistAdapterRegistry {
+  const defaultTimeoutMs = options.defaultTimeoutMs ?? 30_000;
+  const maxTimeoutMs = options.maxTimeoutMs ?? 120_000;
+  if (
+    !Number.isSafeInteger(defaultTimeoutMs)
+    || defaultTimeoutMs < 1
+    || !Number.isSafeInteger(maxTimeoutMs)
+    || maxTimeoutMs < defaultTimeoutMs
+  ) {
+    throw new Error('Specialist registry timeout limits must be positive safe integers, with maxTimeoutMs >= defaultTimeoutMs.');
+  }
+
   const adapters = new Map<SpecialistModelId, RegisteredSpecialistAdapter>();
 
   for (const adapter of options.adapters) {
@@ -179,8 +197,15 @@ export function createSpecialistAdapterRegistry(
       if (request.signal.aborted) {
         throw new SpecialistRegistryError('cancelled', 'Specialist invocation was cancelled before authorization.');
       }
-      if (!request.requestId.trim()) {
+      if (typeof request.requestId !== 'string' || !request.requestId.trim()) {
         throw new SpecialistRegistryError('policy_denied', 'A request identifier is required.');
+      }
+      if (request.mode !== 'offline_benchmark' && request.mode !== 'production') {
+        throw new SpecialistRegistryError('invalid_input', 'A supported specialist execution mode is required.');
+      }
+      const timeoutMs = request.timeoutMs ?? defaultTimeoutMs;
+      if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > maxTimeoutMs) {
+        throw new SpecialistRegistryError('invalid_input', `Specialist timeout must be between 1 and ${maxTimeoutMs} milliseconds.`);
       }
 
       const adapter = adapters.get(request.modelId);
@@ -216,21 +241,58 @@ export function createSpecialistAdapterRegistry(
         mode: request.mode,
         requestId: request.requestId,
       });
-      if (!decision.allowed || !decision.policyVersion.trim() || !decision.authorizationReference.trim()) {
+      if (
+        decision?.allowed !== true
+        || typeof decision.policyVersion !== 'string'
+        || !decision.policyVersion.trim()
+        || typeof decision.authorizationReference !== 'string'
+        || !decision.authorizationReference.trim()
+      ) {
         throw new SpecialistRegistryError(
           'policy_denied',
-          decision.reason || 'Gen-X did not provide a complete authorization decision.',
+          typeof decision?.reason === 'string' && decision.reason
+            ? decision.reason
+            : 'Gen-X did not provide a complete authorization decision.',
         );
       }
       if (request.signal.aborted) {
         throw new SpecialistRegistryError('cancelled', 'Specialist invocation was cancelled before model execution.');
       }
 
-      const output = await adapter.invoke(request.input, {
-        requestId: request.requestId,
-        mode: request.mode,
-        signal: request.signal,
+      const executionController = new AbortController();
+      let rejectAbort: ((reason: SpecialistRegistryError) => void) | undefined;
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      const abortPromise = new Promise<never>((_resolve, reject) => {
+        rejectAbort = reject;
       });
+      const onCallerAbort = () => {
+        const error = new SpecialistRegistryError('cancelled', 'Specialist invocation was cancelled during model execution.');
+        executionController.abort(error);
+        rejectAbort?.(error);
+      };
+      request.signal.addEventListener('abort', onCallerAbort, { once: true });
+      if (request.signal.aborted) onCallerAbort();
+
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeoutHandle = setTimeout(() => {
+          const error = new SpecialistRegistryError('timeout', `Specialist invocation exceeded its ${timeoutMs} ms deadline.`);
+          executionController.abort(error);
+          reject(error);
+        }, timeoutMs);
+      });
+
+      let output: unknown;
+      try {
+        const execution = Promise.resolve().then(() => adapter.invoke(request.input, {
+          requestId: request.requestId,
+          mode: request.mode,
+          signal: executionController.signal,
+        }));
+        output = await Promise.race([execution, abortPromise, timeoutPromise]);
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        request.signal.removeEventListener('abort', onCallerAbort);
+      }
       const completedAt = (options.now ?? (() => new Date()))().toISOString();
 
       return {
