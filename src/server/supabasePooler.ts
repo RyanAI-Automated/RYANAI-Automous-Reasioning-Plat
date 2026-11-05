@@ -74,7 +74,8 @@ export function resolveSupabaseSessionPoolerUrl(
   database.hostname = normalizedPoolerHost;
   database.port = '5432';
   database.username = `postgres.${projectRef}`;
-  if (!database.searchParams.has('sslmode')) {
+  const sslMode = database.searchParams.get('sslmode')?.toLowerCase();
+  if (!sslMode || !['require', 'verify-ca', 'verify-full'].includes(sslMode)) {
     database.searchParams.set('sslmode', 'require');
   }
 
