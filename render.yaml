@@ -39,6 +39,8 @@ projects:
             region: oregon
             dockerContext: .
             dockerfilePath: ./Dockerfile.api
+            # Use the Dockerfile's ENTRYPOINT and CMD; no runtime build command.
+            dockerCommand: ""
             autoDeployTrigger: "off"
             healthCheckPath: /health
             envVars:
