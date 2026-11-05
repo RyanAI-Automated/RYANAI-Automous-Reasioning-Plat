@@ -11,7 +11,7 @@ import json
 import math
 import sys
 from datetime import date
-from statistics import mean, stdev
+from statistics import mean, median, stdev
 
 
 def _number(value: object, name: str, *, minimum: float = 0.0) -> float:
@@ -73,8 +73,17 @@ def validate(payload: object) -> tuple[list[dict], dict]:
     return normalized, config
 
 
-def run_backtest(payload: object) -> dict:
+def run_backtest(
+    payload: object,
+    *,
+    start_index: int = 0,
+    initial_action: str | None = None,
+) -> dict:
     bars, config = validate(payload)
+    if isinstance(start_index, bool) or not isinstance(start_index, int) or not 0 <= start_index < len(bars):
+        raise ValueError("start_index must be an integer within the validated bar range")
+    if initial_action not in (None, "buy"):
+        raise ValueError("initial_action must be buy or None")
     closes = [bar["close"] for bar in bars]
     fast, slow = config["fast_window"], config["slow_window"]
     cash = config["initial_cash"]
@@ -93,41 +102,49 @@ def run_backtest(payload: object) -> dict:
     # The equity curve for each date is marked only after that date's open fills.
     pending_action = None
     for index, bar in enumerate(bars):
-        if pending_action == "buy" and quantity == 0:
-            fill_price = bar["open"] * (1 + slippage_rate)
-            quantity = cash / (fill_price * (1 + fee_rate))
-            fee = quantity * fill_price * fee_rate
-            entry_cost = quantity * fill_price + fee
-            cash = 0.0
-            trades.append({
-                "date": bar["date"], "side": "buy",
-                "price": round(fill_price, 8), "quantity": round(quantity, 8),
-                "fee": round(fee, 8),
-            })
-        elif pending_action == "sell" and quantity > 0:
-            fill_price = bar["open"] * (1 - slippage_rate)
-            proceeds = quantity * fill_price
-            fee = proceeds * fee_rate
-            net_proceeds = proceeds - fee
-            trades.append({
-                "date": bar["date"], "side": "sell",
-                "price": round(fill_price, 8), "quantity": round(quantity, 8),
-                "fee": round(fee, 8),
-                "realized_pnl": round(net_proceeds - entry_cost, 8),
-            })
-            cash = net_proceeds
-            quantity = 0.0
-            entry_cost = 0.0
-        pending_action = None
+        if index == start_index:
+            # Align the flat fold portfolio to the trend observed at the final
+            # training close; any resulting entry fills at the first test open.
+            pending_action = initial_action
+        if index >= start_index:
+            if pending_action == "buy" and quantity == 0:
+                fill_price = bar["open"] * (1 + slippage_rate)
+                quantity = cash / (fill_price * (1 + fee_rate))
+                fee = quantity * fill_price * fee_rate
+                entry_cost = quantity * fill_price + fee
+                cash = 0.0
+                trades.append({
+                    "date": bar["date"], "side": "buy",
+                    "price": round(fill_price, 8), "quantity": round(quantity, 8),
+                    "fee": round(fee, 8),
+                })
+            elif pending_action == "sell" and quantity > 0:
+                fill_price = bar["open"] * (1 - slippage_rate)
+                proceeds = quantity * fill_price
+                fee = proceeds * fee_rate
+                net_proceeds = proceeds - fee
+                trades.append({
+                    "date": bar["date"], "side": "sell",
+                    "price": round(fill_price, 8), "quantity": round(quantity, 8),
+                    "fee": round(fee, 8),
+                    "realized_pnl": round(net_proceeds - entry_cost, 8),
+                })
+                cash = net_proceeds
+                quantity = 0.0
+                entry_cost = 0.0
+            pending_action = None
 
-        equity = cash + quantity * bar["close"]
-        if previous_equity > 0:
-            daily_returns.append(equity / previous_equity - 1)
-        previous_equity = equity
-        peak = max(peak, equity)
-        if peak > 0:
-            max_drawdown = max(max_drawdown, (peak - equity) / peak)
-        equity_curve.append({"date": bar["date"], "equity": round(equity, 2)})
+            equity = cash + quantity * bar["close"]
+            if previous_equity > 0:
+                daily_returns.append(equity / previous_equity - 1)
+            previous_equity = equity
+            peak = max(peak, equity)
+            if peak > 0:
+                max_drawdown = max(max_drawdown, (peak - equity) / peak)
+            equity_curve.append({"date": bar["date"], "equity": round(equity, 2)})
+        else:
+            # Warm-up bars inform indicators but never generate simulated fills.
+            pending_action = None
 
         # Compute the decision only after this bar has closed. It cannot fill
         # until the next iteration, at the next bar's open.
@@ -153,7 +170,7 @@ def run_backtest(payload: object) -> dict:
     return {
         "strategy": config["strategy"],
         "config": config,
-        "period": {"start": bars[0]["date"], "end": bars[-1]["date"], "bars": len(bars)},
+        "period": {"start": bars[start_index]["date"], "end": bars[-1]["date"], "bars": len(bars) - start_index},
         "metrics": {
             "initial_cash": round(config["initial_cash"], 2),
             "final_equity": round(final_equity, 2),
@@ -172,12 +189,183 @@ def run_backtest(payload: object) -> dict:
     }
 
 
+DEFAULT_PARAMETER_GRID = [
+    {"fast_window": 5, "slow_window": 20},
+    {"fast_window": 5, "slow_window": 50},
+    {"fast_window": 10, "slow_window": 30},
+    {"fast_window": 10, "slow_window": 50},
+    {"fast_window": 20, "slow_window": 50},
+    {"fast_window": 20, "slow_window": 100},
+]
+
+
+def _integer_option(payload: dict, key: str, default: int, minimum: int, maximum: int) -> int:
+    value = payload.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ValueError(f"{key} must be an integer between {minimum} and {maximum}")
+    return value
+
+
+def run_walk_forward(payload: object) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("Request must be a JSON object")
+    bars, base_config = validate(payload)
+    raw_grid = payload.get("parameter_grid", DEFAULT_PARAMETER_GRID)
+    if not isinstance(raw_grid, list) or not 1 <= len(raw_grid) <= 20:
+        raise ValueError("parameter_grid must contain between 1 and 20 candidates")
+    parameter_grid = []
+    seen = set()
+    for index, candidate in enumerate(raw_grid):
+        if not isinstance(candidate, dict) or set(candidate) != {"fast_window", "slow_window"}:
+            raise ValueError(f"parameter_grid[{index}] must contain only fast_window and slow_window")
+        fast = candidate["fast_window"]
+        slow = candidate["slow_window"]
+        if isinstance(fast, bool) or not isinstance(fast, int) or not 2 <= fast <= 50:
+            raise ValueError(f"parameter_grid[{index}].fast_window is invalid")
+        if isinstance(slow, bool) or not isinstance(slow, int) or not 3 <= slow <= 200 or fast >= slow:
+            raise ValueError(f"parameter_grid[{index}].slow_window must exceed fast_window and be at most 200")
+        pair = (fast, slow)
+        if pair in seen:
+            raise ValueError("parameter_grid cannot contain duplicate candidates")
+        seen.add(pair)
+        parameter_grid.append({"fast_window": fast, "slow_window": slow})
+
+    max_slow = max(item["slow_window"] for item in parameter_grid)
+    train_window = _integer_option(payload, "train_window", max(120, max_slow + 1), max(30, max_slow + 1), 2000)
+    test_window = _integer_option(payload, "test_window", 30, 5, 500)
+    step_window = _integer_option(payload, "step_window", test_window, 5, 500)
+    max_folds = _integer_option(payload, "max_folds", 10, 1, 20)
+    if step_window < test_window:
+        raise ValueError("step_window must be at least test_window so out-of-sample folds do not overlap")
+    if train_window + test_window > len(bars):
+        raise ValueError("bars do not contain enough history for one train/test fold")
+    available_folds = 1 + (len(bars) - train_window - test_window) // step_window
+    planned_folds = min(max_folds, available_folds)
+    if len(parameter_grid) * planned_folds * train_window > 100_000:
+        raise ValueError("walk-forward evaluation exceeds the bounded compute budget")
+
+    folds = []
+    start = train_window
+    while start + test_window <= len(bars) and len(folds) < max_folds:
+        end = start + test_window
+        training_bars = bars[start - train_window:start]
+        fold_bars = bars[start - train_window:end]
+        candidates = []
+        for candidate in parameter_grid:
+            training_result = run_backtest({
+                **payload,
+                "bars": training_bars,
+                "fast_window": candidate["fast_window"],
+                "slow_window": candidate["slow_window"],
+            })
+            metrics = training_result["metrics"]
+            candidates.append({
+                "parameters": candidate,
+                "score": (
+                    metrics["annualized_sharpe"],
+                    metrics["total_return_pct"],
+                    -metrics["max_drawdown_pct"],
+                ),
+                "metrics": metrics,
+            })
+        selected = max(candidates, key=lambda item: item["score"])
+        training_closes = [bar["close"] for bar in training_bars]
+        training_fast = mean(training_closes[-selected["parameters"]["fast_window"]:])
+        training_slow = mean(training_closes[-selected["parameters"]["slow_window"]:])
+        initial_action = "buy" if training_fast > training_slow else None
+        out_of_sample = run_backtest({
+            **payload,
+            "bars": fold_bars,
+            "fast_window": selected["parameters"]["fast_window"],
+            "slow_window": selected["parameters"]["slow_window"],
+        }, start_index=train_window, initial_action=initial_action)
+        folds.append({
+            "fold": len(folds) + 1,
+            "training_period": {
+                "start": training_bars[0]["date"],
+                "end": training_bars[-1]["date"],
+                "bars": len(training_bars),
+            },
+            "test_period": {
+                "start": bars[start]["date"],
+                "end": bars[end - 1]["date"],
+                "bars": test_window,
+            },
+            "selected_parameters": selected["parameters"],
+            "test_initial_position": "long" if initial_action == "buy" else "flat",
+            "training_selection_metrics": {
+                "annualized_sharpe": selected["metrics"]["annualized_sharpe"],
+                "total_return_pct": selected["metrics"]["total_return_pct"],
+                "max_drawdown_pct": selected["metrics"]["max_drawdown_pct"],
+            },
+            "out_of_sample_metrics": out_of_sample["metrics"],
+            "out_of_sample_trades": out_of_sample["trades"],
+            "out_of_sample_equity_curve": out_of_sample["equity_curve"],
+        })
+        start += step_window
+
+    if not folds:
+        raise ValueError("No complete walk-forward test folds could be constructed")
+    returns = [fold["out_of_sample_metrics"]["total_return_pct"] for fold in folds]
+    drawdowns = [fold["out_of_sample_metrics"]["max_drawdown_pct"] for fold in folds]
+    closed_trades = [
+        trade
+        for fold in folds
+        for trade in fold["out_of_sample_trades"]
+        if trade["side"] == "sell"
+    ]
+    wins = sum(1 for trade in closed_trades if trade.get("realized_pnl", 0) > 0)
+    total_trades = sum(len(fold["out_of_sample_trades"]) for fold in folds)
+    profitable_folds = sum(1 for value in returns if value > 0)
+    return {
+        "strategy": "sma_crossover",
+        "evaluation_mode": "walk_forward_out_of_sample",
+        "selection_metric": "training_annualized_sharpe_then_return_then_drawdown",
+        "parameter_grid_size": len(parameter_grid),
+        "config": {
+            "train_window": train_window,
+            "test_window": test_window,
+            "step_window": step_window,
+            "max_folds": max_folds,
+            "initial_cash": base_config["initial_cash"],
+            "fee_bps": base_config["fee_bps"],
+            "slippage_bps": base_config["slippage_bps"],
+        },
+        "metrics": {
+            "fold_count": len(folds),
+            "out_of_sample_bars": len(folds) * test_window,
+            "mean_return_pct": round(mean(returns), 4),
+            "median_return_pct": round(median(returns), 4),
+            "best_fold_return_pct": round(max(returns), 4),
+            "worst_fold_return_pct": round(min(returns), 4),
+            "mean_max_drawdown_pct": round(mean(drawdowns), 4),
+            "profitable_fold_pct": round(profitable_folds / len(folds) * 100, 2),
+            "trade_count": total_trades,
+            "closed_trade_count": len(closed_trades),
+            "win_rate_pct": round(wins / len(closed_trades) * 100, 2) if closed_trades else 0.0,
+        },
+        "folds": folds,
+        "look_ahead_leakage": False,
+        "execution_mode": "historical_simulation_only",
+        "disclaimer": "Walk-forward results are historical out-of-sample simulations, not predictions or investment advice. No broker or live orders are connected.",
+    }
+
+
 def main() -> int:
     try:
         raw = sys.stdin.read(2_000_001)
         if len(raw) > 2_000_000:
             raise ValueError("Request exceeds the 2 MB engine input limit")
-        result = run_backtest(json.loads(raw))
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError("Request must be a JSON object")
+        mode = payload.get("mode", "backtest")
+        if mode == "walk_forward":
+            result = run_walk_forward(payload)
+        elif mode == "backtest":
+            result = run_backtest(payload)
+        else:
+            raise ValueError("mode must be backtest or walk_forward")
         sys.stdout.write(json.dumps({"ok": True, "result": result}, allow_nan=False))
         return 0
     except (ValueError, TypeError, json.JSONDecodeError) as error:
