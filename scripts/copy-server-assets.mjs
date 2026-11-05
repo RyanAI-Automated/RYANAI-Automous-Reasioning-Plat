@@ -11,7 +11,7 @@ for (const file of ['app/routes.json', 'models/catalog.json', 'stacks/ryanai.sta
 // Prisma generates this separate client inside src/ before build:server runs.
 // TypeScript resolves its declarations for type-checking but does not reliably
 // emit the generated JavaScript package. Copy the complete runtime client into
-// the directory referenced by dist/server/lib/audiobookPrisma.js.
+// the directory referenced by dist/server/server/audiobookPrisma.js.
 const generatedClientSource = new URL('../src/generated/audiobook-prisma/', import.meta.url);
 const generatedClientEntry = new URL('index.js', generatedClientSource);
 const generatedClientDestination = new URL('../dist/server/generated/audiobook-prisma/', import.meta.url);

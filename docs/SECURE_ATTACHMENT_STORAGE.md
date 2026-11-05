@@ -1,6 +1,6 @@
 # RyanAI conversation attachment storage
 
-RyanAI stores conversation files in the private Supabase Storage bucket `ryanai-attachments`. Message rows retain attachment metadata and object paths; they do not store file bytes or permanent public URLs.
+RyanAI chat attachments use the private bucket `ryanai-attachments`. Comms uses the separate private bucket `ryanai-comms-attachments` and `communication_attachments` metadata bound to `communication_conversations` and `communication_messages`. Message rows retain object paths and metadata, not file bytes or public URLs.
 
 ## Enforced limits
 
@@ -64,3 +64,8 @@ Before any staging or production migration, take a database backup and object-st
 For a failed rollout, disable the corresponding opt-in worker and block new attachment uploads at the application/configuration layer. Preserve object bytes and scan/audit rows. Never manually delete rows from `storage.objects`; remove bytes through the Supabase Storage API.
 
 No production migration or rollout is authorized by this repository change. Production remains blocked until the two-account tests, Android/desktop E2E, Storage metadata verification, and backup/restore rehearsal are recorded and reviewed.
+
+
+## Comms attachment extension
+
+Comms uses an owner-bound bucket, metadata table, Storage path/quota and scan-enqueue triggers, and the existing durable ClamAV scan queue and quarantine cleanup. Owner-authenticated APIs issue upload/download URLs. Apply the Prisma migration before the Supabase migration in disposable staging. Set `RYANAI_OWNER_AUTH_USER_ID` to the verified Supabase owner UUID before enabling inbound media. Verify cross-account isolation, quotas, scan gating and backup/restore before production. No live migration or scanner activation is authorized by this code change.
