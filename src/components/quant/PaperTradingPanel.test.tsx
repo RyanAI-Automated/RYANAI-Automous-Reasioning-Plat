@@ -14,11 +14,13 @@ let container: HTMLDivElement;
 let root: Root;
 let emergencyStop = false;
 let proposalRecords: Array<Record<string, unknown>> = [];
+let proposalEndpointAvailable = true;
 
 beforeEach(() => {
   vi.clearAllMocks();
   emergencyStop = false;
   proposalRecords = [];
+  proposalEndpointAvailable = true;
   api.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
     if (url === '/api/quant/paper') {
       return new Response(JSON.stringify({
@@ -72,6 +74,11 @@ beforeEach(() => {
       return new Response(JSON.stringify({ emergencyStop: false, tradingEnabled: false }), { status: 200 });
     }
     if (url === '/api/quant/paper/proposals') {
+      if (!proposalEndpointAvailable) {
+        return new Response(JSON.stringify({
+          error: 'The proposal migration is not installed.',
+        }), { status: 503 });
+      }
       if (init?.method === 'POST') {
         const proposal = {
           id: 'proposal-1',
@@ -154,6 +161,16 @@ describe('paper trading performance summary', () => {
       method: 'POST',
       body: JSON.stringify({ reason: 'manual_emergency_stop' }),
     }));
+  });
+
+  it('keeps the existing paper terminal usable while the proposal migration is unavailable', async () => {
+    proposalEndpointAvailable = false;
+    await act(async () => root.render(<PaperTradingPanel />));
+    await vi.waitFor(() => expect(container.textContent).toContain('Proposal workflow unavailable'));
+    expect(container.textContent).toContain('Paper Trading Terminal');
+    expect(container.textContent).toContain('Recorded performance');
+    expect(container.textContent).toContain('Virtual equity');
+    expect(container.textContent).toContain('The proposal migration is not installed.');
   });
 
   it('creates, reviews and explicitly confirms a strategy-driven paper proposal', async () => {
