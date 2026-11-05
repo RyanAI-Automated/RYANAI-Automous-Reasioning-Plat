@@ -185,3 +185,33 @@ CREATE INDEX IF NOT EXISTS security_remediations_finding_status_idx
 
 -- Security approvals are scoped to isolated Kali or staging only.
 -- No approval record can authorise a production target in this release.
+
+-- These records are server-side security evidence, not browser-facing tables.
+-- Match the repository's least-privilege pattern and keep local Postgres portable.
+DO $security_table_isolation$
+DECLARE
+  table_name TEXT;
+  browser_role TEXT;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'security_scans',
+    'security_findings',
+    'security_evidence',
+    'security_remediations',
+    'security_approvals'
+  ] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', table_name);
+
+    FOREACH browser_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = browser_role) THEN
+        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM %I', table_name, browser_role);
+      END IF;
+    END LOOP;
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format('GRANT ALL ON TABLE public.%I TO service_role', table_name);
+    END IF;
+  END LOOP;
+END;
+$security_table_isolation$;
