@@ -97,7 +97,7 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
       symbol: item.symbol,
       bars: item.bars as Array<{ date: string; close: number }>,
     }));
-    let result;
+    let result: ReturnType<typeof optimizeLongOnlyPortfolio>;
     try {
       result = optimizeLongOnlyPortfolio({
         assets,
