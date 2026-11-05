@@ -15,7 +15,7 @@ values
   ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', 'rls-b', 'Account B private memory', 'test', now());
 
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select is(
   (select count(*) from public.memory_entries),
@@ -60,7 +60,7 @@ select is(
   'Account A cannot delete Account B row'
 );
 
-select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', true);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 select is(
   (select count(*) from public.memory_entries),
   1::bigint,
