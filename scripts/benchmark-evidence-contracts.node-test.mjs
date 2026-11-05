@@ -196,7 +196,7 @@ test('held-out custody requires valid independent Ed25519 attestations', async (
       await mkdir(path.join(dataset, 'development'), { recursive: true });
       const task = JSON.stringify({
         taskId: 'synthetic-custody-001', modelInput: { prompt: 'fixture' }, toolPermissions: []
-      }) + '\\n';
+      }) + '\n';
       await writeFile(path.join(dataset, 'development', 'tasks.jsonl'), task);
       const custody = await createHeldoutBundle(temp, options);
       const manifest = {
@@ -225,7 +225,7 @@ test('held-out custody rejects a trust-root hash that was not pinned out of band
     await mkdir(path.join(dataset, 'development'), { recursive: true });
     const task = JSON.stringify({
       taskId: 'synthetic-custody-002', modelInput: { prompt: 'fixture' }, toolPermissions: []
-    }) + '\\n';
+    }) + '\n';
     await writeFile(path.join(dataset, 'development', 'tasks.jsonl'), task);
     const custody = await createHeldoutBundle(temp);
     const manifestPath = path.join(dataset, 'manifest.json');
