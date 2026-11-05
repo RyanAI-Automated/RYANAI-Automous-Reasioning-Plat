@@ -170,7 +170,7 @@ describe('GitHub App in-app authorization lifecycle', () => {
     expect(persisted.encryptedRefreshToken).toMatch(/^v1\./);
     expect(persisted.encryptedAccessToken).not.toContain(rawAccessToken);
     expect(persisted.encryptedRefreshToken).not.toContain(rawRefreshToken);
-    expect(JSON.stringify(callback.json())).not.toContain(rawAccessToken);
+    expect(callback.body).not.toContain(rawAccessToken);
   });
 
   it('does not persist a token when the official repository permission is missing', async () => {
