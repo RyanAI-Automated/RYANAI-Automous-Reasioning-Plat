@@ -32,7 +32,7 @@ Verify local provenance:
     node scripts/verify-benchmark-provenance.mjs <run-manifest> <artifact-root> <external-trust-roots.json> <trust-roots-sha256>
 
 The isolation container uses network mode none, a read-only root filesystem,
-only two allowlisted read-only files, dropped Linux capabilities,
+only three allowlisted read-only files, dropped Linux capabilities,
 no-new-privileges, a non-root UID, and bounded CPU, memory, process count and
 temporary storage. The network fixture is not Ollama and does not invoke a model.
 
