@@ -20,13 +20,15 @@ ENV NODE_ENV=production \
     NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt \
     SUPABASE_SSL_ROOT_CERT_PATH=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
 COPY certs/supabase/prod-ca-2021.crt /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
-RUN apk add --no-cache ca-certificates \
+RUN apk add --no-cache ca-certificates postgresql-client age \
     && update-ca-certificates \
     && test -s /etc/ssl/cert.pem \
     && test -s /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
 COPY prisma ./prisma
 COPY src/db/migrate.ts ./src/db/migrate.ts
+COPY src/db/scopedPrismaMigration.ts ./src/db/scopedPrismaMigration.ts
 COPY src/server/supabasePooler.ts ./src/server/supabasePooler.ts
+COPY scripts/backup-production-db.mjs ./scripts/backup-production-db.mjs
 COPY scripts/verify-node-ca.sh ./scripts/verify-node-ca.sh
 RUN npm run db:generate \
     && rm -rf /usr/local/lib/node_modules/npm \
