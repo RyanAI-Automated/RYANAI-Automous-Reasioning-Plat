@@ -164,7 +164,8 @@ export function installAuthentication(fastify: FastifyInstance) {
       (request.method === 'POST' &&
         ['/api/reason', '/api/reasoning/stream', '/api/v1/realtime/voice-ticket'].includes(path)) ||
       (request.method === 'GET' && path === '/api/auth/verify') ||
-      path.startsWith('/api/quant/')
+      path.startsWith('/api/quant/') ||
+      path.startsWith('/api/user/memory')
     ) {
       return requireUser(request, reply);
     }
