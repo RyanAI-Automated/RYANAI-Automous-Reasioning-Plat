@@ -65,7 +65,6 @@
       "k8s/ryanai-databases.yaml"
     ],
     "render": "render.yaml",
-    "vercel": ".github/workflows/deploy-vercel.yml",
     "railway": "railway.json"
   },
   "integrations": {
@@ -77,5 +76,10 @@
       "healthPath": "/health",
       "notes": "Requires JARVIS_BASE_URL, JARVIS_API_TOKEN, and JARVIS_SYNC_ENABLED=true. No credentials are stored in this manifest."
     }
+  },
+  "deploymentDefaults": {
+    "frontend": "render",
+    "api": "render",
+    "persistentWorkloads": "railway"
   }
 }
