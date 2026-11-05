@@ -6,6 +6,7 @@ import { requireUser } from './auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
 import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
+import { assessPaperOrderRisk } from '../quant/paperRisk.js';
 
 type Bar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
 type BacktestBody = {
@@ -539,20 +540,25 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
           );
           const policies = await tx.$queryRawUnsafe<Array<{
             max_order_notional: string; max_position_notional: string;
-            max_gross_exposure: string; trading_enabled: boolean;
+            max_gross_exposure: string; max_daily_loss: string;
+            max_drawdown_pct: string; trading_enabled: boolean;
+            emergency_stop: boolean; emergency_stop_reason: string | null;
           }>>(
-            'SELECT max_order_notional::text, max_position_notional::text, max_gross_exposure::text, trading_enabled FROM quant_paper_risk_policies WHERE user_id = $1 FOR UPDATE',
+            'SELECT max_order_notional::text, max_position_notional::text, max_gross_exposure::text, max_daily_loss::text, max_drawdown_pct::text, trading_enabled, emergency_stop, emergency_stop_reason FROM quant_paper_risk_policies WHERE user_id = $1 FOR UPDATE',
             userId,
           );
           const policy = policies[0] ?? {
             max_order_notional: '10000', max_position_notional: '25000',
-            max_gross_exposure: '75000', trading_enabled: true,
+            max_gross_exposure: '75000', max_daily_loss: '5000',
+            max_drawdown_pct: '10', trading_enabled: true,
+            emergency_stop: false, emergency_stop_reason: null,
           };
           const prior = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
             'SELECT id, status FROM quant_paper_orders WHERE user_id = $1 AND client_order_id = $2',
             userId, request.body.client_order_id,
           );
-          if (prior.length) return { duplicate: true, orderId: prior[0].id, status: prior[0].status };
+          if (prior.length) return { duplicate: true, riskBlocked: false, orderId: prior[0].id, status: prior[0].status };
+          if (policy.emergency_stop) throw new Error('PAPER_EMERGENCY_STOP');
           if (!policy.trading_enabled) throw new Error('PAPER_TRADING_DISABLED');
           if (notional > Number(policy.max_order_notional)) throw new Error('PAPER_ORDER_RISK_LIMIT');
           const cash = Number(accounts[0]?.cash_balance ?? 0);
