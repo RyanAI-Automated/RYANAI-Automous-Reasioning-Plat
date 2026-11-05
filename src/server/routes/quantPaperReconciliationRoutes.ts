@@ -16,6 +16,19 @@ type PaperOrderRow = {
   fills: unknown;
 };
 
+function parseFillRows(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export const quantPaperReconciliationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
 
@@ -52,7 +65,7 @@ export const quantPaperReconciliationRoutes: FastifyPluginAsync = async (fastify
     );
 
     const reconciliations = rows.map((row) => {
-      const rawFills = Array.isArray(row.fills) ? row.fills : [];
+      const rawFills = parseFillRows(row.fills);
       const snapshot: PaperOrderLedgerSnapshot = {
         id: row.id,
         symbol: row.symbol,
