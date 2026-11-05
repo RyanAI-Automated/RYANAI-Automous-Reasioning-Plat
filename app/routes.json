@@ -57,6 +57,16 @@
       "path": "/cockpit"
     },
     {
+      "id": "memory",
+      "label": "Memory Vault",
+      "path": "/memory"
+    },
+    {
+      "id": "inference",
+      "label": "Inference Console",
+      "path": "/inference"
+    },
+    {
       "id": "studio",
       "label": "RyanAI Studio",
       "path": "/studio"
