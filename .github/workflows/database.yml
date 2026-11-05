@@ -121,9 +121,9 @@ jobs:
         run: |
           set -euo pipefail
           docker build --target migrate -t ryanai-migrate:ci .
-          docker run --rm --network host --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
+          docker run --rm --network host --env NODE_ENV=test --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
           # A second invocation must be a no-op, proving safe restart behavior.
-          docker run --rm --network host --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
+          docker run --rm --network host --env NODE_ENV=test --env DATABASE_URL="$MIGRATION_DATABASE_URL" ryanai-migrate:ci
           npx prisma migrate diff --from-url "$MIGRATION_DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
 
       - name: Create a disposable upgrade-path database
