@@ -103,8 +103,9 @@ services:
           property: connectionString
       - key: SUPABASE_URL
         value: https://narsvpwymvlrhurqbthu.supabase.co
+      # Pooler cluster index cannot be derived from region. Copy the exact host from Supabase Connect > Session pooler.
       - key: SUPABASE_SESSION_POOLER_HOST
-        value: aws-1-eu-west-1.pooler.supabase.com
+        sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY

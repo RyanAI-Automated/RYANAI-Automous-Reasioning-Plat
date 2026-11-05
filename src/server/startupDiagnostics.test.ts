@@ -65,6 +65,25 @@ describe('safe database diagnostics', () => {
     ).toContain(hint);
   });
 
+  it('explains Supabase pooler tenant-routing errors without exposing connection details', () => {
+    const result = databaseFailureDiagnostic(new Error('private pooler details', { cause: { code: 'XX000' } }));
+    expect(result).toContain('XX000');
+    expect(result).toContain('exact Session Pooler hostname');
+    expect(result).toContain('postgres.<project-ref>');
+    expect(result).not.toContain('private pooler details');
+  });
+
+  it('reports an unclassified PostgreSQL code without including raw messages or credentials', () => {
+    const error = Object.assign(new Error('postgresql://user:secret@pooler/private'), {
+      code: '08006',
+    });
+    const result = databaseFailureDiagnostic(error);
+    expect(result).toContain('08006: Unclassified PostgreSQL connection error');
+    expect(result).toContain('protected DATABASE_URL');
+    expect(result).not.toContain('secret');
+    expect(result).not.toContain('pooler/private');
+  });
+
   it.each([
     undefined,
     null,
@@ -80,6 +99,41 @@ describe('safe database diagnostics', () => {
       expect(result).not.toContain('secret');
     },
   );
+
+  it('reports Supavisor internal errors with safe pooler guidance', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('private pooler error details', {
+        cause: { code: 'XX000' },
+      }),
+    );
+    expect(result).toContain('XX000');
+    expect(result).toContain('exact Session Pooler hostname');
+    expect(result).toContain('postgres.<project-ref>');
+    expect(result).not.toContain('private pooler error details');
+  });
+
+  it('reports TLS certificate hostname failures without exposing connection details', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('private hostname details', {
+        cause: { code: 'ERR_TLS_CERT_ALTNAME_INVALID' },
+      }),
+    );
+    expect(result).toContain('TLS certificate hostname validation failed');
+    expect(result).toContain('Supabase Connect');
+    expect(result).not.toContain('private hostname');
+  });
+
+  it('preserves unknown safe driver codes without logging raw messages', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('postgresql://user:private-password@host/db', {
+        cause: { code: 'SASL_AUTHENTICATION_FAILED' },
+      }),
+    );
+    expect(result).toContain('SASL_AUTHENTICATION_FAILED');
+    expect(result).toContain('project-qualified username');
+    expect(result).not.toContain('private-password');
+    expect(result).not.toContain('postgresql://');
+  });
 
   it('terminates when causes form a cycle', () => {
     const error: { cause?: unknown } = {};
