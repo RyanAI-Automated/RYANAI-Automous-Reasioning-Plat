@@ -241,6 +241,10 @@ export default function QuantLabPage() {
     }
   };
 
+  const selectedDatasetIsStale = marketDataImports.some(
+    (item) => item.id === selectedImportId && item.is_stale,
+  );
+
   const chartPoints = useMemo(() => {
     const values = result?.equity_curve ?? [];
     if (values.length < 2) return '';
@@ -350,7 +354,7 @@ export default function QuantLabPage() {
             <NumberField label="Fast SMA window" value={fastWindow} onChange={setFastWindow} min="2" max="50" />
             <NumberField label="Slow SMA window" value={slowWindow} onChange={setSlowWindow} min="3" max="200" />
           </div>
-          <button type="button" onClick={() => void generateSignal()} disabled={generatingSignal || !selectedImportId || Number(fastWindow) >= Number(slowWindow)} className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100 disabled:opacity-50">{generatingSignal ? 'Validating signal…' : 'Generate SMA crossover signal'}</button>
+          <button type="button" onClick={() => void generateSignal()} disabled={generatingSignal || !selectedImportId || selectedDatasetIsStale || Number(fastWindow) >= Number(slowWindow)} className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100 disabled:opacity-50">{generatingSignal ? 'Validating signal…' : 'Generate SMA crossover signal'}</button>
           {signalError && <p role="alert" className="rounded-lg border border-rose-400/30 p-3 text-xs text-rose-200">{signalError}</p>}
           {currentSignal && <div role="status" className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -400,7 +404,7 @@ export default function QuantLabPage() {
             <NumberField label="Slippage (bps)" value={slippageBps} onChange={setSlippageBps} min="0" max="1000" step="0.5" />
           </div>
           {error && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-400/5 p-3 text-sm text-rose-200">{error}</p>}
-          <button type="submit" disabled={running || (!selectedImportId && !barsJson.trim())} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="submit" disabled={running || (selectedImportId ? selectedDatasetIsStale : !barsJson.trim())} className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50">
             <Play className="h-4 w-4" /> {running ? 'Running isolated backtest…' : 'Run backtest'}
           </button>
           <p className="text-xs leading-5 text-slate-500">The isolated Python engine receives validated historical bars only. It does not access provider keys, broker accounts or live-order APIs. Strategy signals are not order instructions.</p>
