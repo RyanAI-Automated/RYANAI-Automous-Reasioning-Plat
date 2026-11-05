@@ -177,7 +177,24 @@ function registerCoreRoutes() {
       service: 'ryanai-api-gateway',
       timestamp: new Date().toISOString(),
       services: readiness.services,
-      agentQueue: getAgentTaskWorkerStatus(),
+      agentQueue: (() => {
+        const worker = getAgentTaskWorkerStatus();
+        return {
+          state: worker.state,
+          recoveryIntervalMs: worker.recoveryIntervalMs,
+          listener: worker.listener ? {
+            state: worker.listener.state,
+            connected: worker.listener.connected,
+            subscribed: worker.listener.subscribed,
+            reconnectAttempts: worker.listener.reconnectAttempts,
+            backoffMs: worker.listener.backoffMs,
+            lastConnectedAt: worker.listener.lastConnectedAt,
+            lastErrorCode: worker.listener.lastErrorCode,
+          } : null,
+          lastNotificationAt: worker.lastNotificationAt,
+          lastRecoverySweepAt: worker.lastRecoverySweepAt,
+        };
+      })(),
       engine: 'LangGraph ReAct',
       architect: 'RyanAI',
       cudaActive: false,
