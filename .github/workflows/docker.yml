@@ -98,6 +98,9 @@ jobs:
           - image: standalone-api
             file: Dockerfile.api
             target: api
+          - image: standalone-api
+            file: Dockerfile.api
+            target: api
           - image: web
             file: Dockerfile
             target: web
