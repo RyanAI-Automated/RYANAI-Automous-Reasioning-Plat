@@ -43,7 +43,7 @@ jobs:
                   method: 'GET',
                   redirect: 'follow',
                   headers: { 'user-agent': 'RyanAI-GitHub-Health-Monitor/1.0' },
-                  signal: AbortSignal.timeout(12000),
+                  signal: AbortSignal.timeout(45000),
                 });
                 return {
                   level: response.ok ? 'up' : 'down',
