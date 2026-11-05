@@ -50,6 +50,7 @@ async function send(path: string, url: string, payload: Record<string, string>, 
 }
 
 beforeEach(() => {
+  vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
   prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
   prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
   prismaMock.communicationMessage.upsert.mockResolvedValue({});
@@ -184,5 +185,22 @@ describe('outbound Comms request validation', () => {
 
     expect(response.statusCode).toBe(400);
     expect(prismaMock.communicationConversation.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe('Comms feature gates', () => {
+  it('does not register communications routes when the feature is disabled', async () => {
+    vi.stubEnv('COMMUNICATIONS_ENABLED', 'false');
+    const response = await send('/api/comms/send', '', {});
+    expect(response.statusCode).toBe(404);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('blocks attachment upload preparation until the scanner and attachment flag are enabled', async () => {
+    vi.stubEnv('COMMUNICATION_ATTACHMENTS_ENABLED', 'false');
+    vi.stubEnv('ATTACHMENT_SCANNER_ENABLED', 'true');
+    const response = await send('/api/comms/attachments/prepare', '', {});
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: 'Communication attachments are disabled.' });
   });
 });
