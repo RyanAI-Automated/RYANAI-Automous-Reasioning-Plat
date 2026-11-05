@@ -83,7 +83,7 @@ fastify.post('/api/inference/execute', async (request, reply) => {
 fastify.post('/api/audit/sink', async (request, reply) => {
   const auditLog = request.body;
   
-  // Publish to Redis so the WebSocket stream picks it up and sends it to Vercel
+  // Publish to Redis so the WebSocket stream picks it up and sends it to the frontend
   await redis.publish('system_telemetry', JSON.stringify({ type: 'eBPF_alert', data: auditLog }));
   
   return reply.send({ status: 'logged' });
@@ -94,7 +94,7 @@ const start = async () => {
   try {
     // Listen on all interfaces so Cloudflare Tunnel or ngrok can route to it
     await fastify.listen({ port: 8080, host: '0.0.0.0' });
-    fastify.log.info(`Gateway active. Expose port 8080 via Cloudflare Tunnel to connect Vercel.`);
+    fastify.log.info(`Gateway active. Expose port 8080 via Cloudflare Tunnel to connect the frontend.`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
