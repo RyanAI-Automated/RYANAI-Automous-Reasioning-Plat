@@ -56,3 +56,87 @@ BEGIN
 END;$$;
 REVOKE ALL ON FUNCTION public.claim_ryanai_orphan_attachment_cleanup(timestamptz,integer) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_ryanai_orphan_attachment_cleanup(timestamptz,integer) TO service_role;
+
+
+-- Attachment metadata is server-only. Browser clients receive only one-use
+-- Storage upload tokens and short-lived signed reads through the owner API.
+CREATE TABLE IF NOT EXISTS public.communication_attachment_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  communication_attachment_id TEXT NOT NULL,
+  owner_user_id UUID NOT NULL,
+  event TEXT NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS communication_attachment_audit_attachment_created_idx
+  ON public.communication_attachment_audit (communication_attachment_id, created_at);
+CREATE INDEX IF NOT EXISTS communication_attachment_audit_owner_created_idx
+  ON public.communication_attachment_audit (owner_user_id, created_at);
+
+ALTER TABLE public.communication_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.communication_attachment_audit ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.communication_attachments FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.communication_attachment_audit FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.communication_attachments TO service_role;
+GRANT ALL ON TABLE public.communication_attachment_audit TO service_role;
+
+CREATE OR REPLACE FUNCTION public.audit_ryanai_comms_attachment_reservation()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+BEGIN
+  INSERT INTO public.communication_attachment_audit
+    (communication_attachment_id, owner_user_id, event, metadata)
+  VALUES
+    (NEW.id, NEW.owner_user_id, 'attachment_reserved',
+     jsonb_build_object('bucket_id', NEW.bucket_id, 'source', NEW.source, 'mime_type', NEW.mime_type, 'size', NEW.size));
+  RETURN NEW;
+END;$$;
+REVOKE ALL ON FUNCTION public.audit_ryanai_comms_attachment_reservation() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS ryanai_comms_attachment_reservation_audit ON public.communication_attachments;
+CREATE TRIGGER ryanai_comms_attachment_reservation_audit
+AFTER INSERT ON public.communication_attachments
+FOR EACH ROW EXECUTE FUNCTION public.audit_ryanai_comms_attachment_reservation();
+
+CREATE OR REPLACE FUNCTION public.audit_ryanai_comms_attachment_scan()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE
+  v_attachment_id TEXT;
+  v_owner_user_id UUID;
+  v_event TEXT;
+BEGIN
+  IF NEW.bucket_id <> 'ryanai-comms-attachments' THEN RETURN NEW; END IF;
+  SELECT id, owner_user_id INTO v_attachment_id, v_owner_user_id
+  FROM public.communication_attachments
+  WHERE object_name = NEW.object_name
+  LIMIT 1;
+  IF v_attachment_id IS NULL THEN RETURN NEW; END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    v_event := 'scan_queued';
+  ELSIF NEW.status IS DISTINCT FROM OLD.status THEN
+    v_event := CASE NEW.status
+      WHEN 'scanning' THEN 'scan_started'
+      WHEN 'clean' THEN 'scan_clean'
+      WHEN 'infected' THEN 'scan_infected'
+      WHEN 'failed' THEN 'scan_failed'
+      ELSE 'scan_state_changed'
+    END;
+  ELSIF NEW.purged_at IS DISTINCT FROM OLD.purged_at AND NEW.purged_at IS NOT NULL THEN
+    v_event := 'quarantine_purged';
+  ELSIF NEW.orphan_purged_at IS DISTINCT FROM OLD.orphan_purged_at AND NEW.orphan_purged_at IS NOT NULL THEN
+    v_event := 'orphan_purged';
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.communication_attachment_audit
+    (communication_attachment_id, owner_user_id, event, metadata)
+  VALUES
+    (v_attachment_id, v_owner_user_id, v_event,
+     jsonb_build_object('bucket_id', NEW.bucket_id, 'status', NEW.status, 'attempts', NEW.attempts));
+  RETURN NEW;
+END;$$;
+REVOKE ALL ON FUNCTION public.audit_ryanai_comms_attachment_scan() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS ryanai_comms_attachment_scan_audit ON public.ryanai_attachment_scans;
+CREATE TRIGGER ryanai_comms_attachment_scan_audit
+AFTER INSERT OR UPDATE ON public.ryanai_attachment_scans
+FOR EACH ROW EXECUTE FUNCTION public.audit_ryanai_comms_attachment_scan();

@@ -28,6 +28,10 @@ function dateLabel(value: string | null): string {
 /** Account-scoped UI for the same persistent memory records used by RyanAI reasoning. */
 export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps) {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
+  const [search, setSearch] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -39,24 +43,31 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refresh = useCallback(async (signal?: AbortSignal, append = false, query = activeSearch, cursor?: string) => {
     setLoading(true);
     setError('');
     try {
-      const response = await authenticatedFetch('/api/user/memory', {
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      if (cursor) params.set('cursor', cursor);
+      params.set('limit', '50');
+      const response = await authenticatedFetch('/api/user/memory?' + params.toString(), {
         headers: { Accept: 'application/json' },
         signal,
       });
-      const payload = await response.json().catch(() => ({})) as { entries?: VaultEntry[]; error?: string };
+      const payload = await response.json().catch(() => ({})) as { entries?: VaultEntry[]; error?: string; hasMore?: boolean; nextCursor?: string | null };
       if (!response.ok) throw new Error(payload.error || 'Could not load saved memories.');
-      setEntries(Array.isArray(payload.entries) ? payload.entries : []);
+      const loaded = Array.isArray(payload.entries) ? payload.entries : [];
+      setEntries((current) => append ? [...current, ...loaded] : loaded);
+      setHasMore(payload.hasMore === true);
+      setNextCursor(typeof payload.nextCursor === 'string' ? payload.nextCursor : null);
     } catch (cause) {
       if (signal?.aborted) return;
       setError(cause instanceof Error ? cause.message : 'Could not load saved memories.');
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [activeSearch]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,6 +92,8 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
       const payload = await response.json().catch(() => ({})) as { entry?: VaultEntry; error?: string };
       if (!response.ok || !payload.entry) throw new Error(payload.error || 'Could not save this memory.');
       setEntries((current) => [payload.entry!, ...current]);
+      setHasMore(hasMore);
+      setNextCursor(nextCursor);
       setInput('');
       setNotice('Memory saved to your account and made available to RyanAI reasoning.');
     } catch (cause) {
@@ -177,10 +190,18 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
           <p className="text-[11px] text-slate-500">{input.length.toLocaleString()} / 2,000 characters</p>
         </form>
 
+        <form onSubmit={(event) => { event.preventDefault(); setActiveSearch(search.trim()); }} className="flex gap-2">
+          <label htmlFor="memory-search" className="sr-only">Search memories</label>
+          <input id="memory-search" value={search} onChange={(event) => setSearch(event.target.value)} maxLength={100}
+            placeholder="Search memory text or category…" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white placeholder:text-slate-600" />
+          <button type="submit" disabled={loading} className="rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-200 disabled:opacity-50">Search</button>
+          {activeSearch && <button type="button" onClick={() => { setSearch(''); setActiveSearch(''); }} className="rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300">Clear</button>}
+        </form>
+
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-white">Saved memories</h3>
-            <p className="mt-0.5 text-[11px] text-slate-500">{entries.length} loaded · latest 100</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">{entries.length} loaded{activeSearch ? ' · filtered' : ''}{hasMore ? ' · more available' : ''}</p>
           </div>
           <button type="button" onClick={() => void refresh()} disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50">
@@ -242,6 +263,10 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
             );
           })}
         </div>
+        {hasMore && nextCursor && <button type="button" onClick={() => void refresh(undefined, true, activeSearch, nextCursor)} disabled={loading}
+          className="w-full rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50">
+          {loading ? 'Loading…' : 'Load more memories'}
+        </button>}
       </div>
     </Modal>
   );
