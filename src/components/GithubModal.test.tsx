@@ -68,7 +68,7 @@ describe('GitHub App integration modal', () => {
     await vi.waitFor(() => expect(container.textContent).toContain('Connected · verified'));
     expect(container.textContent).toContain('synthetic-owner');
     expect(container.textContent).toContain('RyanAI-Automated/RYANAI-Automous-Reasioning-Plat');
-    expect(container.textContent).toContain('does not authorize automatic merges');
+    expect(container.textContent).toContain('does not implement pushes');
     expect(container.textContent).not.toContain('ghu.');
     expect(container.textContent).not.toContain('ghr.');
   });
