@@ -5,7 +5,7 @@
   "identifier": "com.tauri.dev",
   "build": {
     "frontendDist": "apps",
-    "devUrl": "https://vercel.com/uss1632/ryanai-automous-reasioning-plat/8jD5T4mNHg32zZteCF3khWbRLhNd",
+    "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
