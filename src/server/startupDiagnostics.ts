@@ -48,7 +48,7 @@ export function databaseFailureDiagnostic(error: unknown): string {
     };
     if (
       typeof detail.code === 'string' &&
-      /^[A-Z][A-Z0-9_]{2,31}$|^\\d{5}$/.test(detail.code)
+      /^[A-Z][A-Z0-9_]{2,31}$|^\d{5}$/.test(detail.code)
     ) {
       codes.add(detail.code);
     }
