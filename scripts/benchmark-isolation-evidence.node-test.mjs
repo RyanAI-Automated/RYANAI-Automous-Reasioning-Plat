@@ -54,6 +54,10 @@ function fixtureProbe() {
     modelInvocation: false,
     networkMode: 'none',
     containerImageDigest: 'node@sha256:' + 'a'.repeat(64),
+    networkInterfaces: ['lo'],
+    environmentVariableNames: ['HOME', 'HOSTNAME', 'NODE_VERSION', 'PATH', 'PWD', 'YARN_VERSION'],
+    allowedEnvironmentVariableNames: ['HOME', 'HOSTNAME', 'NODE_VERSION', 'PATH', 'PWD', 'YARN_VERSION'],
+    failedChecks: 0,
     checks: requiredChecks.map(name => ({
       name, status: 'PASS', command: 'fixture command', exitCode: 0, observedCode: 'fixture'
     })),
@@ -74,6 +78,15 @@ test('evidence writer emits one valid JSON document with revision, commands and 
     assert.equal(report.commands.imageDigestInspection.exitCode, 0);
     assert.equal(report.commands.isolatedContainer.exitCode, 0);
     assert.ok(report.commands.isolatedContainer.argv.includes('--network=none'));
+    const endpointPolicyMount = `--mount=type=bind,src=${root}/scripts/benchmark-endpoint-policy.mjs,dst=/workspace/benchmark-endpoint-policy.mjs,readonly`;
+    assert.ok(report.commands.isolatedContainer.argv.includes(endpointPolicyMount));
+    assert.deepEqual(report.runtime.mountedFiles, [
+      'scripts/benchmark-isolation-container.mjs',
+      'scripts/benchmark-endpoint-policy.mjs',
+      'benchmarks/contracts/local-isolation-policy.json'
+    ]);
+    assert.deepEqual(report.probeResult.networkInterfaces, ['lo']);
+    assert.equal(report.probeResult.failedChecks, 0);
     assert.equal(report.checks.length, requiredChecks.length);
     assert.ok(report.checks.every(check => check.exitCode === 0 && check.command));
     assert.equal(report.verdict, 'HARNESS_PASS_ONLY_NOT_GATE_PASS');
@@ -129,5 +142,66 @@ test('evidence writer rejects missing and duplicate required probe records', asy
     assert.ok(report.failureReasons.some(reason => reason.includes('duplicate check names')));
   } finally {
     await rm(duplicated.temp, { recursive: true, force: true });
+  }
+});
+
+
+test('evidence writer preserves an individual probe failure and rejects the harness PASS label', async () => {
+  const parsed = JSON.parse(fixtureProbe());
+  parsed.checks[3] = {
+    ...parsed.checks[3],
+    status: 'FAIL',
+    exitCode: 1,
+    observedCode: 'ECONNREFUSED',
+    failureReason: 'fixture proves only a closed port, not blocked egress'
+  };
+  parsed.failedChecks = 1;
+  parsed.verdict = 'HARNESS_FAIL';
+  const result = await runEvidence({ probeText: JSON.stringify(parsed), probeExitCode: '1' });
+  try {
+    assert.equal(result.run.status, 1);
+    const report = JSON.parse(result.run.stdout);
+    assert.equal(report.verdict, 'HARNESS_FAIL');
+    assert.equal(report.probeResult.checks[3].status, 'FAIL');
+    assert.match(report.probeResult.checks[3].failureReason, /closed port/);
+    assert.ok(report.failureReasons.some(reason => reason.includes('public-ip-egress-denied')));
+  } finally {
+    await rm(result.temp, { recursive: true, force: true });
+  }
+});
+
+test('evidence writer fails closed on inconsistent summary counters, network interfaces and environment allowlist', async () => {
+  for (const mutate of [
+    parsed => { parsed.failedChecks = 1; },
+    parsed => { parsed.networkInterfaces = ['lo', 'eth0']; },
+    parsed => { parsed.environmentVariableNames.push('UNEXPECTED_HOST_VARIABLE'); }
+  ]) {
+    const parsed = JSON.parse(fixtureProbe());
+    mutate(parsed);
+    const result = await runEvidence({ probeText: JSON.stringify(parsed) });
+    try {
+      assert.equal(result.run.status, 1);
+      const report = JSON.parse(result.run.stdout);
+      assert.equal(report.verdict, 'HARNESS_FAIL');
+      assert.ok(report.failureReasons.length > 0);
+    } finally {
+      await rm(result.temp, { recursive: true, force: true });
+    }
+  }
+});
+
+test('evidence writer turns malformed individual check records into valid failure JSON', async () => {
+  const parsed = JSON.parse(fixtureProbe());
+  parsed.checks[0] = null;
+  parsed.failedChecks = 1;
+  parsed.verdict = 'HARNESS_FAIL';
+  const result = await runEvidence({ probeText: JSON.stringify(parsed), probeExitCode: '1' });
+  try {
+    assert.equal(result.run.status, 1);
+    const report = JSON.parse(result.run.stdout);
+    assert.equal(report.verdict, 'HARNESS_FAIL');
+    assert.ok(report.failureReasons.some(reason => reason.includes('malformed check record')));
+  } finally {
+    await rm(result.temp, { recursive: true, force: true });
   }
 });
