@@ -20,7 +20,29 @@ type BacktestBody = {
   fee_bps?: number;
   slippage_bps?: number;
 };
-type EngineInput = Omit<BacktestBody, 'bars' | 'market_data_import_id'> & { bars: Bar[] };
+type WalkForwardBody = {
+  bars?: Bar[];
+  market_data_import_id?: string;
+  fast_window?: number;
+  slow_window?: number;
+  initial_cash?: number;
+  fee_bps?: number;
+  slippage_bps?: number;
+  train_window?: number;
+  test_window?: number;
+  step_window?: number;
+  max_folds?: number;
+  parameter_grid?: Array<{ fast_window: number; slow_window: number }>;
+};
+type EngineInput = Omit<BacktestBody, 'bars' | 'market_data_import_id'> & {
+  bars: Bar[];
+  mode?: 'backtest' | 'walk_forward';
+  train_window?: number;
+  test_window?: number;
+  step_window?: number;
+  max_folds?: number;
+  parameter_grid?: Array<{ fast_window: number; slow_window: number }>;
+};
 type EngineResponse = { ok: true; result: Record<string, unknown> } | { ok: false; error: string };
 
 const MAX_INPUT_BYTES = 2_000_000;
@@ -106,7 +128,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     return { imports };
   });
 
-  fastify.post<{ Body: { symbol: string; limit?: number } }>('/api/quant/market-data/imports', {
+  fastify.post<{ Body: { symbol: string; limit?: number; adjustment?: 'raw' | 'split' | 'dividend' | 'all' } }>('/api/quant/market-data/imports', {
     schema: {
       body: {
         type: 'object',
@@ -115,6 +137,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
         properties: {
           symbol: { type: 'string', minLength: 1, maxLength: 15 },
           limit: { type: 'integer', minimum: 30, maximum: 1000 },
+          adjustment: { type: 'string', enum: ['raw', 'split', 'dividend', 'all'] },
         },
       },
     },
@@ -124,6 +147,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       imported = await fetchAlpacaDailyBars({
         symbol: request.body.symbol,
         limit: request.body.limit ?? 250,
+        adjustment: request.body.adjustment ?? 'all',
         apiKey: process.env.ALPACA_API_KEY,
         apiSecret: process.env.ALPACA_API_SECRET,
       });
@@ -546,6 +570,136 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.code(201).send({
       experiment: saved,
       result: engine.result,
+      executionMode: 'historical_simulation_only',
+      marketData: marketDataProvenance,
+    });
+  });
+
+  fastify.post<{ Body: WalkForwardBody }>('/api/quant/walk-forward', {
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        anyOf: [{ required: ['bars'] }, { required: ['market_data_import_id'] }],
+        properties: {
+          market_data_import_id: { type: 'string', minLength: 1, maxLength: 64 },
+          bars: {
+            type: 'array', minItems: 30, maxItems: 2500,
+            items: {
+              type: 'object', additionalProperties: false,
+              required: ['date', 'open', 'high', 'low', 'close'],
+              properties: {
+                date: { type: 'string', format: 'date' },
+                open: { type: 'number', exclusiveMinimum: 0 },
+                high: { type: 'number', exclusiveMinimum: 0 },
+                low: { type: 'number', exclusiveMinimum: 0 },
+                close: { type: 'number', exclusiveMinimum: 0 },
+                volume: { type: 'number', minimum: 0 },
+              },
+            },
+          },
+          fast_window: { type: 'integer', minimum: 2, maximum: 50 },
+          slow_window: { type: 'integer', minimum: 3, maximum: 200 },
+          initial_cash: { type: 'number', minimum: 1, maximum: 1000000000 },
+          fee_bps: { type: 'number', minimum: 0, maximum: 1000 },
+          slippage_bps: { type: 'number', minimum: 0, maximum: 1000 },
+          train_window: { type: 'integer', minimum: 30, maximum: 2000 },
+          test_window: { type: 'integer', minimum: 5, maximum: 500 },
+          step_window: { type: 'integer', minimum: 5, maximum: 500 },
+          max_folds: { type: 'integer', minimum: 1, maximum: 20 },
+          parameter_grid: {
+            type: 'array', minItems: 1, maxItems: 20,
+            items: {
+              type: 'object', additionalProperties: false,
+              required: ['fast_window', 'slow_window'],
+              properties: {
+                fast_window: { type: 'integer', minimum: 2, maximum: 50 },
+                slow_window: { type: 'integer', minimum: 3, maximum: 200 },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    let bars = request.body.bars;
+    let marketDataProvenance: Record<string, unknown> | null = null;
+    if (request.body.market_data_import_id) {
+      const imports = await fastify.prisma.$queryRawUnsafe<Array<{
+        id: string; symbol: string; provider: string; feed: string; timeframe: string;
+        adjustment: string; last_bar_at: Date | string; fetched_at: Date | string;
+        is_stale: boolean; bars: Bar[]; provenance: Record<string, unknown>;
+      }>>(
+        `SELECT id, symbol, provider, feed, timeframe, adjustment, last_bar_at,
+                fetched_at, is_stale, bars, provenance
+         FROM quant_market_data_imports
+         WHERE id = $1 AND user_id = $2
+         LIMIT 1`,
+        request.body.market_data_import_id,
+        request.authUser!.id,
+      );
+      const imported = imports[0];
+      if (!imported) return reply.code(404).send({ error: 'Market-data import not found for this account.' });
+      const lastBarAt = new Date(imported.last_bar_at).getTime();
+      if (imported.is_stale || !Number.isFinite(lastBarAt) || Date.now() - lastBarAt > 5 * 24 * 60 * 60 * 1000) {
+        return reply.code(409).send({ error: 'Market-data import is stale. Refresh it before running walk-forward evaluation.' });
+      }
+      if (!Array.isArray(imported.bars) || imported.bars.length < 30) {
+        return reply.code(422).send({ error: 'Stored market-data import does not contain enough valid bars.' });
+      }
+      bars = imported.bars;
+      marketDataProvenance = {
+        id: imported.id,
+        symbol: imported.symbol,
+        provider: imported.provider,
+        feed: imported.feed,
+        timeframe: imported.timeframe,
+        adjustment: imported.adjustment,
+        fetchedAt: imported.fetched_at,
+        lastBarAt: imported.last_bar_at,
+        ...(imported.provenance ?? {}),
+      };
+    }
+    if (!bars) return reply.code(400).send({ error: 'Provide bars or select an owned market-data import.' });
+
+    const input: EngineInput = {
+      mode: 'walk_forward',
+      strategy: 'sma_crossover',
+      bars,
+      fast_window: request.body.fast_window,
+      slow_window: request.body.slow_window,
+      initial_cash: request.body.initial_cash,
+      fee_bps: request.body.fee_bps,
+      slippage_bps: request.body.slippage_bps,
+      train_window: request.body.train_window,
+      test_window: request.body.test_window,
+      step_window: request.body.step_window,
+      max_folds: request.body.max_folds,
+      parameter_grid: request.body.parameter_grid,
+    };
+    let engine: EngineResponse;
+    try {
+      engine = await runPythonEngine(input);
+    } catch (error) {
+      fastify.log.error({ message: error instanceof Error ? error.message : 'unknown' }, 'Quant walk-forward engine failed');
+      return reply.code(503).send({ error: 'Quant walk-forward engine is unavailable or did not complete safely.' });
+    }
+    if (!engine.ok) return reply.code(422).send({ error: engine.error });
+
+    const saved = await fastify.prisma.quantExperiment.create({
+      data: {
+        userId: request.authUser!.id,
+        strategy: 'walk_forward_sma_crossover',
+        status: 'completed',
+        input: input as unknown as Prisma.InputJsonValue,
+        result: engine.result as Prisma.InputJsonValue,
+      },
+      select: { id: true, strategy: true, status: true, createdAt: true },
+    });
+    return reply.code(201).send({
+      experiment: saved,
+      result: engine.result,
+      evaluationMode: 'walk_forward_out_of_sample',
       executionMode: 'historical_simulation_only',
       marketData: marketDataProvenance,
     });
