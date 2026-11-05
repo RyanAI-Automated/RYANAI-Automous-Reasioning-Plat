@@ -99,7 +99,19 @@ export async function createCommsUploadIntents(prisma:PrismaClient,ownerUserId:s
   const msg=await prisma.communicationMessage.findUnique({where:{id:messageId},select:{id:true,conversationId:true,conversation:{select:{ownerUserId:true}}}});
   if(!msg||msg.conversation.ownerUserId!==ownerUserId)throw new Error('Communication draft is not owned by this session.');
   const storage=createCommsStorageAdmin(),created:string[]=[];
+  const existing=await prisma.communicationAttachment.findMany({where:{communicationMessageId:messageId,ownerUserId,bucketId:COMMS_ATTACHMENT_BUCKET},select:{id:true,objectName:true,fileName:true,mimeType:true,size:true}});
   const intents:Array<{id:string;name:string;mimeType:string;size:number;signedUploadUrl:string}>=[];
+  if(existing.length){
+    if(existing.length!==files.length)throw new Error('The attachment draft already has a different upload set.');
+    for(const file of files){
+      const match=existing.find(row=>row.fileName===safeCommsFileName(file.name,file.mimeType)&&row.mimeType===file.mimeType.toLowerCase()&&Number(row.size)===file.size);
+      if(!match)throw new Error('The attachment retry does not match the original file set.');
+      const {data,error}=await storage.storage.from(COMMS_ATTACHMENT_BUCKET).createSignedUploadUrl(match.objectName,{upsert:false});
+      if(error||!data?.signedUrl)throw new Error(error?.message||'Unable to re-sign attachment upload.');
+      intents.push({id:match.id,name:match.fileName,mimeType:match.mimeType,size:Number(match.size),signedUploadUrl:data.signedUrl});
+    }
+    return intents;
+  }
   try{
     for(const file of files){
       const id=crypto.randomUUID(),name=safeCommsFileName(file.name,file.mimeType);
@@ -139,6 +151,38 @@ export async function cleanCommsAttachmentUrls(prisma:PrismaClient,ownerUserId:s
   const urls=new Map<string,string>();
   for(const row of rows){const {data,error}=await storage.storage.from(COMMS_ATTACHMENT_BUCKET).createSignedUrl(row.objectName,expiresIn);if(error||!data?.signedUrl)throw new Error(error?.message||'Unable to sign attachment URL.');urls.set(row.id,data.signedUrl);}
   return urls;
+}
+
+export async function getCommsAttachmentStatuses(prisma:PrismaClient,ownerUserId:string,ids:readonly string[]) {
+  const unique=[...new Set(ids)];
+  if(!unique.length)return [];
+  if(unique.length>100)throw new Error('Too many attachment IDs requested.');
+  const rows=await prisma.communicationAttachment.findMany({
+    where:{id:{in:unique},ownerUserId,bucketId:COMMS_ATTACHMENT_BUCKET},
+    select:{id:true,fileName:true,mimeType:true,size:true,objectName:true,message:{select:{conversation:{select:{ownerUserId:true}}}}},
+  });
+  if(rows.length!==unique.length||rows.some(row=>row.message.conversation.ownerUserId!==ownerUserId))throw new Error('One or more attachments were not found for this owner.');
+  const states=await getCommsAttachmentScanStates(createCommsStorageAdmin(),rows);
+  return rows.map(row=>({id:row.id,name:row.fileName,mimeType:row.mimeType,size:Number(row.size),status:states[row.id]||'pending'}));
+}
+export async function downloadCleanCommsAttachments(prisma:PrismaClient,ownerUserId:string,ids:readonly string[]) {
+  const unique=[...new Set(ids)];
+  const rows=await prisma.communicationAttachment.findMany({
+    where:{id:{in:unique},ownerUserId,bucketId:COMMS_ATTACHMENT_BUCKET},
+    select:{id:true,fileName:true,mimeType:true,objectName:true,message:{select:{conversation:{select:{ownerUserId:true}}}}},
+  });
+  if(rows.length!==unique.length||rows.some(row=>row.message.conversation.ownerUserId!==ownerUserId))throw new Error('One or more attachments were not found for this owner.');
+  const storage=createCommsStorageAdmin(),states=await getCommsAttachmentScanStates(storage,rows);
+  if(rows.some(row=>states[row.id]!=='clean'))throw new Error('Attachments are unavailable until every security scan is clean.');
+  const result=[];
+  for(const row of rows){
+    const {data,error}=await storage.storage.from(COMMS_ATTACHMENT_BUCKET).download(row.objectName);
+    if(error||!data)throw new Error(error?.message||'Unable to retrieve clean attachment.');
+    const bytes=new Uint8Array(await data.arrayBuffer());
+    if(bytes.byteLength>COMMS_ATTACHMENT_MAX_BYTES||!validateCommsFileSignature(bytes,row.mimeType))throw new Error('Stored attachment failed content validation.');
+    result.push({filename:row.fileName,content:Buffer.from(bytes),contentType:row.mimeType});
+  }
+  return result;
 }
 export function getOwnerInboundUserId():string|null {
   const value=process.env.RYANAI_OWNER_AUTH_USER_ID?.trim();

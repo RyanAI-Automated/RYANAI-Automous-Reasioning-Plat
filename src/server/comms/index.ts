@@ -5,12 +5,13 @@ import formbody from '@fastify/formbody';
 import rawBody from 'fastify-raw-body';
 import { Resend } from 'resend';
 import { humanInTheLoopAgent } from '../../agent/approvalEngine.js';
-import { beginOutboundCommunication, claimInboundCommunication, completeOutboundCommunication, markOutboundCommunicationUnknown, OutboundIdempotencyConflictError, recordCommunication, updateCommunicationStatus } from './history.js';
+import { beginOutboundCommunication, claimInboundCommunication, completeOutboundCommunication, markOutboundCommunicationUnknown, OutboundIdempotencyConflictError, prepareOutboundCommunication, recordCommunication, updateCommunicationStatus } from './history.js';
 import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
+import { createCommsUploadIntents, createCommsStorageAdmin, cleanCommsAttachmentUrls, downloadCleanCommsAttachments, getCommsAttachmentScanStates, getCommsAttachmentStatuses } from './attachments.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
-type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string; idempotencyKey?: string };
+type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string; idempotencyKey?: string; attachmentIds?: string[] };
 const MAX_MESSAGE_LENGTH = 4000;
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -88,10 +89,68 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   await fastify.register(formbody);
   await fastify.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
 
+
+  fastify.post<{ Body: { channel?: Channel; recipient?: string; message?: string; subject?: string; idempotencyKey?: string; files?: Array<{ name: string; mimeType: string; size: number }> } }>('/api/comms/attachments/prepare', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
+    const { channel, recipient, message, subject, idempotencyKey, files } = request.body ?? {};
+    if (!channel || !['whatsapp', 'sms', 'email'].includes(channel)) return reply.code(400).send({ error: 'Attachments are supported for WhatsApp, SMS and email.' });
+    const targetValue = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
+    const target = typeof targetValue === 'string' ? targetValue.trim() : '';
+    const bodyText = typeof message === 'string' ? message.trim() : '';
+    const key = typeof idempotencyKey === 'string' ? idempotencyKey.trim() : '';
+    if (!target || !bodyText || bodyText.length > MAX_MESSAGE_LENGTH) return reply.code(400).send({ error: 'A recipient and message of at most 4,000 characters are required.' });
+    if (!key || key.length < 16 || key.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(key)) return reply.code(400).send({ error: 'A valid 16–128 character idempotency key is required.' });
+    if (channel === 'email' ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target) : !E164.test(target)) return reply.code(400).send({ error: 'Recipient address is invalid.' });
+    if (!Array.isArray(files)) return reply.code(400).send({ error: 'An attachment file list is required.' });
+    try {
+      const ownerRecipient = channel === 'email'
+        ? target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase()
+        : Boolean(process.env.RYANAI_OWNER_PHONE && normalizePhone(target) === normalizePhone(process.env.RYANAI_OWNER_PHONE));
+      const prepared = await prepareOutboundCommunication(fastify.prisma, {
+        channel,
+        externalAddress: channel === 'email' ? target.toLowerCase() : target,
+        body: ownerRecipient ? addressOwnerMessage(bodyText) : bodyText,
+        idempotencyKey: key,
+        ownerUserId: request.authUser.id,
+        ...(channel === 'email' ? { metadata: { subject: typeof subject === 'string' && subject.trim() ? subject.trim() : 'RyanAI notification' } } : {}),
+      });
+      const uploads = await createCommsUploadIntents(fastify.prisma, request.authUser.id, prepared.id, files);
+      return reply.code(prepared.replayed ? 200 : 201).send({ success: true, messageId: prepared.id, replayed: prepared.replayed, attachments: uploads });
+    } catch (error) {
+      request.log.warn({ err: error }, 'Comms attachment preparation rejected');
+      return reply.code(400).send({ error: error instanceof Error ? error.message : 'Unable to prepare attachment uploads.' });
+    }
+  });
+
+  fastify.get<{ Querystring: { ids?: string } }>('/api/comms/attachments/status', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
+    const ids = (request.query.ids || '').split(',').filter(Boolean);
+    if (!ids.length || ids.length > 8 || ids.some(id => !/^[0-9a-f-]{36}$/i.test(id))) return reply.code(400).send({ error: 'Provide 1–8 valid attachment IDs.' });
+    try {
+      const attachments = await getCommsAttachmentStatuses(fastify.prisma, request.authUser.id, ids);
+      return { attachments };
+    } catch {
+      return reply.code(404).send({ error: 'One or more attachments were not found for this owner.' });
+    }
+  });
+
+  fastify.get<{ Params: { id: string } }>('/api/comms/attachments/:id/download', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
+    if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(400).send({ error: 'Invalid attachment ID.' });
+    try {
+      const urls = await cleanCommsAttachmentUrls(fastify.prisma, request.authUser.id, [request.params.id], 60);
+      return { url: urls.get(request.params.id) };
+    } catch {
+      return reply.code(404).send({ error: 'Attachment is not available until its security scan is clean.' });
+    }
+  });
+
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
-    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey } = request.body ?? {};
+    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [] } = request.body ?? {};
     if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
+    if (!Array.isArray(attachmentIds) || attachmentIds.length > 8 || new Set(attachmentIds).size !== attachmentIds.length) return reply.code(400).send({ success: false, error: 'At most 8 unique attachment IDs are supported.' });
+    if (attachmentIds.length && (channel === 'voice' || (channel === 'whatsapp' && Boolean(contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim())))) return reply.code(400).send({ success: false, error: 'Voice and approved WhatsApp template sends cannot include attachments.' });
     const targetValue = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
     const target = typeof targetValue === 'string' ? targetValue.trim() : '';
     const messageBody = typeof message === 'string' ? message.trim() : '';
@@ -121,6 +180,19 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     if (channel !== 'email' && !from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
     if (channel === 'voice' && !process.env.TWILIO_VOICE_ACTION_URL?.trim()) return reply.code(503).send({ success: false, error: 'Twilio voice action URL is not configured.' });
     const outboundBody = deliveryBody || '[WhatsApp approved template]';
+    let attachmentUrls: string[] = [];
+    let emailAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+    if (attachmentIds.length) {
+      try {
+        const states = await getCommsAttachmentStatuses(fastify.prisma, request.authUser.id, attachmentIds);
+        if (states.length !== attachmentIds.length || states.some(item => item.status !== 'clean')) return reply.code(409).send({ success: false, error: 'Attachments are not ready. All malware scans must be clean before sending.' });
+        if (channel === 'email') emailAttachments = await downloadCleanCommsAttachments(fastify.prisma, request.authUser.id, attachmentIds);
+        else attachmentUrls = [...(await cleanCommsAttachmentUrls(fastify.prisma, request.authUser.id, attachmentIds, 900)).values()];
+      } catch (error) {
+        request.log.warn({ err: error }, 'Attachment validation blocked outbound send');
+        return reply.code(409).send({ success: false, error: error instanceof Error ? error.message : 'Attachments are not ready.' });
+      }
+    }
     let reservation;
     try {
       reservation = await beginOutboundCommunication(fastify.prisma, {
@@ -128,6 +200,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         externalAddress: channel === 'email' ? target.toLowerCase() : target,
         body: outboundBody,
         idempotencyKey: key,
+        ownerUserId: request.authUser.id,
         ...(channel === 'email' ? { metadata: { subject: emailSubject } } : {}),
       });
     } catch (error) {
@@ -140,7 +213,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     });
     try {
       if (channel === 'email') {
-        const sent = await smtp!.transporter.sendMail({ from: smtp!.from, to: target, subject: emailSubject, text: deliveryBody });
+        const sent = await smtp!.transporter.sendMail({ from: smtp!.from, to: target, subject: emailSubject, text: deliveryBody, ...(emailAttachments.length ? { attachments: emailAttachments } : {}) });
         await completeOutboundCommunication(fastify.prisma, { id: reservation.id, providerMessageId: sent.messageId, status: 'accepted' });
         return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted', replayed: false });
       }
@@ -151,6 +224,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
           ...(channel === 'whatsapp' && approvedTemplateSid
             ? { contentSid: approvedTemplateSid, ...(typeof contentVariables === 'string' ? { contentVariables } : {}) }
             : { body: deliveryBody }),
+          ...(attachmentUrls.length ? { mediaUrl: attachmentUrls } : {}),
           ...(process.env.TWILIO_STATUS_CALLBACK_URL ? { statusCallback: process.env.TWILIO_STATUS_CALLBACK_URL } : {}),
         });
         await completeOutboundCommunication(fastify.prisma, { id: reservation.id, providerMessageId: sent.sid, status: sent.status });
@@ -174,7 +248,10 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
     const rawLimit = Number((request.query as { limit?: string })?.limit ?? 50);
     const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, Math.floor(rawLimit))) : 50;
+    const ownerUserId = request.authUser.id;
+    await fastify.prisma.communicationConversation.updateMany({ where: { ownerUserId: null }, data: { ownerUserId } });
     const conversations = await fastify.prisma.communicationConversation.findMany({
+      where: { ownerUserId },
       orderBy: { updatedAt: 'desc' },
       take: limit,
       select: {
@@ -185,15 +262,28 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
           select: {
             id: true, direction: true, body: true, status: true,
             providerMessageId: true, metadata: true, createdAt: true,
+            attachments: { select: { id: true, fileName: true, mimeType: true, size: true, objectName: true } },
           },
         },
       },
     });
+    const allAttachments = conversations.flatMap(item => item.messages.flatMap(message => message.attachments));
+    let states: Record<string, string> = {};
+    if (allAttachments.length) {
+      try { states = await getCommsAttachmentScanStates(createCommsStorageAdmin(), allAttachments.map(item => ({ id: item.id, objectName: item.objectName }))); }
+      catch (error) { request.log.warn({ err: error }, 'Unable to read attachment scan states'); }
+    }
     return {
       status: 'history',
       conversations: conversations.map((conversation) => ({
         ...conversation,
-        messages: [...conversation.messages].reverse(),
+        messages: [...conversation.messages].reverse().map(message => ({
+          ...message,
+          attachments: message.attachments.map(attachment => ({
+            id: attachment.id, name: attachment.fileName, mimeType: attachment.mimeType,
+            size: Number(attachment.size), status: states[attachment.id] || 'unavailable',
+          })),
+        })),
       })),
       pagination: { limit, returned: conversations.length },
     };
@@ -207,6 +297,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       voice: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER && process.env.TWILIO_VOICE_WEBHOOK_URL && process.env.TWILIO_VOICE_ACTION_URL),
       email: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM && process.env.RYANAI_OWNER_EMAIL),
       inboundEmail: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_WEBHOOK_SECRET),
+      attachments: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
     },
     ai: {
       openai: {
@@ -226,7 +317,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     if (sender !== normalizePhone(owner)) return reply.code(403).send({ error: 'This voice assistant is privately configured.' });
     if (body.CallSid) await recordCommunication(fastify.prisma, {
       channel: 'voice', externalAddress: sender, direction: 'inbound',
-      body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress',
+      body: 'Incoming voice call started', providerMessageId: body.CallSid, status: 'in_progress', ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
     });
     reply.type('text/xml');
     return twimlSay(getOwnerGreeting());
@@ -248,12 +339,12 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     try {
       await recordCommunication(fastify.prisma, {
         channel: 'voice', externalAddress: sender, direction: 'inbound', body: speech,
-        status: 'received', metadata: { callSid: body.CallSid || '' },
+        status: 'received', metadata: { callSid: body.CallSid || '' }, ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
       });
       const answer = addressOwnerResponse(await askRyanAI(speech, thread));
       await recordCommunication(fastify.prisma, {
         channel: 'voice', externalAddress: sender, direction: 'outbound',
-        body: answer, status: 'response_generated', metadata: { callSid: body.CallSid || '' },
+        body: answer, status: 'response_generated', metadata: { callSid: body.CallSid || '' }, ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
       });
       return twimlSay(answer.slice(0, MAX_MESSAGE_LENGTH), true);
     } catch (error) {
@@ -274,7 +365,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     try {
       const claim = await claimInboundCommunication(fastify.prisma, {
         channel: 'sms', externalAddress: sender,
-        body: text, providerMessageId: body.MessageSid, status: 'processing',
+        body: text, providerMessageId: body.MessageSid, status: 'processing', ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
       });
       if (!claim.claimed) {
         const previousReply = claim.existing?.metadata && typeof claim.existing.metadata === 'object'
@@ -292,7 +383,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       });
       await recordCommunication(fastify.prisma, {
         channel: 'sms', externalAddress: sender, direction: 'outbound', body: answer,
-        status: 'response_generated', metadata: { inReplyTo: body.MessageSid },
+        status: 'response_generated', metadata: { inReplyTo: body.MessageSid }, ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
       });
       return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(answer.slice(0, 1600))}</Message></Response>`;
     } catch (error) {
@@ -350,7 +441,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       const claim = await claimInboundCommunication(fastify.prisma, {
         channel: 'email', externalAddress: sender,
         body: bodyText, providerMessageId: email.id, status: 'processing',
-        metadata: { subject: email.subject || '' },
+        metadata: { subject: email.subject || '' }, ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
       });
       if (!claim.claimed) return { received: true, duplicate: true };
       const answer = addressOwnerResponse(await askRyanAI(bodyText, `email_${sender.replace(/[^a-z0-9]/gi, '_')}`));
@@ -370,7 +461,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       });
       await recordCommunication(fastify.prisma, {
         channel: 'email', externalAddress: sender, direction: 'outbound',
-        body: answer, providerMessageId: sent.messageId, status: 'accepted',
+        body: answer, providerMessageId: sent.messageId, status: 'accepted', ownerUserId: process.env.RYANAI_OWNER_AUTH_USER_ID,
       });
       return { received: true, replied: true };
     } catch (error) {
