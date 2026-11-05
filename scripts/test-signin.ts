@@ -1,39 +1,25 @@
 // Run with: npx tsx scripts/test-signin.ts
-const BASE_URL = 'http://localhost:3000'; // Adjust port if running on 3001
+const BASE_URL = 'http://localhost:3000';
 
-async function testSignin() {
-  console.log('🧪 Testing Sign-In Endpoint...\n');
-
-  // Test 1: Missing Payload (Expected: 400 Bad Request)
-  console.log('1. Testing missing credentials...');
-  let res = await fetch(`${BASE_URL}/signin`, {
+async function assertRetired(path: string) {
+  const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ email: 'legacy@example.test', password: 'not-used' }),
   });
-  console.log(`Status: ${res.status}`, await res.json());
-
-  // Test 2: Invalid Credentials (Expected: 401 Unauthorized)
-  console.log('\n2. Testing invalid credentials...');
-  res = await fetch(`${BASE_URL}/signin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'test@ryanai.local', password: 'wrongpassword' }),
-  });
-  console.log(`Status: ${res.status}`, await res.json());
-
-  // Test 3: Rate Limiting Test (Firing 6 requests rapidly, 5th/6th should hit 429)
-  console.log('\n3. Testing rate limiter (firing rapid requests)...');
-  for (let i = 1; i <= 6; i++) {
-    const rateRes = await fetch(`${BASE_URL}/signin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'rate@ryanai.local', password: 'test' }),
-    });
-    console.log(`Attempt ${i} Status: ${rateRes.status}`);
+  const body = await response.json().catch(() => ({}));
+  if (response.status !== 410 || body.error !== 'Gone') {
+    throw new Error(`Expected ${path} to be retired with HTTP 410; received ${response.status}.`);
   }
-
-  console.log('\n✅ Verification sequence completed.');
+  console.log(`PASS ${path}: HTTP 410 (local password authentication retired)`);
 }
 
-testSignin().catch(console.error);
+async function main() {
+  await assertRetired('/api/auth/signin');
+  await assertRetired('/signin');
+}
+
+main().catch((error) => {
+  console.error('Legacy sign-in verification failed:', error);
+  process.exitCode = 1;
+});

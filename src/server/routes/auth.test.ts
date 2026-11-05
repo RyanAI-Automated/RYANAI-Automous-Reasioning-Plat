@@ -267,6 +267,22 @@ describe('Supabase API authentication', () => {
     ).toBe(200);
   });
 
+  it('retires the legacy Prisma sign-in endpoint without returning a session success', async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/signin',
+      payload: { email: 'member@example.test', password: 'legacy-password' },
+    });
+    expect(response.statusCode).toBe(410);
+    expect(response.json()).toEqual({
+      success: false,
+      error: 'Gone',
+      message: 'Local password sign-in has been retired. Use Supabase Auth through the RyanAI sign-in page.',
+    });
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
   it.each(['/api/auth/login', '/api/auth/logout'])(
     'retires the old shared-password identity at %s',
     async (url) => {

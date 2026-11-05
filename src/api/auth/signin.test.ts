@@ -1,129 +1,37 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Fastify from 'fastify';
-import bcrypt from 'bcrypt';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import Fastify, { type FastifyInstance } from 'fastify';
 import authSigninRoute from './signin.js';
 
-// Mock bcrypt
-vi.mock('bcrypt', () => ({
-  default: {
-    compare: vi.fn(),
-  },
-}));
+const apps: FastifyInstance[] = [];
 
-describe('Auth Sign-In Route (/signin)', () => {
-  const mockPrisma = {
-    user: {
-      findUnique: vi.fn(),
-    },
-  };
+beforeEach(async () => {
+  const app = Fastify();
+  apps.push(app);
+  await app.register(authSigninRoute);
+  await app.ready();
+});
 
-  type FastifyWithAuthMocks = ReturnType<typeof Fastify> & {
-    prisma: typeof mockPrisma;
-    jwt: { sign: ReturnType<typeof vi.fn> };
-  };
-  let fastify = null as unknown as FastifyWithAuthMocks;
+afterEach(async () => {
+  await Promise.all(apps.splice(0).map((app) => app.close()));
+});
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-
-    fastify = Fastify();
-    fastify.decorate('prisma', mockPrisma);
-    fastify.jwt = {
-      sign: vi.fn().mockReturnValue('mock-jwt-token'),
-    };
-
-    await fastify.register(authSigninRoute);
-    await fastify.ready();
-  });
-
-  it('should return 400 if email or password is missing', async () => {
-    const response = await fastify.inject({
+describe('retired local sign-in compatibility route', () => {
+  it.each([
+    [{ email: 'member@example.test', password: 'legacy-password' }],
+    [{}],
+  ])('returns Gone instead of creating a local-password session', async (payload) => {
+    const app = apps.at(-1)!;
+    const response = await app.inject({
       method: 'POST',
       url: '/signin',
-      payload: { email: 'test@ryanai.local' }, // missing password
+      payload,
     });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(410);
     expect(response.json()).toEqual({
-      error: 'Bad Request',
-      message: 'Both email and password are required.',
-    });
-  });
-
-  it('should return 401 if user is not found', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue(null);
-
-    const response = await fastify.inject({
-      method: 'POST',
-      url: '/signin',
-      payload: { email: 'nonexistent@ryanai.local', password: 'password123' },
-    });
-
-    expect(response.statusCode).toBe(401);
-    expect(response.json()).toEqual({
-      error: 'Unauthorized',
-      message: 'Invalid email or password.',
-    });
-  });
-
-  it('should return 401 if password verification fails', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      email: 'test@ryanai.local',
-      passwordHash: '$2b$10$hashedpassword',
-    });
-
-    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
-
-    const response = await fastify.inject({
-      method: 'POST',
-      url: '/signin',
-      payload: { email: 'test@ryanai.local', password: 'wrongpassword' },
-    });
-
-    expect(response.statusCode).toBe(401);
-    expect(response.json()).toEqual({
-      error: 'Unauthorized',
-      message: 'Invalid email or password.',
-    });
-  });
-
-  it('should return 200 and a JWT token on successful sign-in', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      email: 'test@ryanai.local',
-      passwordHash: '$2b$10$hashedpassword',
-    });
-
-    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
-
-    const response = await fastify.inject({
-      method: 'POST',
-      url: '/signin',
-      payload: { email: 'test@ryanai.local', password: 'correctpassword' },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      success: true,
-      message: 'Signed in successfully.',
-      token: 'mock-jwt-token',
-    });
-  });
-
-  it('should return 500 if the database throws an unhandled error', async () => {
-    mockPrisma.user.findUnique.mockRejectedValue(new Error('DB Connection Lost'));
-
-    const response = await fastify.inject({
-      method: 'POST',
-      url: '/signin',
-      payload: { email: 'test@ryanai.local', password: 'password123' },
-    });
-
-    expect(response.statusCode).toBe(500);
-    expect(response.json()).toEqual({
-      error: 'Internal Server Error',
-      message: 'Service temporarily unavailable. Please try again later.',
+      success: false,
+      error: 'Gone',
+      message: 'Local password sign-in has been retired. Use Supabase Auth through the RyanAI sign-in page.',
     });
   });
 });
