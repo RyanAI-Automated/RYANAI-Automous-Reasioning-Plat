@@ -149,6 +149,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
           const response = await authenticatedFetch('/api/v1/audiobooks/' + serverProjectId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: project.title, language: project.language, chapters: project.chapters }) });
           const result = await response.json() as { error?: string };
           if (!response.ok) throw new Error(result.error || 'Could not save audiobook changes.');
+          setSavedProjects(current => current.map(item => item.id === serverProjectId ? { ...item, title: project.title, language: project.language } : item));
           setSyncStatus('All changes saved to PostgreSQL.');
         } catch (cause) { setSyncStatus('Save failed — your local draft is retained.'); setError(cause instanceof Error ? cause.message : 'Could not save audiobook changes.'); }
       })();
@@ -166,6 +167,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     });
     const result = await response.json() as { error?: string };
     if (!response.ok) throw new Error(result.error || 'Could not save the current audiobook before switching projects.');
+    setSavedProjects(current => current.map(item => item.id === serverProjectId ? { ...item, title: project.title, language: project.language } : item));
   };
 
   const switchProject = async (projectId: string) => {
@@ -179,6 +181,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
       const nextProject = fromSavedProject(result.project, initialProject);
       setProject(nextProject);
       setActiveId(nextProject.chapters[0].id);
+      setSavedProjects(current => current.map(item => item.id === result.project!.id ? result.project! : item));
       setServerProjectId(result.project.id);
       setAudioUrl(null); setRenderedFiles({});
       setSyncStatus('Opened private project: ' + result.project.title);
@@ -334,7 +337,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     <div className="grid gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="space-y-3 rounded-xl border border-cyan-400/20 bg-slate-900/70 p-3">
         <label className="block text-xs text-slate-400">Private audiobook library<select value={serverProjectId ?? 'local-draft'} onChange={event => void switchProject(event.target.value)} disabled={!serverReady || projectActionBusy || busy !== null} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{!serverProjectId && <option value="local-draft">Local draft</option>}{savedProjects.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-        <button type="button" onClick={() => void createNewProject()} disabled={!serverReady || projectActionBusy || busy !== null} className="w-full rounded-lg border border-cyan-400/40 px-3 py-2 text-left text-xs font-semibold text-cyan-100 disabled:opacity-40">{projectActionBusy ? 'Updating library…' : '+ New audiobook project'}</button>
+        <button type="button" onClick={() => void createNewProject()} disabled={!serverReady || !serverProjectId || projectActionBusy || busy !== null} className="w-full rounded-lg border border-cyan-400/40 px-3 py-2 text-left text-xs font-semibold text-cyan-100 disabled:opacity-40">{projectActionBusy ? 'Updating library…' : '+ New audiobook project'}</button>
         <label className="block text-xs text-slate-400">Project title<input value={project.title} maxLength={120} onChange={e => setProject(p => ({ ...p, title: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" /></label>
         <label className="block text-xs text-slate-400">Language<select value={project.language} onChange={e => setProject(p => ({ ...p, language: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">{RYANAI_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}</select></label>
         <div className="flex items-center justify-between pt-2"><span className="text-xs font-semibold uppercase text-slate-400">Chapters</span><button onClick={addChapter} aria-label="Add chapter" className="rounded p-2 text-cyan-200"><Plus size={17} /></button></div>
