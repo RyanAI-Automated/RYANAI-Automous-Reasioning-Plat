@@ -463,6 +463,8 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       return reply.code(503).send({ error: 'Inbound email is not configured.' });
     }
     const resend = new Resend(apiKey);
+    let claimedEmailId: string | undefined;
+    let inboundAttachmentStorageFailed = false;
     try {
       const event = resend.webhooks.verify({
         payload: typeof request.rawBody === 'string' ? request.rawBody : request.rawBody?.toString('utf8') ?? '',
@@ -508,8 +510,10 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         ...(ownerUserId ? { ownerUserId } : {}),
       });
       if (!claim.claimed) return { received: true, duplicate: true };
+      claimedEmailId = email.id;
       if (inboundAttachments.length) {
-        const storedMessage = await fastify.prisma.communicationMessage.findUnique({
+        try {
+          const storedMessage = await fastify.prisma.communicationMessage.findUnique({
           where: { providerMessageId: email.id },
           select: { id: true, conversationId: true },
         });
@@ -527,6 +531,10 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
             source: 'inbound_resend',
             providerMediaId: attachment.id,
           });
+          }
+        } catch (attachmentError) {
+          inboundAttachmentStorageFailed = true;
+          throw attachmentError;
         }
       }
       const prompt = bodyText
@@ -553,6 +561,12 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       });
       return { received: true, replied: true };
     } catch (error) {
+      if (inboundAttachmentStorageFailed && claimedEmailId) {
+        await fastify.prisma.communicationMessage.updateMany({
+          where: { providerMessageId: claimedEmailId, status: 'processing' },
+          data: { status: 'attachment_failed' },
+        }).catch((persistenceError) => request.log.error({ err: persistenceError }, 'Unable to persist inbound email attachment retry state'));
+      }
       request.log.error({ err: error }, 'Resend inbound email webhook failed');
       return reply.code(502).send({ error: 'Inbound email processing failed.' });
     }
