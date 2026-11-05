@@ -1,0 +1,48 @@
+name: Mobile App Validation
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-app.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-app.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-app-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile:
+    name: Expo SDK 58 mobile validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      EXPO_PUBLIC_RYAN_API_URL: https://api.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: npm
+          cache-dependency-path: apps/mobile/package.json
+      - name: Install pinned mobile dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript validation
+        run: npm run typecheck
+      - name: Expo dependency compatibility
+        run: npx expo install --check
+      - name: Expo project diagnostics
+        run: npx expo-doctor
+      - name: Bundle Android and iOS JavaScript
+        run: npx expo export --platform all

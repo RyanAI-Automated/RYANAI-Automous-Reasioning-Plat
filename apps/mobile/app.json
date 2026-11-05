@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "RyanAI",
+    "slug": "ryanai",
+    "scheme": "ryanai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ]
+    ],
+    "android": {
+      "package": "co.ryanganyane.ryanai",
+      "allowBackup": false
+    },
+    "ios": {
+      "bundleIdentifier": "co.ryanganyane.ryanai",
+      "supportsTablet": true
+    }
+  }
+}

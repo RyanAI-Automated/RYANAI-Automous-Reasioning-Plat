@@ -168,14 +168,18 @@ export function installAuthentication(fastify: FastifyInstance) {
       (request.method === 'POST' &&
         ['/api/reason', '/api/reasoning/stream', '/api/v1/realtime/voice-ticket'].includes(path)) ||
       (request.method === 'GET' && path === '/api/auth/verify') ||
-      path.startsWith('/api/quant/') ||
+      (path.startsWith('/api/quant/') && !(request.method === 'GET' && path === '/api/quant/stream')) ||
       path.startsWith('/api/user/memory')
     ) {
       return requireUser(request, reply);
     }
 
-    // WebSocket upgrades consume a short-lived, one-time ticket issued to a verified user.
-    if (request.method === 'GET' && path === '/api/v1/realtime/voice') return;
+    // WebSocket upgrades consume short-lived, one-time tickets issued to verified users.
+    // The route-specific preValidation hook consumes each ticket exactly once.
+    if (
+      request.method === 'GET' &&
+      ['/api/v1/realtime/voice', '/api/quant/stream'].includes(path)
+    ) return;
 
     return requireAdmin(request, reply);
   });
