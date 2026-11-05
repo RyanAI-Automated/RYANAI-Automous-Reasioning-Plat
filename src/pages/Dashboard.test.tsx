@@ -34,9 +34,9 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function renderDashboard(isOwner = false) {
+async function renderDashboard(isOwner = false, isAdmin = false) {
   await act(async () => {
-    root.render(<DashboardPage isOwner={isOwner} />);
+    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} />);
   });
 }
 
@@ -47,6 +47,7 @@ describe('System Dashboard workspace launcher', () => {
     expect(container.textContent).toContain('Platform workspaces');
     for (const [path, label] of [
       ['#/cockpit', 'Command Cockpit'],
+      ['#/operator', 'Operator Console'],
       ['#/quant', 'Quant Lab'],
       ['#/workspace', 'Reasoning Workspace'],
       ['#/audiobook', 'Audiobook Studio'],
@@ -55,6 +56,13 @@ describe('System Dashboard workspace launcher', () => {
       expect(link?.textContent).toContain(label);
     }
     expect(container.querySelector('a[href="#/comms"]')).toBeNull();
+    expect(container.querySelector('a[href="#/admin"]')).toBeNull();
+  });
+
+  it('adds the Admin Console only for an administrator session', async () => {
+    await renderDashboard(false, true);
+    const adminLink = container.querySelector('a[href="#/admin"]');
+    expect(adminLink?.textContent).toContain('Admin Console');
   });
 
   it('adds RyanAI Comms only for an owner session', async () => {

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
+  Activity,
   Cpu,
   LayoutDashboard,
   TrendingUp,
@@ -8,6 +9,7 @@ import {
   BookAudio,
   Mail,
   Orbit,
+  ShieldCheck,
   LogIn,
   LogOut,
   UserPlus,
@@ -24,6 +26,8 @@ const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const OperatorConsole = lazy(() => import('@/pages/OperatorConsole'));
+const AdminConsole = lazy(() => import('@/pages/AdminConsole'));
 const QuantLabPage = lazy(() => import('@/pages/QuantLab'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
@@ -58,6 +62,8 @@ const routeIcons: Record<Route, LucideIcon> = {
   signin: LogIn,
   signup: UserPlus,
   dashboard: LayoutDashboard,
+  operator: Activity,
+  admin: ShieldCheck,
   quant: TrendingUp,
   cockpit: Cpu,
   workspace: MessageSquareText,
@@ -129,7 +135,8 @@ export default function App() {
   }, []);
 
   const visibleDestinations = destinations.filter(({ id }) =>
-    user ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner)
+    user
+      ? id !== 'signin' && id !== 'signup' && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin)
       : id === 'landing' || id === 'signin' || id === 'signup',
   );
   const currentTitle = destinations.find(({ id }) => id === route)?.label ?? 'Workspace';
@@ -183,7 +190,9 @@ export default function App() {
               : loading ? <p role="status" className="p-8 text-slate-300">Restoring your session…</p>
               : !user ? <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
               : <>
-                {route === 'dashboard' && <DashboardPage isOwner={isOwner} />}
+                {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}
+                {route === 'operator' && <OperatorConsole />}
+                {route === 'admin' && (isAdmin ? <AdminConsole key={user.id} userId={user.id} /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the RyanAI Admin Console.</p>)}
                 {route === 'quant' && <QuantLabPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
