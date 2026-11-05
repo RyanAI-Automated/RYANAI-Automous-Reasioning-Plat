@@ -46,8 +46,35 @@ describe('Supabase Session Pooler URL resolution', () => {
     expect(new URL(result.databaseUrl!).searchParams.get('sslmode')).toBe('verify-full');
   });
 
-  it('does not rewrite a connection that is already using the pooler', () => {
-    const existing = `postgresql://postgres.${projectRef}:secret@${poolerHost}:5432/postgres`;
+  it('normalizes an existing Supabase pooler URL to the verified configured host', () => {
+    const oldPoolerHost = 'aws-0-eu-central-1.pooler.supabase.com';
+    const existing = `postgresql://postgres.${projectRef}:secret@${oldPoolerHost}:6543/postgres?sslmode=require`;
+    const result = resolveSupabaseSessionPoolerUrl(existing, projectUrl, poolerHost);
+
+    expect(result.changed).toBe(true);
+    expect(result.reason).toBe('rewritten');
+    const url = new URL(result.databaseUrl!);
+    expect(url.hostname).toBe(poolerHost);
+    expect(url.port).toBe('5432');
+    expect(url.username).toBe(`postgres.${projectRef}`);
+    expect(url.searchParams.get('sslmode')).toBe('verify-full');
+    expect(url.password).toBe('secret');
+  });
+
+  it('repairs an existing pooler URL with an unqualified username and missing TLS mode', () => {
+    const existing = `postgresql://postgres:secret@${poolerHost}:5432/postgres`;
+    const result = resolveSupabaseSessionPoolerUrl(existing, projectUrl, poolerHost);
+
+    expect(result.changed).toBe(true);
+    expect(result.reason).toBe('rewritten');
+    const url = new URL(result.databaseUrl!);
+    expect(url.hostname).toBe(poolerHost);
+    expect(url.username).toBe(`postgres.${projectRef}`);
+    expect(url.searchParams.get('sslmode')).toBe('verify-full');
+  });
+
+  it('does not rewrite a connection that is already using the verified pooler configuration', () => {
+    const existing = `postgresql://postgres.${projectRef}:secret@${poolerHost}:5432/postgres?sslmode=verify-full`;
     const result = resolveSupabaseSessionPoolerUrl(existing, projectUrl, poolerHost);
 
     expect(result).toEqual({

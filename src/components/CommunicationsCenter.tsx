@@ -39,6 +39,8 @@ export default function CommunicationsCenter() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [channelFilter, setChannelFilter] = useState<'all' | CommsChannel>('all');
 
   const refresh = useCallback(async () => {
     try {
@@ -70,6 +72,15 @@ export default function CommunicationsCenter() {
     () => conversations.find((conversation) => conversation.id === activeId) ?? null,
     [conversations, activeId],
   );
+  const visibleConversations = useMemo(() => {
+    const query = conversationSearch.trim().toLowerCase();
+    return conversations.filter((conversation) => {
+      if (channelFilter !== 'all' && conversation.channel !== channelFilter) return false;
+      if (!query) return true;
+      return conversation.externalAddress.toLowerCase().includes(query)
+        || conversation.messages.some((item) => item.body.toLowerCase().includes(query));
+    });
+  }, [conversations, conversationSearch, channelFilter]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -128,19 +139,25 @@ export default function CommunicationsCenter() {
         })}
       </div>
 
+      <div role="note" aria-label="Attachment availability" className="flex items-start gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4 text-sm text-amber-100">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
+        <div><p className="font-semibold">Comms attachments are locked pending secure storage integration.</p><p className="mt-1 text-xs leading-5 text-amber-100/70">Chat uploads are not reused here. Comms file sharing requires its own owner-linked records, malware scanning, clean-only downloads, retention and audit controls before uploads can be enabled.</p></div>
+      </div>
       {error && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-950/30 p-3 text-sm text-rose-200">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-3 text-sm text-cyan-100">{notice}</p>}
 
       <div className="grid min-h-[560px] gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,2fr)]">
         <aside className="overflow-hidden rounded-xl border border-white/10 bg-slate-900/60">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-            <h2 className="text-sm font-semibold text-white">Conversations</h2>
-            <span className="text-xs text-slate-500">{conversations.length}</span>
+          <div className="space-y-3 border-b border-white/10 p-4">
+            <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-white">Conversations</h2><span className="text-xs text-slate-500">{visibleConversations.length} / {conversations.length}</span></div>
+            <label className="block text-[11px] text-slate-500">Search messages or addresses<input value={conversationSearch} onChange={event => setConversationSearch(event.target.value)} maxLength={120} placeholder="Search this inbox…" className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white placeholder:text-slate-600" /></label>
+            <label className="block text-[11px] text-slate-500">Channel<select value={channelFilter} onChange={event => setChannelFilter(event.target.value as 'all' | CommsChannel)} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white"><option value="all">All channels</option>{channels.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
           </div>
           <div className="max-h-[680px] overflow-y-auto">
             {loading && <p className="p-4 text-sm text-slate-400">Loading history…</p>}
             {!loading && conversations.length === 0 && <p className="p-4 text-sm text-slate-500">No persisted conversations yet. New inbound and outbound events will appear here.</p>}
-            {conversations.map((conversation) => (
+            {!loading && conversations.length > 0 && visibleConversations.length === 0 && <p className="p-4 text-sm text-slate-500">No conversations match these filters.</p>}
+            {visibleConversations.map((conversation) => (
               <button key={conversation.id} type="button" onClick={() => setActiveId(conversation.id)} className={`block w-full border-b border-white/5 p-4 text-left hover:bg-white/5 ${activeId === conversation.id ? 'bg-cyan-400/10' : ''}`}>
                 <span className="flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-cyan-200">
                   {conversation.channel}<span className="truncate text-slate-500 normal-case">{conversation.externalAddress}</span>
