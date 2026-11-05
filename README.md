@@ -778,7 +778,9 @@ Health endpoints show whether a process or its configured dependencies respond. 
 
 ## Deployment
 
-Deployment configuration is environment-specific. This repository includes Docker, Render Blueprint, and Railway configuration, but a checked-in configuration file does not prove that a provider service is connected correctly or deployed.
+**Default hosted providers:** Render is the primary frontend and web/API delivery target; Railway is the primary Docker and persistent-workload target. Docker Compose and Kubernetes remain local/alternative definitions. Vercel is not a RyanAI deployment target or integration.
+
+All provider deployments from pull requests are staging-only. The staging workflows require an open PR head, exact-head CI/security success, explicit `STAGE` confirmation, and a separately verified isolated target. Production deployment remains outside these PR workflows and requires a separate approval.
 
 ### Docker deployment
 
@@ -808,6 +810,11 @@ The repository includes `render.yaml` describing a static web service and a Dock
 
 Do not create duplicate services to work around a repository-link or service-configuration issue.
 
+### Railway
+
+Railway is the default provider for Docker services and persistent workloads. Use a dedicated RyanAI staging project/environment linked to the official repository, build from `Dockerfile.api`, and verify `/health`. Do not repurpose the existing unrelated Railway project as staging. Staging credentials, databases, volumes, and networking must be isolated from production.
+
+The Render and Railway PR workflows deploy only to explicitly configured staging targets. They refuse to run unless the open PR head matches the exact commit and all named CI/security checks have completed successfully. Production deploys are not triggered by these workflows.
 
 ### Release checklist
 
