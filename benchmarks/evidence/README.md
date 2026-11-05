@@ -30,10 +30,12 @@ measurement-evidence metadata, three-run repeatability, and the Gen-X approval
 and audit contract.
 
 The Gen-X approval test uses a signed synthetic approval service and a
-single-process fsync-backed file journal. It does not prove production Supabase
-transport authentication, a real external approval service, a transactional
-PostgreSQL audit append, cross-process nonce uniqueness, or independent audit
-retention. The live service boundary remains BLOCKED until those controls are
+single-process fsync-backed file journal. A separate route test uses the actual
+Supabase authentication guard with mocked Supabase user responses to check
+admin/member identity and fail-closed identity-provider outages. It does not
+prove live Supabase transport authentication, a real external approval service,
+a transactional PostgreSQL audit append, cross-process nonce uniqueness, or
+independent audit retention. The live service boundary remains BLOCKED until those controls are
 independently verified.
 
 A structurally valid evidence bundle with BLOCKED gates remains blocked.
