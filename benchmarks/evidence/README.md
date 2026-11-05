@@ -1,26 +1,36 @@
 # Six-gate evidence bundles
 
-This directory defines the evidence-recording contract only. It does not contain model outputs, provider credentials, production data, or a benchmark runner.
+This directory defines the evidence-recording contract only. It contains no
+model outputs, provider credentials, production data, or benchmark runner.
 
 ## Current implementation boundary
 
 - No model invocation or model download is authorised.
-- Every gate must have its own record and verdict: `PASS`, `FAIL`, or `BLOCKED`.
-- Missing evidence is never interpreted as `PASS`.
-- A `PASS` requires at least one SHA-256-addressed artifact, a named owner, a versioned procedure, independent attestation, and an attestation timestamp.
-- Profile A (`A_OFFLINE_OLLAMA`) and Profile B (`B_REMOTE_PROVIDER`) have separate Gate 1 verdicts. One profile cannot inherit the other's isolation result.
-- Profile B is blocked unless a numeric ZAR ceiling and explicit evaluation-scope approval are present before any provider request.
-- Secret values must never be included. Profile B records only the approved secret *name*.
+- Every gate has its own verdict: PASS, FAIL, or BLOCKED.
+- Missing evidence is never interpreted as PASS.
+- A PASS requires a hashed artifact, named owner, versioned procedure,
+  independent attestation, and attestation timestamp.
+- Profile A (A_OFFLINE_OLLAMA) and Profile B (B_REMOTE_PROVIDER) have
+  separate Gate 1 verdicts. One profile cannot inherit the other's result.
+- Profile B requires a positive ZAR spend ceiling and explicit evaluation
+  approval before any provider request.
+- Secret values must never be included. Profile B records only the approved
+  secret name.
 
-## Validate
+## Validation
 
 Run:
 
-```sh
-node scripts/validate-benchmark-gate-evidence.mjs path/to/evidence-bundle.json
-node --test scripts/validate-benchmark-gate-evidence.node-test.mjs
-```
+    node --test scripts/validate-benchmark-gate-evidence.node-test.mjs
+    node --test scripts/benchmark-evidence-contracts.node-test.mjs
+    node --test scripts/benchmark-genx-policy-contract.node-test.mjs
 
-The validator checks evidence structure and fail-closed prerequisites. It does not itself prove network isolation, dataset custody, model provenance, scorer correctness, measured performance, ZAR billing, or Gen-X enforcement. Those require separate executable procedures and independently retained evidence. A structurally valid bundle with `BLOCKED` gates remains blocked.
+The executable checks validate dataset hashes, provenance pins, deterministic
+scoring contracts, repeatability inputs, ZAR arithmetic, and the current
+Gen-X policy function. They do not prove external held-out access controls,
+provider-side revision claims, actual model performance, durable audit
+persistence, or production runner isolation.
 
-Do not commit actual provider outputs, secrets, held-out data, private datasets, or production telemetry to this repository.
+A structurally valid evidence bundle with BLOCKED gates remains blocked.
+Do not commit provider outputs, secrets, held-out data, private datasets, or
+production telemetry to this repository.

@@ -3,17 +3,27 @@ name: Benchmark Gate Evidence Contracts
 on:
   pull_request:
     paths:
-      - 'benchmarks/contracts/gate-evidence.schema.json'
+      - 'benchmarks/contracts/**'
       - 'benchmarks/evidence/**'
+      - 'scripts/benchmark-*'
+      - 'scripts/verify-benchmark-*'
       - 'scripts/validate-benchmark-gate-evidence*'
+      - 'src/security/genxPolicy.ts'
+      - 'src/security/genxBenchmarkAuthorization.test.ts'
+      - 'package.json'
       - '.github/workflows/benchmark-gate-evidence.yml'
   push:
     branches:
       - main
     paths:
-      - 'benchmarks/contracts/gate-evidence.schema.json'
+      - 'benchmarks/contracts/**'
       - 'benchmarks/evidence/**'
+      - 'scripts/benchmark-*'
+      - 'scripts/verify-benchmark-*'
       - 'scripts/validate-benchmark-gate-evidence*'
+      - 'src/security/genxPolicy.ts'
+      - 'src/security/genxBenchmarkAuthorization.test.ts'
+      - 'package.json'
       - '.github/workflows/benchmark-gate-evidence.yml'
 
 permissions:
@@ -22,11 +32,21 @@ permissions:
 jobs:
   mock-only-contract-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Validate six-gate evidence contract tests
-        run: node --test scripts/validate-benchmark-gate-evidence.node-test.mjs
+      - name: Run deterministic gate contract tests
+        run: npm run test:benchmark:contracts
+      - name: Run OS-enforced network isolation probe
+        run: bash scripts/benchmark-isolation-container.sh > "$RUNNER_TEMP/benchmark-isolation.json"
+      - name: Upload non-sensitive isolation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-isolation-harness-evidence
+          path: ${{ runner.temp }}/benchmark-isolation.json
+          if-no-files-found: warn
+          retention-days: 14
