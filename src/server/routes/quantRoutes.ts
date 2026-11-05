@@ -6,6 +6,7 @@ import { requireUser } from './auth.js';
 import { prisma } from '../../lib/prisma.js';
 import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
 import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
+import { assessPaperOrderRisk } from '../quant/paperRisk.js';
 
 type Bar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
 type BacktestBody = {
