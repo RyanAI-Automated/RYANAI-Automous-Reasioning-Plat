@@ -42,6 +42,7 @@ export default function CommunicationsCenter() {
   const [attachmentStatuses, setAttachmentStatuses] = useState<CommsAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [conversationSearch, setConversationSearch] = useState('');
@@ -94,9 +95,22 @@ export default function CommunicationsCenter() {
     });
   }, [conversations, conversationSearch, channelFilter]);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  const messageCount = conversations.reduce((total, item) => total + item.messages.length, 0);
+  const inboundCount = active?.messages.filter(item => item.direction === 'inbound').length ?? 0;
+  const outboundCount = active?.messages.filter(item => item.direction === 'outbound').length ?? 0;
+  const configuredChannelCount = [status?.channels?.whatsapp, status?.channels?.sms, status?.channels?.voice, status?.channels?.email]
+    .filter(value => value === true).length;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!message.trim() || sending) return;
+    setError('');
+    setNotice('');
+    setReviewing(true);
+  }
+
+  async function dispatchReviewedMessage() {
+    if (!reviewing || !message.trim() || sending) return;
     setSending(true);
     setError('');
     setNotice('');
@@ -168,6 +182,7 @@ export default function CommunicationsCenter() {
       setError(cause instanceof Error ? cause.message : 'The message could not be sent.');
     } finally {
       setSending(false);
+      setReviewing(false);
     }
   }
 
@@ -229,6 +244,29 @@ export default function CommunicationsCenter() {
         })}
       </div>
 
+      <section aria-label="Communication overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Conversations</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{conversations.length}</p>
+          <p className="mt-1 text-[11px] text-slate-500">{visibleConversations.length} match current filters</p>
+        </article>
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Messages loaded</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{messageCount}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Persisted conversation history</p>
+        </article>
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Configured channels</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{configuredChannelCount}<span className="text-sm font-normal text-slate-500"> / 4</span></p>
+          <p className="mt-1 text-[11px] text-slate-500">Configuration only, not connectivity</p>
+        </article>
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Attachments</p>
+          <p className={`mt-2 text-lg font-semibold ${attachmentsEnabled ? 'text-amber-200' : 'text-slate-300'}`}>{attachmentsEnabled ? 'Scan-gated' : 'Disabled'}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Only clean scans can be shared</p>
+        </article>
+      </section>
+
       <div role="note" aria-label="Attachment security" className="flex items-start gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-4 text-sm text-cyan-100">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
         <div><p className="font-semibold">Private Comms attachments</p><p className="mt-1 text-xs leading-5 text-cyan-100/70">{attachmentsEnabled ? 'The API reports private storage and scanner controls as configured. Sending and downloading remain blocked until each file has a clean scan. RyanAI does not yet interpret uploaded images, audio, video or documents.' : 'Uploads are disabled until owner-bound private storage and malware scanning are configured. Text-only Comms remains available; no attachment is sent or exposed while this gate is off.'}</p></div>
@@ -236,7 +274,7 @@ export default function CommunicationsCenter() {
       {error && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-950/30 p-3 text-sm text-rose-200">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-3 text-sm text-cyan-100">{notice}</p>}
 
-      <div className="grid min-h-[560px] gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,2fr)]">
+      <div className="grid min-h-[560px] gap-4 xl:grid-cols-[minmax(230px,0.72fr)_minmax(0,1.7fr)_minmax(220px,0.7fr)]">
         <aside className="overflow-hidden rounded-xl border border-white/10 bg-slate-900/60">
           <div className="space-y-3 border-b border-white/10 p-4">
             <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-white">Conversations</h2><span className="text-xs text-slate-500">{visibleConversations.length} / {conversations.length}</span></div>
@@ -291,24 +329,24 @@ export default function CommunicationsCenter() {
           <form onSubmit={submit} className="space-y-3 border-t border-white/10 bg-slate-950/50 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-xs text-slate-400">Channel
-                <select value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); startNewDraft(); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
+                <select value={channel} disabled={reviewing || sending} onChange={(event) => { setChannel(event.target.value as CommsChannel); startNewDraft(); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
                   {channels.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
               <label className="space-y-1 text-xs text-slate-400">Recipient (optional; defaults to owner)
-                <input value={recipient} onChange={(event) => { setRecipient(event.target.value); startNewDraft(); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+                <input value={recipient} disabled={reviewing || sending} onChange={(event) => { setRecipient(event.target.value); startNewDraft(); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
               </label>
             </div>
             {channel === 'email' && <label className="block space-y-1 text-xs text-slate-400">Subject
-              <input value={subject} onChange={(event) => { setSubject(event.target.value); startNewDraft(); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+              <input value={subject} disabled={reviewing || sending} onChange={(event) => { setSubject(event.target.value); startNewDraft(); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
             </label>}
             <label className="block space-y-1 text-xs text-slate-400">Message
-              <textarea value={message} onChange={(event) => { setMessage(event.target.value); startNewDraft(); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
+              <textarea value={message} disabled={reviewing || sending} onChange={(event) => { setMessage(event.target.value); startNewDraft(); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
             </label>
             <div className="space-y-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5">
                 <Paperclip className="h-4 w-4 text-cyan-300" /> Attach files
-                <input type="file" multiple disabled={sending || channel === 'voice' || !attachmentsEnabled} accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="sr-only" onChange={(event) => { setSelectedFiles(Array.from(event.target.files ?? [])); setAttachmentIds([]); setAttachmentStatuses([]); setIdempotencyKey(crypto.randomUUID()); }} />
+                <input type="file" multiple disabled={sending || reviewing || channel === 'voice' || !attachmentsEnabled} accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="sr-only" onChange={(event) => { setSelectedFiles(Array.from(event.target.files ?? [])); setAttachmentIds([]); setAttachmentStatuses([]); setIdempotencyKey(crypto.randomUUID()); }} />
               </label>
               {selectedFiles.length > 0 && <div className="space-y-1 rounded-lg border border-white/10 p-2">
                 {selectedFiles.map((file, index) => <p key={index} className="truncate text-xs text-slate-400">{file.name} · {Math.ceil(file.size / 1024)} KB</p>)}
@@ -318,14 +356,63 @@ export default function CommunicationsCenter() {
               </div>}
               {attachmentIds.length > 0 && <button type="button" onClick={clearAttachmentDraft} disabled={sending} className="text-xs text-rose-300 hover:text-rose-200">Remove attached files</button>}
             </div>
+            {reviewing && <div role="status" aria-label="Message review" className="rounded-lg border border-amber-300/20 bg-amber-300/[0.04] p-3 text-xs text-amber-100">
+              <p className="font-semibold">Review before dispatch</p>
+              <p className="mt-1 text-amber-100/75">Check the channel, recipient and exact message. Nothing is sent until you select Approve &amp; send.</p>
+              <p className="mt-2 break-all text-slate-200">Channel: {channel} · Recipient: {recipient.trim() || 'Owner default'}</p>
+              {channel === 'email' && subject.trim() && <p className="mt-1 text-slate-300">Subject: {subject}</p>}
+              <p className="mt-2 whitespace-pre-wrap break-words text-slate-100">{message}</p>
+            </div>}
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] text-slate-500">Provider acceptance is not a delivery receipt. Attachments are sent only after clean scans.</p>
-              <button type="submit" disabled={sending || !message.trim()} className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
-                <Send className="h-4 w-4" />{sending ? 'Working…' : attachmentIds.length ? 'Check scan & send' : 'Send'}
-              </button>
+              {reviewing ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" onClick={() => setReviewing(false)} disabled={sending} className="rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50">Back to edit</button>
+                  <button type="button" onClick={() => void dispatchReviewedMessage()} disabled={sending || !message.trim()} className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
+                    <ShieldCheck className="h-4 w-4" />{sending ? 'Working…' : 'Approve & send'}
+                  </button>
+                </div>
+              ) : (
+                <button type="submit" disabled={sending || !message.trim()} className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
+                  <Send className="h-4 w-4" />Review message
+                </button>
+              )}
             </div>
           </form>
         </div>
+
+        <aside aria-label="Conversation details" className="space-y-4 rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Context panel</p>
+            <h2 className="mt-2 text-sm font-semibold text-white">Conversation details</h2>
+            <p className="mt-1 text-xs text-slate-500">Verified details from the selected persisted thread.</p>
+          </div>
+          {active ? <>
+            <section className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Channel identity</p>
+              <p className="mt-2 break-all text-sm font-medium text-slate-100">{active.externalAddress}</p>
+              <p className="mt-1 text-xs capitalize text-cyan-200">{active.channel}</p>
+            </section>
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold text-slate-200">Conversation activity</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Messages</p><p className="mt-1 text-xl text-white">{active.messages.length}</p></div>
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Inbound</p><p className="mt-1 text-xl text-white">{inboundCount}</p></div>
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Outbound</p><p className="mt-1 text-xl text-white">{outboundCount}</p></div>
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Latest event</p><p className="mt-1 text-xs text-slate-200">{dateLabel(active.updatedAt)}</p></div>
+              </div>
+            </section>
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-200">Latest message status</h3>
+              <p className="rounded-lg border border-white/10 bg-slate-950/40 p-3 text-xs text-slate-300">{active.messages.at(-1)?.status ?? 'No message status available'}</p>
+              <p className="text-[11px] leading-5 text-slate-500">Provider acceptance is not a delivery receipt. Final delivery state depends on a verified provider callback.</p>
+            </section>
+          </> : <p className="rounded-lg border border-dashed border-white/10 p-4 text-xs leading-5 text-slate-500">Select a conversation to inspect its channel identity, message counts and latest recorded status.</p>}
+          <section className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-cyan-100"><ShieldCheck className="h-4 w-4" /> Privacy boundary</div>
+            <p className="mt-2 text-[11px] leading-5 text-slate-400">This panel displays only the owner-authorised thread returned by the Comms API. Cross-channel identity linking, AI memory retrieval and agent handover are not enabled by this view.</p>
+          </section>
+        </aside>
       </div>
     </section>
   );

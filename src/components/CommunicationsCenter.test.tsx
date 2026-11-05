@@ -141,6 +141,38 @@ describe('RyanAI Comms inbox controls', () => {
     expect(input.disabled).toBe(false);
   });
 
+  it('shows live workspace metrics and selected conversation context from persisted data', async () => {
+    await render();
+    expect(container.querySelector('section[aria-label="Communication overview"]')).not.toBeNull();
+    expect(container.textContent).toContain('Messages loaded');
+    expect(container.textContent).toContain('2');
+    expect(container.textContent).toContain('Conversation details');
+    expect(container.textContent).toContain('Channel identity');
+    expect(container.textContent).toContain('+27110000001');
+    expect(container.textContent).toContain('Latest message status');
+    expect(container.textContent).toContain('Privacy boundary');
+  });
+
+  it('requires a separate human review action before dispatching a message', async () => {
+    await render();
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      setter?.call(textarea, 'Please confirm the delivery window.');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(container.textContent).toContain('Review before dispatch');
+    expect(container.textContent).toContain('Approve & send');
+    expect(comms.sendCommsMessage).not.toHaveBeenCalled();
+
+    const approve = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Approve & send'));
+    expect(approve).toBeTruthy();
+    await act(async () => approve?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(comms.sendCommsMessage).toHaveBeenCalledTimes(1);
+  });
+
   it('disables attachment selection when the server reports the private-storage or scanner gate is off', async () => {
     comms.getCommsStatus.mockResolvedValueOnce({
       status: 'configuration_snapshot',
