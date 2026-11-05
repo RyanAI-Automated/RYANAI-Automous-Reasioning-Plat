@@ -44,7 +44,7 @@ beforeEach(() => {
     }
     if (url === '/api/quant/paper/risk') {
       return new Response(JSON.stringify({
-        tradingEnabled: true,
+        tradingEnabled: !emergencyStop,
         maxOrderNotional: 10000,
         maxPositionNotional: 25000,
         maxGrossExposure: 75000,
@@ -93,6 +93,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
 
 describe('paper trading performance summary', () => {
