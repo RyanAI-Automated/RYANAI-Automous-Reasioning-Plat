@@ -57,7 +57,7 @@ function parseStreamBar(event: StreamBarEvent): ReconciliationBar | null {
 }
 
 function localSessionMinute(timestamp: string | Date): { date: string; minute: number } | null {
-  const date = new Date(timestamp);
+  const date = new Date(timestamp instanceof Date ? timestamp.getTime() : timestamp);
   if (!Number.isFinite(date.getTime())) return null;
   const parts = Object.fromEntries(newYorkClock.formatToParts(date).map((part) => [part.type, part.value]));
   const year = parts.year, month = parts.month, day = parts.day;
@@ -93,7 +93,8 @@ export function reconcileDailyBarsWithMinuteEvents(
   for (const bar of historicalBars) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(bar.date) ||
         ![bar.open, bar.high, bar.low, bar.close, bar.volume].every(finite) ||
-        bar.open <= 0 || bar.high <= 0 || bar.low <= 0 || bar.close <= 0 || bar.volume < 0) {
+        bar.open <= 0 || bar.high <= 0 || bar.low <= 0 || bar.close <= 0 || bar.volume < 0 ||
+        bar.high < Math.max(bar.open, bar.close, bar.low) || bar.low > Math.min(bar.open, bar.close, bar.high)) {
       throw new Error('Historical bars contain invalid values.');
     }
     historical.set(bar.date, bar);
@@ -107,7 +108,8 @@ export function reconcileDailyBarsWithMinuteEvents(
     if (!Number.isFinite(timestamp.getTime())) continue;
     const iso = timestamp.toISOString();
     const local = localSessionMinute(timestamp);
-    if (!local || local.minute < SESSION_OPEN_MINUTE || local.minute >= SESSION_CLOSE_MINUTE) continue;
+    if (!local || local.minute < SESSION_OPEN_MINUTE || local.minute >= SESSION_CLOSE_MINUTE ||
+        timestamp.getUTCSeconds() !== 0 || timestamp.getUTCMilliseconds() !== 0) continue;
     const bar = parseStreamBar(event);
     if (!bar) continue;
     if (!/^\d{1,19}$/.test(event.id)) continue;
