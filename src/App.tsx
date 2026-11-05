@@ -28,7 +28,7 @@ const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
 const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCenter'));
 const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
-const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+const DashboardPage = lazy(() => import('@/pages/Dashboard'));\nconst CodingStudio = lazy(() => import('@/pages/CodingStudio'));
 const OperatorConsole = lazy(() => import('@/pages/OperatorConsole'));
 const OperationsCenter = lazy(() => import('@/pages/OperationsCenter'));
 const AdminConsole = lazy(() => import('@/pages/AdminConsole'));
@@ -209,7 +209,7 @@ export default function App() {
                 {route === 'trading' && <TradingTerminalPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
-                {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
+                {route === 'studio' && <CodingStudio />}\n                {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
                 {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email!} userFullName={displayName} /></div>}
               </>}
           </main>
