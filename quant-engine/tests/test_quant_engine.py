@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from quant_engine import run_backtest, run_walk_forward, validate
+from quant_engine import run_backtest, run_portfolio_optimization, run_walk_forward, validate
 
 
 def bars(count=80):
@@ -169,6 +169,58 @@ class QuantEngineTests(unittest.TestCase):
     def test_rejects_invalid_windows(self):
         with self.assertRaisesRegex(ValueError, "slow_window"):
             run_backtest({"bars": bars(), "fast_window": 8, "slow_window": 5})
+
+
+    def test_portfolio_optimizer_respects_long_only_weight_and_turnover_constraints(self):
+        sample = bars(100)
+        assets = [
+            {"symbol": "AAA", "bars": sample},
+            {"symbol": "BBB", "bars": [
+                {**item, "close": item["close"] * (1 + (index % 7) * 0.001)}
+                for index, item in enumerate(sample)
+            ]},
+            {"symbol": "CCC", "bars": [
+                {**item, "close": item["close"] * (1 - (index % 5) * 0.001)}
+                for index, item in enumerate(sample)
+            ]},
+        ]
+        result = run_portfolio_optimization({
+            "assets": assets, "min_weight": 0.05, "max_weight": 0.6,
+            "max_turnover": 0.25, "current_weights": {"AAA": 0.5, "BBB": 0.3, "CCC": 0.2},
+        })
+        weights = list(result["weights"].values())
+        self.assertAlmostEqual(sum(weights), 1.0, places=7)
+        self.assertTrue(all(0.05 - 1e-8 <= weight <= 0.6 + 1e-8 for weight in weights))
+        self.assertLessEqual(result["constraints"]["actual_turnover"], 0.25 + 1e-7)
+        self.assertEqual(result["execution_mode"], "research_only_no_orders")
+
+    def test_portfolio_optimizer_rejects_infeasible_bounds_and_misaligned_history(self):
+        sample = bars(60)
+        assets = [
+            {"symbol": "AAA", "bars": sample},
+            {"symbol": "BBB", "bars": sample},
+        ]
+        with self.assertRaisesRegex(ValueError, "cannot sum"):
+            run_portfolio_optimization({ "assets": assets, "max_weight": 0.4 })
+        misaligned = [dict(item) for item in sample]
+        misaligned[10]["date"] = "2026-04-01"
+        with self.assertRaisesRegex(ValueError, "common daily observations"):
+            run_portfolio_optimization({"assets": [
+                {"symbol": "AAA", "bars": sample},
+                {"symbol": "BBB", "bars": misaligned},
+            ]})
+
+    def test_portfolio_optimizer_rejects_short_weights_and_duplicate_symbols(self):
+        sample = bars(60)
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            run_portfolio_optimization({
+                "assets": [{"symbol": "AAA", "bars": sample}, {"symbol": "BBB", "bars": sample}],
+                "current_weights": {"AAA": -0.1},
+            })
+        with self.assertRaisesRegex(ValueError, "unique"):
+            run_portfolio_optimization({
+                "assets": [{"symbol": "AAA", "bars": sample}, {"symbol": "AAA", "bars": sample}],
+            })
 
 
 if __name__ == "__main__":
