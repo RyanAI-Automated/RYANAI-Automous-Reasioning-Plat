@@ -56,7 +56,7 @@ describe('safe database diagnostics', () => {
 
   it.each([
     ['28P01', 'Password authentication failed'],
-    ['ENOTFOUND', 'Supavisor tenant lookup failed'],
+    ['ENOTFOUND', 'hostname could not be resolved'],
     ['3D000', 'database does not exist'],
     ['ETIMEDOUT', 'Connection timed out'],
   ])('provides actionable guidance for %s', (code, hint) => {
@@ -80,6 +80,18 @@ describe('safe database diagnostics', () => {
       expect(result).not.toContain('secret');
     },
   );
+
+  it('reports Supavisor internal errors with safe pooler guidance', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('private pooler error details', {
+        cause: { code: 'XX000' },
+      }),
+    );
+    expect(result).toContain('XX000');
+    expect(result).toContain('exact Session Pooler hostname');
+    expect(result).toContain('postgres.<project-ref>');
+    expect(result).not.toContain('private pooler error details');
+  });
 
   it('reports TLS certificate hostname failures without exposing connection details', () => {
     const result = databaseFailureDiagnostic(
