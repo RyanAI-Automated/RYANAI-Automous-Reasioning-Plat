@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { diffFiles, languageFromPath } from './CodingStudio';
+import { canApproveJob, diffFiles, languageFromPath } from './CodingStudio';
 
 describe('RyanAI Studio helpers', () => {
+  it('prevents a plan creator from approving their own coding plan', () => {
+    expect(canApproveJob('creator-1', 'creator-1')).toBe(false);
+    expect(canApproveJob('creator-1', 'reviewer-2')).toBe(true);
+    expect(canApproveJob('creator-1', undefined)).toBe(false);
+  });
+
   it('maps common coding file extensions to their language labels', () => {
     expect(languageFromPath('src/App.tsx')).toBe('TypeScript React');
     expect(languageFromPath('tools/main.py')).toBe('Python');
