@@ -7,12 +7,14 @@ export type QuantBar = {
   volume: number;
 };
 
+export type AlpacaAdjustment = 'raw' | 'split' | 'dividend' | 'all';
+
 export type AlpacaDailyImport = {
   symbol: string;
   provider: 'alpaca';
   feed: 'iex';
   timeframe: '1Day';
-  adjustment: 'all';
+  adjustment: AlpacaAdjustment;
   fetchedAt: string;
   firstBarAt: string;
   lastBarAt: string;
@@ -95,6 +97,7 @@ function normalizeBars(raw: unknown, now: Date): QuantBar[] {
 export async function fetchAlpacaDailyBars(options: {
   symbol: string;
   limit: number;
+  adjustment?: AlpacaAdjustment;
   apiKey?: string;
   apiSecret?: string;
   now?: Date;
@@ -118,6 +121,7 @@ export async function fetchAlpacaDailyBars(options: {
     );
   }
 
+  const adjustment = options.adjustment ?? 'all';
   const now = options.now ?? new Date();
   const fetchedAt = now.toISOString();
   const start = new Date(now.getTime() - options.limit * 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -127,7 +131,7 @@ export async function fetchAlpacaDailyBars(options: {
   url.searchParams.set('start', start);
   url.searchParams.set('end', end);
   url.searchParams.set('limit', String(options.limit));
-  url.searchParams.set('adjustment', 'all');
+  url.searchParams.set('adjustment', adjustment);
   url.searchParams.set('feed', 'iex');
   url.searchParams.set('sort', 'asc');
 
@@ -181,7 +185,7 @@ export async function fetchAlpacaDailyBars(options: {
     provider: 'alpaca',
     feed: 'iex',
     timeframe: '1Day',
-    adjustment: 'all',
+    adjustment,
     fetchedAt,
     firstBarAt,
     lastBarAt,
