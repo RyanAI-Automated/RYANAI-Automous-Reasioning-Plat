@@ -19,7 +19,7 @@ INSPECT_STDERR="${TMP_DIR}/docker-inspect.stderr"
 : > "$PULL_STDERR"
 : > "$INSPECT_STDERR"
 
-for required in "$SCRIPT_FILE" "$POLICY_FILE" "${ROOT}/scripts/benchmark-isolation-evidence.mjs"; do
+for required in "$SCRIPT_FILE" "${ROOT}/scripts/benchmark-endpoint-policy.mjs" "$POLICY_FILE" "${ROOT}/scripts/benchmark-isolation-evidence.mjs"; do
   if [[ ! -f "$required" || -L "$required" ]]; then
     printf 'Required harness input is missing or is a symlink: %s\n' "$required" > "$PROBE_STDERR"
     break
@@ -56,6 +56,7 @@ if [[ "$PULL_EXIT_CODE" -eq 0 ]]; then
       --user=10001:10001
       --tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m
       "--mount=type=bind,src=${SCRIPT_FILE},dst=/workspace/benchmark-isolation-container.mjs,readonly"
+      "--mount=type=bind,src=${ROOT}/scripts/benchmark-endpoint-policy.mjs,dst=/workspace/benchmark-endpoint-policy.mjs,readonly"
       "--mount=type=bind,src=${POLICY_FILE},dst=/workspace/local-isolation-policy.json,readonly"
       --workdir=/workspace
       "$IMAGE_DIGEST"
