@@ -20,7 +20,7 @@ interface GitHubModalProps {
 
 function statusLabel(status: GitHubStatus['status'] | null, checking: boolean): string {
   if (checking && !status) return 'Checking';
-  switch (status?.status) {
+  switch (status) {
     case 'connected': return 'Connected · verified';
     case 'not_connected': return 'Not connected';
     case 'reauthorization_required': return 'Reconnect required';
@@ -118,7 +118,7 @@ export default function GithubModal({ open, onClose }: GitHubModalProps) {
             connected
               ? 'border-emerald-400/20 bg-emerald-400/5 text-emerald-300'
               : 'border-amber-400/20 bg-amber-400/5 text-amber-300'
-          }`}>{statusLabel(integration, checking)}</span>
+          }`}>{statusLabel(integration?.status ?? null, checking)}</span>
         </div>
 
         {connected ? (
