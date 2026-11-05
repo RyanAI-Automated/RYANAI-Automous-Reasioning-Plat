@@ -1,5 +1,6 @@
 import unittest
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -116,6 +117,30 @@ class QuantEngineTests(unittest.TestCase):
                     {"fast_window": 3, "slow_window": 8},
                     {"fast_window": 3, "slow_window": 8},
                 ],
+            })
+
+
+    def test_walk_forward_enforces_a_bounded_compute_budget(self):
+        large_sample = []
+        for index in range(1000):
+            close = 100.0 + (index % 20)
+            large_sample.append({
+                "date": (date(2020, 1, 1) + timedelta(days=index)).isoformat(),
+                "open": close - 0.2, "high": close + 0.5,
+                "low": close - 0.5, "close": close, "volume": 1000,
+            })
+        grid = [
+            {"fast_window": fast, "slow_window": fast + 1}
+            for fast in range(2, 22)
+        ]
+        with self.assertRaisesRegex(ValueError, "bounded compute budget"):
+            run_walk_forward({
+                "bars": large_sample,
+                "train_window": 500,
+                "test_window": 5,
+                "step_window": 5,
+                "max_folds": 20,
+                "parameter_grid": grid,
             })
 
     def test_backtest_warmup_does_not_execute_training_period_trades(self):
