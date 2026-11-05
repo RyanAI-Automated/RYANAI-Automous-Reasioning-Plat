@@ -35,7 +35,7 @@ export class PipelineOrchestrator {
       decisionGraph.push({ phase: 'Build/Test', action: 'Docker Execution', status: 'PASSED' });
 
       // 5. SHIP PHASE
-      console.log('[PHASE 5: SHIP] Pushing to GitHub & Triggering Vercel/Railway...');
+      console.log('[PHASE 5: SHIP] Pushing the reviewed change to GitHub; deployment is handled by approved Render/Railway workflows...');
       await github.commitAndPushFiles({
         owner: 'ganyane',
         repo: projectName,
