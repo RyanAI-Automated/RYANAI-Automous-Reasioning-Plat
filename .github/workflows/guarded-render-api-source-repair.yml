@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.commit_sha }}
+      TARGET_SHA: ${{ inputs.commit_sha }}
     steps:
       - name: Validate exact current main SHA
         env:
