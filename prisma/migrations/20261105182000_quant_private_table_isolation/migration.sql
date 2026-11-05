@@ -1,39 +1,36 @@
 -- Quant tables contain account-owned research and simulated trading data.
 -- Access is through the authenticated RyanAI API; browser/PostgREST roles must not
--- read or mutate these tables directly. The server's privileged DB role remains
--- responsible for enforcing request.authUser ownership in parameterized queries.
-ALTER TABLE public.quant_experiments ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_experiments FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_experiments TO service_role;
+-- read or mutate these tables directly. Request-level ownership remains enforced
+-- by parameterized server queries. Keep this migration portable to local Postgres
+-- where the Supabase-specific roles may not exist.
+DO $quant_isolation$
+DECLARE
+  table_name TEXT;
+  browser_role TEXT;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'quant_experiments',
+    'quant_paper_accounts',
+    'quant_paper_positions',
+    'quant_paper_orders',
+    'quant_paper_trades',
+    'quant_paper_risk_policies',
+    'quant_paper_strategies',
+    'quant_market_data_imports',
+    'quant_strategy_signals'
+  ] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', table_name);
 
-ALTER TABLE public.quant_paper_accounts ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_paper_accounts FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_paper_accounts TO service_role;
+    FOREACH browser_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = browser_role) THEN
+        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM %I', table_name, browser_role);
+      END IF;
+    END LOOP;
 
-ALTER TABLE public.quant_paper_positions ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_paper_positions FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_paper_positions TO service_role;
-
-ALTER TABLE public.quant_paper_orders ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_paper_orders FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_paper_orders TO service_role;
-
-ALTER TABLE public.quant_paper_trades ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_paper_trades FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_paper_trades TO service_role;
-
-ALTER TABLE public.quant_paper_risk_policies ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_paper_risk_policies FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_paper_risk_policies TO service_role;
-
-ALTER TABLE public.quant_paper_strategies ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_paper_strategies FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_paper_strategies TO service_role;
-
-ALTER TABLE public.quant_market_data_imports ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_market_data_imports FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_market_data_imports TO service_role;
-
-ALTER TABLE public.quant_strategy_signals ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON TABLE public.quant_strategy_signals FROM PUBLIC, anon, authenticated;
-GRANT ALL ON TABLE public.quant_strategy_signals TO service_role;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format('GRANT ALL ON TABLE public.%I TO service_role', table_name);
+    END IF;
+  END LOOP;
+END;
+$quant_isolation$;
