@@ -100,6 +100,27 @@ export default function CommunicationsCenter() {
   const configuredChannelCount = [status?.channels?.whatsapp, status?.channels?.sms, status?.channels?.voice, status?.channels?.email]
     .filter(value => value === true).length;
 
+  async function runConversationAssist(operation: 'summarize' | 'draft' | 'translate' | 'extract_tasks') {
+    if (!active?.id || assistBusy) return;
+    setAssistBusy(true);
+    setAssistOperation(operation);
+    setAssistOutput('');
+    setError('');
+    try {
+      const result = await assistCommsConversation({
+        operation,
+        conversationId: active.id,
+        language: operation === 'translate' ? 'en-ZA' : undefined,
+      });
+      setAssistOutput(result.output);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Communications intelligence is unavailable.');
+      setAssistOperation(null);
+    } finally {
+      setAssistBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!message.trim() || sending) return;
