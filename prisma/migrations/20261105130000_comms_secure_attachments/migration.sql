@@ -9,3 +9,15 @@ CREATE TABLE IF NOT EXISTS "communication_attachments" (
 );
 CREATE INDEX IF NOT EXISTS "communication_attachments_owner_created_idx" ON "communication_attachments" ("owner_user_id","created_at");
 CREATE INDEX IF NOT EXISTS "communication_attachments_message_created_idx" ON "communication_attachments" ("communication_message_id","created_at");
+ALTER TABLE "communication_attachments" ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS "communication_attachment_audit" (
+ "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ "communication_attachment_id" TEXT NOT NULL,
+ "owner_user_id" UUID NOT NULL,
+ "event" TEXT NOT NULL,
+ "metadata" JSONB,
+ "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "communication_attachment_audit_attachment_created_idx" ON "communication_attachment_audit" ("communication_attachment_id","created_at");
+CREATE INDEX IF NOT EXISTS "communication_attachment_audit_owner_created_idx" ON "communication_attachment_audit" ("owner_user_id","created_at");
+ALTER TABLE "communication_attachment_audit" ENABLE ROW LEVEL SECURITY;
