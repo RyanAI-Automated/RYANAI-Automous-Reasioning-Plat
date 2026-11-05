@@ -46,11 +46,11 @@ program
 
 program
   .command('start:server')
-  .description('Launch Fastify backend server with hot-reloading')
+  .description('Start the supported persistent RyanAI API runtime')
   .action(() => {
     console.log('Starting RyanAI Fastify server...');
     try {
-      execSync('node --import tsx src/server/index.ts', { stdio: 'inherit' });
+      execSync('node --import tsx/esm src/server/launcher.ts', { stdio: 'inherit' });
     } catch (error) {
       console.error('Server execution failed:', error);
       process.exit(1);

@@ -46,10 +46,10 @@ program
 
 program
   .command('start:server')
-  .description('Launch Fastify backend server with hot-reloading')
+  .description('Start the supported persistent RyanAI API runtime')
   .action(() => {
     console.log('Starting RyanAI Fastify server...');
-    const success = runCommand('node --import tsx/esm src/server/index.ts');
+    const success = runCommand('node --import tsx/esm src/server/launcher.ts');
     if (!success) process.exit(1);
   });
 
