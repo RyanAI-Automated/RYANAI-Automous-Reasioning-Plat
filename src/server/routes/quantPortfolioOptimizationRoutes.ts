@@ -13,6 +13,7 @@ type OptimizeBody = {
   maxTurnoverPct?: number;
   transactionCostBps?: number;
   riskFreeRatePct?: number;
+  maxAnnualizedVolatilityPct?: number;
   currentWeights?: Record<string, number>;
 };
 
@@ -40,6 +41,7 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
           maxTurnoverPct: { type: 'number', minimum: 0, maximum: 100 },
           transactionCostBps: { type: 'number', minimum: 0, maximum: 1000 },
           riskFreeRatePct: { type: 'number', minimum: 0, maximum: 100 },
+          maxAnnualizedVolatilityPct: { type: 'number', exclusiveMinimum: 0, maximum: 100 },
           currentWeights: {
             type: 'object',
             additionalProperties: { type: 'number', minimum: 0, maximum: 1 },
@@ -106,6 +108,7 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
         maxTurnoverPct: request.body.maxTurnoverPct,
         transactionCostBps: request.body.transactionCostBps,
         riskFreeRatePct: request.body.riskFreeRatePct,
+        maxAnnualizedVolatilityPct: request.body.maxAnnualizedVolatilityPct,
         currentWeights: request.body.currentWeights,
       });
     } catch (error) {
@@ -121,6 +124,7 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
       maxTurnoverPct: request.body.maxTurnoverPct ?? 100,
       transactionCostBps: request.body.transactionCostBps ?? 10,
       riskFreeRatePct: request.body.riskFreeRatePct ?? 0,
+      maxAnnualizedVolatilityPct: request.body.maxAnnualizedVolatilityPct ?? null,
       currentWeights: request.body.currentWeights ?? null,
     };
     const experiment = await fastify.prisma.quantExperiment.create({
