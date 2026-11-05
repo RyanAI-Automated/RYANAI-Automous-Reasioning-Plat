@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: Exact validated main commit to deploy
+        description: Exact validated main commit to repair
         required: true
         type: string
       confirmation:
@@ -15,14 +15,13 @@ on:
 permissions:
   contents: read
   checks: read
-  deployments: write
 
 concurrency:
   group: render-api-source-repair
   cancel-in-progress: false
 
 jobs:
-  repair-and-deploy:
+  repair-only:
     name: Validate commit, relink official source, clear override without deploying
     if: ${{ inputs.confirmation == 'REPAIR-ONLY' }}
     environment: production
@@ -87,7 +86,7 @@ jobs:
             --header "content-type: application/json" \
             --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","dockerCommand":"","healthCheckPath":"/health"}}' \
             --output render-service-update.json
-          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off" and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.dockerCommand == "" and .serviceDetails.healthCheckPath == "/health"' render-service-update.json
+          jq -e '.repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and .branch == "main" and .autoDeployTrigger == "off" and .serviceDetails.dockerContext == "." and .serviceDetails.dockerfilePath == "./Dockerfile.api" and .serviceDetails.dockerCommand == "" and .serviceDetails.healthCheckPath == "/health"' render-service-update.json
 
       - name: Confirm repaired service settings without deploying
         run: |
