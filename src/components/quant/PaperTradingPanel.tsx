@@ -4,6 +4,15 @@ import { ArrowDownToLine, ArrowUpFromLine, RefreshCw, ShieldCheck } from 'lucide
 
 type Position = { symbol: string; quantity: string; average_entry_price: string; last_price: string; market_value: string; unrealized_pnl: string };
 type Trade = { id: string; symbol: string; side: string; quantity: string; price: string; fee: string; realized_pnl: string | null; created_at: string };
+type StrategySignal = {
+  id: string;
+  symbol: string;
+  strategy: string;
+  action: 'buy' | 'sell' | 'hold';
+  referencePrice: number;
+  generatedAt: string;
+  sourceBarDate: string;
+};
 type Snapshot = {
   mode: 'paper_simulation_only'; brokerConnected: false;
   risk: { maxOrderNotional: number; feeBps: number; shortSelling: boolean };
@@ -28,6 +37,10 @@ export default function PaperTradingPanel() {
   });
   const [riskSaving, setRiskSaving] = useState(false);
   const [riskMessage, setRiskMessage] = useState('');
+  const [strategySignals, setStrategySignals] = useState<StrategySignal[]>([]);
+  const [selectedSignalId, setSelectedSignalId] = useState('');
+  const [proposalBudget, setProposalBudget] = useState('1000');
+  const [proposalMessage, setProposalMessage] = useState('');
   const [symbol, setSymbol] = useState('AAPL');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('1');
@@ -40,16 +53,22 @@ export default function PaperTradingPanel() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [response, riskResponse] = await Promise.all([
+      const [response, riskResponse, signalResponse] = await Promise.all([
         authenticatedFetch('/api/quant/paper'),
         authenticatedFetch('/api/quant/paper/risk'),
+        authenticatedFetch('/api/quant/strategy-signals'),
       ]);
       const data = await response.json() as Snapshot & { error?: string };
       const riskData = await riskResponse.json() as RiskPolicy & { error?: string };
+      const signalData = await signalResponse.json() as { signals?: StrategySignal[]; error?: string };
       if (!response.ok) throw new Error(data.error || 'Paper trading account is unavailable.');
       if (!riskResponse.ok) throw new Error(riskData.error || 'Paper risk policy is unavailable.');
+      if (!signalResponse.ok) throw new Error(signalData.error || 'Strategy signal history is unavailable.');
       setSnapshot(data);
       setRiskPolicy(riskData);
+      const signals = signalData.signals ?? [];
+      setStrategySignals(signals);
+      setSelectedSignalId((current) => current || signals[0]?.id || '');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load paper trading.');
     } finally {
