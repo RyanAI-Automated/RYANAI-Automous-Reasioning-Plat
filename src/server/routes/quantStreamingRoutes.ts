@@ -114,7 +114,7 @@ export const quantStreamingRoutes: FastifyPluginAsync = async (fastify) => {
       if (!symbol || !/^[A-Z0-9.-]{1,15}$/.test(symbol)) {
         return reply.code(400).send({ error: 'A valid symbol is required.' });
       }
-      if (!/^\\d{1,19}$/.test(afterId) || BigInt(afterId) > 9_223_372_036_854_775_807n) {
+      if (!/^\d{1,19}$/.test(afterId) || BigInt(afterId) > 9_223_372_036_854_775_807n) {
         return reply.code(400).send({ error: 'after_id must be a valid non-negative event cursor.' });
       }
       if (!Number.isInteger(limitValue) || limitValue < 1 || limitValue > 500) {
