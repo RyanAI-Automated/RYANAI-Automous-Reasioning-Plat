@@ -93,7 +93,6 @@ export function buildGitHubAuthorizationUrl(
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('scope', 'offline_access');
   url.searchParams.set('allow_signup', 'false');
-  url.searchParams.set('prompt', 'select_account');
   return url.toString();
 }
 
