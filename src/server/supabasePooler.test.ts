@@ -26,7 +26,7 @@ describe('Supabase Session Pooler URL resolution', () => {
     expect(url.searchParams.get('sslmode')).toBe('require');
   });
 
-  it('preserves an explicitly configured SSL mode', () => {
+  it('preserves a verified TLS mode', () => {
     const result = resolveSupabaseSessionPoolerUrl(
       `postgresql://postgres:secret@${directHost}:5432/postgres?sslmode=verify-full`,
       projectUrl,
@@ -34,6 +34,16 @@ describe('Supabase Session Pooler URL resolution', () => {
     );
 
     expect(new URL(result.databaseUrl!).searchParams.get('sslmode')).toBe('verify-full');
+  });
+
+  it('overrides an explicitly disabled TLS mode to require encryption', () => {
+    const result = resolveSupabaseSessionPoolerUrl(
+      `postgresql://postgres:secret@${directHost}:5432/postgres?sslmode=disable`,
+      projectUrl,
+      poolerHost,
+    );
+
+    expect(new URL(result.databaseUrl!).searchParams.get('sslmode')).toBe('require');
   });
 
   it('does not rewrite a connection that is already using the pooler', () => {
