@@ -32,6 +32,9 @@ vi.mock('@/pages/Dashboard', () => ({
 vi.mock('@/pages/OperatorConsole', () => ({
   default: () => <div>Private operator console</div>,
 }));
+vi.mock('@/pages/OperationsCenter', () => ({
+  default: () => <div>Private operations center</div>,
+}));
 vi.mock('@/pages/AdminConsole', () => ({
   default: ({ userId }: { userId: string }) => <div>Private admin console {userId}</div>,
 }));
@@ -106,7 +109,7 @@ async function mount(hash: string) {
 }
 
 describe('application authentication boundary', () => {
-  it.each(['dashboard', 'cockpit', 'workspace', 'operator', 'admin'])(
+  it.each(['dashboard', 'cockpit', 'workspace', 'operator', 'operations', 'admin'])(
     'blocks anonymous direct access to %s',
     async (route) => {
       await mount(`/${route}`);
@@ -143,6 +146,7 @@ describe('application authentication boundary', () => {
     expect(container.querySelector('nav a[href="#/cockpit"]')).toBeNull();
     expect(container.querySelector('nav a[href="#/workspace"]')).toBeNull();
     expect(container.querySelector('nav a[href="#/operator"]')).toBeNull();
+    expect(container.querySelector('nav a[href="#/operations"]')).toBeNull();
     expect(container.querySelector('nav a[href="#/admin"]')).toBeNull();
     expect(container.querySelector('a.skip-link[href="#main-content"]')).not.toBeNull();
   });
@@ -158,12 +162,20 @@ describe('application authentication boundary', () => {
     await mount('/dashboard');
     await expectContent('Private dashboard');
 
-    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator']) {
+    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations']) {
       expect(container.querySelector(`nav[aria-label="Main navigation"] a[href="#${path}"]`)).not.toBeNull();
       expect(container.querySelector(`nav[aria-label="Mobile navigation"] a[href="#${path}"]`)).not.toBeNull();
     }
     expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/comms"]')).toBeNull();
     expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/admin"]')).toBeNull();
+  });
+
+  it('opens the authenticated Operations Center route', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/operations');
+    await expectContent('Private operations center');
+    expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/operations"]')).not.toBeNull();
+    expect(container.querySelector('nav[aria-label="Mobile navigation"] a[href="#/operations"]')).not.toBeNull();
   });
 
   it('makes owner-only Comms available to an authenticated owner', async () => {
