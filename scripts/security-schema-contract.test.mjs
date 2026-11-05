@@ -20,6 +20,9 @@ test('scan environments exclude production and Kali execution requires a scoped 
   assert.match(migration, /approval_record\.used_at IS NOT NULL/);
   assert.match(migration, /approval_record\.commit_sha IS DISTINCT FROM NEW\.commit_sha/);
   assert.doesNotMatch(migration, /'production'/);
+  assert.match(migration, /ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /REVOKE ALL ON TABLE public.%I FROM %I/);
+  assert.match(migration, /GRANT ALL ON TABLE public.%I TO service_role/);
 });
 
 test('evidence is append-only and content hashes are validated', () => {
