@@ -125,7 +125,7 @@ jobs:
             .autoDeployTrigger == "off" and
             .serviceDetails.envSpecificDetails.dockerContext == "." and
             .serviceDetails.envSpecificDetails.dockerfilePath == "./Dockerfile.api" and
-            .serviceDetails.envSpecificDetails.dockerCommand == "" and
+            .(serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
             .serviceDetails.healthCheckPath == "/health"
           '
           if jq -e "$desired" render-service-before.json >/dev/null; then
@@ -148,7 +148,7 @@ jobs:
             .autoDeployTrigger == "off" and
             .serviceDetails.envSpecificDetails.dockerContext == "." and
             .serviceDetails.envSpecificDetails.dockerfilePath == "./Dockerfile.api" and
-            .serviceDetails.envSpecificDetails.dockerCommand == "" and
+            .(serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
             .serviceDetails.healthCheckPath == "/health"
           ' render-service-final.json
           echo "Render API configuration corrected and verified. No deploy endpoint was called."
