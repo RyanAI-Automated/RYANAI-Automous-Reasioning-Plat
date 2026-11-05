@@ -40,7 +40,10 @@ async function readJournal(filePath) {
     if ((stat.mode & 0o077) !== 0) throw new Error('Audit journal permissions must be owner-only.');
     const content = await readFile(filePath, 'utf8');
     if (!content.endsWith('\n')) throw new Error('Audit journal is incomplete (missing final newline).');
-    const lines = content.split('\n').filter(Boolean);
+    const lines = content.slice(0, -1).split('\n');
+    if (lines.some(line => !line.trim())) {
+      throw new Error('Audit journal contains an empty or malformed entry.');
+    }
     const entries = [];
     let previousHash = null;
     for (const [index, line] of lines.entries()) {
@@ -197,7 +200,12 @@ function verifyApprovalReceipt(receipt, request, deps, now) {
     throw new Error('Approval-service verification key must be Ed25519.');
   }
   const keyId = sha256(publicKey.export({ type: 'spki', format: 'der' }));
-  if (receipt.keyId !== keyId) throw new Error('Approval-service signing key fingerprint mismatch.');
+  if (typeof deps.approvalServiceKeySha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(deps.approvalServiceKeySha256) ||
+      deps.approvalServiceKeySha256 !== keyId ||
+      receipt.keyId !== deps.approvalServiceKeySha256) {
+    throw new Error('Approval-service key does not match the independently pinned fingerprint.');
+  }
 
   const issuedAt = Date.parse(receipt.issuedAt);
   const expiresAt = Date.parse(receipt.expiresAt);
