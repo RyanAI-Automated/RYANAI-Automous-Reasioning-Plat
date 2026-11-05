@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Activity, BarChart3, BrainCircuit, History, Play, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
+import PaperTradingPanel from '@/components/quant/PaperTradingPanel';
 
 type EquityPoint = { date: string; equity: number };
 type Trade = { date: string; side: 'buy' | 'sell'; price: number; quantity: number; fee: number; realized_pnl?: number };
@@ -229,6 +230,8 @@ export default function QuantLabPage() {
           }
         </aside>
       </div>
+
+      <PaperTradingPanel />
 
       {result && (
         <section aria-live="polite" className="space-y-5 rounded-2xl border border-cyan-400/20 bg-slate-900/70 p-5 sm:p-6">
