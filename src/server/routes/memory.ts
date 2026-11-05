@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
 
-const MEMORY_LIMIT = 100;
+const MEMORY_LIMIT = 50;
 const MEMORY_VALUE_LIMIT = 2_000;
+const SEARCH_LIMIT = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const memorySelect = {
@@ -21,17 +22,60 @@ const memorySelect = {
 export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
 
-  fastify.get('/api/user/memory', async (request, reply) => {
+  fastify.get<{ Querystring: { q?: string; limit?: string; cursor?: string } }>('/api/user/memory', async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
 
-    const entries = await fastify.prisma.memoryEntry.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: MEMORY_LIMIT,
+    const query = (request.query.q || '').trim();
+    if (query.length > SEARCH_LIMIT) {
+      return reply.code(400).send({ error: 'Search text must be 100 characters or fewer.' });
+    }
+    const requestedLimit = request.query.limit === undefined ? MEMORY_LIMIT : Number(request.query.limit);
+    if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100) {
+      return reply.code(400).send({ error: 'Page size must be between 1 and 100.' });
+    }
+
+    const where: Record<string, unknown> = { userId };
+    if (query) {
+      where.OR = [
+        { value: { contains: query, mode: 'insensitive' } },
+        { category: { contains: query, mode: 'insensitive' } },
+        { key: { contains: query, mode: 'insensitive' } },
+      ];
+    }
+
+    if (request.query.cursor) {
+      if (!UUID_PATTERN.test(request.query.cursor)) {
+        return reply.code(400).send({ error: 'Invalid memory page cursor.' });
+      }
+      const cursorEntry = await fastify.prisma.memoryEntry.findFirst({
+        where: { id: request.query.cursor, userId },
+        select: { id: true, createdAt: true },
+      });
+      if (!cursorEntry) return reply.code(400).send({ error: 'Memory page cursor is unavailable for this account.' });
+      where.AND = [{
+        OR: [
+          { createdAt: { lt: cursorEntry.createdAt } },
+          { createdAt: cursorEntry.createdAt, id: { lt: cursorEntry.id } },
+        ],
+      }];
+    }
+
+    const rows = await fastify.prisma.memoryEntry.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: requestedLimit + 1,
       select: memorySelect,
     });
-    return { entries, limit: MEMORY_LIMIT };
+    const hasMore = rows.length > requestedLimit;
+    const entries = hasMore ? rows.slice(0, requestedLimit) : rows;
+    return {
+      entries,
+      limit: requestedLimit,
+      hasMore,
+      nextCursor: hasMore ? entries[entries.length - 1]?.id ?? null : null,
+      query,
+    };
   });
 
   fastify.post<{ Body: { value: string; category?: string } }>('/api/user/memory', {
@@ -56,12 +100,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
     if (category.length > 50) return reply.code(400).send({ error: 'Memory category must be 50 characters or fewer.' });
 
     const entry = await fastify.prisma.memoryEntry.create({
-      data: {
-        userId,
-        key: 'vault_' + randomUUID(),
-        value,
-        category,
-      },
+      data: { userId, key: 'vault_' + randomUUID(), value, category },
       select: memorySelect,
     });
     return reply.code(201).send({ entry });
@@ -106,9 +145,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id: request.params.id, userId },
       select: memorySelect,
     });
-    if (!entry) {
-      return reply.code(404).send({ error: 'Memory entry was not found for this account.' });
-    }
+    if (!entry) return reply.code(404).send({ error: 'Memory entry was not found for this account.' });
     return { entry };
   });
 
