@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import {
   Activity,
+  BrainCircuit,
   BookAudio,
   Cpu,
   MessageSquareText,
@@ -100,6 +101,12 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
   const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && paHeartbeatFreshness === 'fresh');
   const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paHeartbeatUnverified ? 'Heartbeat unverified' : paStatus.workState;
   const workspaces = [
+    {
+      href: '#/pa',
+      title: 'Personal Assistant',
+      description: 'Review PA runtime health, personal task continuity and authorised agent coordination.',
+      icon: BrainCircuit,
+    },
     {
       href: '#/cockpit',
       title: 'Command Cockpit',

@@ -214,6 +214,26 @@ if (
 ) {
   fail('System dashboard must use the authenticated API origin and validate PA observer JSON responses');
 }
+const paPage = readText('src/pages/PAAgent.tsx');
+if (
+  !routes.routes?.some((route) => route.id === 'pa' && route.path === '/pa') ||
+  !app.includes("lazy(() => import('@/pages/PAAgent'))") ||
+  !app.includes("{route === 'pa' && <PAAgentPage />}")
+) {
+  fail('Personal Assistant must be registered in the route manifest and rendered by the authenticated app shell');
+}
+if (
+  !paPage.includes("authenticatedFetch('/api/agent/ops/pa/status'") ||
+  !paPage.includes("authenticatedFetch('/api/agent/ops/tasks'") ||
+  !paPage.includes('heartbeatFresh') ||
+  !paPage.includes('Read-only PA boundary')
+) {
+  fail('Personal Assistant workspace must use authenticated status/task APIs, verify heartbeat freshness and disclose its read-only boundary');
+}
+if (!dashboard.includes("href: '#/pa'") || !dashboard.includes('Personal Assistant')) {
+  fail('System dashboard must link to the dedicated Personal Assistant workspace');
+}
+
 const bridge = readText('src/services/tauriBridge.ts');
 const commands = readText('src-tauri/src/commands.rs');
 const registration = readText('src-tauri/src/lib.rs');
