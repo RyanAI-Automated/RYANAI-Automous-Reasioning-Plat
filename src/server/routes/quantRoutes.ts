@@ -781,6 +781,13 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: 'Risk limits must satisfy order ≤ position ≤ gross exposure.' });
     }
     const userId = request.authUser!.id;
+    const existingPolicy = await prisma.$queryRawUnsafe<Array<{ emergency_stop: boolean }>>(
+      'SELECT emergency_stop FROM quant_paper_risk_policies WHERE user_id = $1',
+      userId,
+    );
+    if (existingPolicy[0]?.emergency_stop && tradingEnabled) {
+      return reply.code(423).send({ error: 'Reset the emergency stop explicitly before re-enabling paper trading.' });
+    }
     await prisma.$executeRawUnsafe(
       'INSERT INTO quant_paper_risk_policies (user_id, max_order_notional, max_position_notional, max_gross_exposure, trading_enabled, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (user_id) DO UPDATE SET max_order_notional = EXCLUDED.max_order_notional, max_position_notional = EXCLUDED.max_position_notional, max_gross_exposure = EXCLUDED.max_gross_exposure, trading_enabled = EXCLUDED.trading_enabled, updated_at = NOW()',
       userId, maxOrderNotional, maxPositionNotional, maxGrossExposure, tradingEnabled,
