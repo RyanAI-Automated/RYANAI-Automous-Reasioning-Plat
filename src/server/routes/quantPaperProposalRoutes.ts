@@ -41,8 +41,9 @@ type ProposalRow = {
 
 function isFresh(lastBarAt: Date | string, isStale: boolean): boolean {
   const timestamp = new Date(lastBarAt).getTime();
+  const now = Date.now();
   return !isStale && Number.isFinite(timestamp) &&
-    Date.now() - timestamp <= MARKET_DATA_MAX_AGE_MS;
+    timestamp <= now && now - timestamp <= MARKET_DATA_MAX_AGE_MS;
 }
 
 function floorQuantity(value: number): number {
