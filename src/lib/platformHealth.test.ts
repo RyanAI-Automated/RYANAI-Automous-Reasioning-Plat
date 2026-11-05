@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { API_ROUTES } from '@/config/core';
 import { getPlatformHealth } from './platformHealth';
 
 function pendingFetch() {
