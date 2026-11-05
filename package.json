@@ -128,7 +128,7 @@
     "test:comms-orchestration": "python3 -m unittest discover -s comms-orchestration/tests -v",
     "ghostunnel:validate": "node scripts/validate-ghostunnel-contract.mjs",
     "test:ghostunnel": "node --test scripts/validate-ghostunnel-contract.node-test.mjs",
-    "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs",
+    "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-endpoint-policy.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs",
     "benchmark:evidence:bundle": "node scripts/benchmark-evidence-bundle.mjs",
     "benchmark:isolation:container": "bash scripts/benchmark-isolation-container.sh"
   },
