@@ -64,7 +64,7 @@ export default function GithubModal({ open, onClose }: GitHubModalProps) {
     setError('');
     setNotice('');
     try {
-      const response = await authenticatedFetch('/api/github/connect');
+      const response = await authenticatedFetch('/api/github/connect', { method: 'POST' });
       const payload = await response.json().catch(() => ({})) as { authorizationUrl?: string; error?: string };
       if (!response.ok || !payload.authorizationUrl) {
         throw new Error(payload.error || 'GitHub App authorization is not configured.');
