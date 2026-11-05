@@ -16,7 +16,7 @@ import CodeRain from '@/components/CodeRain';
 import { ChatInterface } from '@/components/ChatInterface';
 import Modal from '@/components/Modal';
 const DEFAULT_MODEL = 'claude-sonnet-4.6';
-export default function CommandCenter({ onSignOut, userEmail, userFullName }) {
+export default function CommandCenter({ onSignOut, userId, userEmail, userFullName }) {
     const [conversations, setConversations] = useState([]);
     const [activeId, setActiveId] = useState(null);
     const [model, setModel] = useState(DEFAULT_MODEL);
@@ -447,7 +447,7 @@ export default function CommandCenter({ onSignOut, userEmail, userFullName }) {
 
       {/* Modals */}
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)}/>
-      <MemoryVault open={memoryOpen} onClose={() => setMemoryOpen(false)}/>
+      <MemoryVault open={memoryOpen} userId={userId} onClose={() => setMemoryOpen(false)}/>
       <Modal open={consoleOpen} onClose={() => setConsoleOpen(false)} title="Inference Console" icon={<Terminal size={16}/>}>
         <div className="h-[26rem] -m-2 overflow-hidden rounded-lg">
           <ChatInterface />
