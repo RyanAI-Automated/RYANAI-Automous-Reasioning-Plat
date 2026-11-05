@@ -10,7 +10,7 @@ import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
-type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string };
+type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string; idempotencyKey?: string };
 const MAX_MESSAGE_LENGTH = 4000;
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -100,13 +100,14 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       ? target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase()
       : Boolean(target && process.env.RYANAI_OWNER_PHONE && normalizePhone(target) === normalizePhone(process.env.RYANAI_OWNER_PHONE));
     const deliveryBody = isOwnerRecipient ? addressOwnerMessage(messageBody) : messageBody;
+    const emailSubject = typeof subject === 'string' && subject.trim() ? subject.trim() : 'RyanAI notification';
     const approvedTemplateSid = typeof contentSid === 'string' ? contentSid.trim() || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim() : process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
     if (!key || key.length < 16 || key.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(key)) return reply.code(400).send({ success: false, error: 'A valid 16–128 character idempotency key is required.' });
     if (!target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     if (channel === 'email') {
       if (!messageBody) return reply.code(400).send({ success: false, error: 'An email message body is required.' });
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid email address.' });
-      if (typeof subject !== 'string' || !subject.trim() || subject.trim().length > 180) return reply.code(400).send({ success: false, error: 'Email subject must contain 1–180 characters.' });
+      if (typeof subject === 'string' && subject.trim().length > 180) return reply.code(400).send({ success: false, error: 'Email subject must be no longer than 180 characters.' });
     } else if (!E164.test(target)) {
       return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
     }
@@ -127,7 +128,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         externalAddress: channel === 'email' ? target.toLowerCase() : target,
         body: outboundBody,
         idempotencyKey: key,
-        ...(channel === 'email' ? { metadata: { subject: (subject as string).trim() } } : {}),
+        ...(channel === 'email' ? { metadata: { subject: emailSubject } } : {}),
       });
     } catch (error) {
       if (error instanceof OutboundIdempotencyConflictError) return reply.code(409).send({ success: false, error: error.message });
@@ -139,7 +140,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     });
     try {
       if (channel === 'email') {
-        const sent = await smtp!.transporter.sendMail({ from: smtp!.from, to: target, subject: (subject as string).trim(), text: deliveryBody });
+        const sent = await smtp!.transporter.sendMail({ from: smtp!.from, to: target, subject: emailSubject, text: deliveryBody });
         await completeOutboundCommunication(fastify.prisma, { id: reservation.id, providerMessageId: sent.messageId, status: 'accepted' });
         return reply.code(202).send({ success: true, channel, providerId: sent.messageId, status: 'accepted', replayed: false });
       }
