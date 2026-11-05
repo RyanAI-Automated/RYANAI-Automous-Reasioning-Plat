@@ -11,6 +11,7 @@ import {
   Clock3,
   Database,
   RefreshCw,
+  Settings,
   Server,
   Wifi,
   type LucideIcon,
@@ -106,6 +107,12 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
       title: 'Operations Center',
       description: 'Queue durable agent tasks and inspect execution progress; administrators can review pending actions.',
       icon: ListChecks,
+    },
+    {
+      href: '#/settings',
+      title: 'Profile & Settings',
+      description: 'Update your display name, preferred language and voice greeting preferences.',
+      icon: Settings,
     },
     ...(isAdmin ? [{
       href: '#/admin',
