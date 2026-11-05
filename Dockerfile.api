@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Standalone API image for Render and other Dockerfile-based platforms.
 # Keep this build and runtime contract aligned with the "api" target in ./Dockerfile.
 FROM node:24-alpine AS api-deps
@@ -26,6 +27,8 @@ RUN npm run db:generate \
 FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000 \
     PUPPETEER_SKIP_DOWNLOAD=true \
     NODE_USE_SYSTEM_CA=1 \
     NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt \
