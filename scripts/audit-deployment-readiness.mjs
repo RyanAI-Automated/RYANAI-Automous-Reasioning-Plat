@@ -2,8 +2,8 @@
 import process from 'node:process';
 
 const targets = [
-  { name: 'Render', role: 'frontend-delivery-and-api', default: true, gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY'] },
-  { name: 'Railway', role: 'Docker-and-persistent-workloads', default: true, gate: 'RAILWAY_DEPLOY_ENABLED', required: ['RAILWAY_TOKEN','RAILWAY_PROJECT_ID','RAILWAY_SERVICE_ID','RAILWAY_ENVIRONMENT_ID'] },
+  { name: 'Render', role: 'frontend-delivery-and-api', default: true, gate: 'RENDER_STAGING_DEPLOY_ENABLED', required: ['RENDER_API_KEY','RENDER_STAGING_SERVICE_ID','RENDER_STAGING_API_URL','RENDER_STAGING_ISOLATION_CONFIRMED'] },
+  { name: 'Railway', role: 'Docker-and-persistent-workloads', default: true, gate: 'RAILWAY_STAGING_DEPLOY_ENABLED', required: ['RAILWAY_STAGING_TOKEN','RAILWAY_STAGING_PROJECT_ID','RAILWAY_STAGING_SERVICE_ID','RAILWAY_STAGING_ENVIRONMENT_ID','RAILWAY_STAGING_ISOLATION_CONFIRMED'] },
   { name: 'AWS ECS', role: 'optional-container-platform', default: false, gate: 'AWS_ECS_DEPLOY_ENABLED', required: ['AWS_REGION','ECR_REPOSITORY','ECS_SERVICE','ECS_CLUSTER','ECS_TASK_DEFINITION','ECS_CONTAINER_NAME','AWS_ACCESS_KEY_ID','AWS_SECRET_ACCESS_KEY'] },
   { name: 'Azure AKS', role: 'optional-container-platform', default: false, gate: 'AZURE_AKS_DEPLOY_ENABLED', required: ['AZURE_CONTAINER_REGISTRY','AZURE_CONTAINER_NAME','AZURE_RESOURCE_GROUP','AZURE_CLUSTER_NAME','AZURE_KUSTOMIZE_PATH','AZURE_CLIENT_ID','AZURE_TENANT_ID','AZURE_SUBSCRIPTION_ID'] },
   { name: 'Datadog Synthetics', role: 'optional-observability', default: false, gate: 'DATADOG_SYNTHETICS_ENABLED', required: ['DD_API_KEY','DD_APP_KEY'] },
