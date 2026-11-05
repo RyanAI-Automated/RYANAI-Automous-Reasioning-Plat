@@ -81,10 +81,6 @@ jobs:
           DD_APP_KEY: ${{ secrets.DD_APP_KEY != '' }}
           RENDER_DEPLOY_ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY != '' }}
-          VERCEL_DEPLOY_ENABLED: ${{ vars.VERCEL_DEPLOY_ENABLED }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN != '' }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID != '' }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID != '' }}
           VITE_API_BASE_URL: https://ryanai-api.onrender.com
           # Pass only boolean presence indicators; never expose model API keys to audit processes.
           RYANAI_NVIDIA_KEY_CONFIGURED: ${{ secrets.NVIDIA_API_KEY != '' }}
