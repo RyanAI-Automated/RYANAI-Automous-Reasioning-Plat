@@ -59,17 +59,24 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
         select: { id: true, createdAt: true },
       });
       if (!cursorEntry) return reply.code(400).send({ error: 'Memory page cursor is unavailable for this account.' });
-      where.AND = [{
-        OR: [
-          { createdAt: { lt: cursorEntry.createdAt } },
-          { createdAt: cursorEntry.createdAt, id: { lt: cursorEntry.id } },
-        ],
-      }];
+      // Keep null timestamps at the end of the descending order so cursor
+      // comparisons remain deterministic for legacy rows with no createdAt.
+      const afterCursor: Prisma.MemoryEntryWhereInput =
+        cursorEntry.createdAt === null
+          ? { createdAt: null, id: { lt: cursorEntry.id } }
+          : {
+              OR: [
+                { createdAt: { lt: cursorEntry.createdAt } },
+                { createdAt: cursorEntry.createdAt, id: { lt: cursorEntry.id } },
+                { createdAt: null },
+              ],
+            };
+      where.AND = [afterCursor];
     }
 
     const rows = await fastify.prisma.memoryEntry.findMany({
       where,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
       take: requestedLimit + 1,
       select: memorySelect,
     });

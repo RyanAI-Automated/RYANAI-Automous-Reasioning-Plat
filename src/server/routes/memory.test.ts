@@ -72,7 +72,7 @@ describe('account-scoped Postgres Memory Vault API', () => {
     expect(response.json().entries).toHaveLength(1);
     expect(store.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: 'user-a' },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
       take: 101,
     }));
   });
@@ -203,9 +203,31 @@ describe('account-scoped Postgres Memory Vault API', () => {
         AND: [{ OR: [
           { createdAt: { lt: sampleEntry.createdAt } },
           { createdAt: sampleEntry.createdAt, id: { lt: memoryId } },
+          { createdAt: null },
         ] }],
       },
       take: 2,
+    }));
+  });
+
+  it('paginates null timestamps after dated memory entries without comparing null as a date', async () => {
+    store.findFirst.mockResolvedValue({ ...sampleEntry, createdAt: null });
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/user/memory?cursor=' + memoryId,
+      headers: { 'x-test-user': 'user-a' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(store.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        userId: 'user-a',
+        AND: [{ createdAt: null, id: { lt: memoryId } }],
+      },
+      orderBy: [
+        { createdAt: { sort: 'desc', nulls: 'last' } },
+        { id: 'desc' },
+      ],
     }));
   });
 
