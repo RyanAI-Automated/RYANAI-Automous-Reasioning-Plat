@@ -166,6 +166,64 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  fastify.post<{ Body: { operation?: 'summarize' | 'draft' | 'translate' | 'extract_tasks'; conversationId?: string; language?: string; instruction?: string } }>('/api/comms/assist', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required for communications intelligence.' });
+    const operation = request.body?.operation;
+    const conversationId = request.body?.conversationId?.trim();
+    const language = request.body?.language?.trim();
+    const instruction = request.body?.instruction?.trim();
+    if (!operation || !['summarize', 'draft', 'translate', 'extract_tasks'].includes(operation)) {
+      return reply.code(400).send({ error: 'Unsupported communications intelligence operation.' });
+    }
+    if (!conversationId || !/^[0-9a-f-]{36}$/i.test(conversationId)) {
+      return reply.code(400).send({ error: 'A valid conversation ID is required.' });
+    }
+    if (instruction && instruction.length > 1000) {
+      return reply.code(400).send({ error: 'The additional instruction is too long.' });
+    }
+
+    const conversation = await fastify.prisma.communicationConversation.findFirst({
+      where: { id: conversationId, ownerUserId: request.authUser.id },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+          select: { direction: true, body: true, status: true, createdAt: true },
+        },
+      },
+    });
+    if (!conversation) return reply.code(404).send({ error: 'Conversation not found for this owner.' });
+
+    const transcript = conversation.messages.map((item) =>
+      `[${item.createdAt.toISOString()}] ${item.direction} (${item.status}): ${item.body}`,
+    ).join('\n');
+    const prompts: Record<string, string> = {
+      summarize: 'Summarize this conversation into concise, factual bullets. Separate confirmed facts, open questions and next steps. Do not invent details.',
+      draft: 'Prepare a proposed reply to the latest inbound message. Preserve the conversation context and owner intent. This is a draft only and must never imply approval or sending.',
+      translate: `Translate the conversation context into ${language || 'the requested target language'}. Preserve meaning and names. Return only the translated text.`,
+      extract_tasks: 'Extract actionable tasks from the conversation. For each task give owner, action, due date if explicitly stated, and evidence from the transcript. If a field is unknown, say unknown. Do not create or execute tasks.',
+    };
+    const prompt = [
+      prompts[operation],
+      instruction ? `Additional owner instruction: ${instruction}` : '',
+      '',
+      'Conversation transcript:',
+      transcript || '(no messages)',
+    ].filter(Boolean).join('\n');
+
+    try {
+      const result = await askRyanAI(prompt, `comms-assist:${conversationId}:${operation}`);
+      return {
+        operation,
+        output: result,
+        sourceMessageCount: conversation.messages.length,
+      };
+    } catch (error) {
+      request.log.warn({ err: error, operation }, 'Comms intelligence request failed');
+      return reply.code(502).send({ error: 'Communications intelligence is temporarily unavailable.' });
+    }
+  });
+
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
     const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [] } = request.body ?? {};
