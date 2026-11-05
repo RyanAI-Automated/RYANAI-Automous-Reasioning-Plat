@@ -135,6 +135,8 @@
     "worker:coding": "tsx scripts/coding-task-worker.ts",
     "worker:audiobook": "tsx scripts/audiobook-render-worker.ts",
     "test:comms-orchestration": "python3 -m unittest discover -s comms-orchestration/tests -v",
+    "test:comms-attachments:integration": "tsx scripts/test-comms-attachment-scanner.integration.ts",
+    "test:comms-callback:integration": "RUN_COMMS_POSTGRES_INTEGRATION=true vitest run src/server/comms/index.postgres.integration.test.ts",
     "ghostunnel:validate": "node scripts/validate-ghostunnel-contract.mjs",
     "test:ghostunnel": "node --test scripts/validate-ghostunnel-contract.node-test.mjs",
     "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-endpoint-policy.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs scripts/benchmark-genx-approval-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs && vitest run src/server/routes/pendingActions.auth.test.ts",
