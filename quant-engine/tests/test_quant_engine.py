@@ -80,8 +80,8 @@ class QuantEngineTests(unittest.TestCase):
         }
         baseline = run_walk_forward(payload)
         changed = [dict(item) for item in sample]
-        for index in range(30, 40):
-            close = 220.0 + index
+        test_closes = [95.0, 90.0, 85.0, 80.0, 75.0, 85.0, 95.0, 105.0, 115.0, 125.0]
+        for index, close in enumerate(test_closes, start=30):
             changed[index].update({
                 "open": close - 0.2, "high": close + 0.5,
                 "low": close - 0.5, "close": close,
