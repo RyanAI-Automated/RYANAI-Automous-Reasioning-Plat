@@ -1,18 +1,16 @@
 import Fastify from 'fastify';
+import type { PrismaClient } from '@prisma/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../lib/prisma.js', () => ({
-  prisma: {
-    quantExperiment: {
-      create: vi.fn(),
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-    },
-  },
-}));
-
-import { prisma } from '../../lib/prisma.js';
 import { quantRoutes } from './quantRoutes.js';
+
+const prisma = {
+  quantExperiment: {
+    create: vi.fn(),
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+  },
+};
 
 const makeBars = (count = 80) => {
   let close = 100;
@@ -23,14 +21,21 @@ const makeBars = (count = 80) => {
   });
 };
 
+function createTestApp() {
+  const app = Fastify();
+  app.decorate('prisma', prisma as unknown as PrismaClient);
+  app.decorateRequest('authUser', null);
+  app.addHook('preHandler', async (request) => {
+    request.authUser = { id: 'user-quant-test', role: 'user', isOwner: false };
+  });
+  return app;
+}
+
 describe('Quant API routes', () => {
   afterEach(() => vi.clearAllMocks());
-  it('runs an isolated Python backtest and persists the user-scoped result', async () => {
-    const app = Fastify();
-    app.decorateRequest('authUser', null);
-    app.addHook('preHandler', async (request) => {
-      request.authUser = { id: 'user-quant-test', role: 'user', isOwner: false };
-    });
+
+  it('uses the injected runtime Prisma client to persist a user-scoped backtest', async () => {
+    const app = createTestApp();
     await app.register(quantRoutes);
     vi.mocked(prisma.quantExperiment.create).mockResolvedValue({
       id: 'experiment-1', strategy: 'sma_crossover', status: 'completed', createdAt: new Date(),
@@ -52,12 +57,8 @@ describe('Quant API routes', () => {
     await app.close();
   });
 
-  it('scopes experiment history to the authenticated user', async () => {
-    const app = Fastify();
-    app.decorateRequest('authUser', null);
-    app.addHook('preHandler', async (request) => {
-      request.authUser = { id: 'user-quant-test', role: 'user', isOwner: false };
-    });
+  it('scopes experiment history to the authenticated user through the injected client', async () => {
+    const app = createTestApp();
     await app.register(quantRoutes);
     vi.mocked(prisma.quantExperiment.findMany).mockResolvedValue([] as never);
     const response = await app.inject({ method: 'GET', url: '/api/quant/experiments' });

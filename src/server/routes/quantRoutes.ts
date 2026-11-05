@@ -3,7 +3,6 @@ import type { Prisma } from '@prisma/client';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { requireUser } from './auth.js';
-import { prisma } from '../../lib/prisma.js';
 import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
 import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
 import { assessPaperOrderRisk } from '../quant/paperRisk.js';
@@ -93,7 +92,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
 
   fastify.get('/api/quant/market-data/imports', async (request) => {
-    const imports = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+    const imports = await fastify.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT id, symbol, provider, feed, timeframe, adjustment, bar_count,
               first_bar_at, last_bar_at, fetched_at,
               (is_stale OR last_bar_at < NOW() - INTERVAL '5 days') AS is_stale,
@@ -151,7 +150,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       lastBarAt: imported.lastBarAt,
       coverageNote: imported.coverageNote,
     };
-    const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    const rows = await fastify.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `INSERT INTO quant_market_data_imports
         (user_id, symbol, provider, feed, timeframe, adjustment, bar_count,
          first_bar_at, last_bar_at, fetched_at, is_stale, bars, provenance)
@@ -190,7 +189,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get('/api/quant/strategy-signals', async (request) => {
-    const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+    const rows = await fastify.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT s.id, s.market_data_import_id, i.symbol, s.strategy, s.fast_window,
               s.slow_window, s.action, s.reference_price::text,
               s.previous_fast_sma::text, s.previous_slow_sma::text,
@@ -247,7 +246,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     if (fastWindow >= slowWindow) {
       return reply.code(400).send({ error: 'Slow SMA window must be greater than the fast SMA window.' });
     }
-    const imports = await prisma.$queryRawUnsafe<Array<{
+    const imports = await fastify.prisma.$queryRawUnsafe<Array<{
       id: string;
       symbol: string;
       last_bar_at: Date | string;
@@ -285,7 +284,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       generatedFromImportId: imported.id,
       description: 'A research signal only. It does not create, schedule or execute a paper order.',
     };
-    const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    const rows = await fastify.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `INSERT INTO quant_strategy_signals
         (user_id, market_data_import_id, strategy, fast_window, slow_window, action,
          reference_price, previous_fast_sma, previous_slow_sma, fast_sma, slow_sma,
@@ -331,7 +330,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const userId = request.authUser!.id;
-    const imports = await prisma.$queryRawUnsafe<Array<{
+    const imports = await fastify.prisma.$queryRawUnsafe<Array<{
       id: string; symbol: string; last_bar_at: Date | string; is_stale: boolean;
       bars: Array<{ date: string; open: number; high: number; low: number; close: number; volume?: number }>;
       provenance: Record<string, unknown>;
@@ -350,14 +349,14 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const [accountRows, positionRows, riskRows] = await Promise.all([
-      prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
+      fastify.prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
         'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1 LIMIT 1', userId,
       ),
-      prisma.$queryRawUnsafe<Array<{ symbol: string; market_value: string }>>(
+      fastify.prisma.$queryRawUnsafe<Array<{ symbol: string; market_value: string }>>(
         'SELECT symbol, (quantity * last_price)::text AS market_value FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0',
         userId,
       ),
-      prisma.$queryRawUnsafe<Array<{
+      fastify.prisma.$queryRawUnsafe<Array<{
         max_order_notional: string; max_gross_exposure: string; trading_enabled: boolean; emergency_stop: boolean;
       }>>(
         'SELECT max_order_notional::text, max_gross_exposure::text, trading_enabled, emergency_stop FROM quant_paper_risk_policies WHERE user_id = $1 LIMIT 1',
@@ -417,7 +416,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get('/api/quant/experiments', async (request) => {
-    const experiments = await prisma.quantExperiment.findMany({
+    const experiments = await fastify.prisma.quantExperiment.findMany({
       where: { userId: request.authUser!.id },
       orderBy: { createdAt: 'desc' },
       take: 30,
@@ -429,7 +428,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { experimentId: string } }>(
     '/api/quant/experiments/:experimentId',
     async (request, reply) => {
-      const experiment = await prisma.quantExperiment.findFirst({
+      const experiment = await fastify.prisma.quantExperiment.findFirst({
         where: { id: request.params.experimentId, userId: request.authUser!.id },
         select: { id: true, strategy: true, status: true, input: true, result: true, createdAt: true },
       });
@@ -474,7 +473,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     let bars = request.body.bars;
     let marketDataProvenance: Record<string, unknown> | null = null;
     if (request.body.market_data_import_id) {
-      const imports = await prisma.$queryRawUnsafe<Array<{
+      const imports = await fastify.prisma.$queryRawUnsafe<Array<{
         id: string; symbol: string; provider: string; feed: string; timeframe: string;
         adjustment: string; last_bar_at: Date | string; fetched_at: Date | string;
         is_stale: boolean; bars: Bar[]; provenance: Record<string, unknown>;
@@ -531,7 +530,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     }
     if (!engine.ok) return reply.code(422).send({ error: engine.error });
 
-    const saved = await prisma.quantExperiment.create({
+    const saved = await fastify.prisma.quantExperiment.create({
       data: {
         userId: request.authUser!.id,
         strategy: 'sma_crossover',
@@ -555,27 +554,27 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   // Paper trading is a separate, explicitly simulated ledger. It never calls a broker.
   fastify.get('/api/quant/paper', async (request) => {
     const userId = request.authUser!.id;
-    await prisma.$executeRawUnsafe(
+    await fastify.prisma.$executeRawUnsafe(
       'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
       userId,
     );
-    await prisma.$executeRawUnsafe(
+    await fastify.prisma.$executeRawUnsafe(
       'INSERT INTO quant_paper_risk_policies (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
       userId,
     );
     const [accounts, positions, trades, policies] = await Promise.all([
-      prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
+      fastify.prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
         'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1', userId,
       ),
-      prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      fastify.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
         'SELECT symbol, quantity::text, average_entry_price::text, last_price::text, (quantity * last_price)::text AS market_value, ((last_price - average_entry_price) * quantity)::text AS unrealized_pnl FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0 ORDER BY symbol',
         userId,
       ),
-      prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      fastify.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
         'SELECT id, symbol, side, quantity::text, price::text, fee::text, realized_pnl::text, created_at FROM quant_paper_trades WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
         userId,
       ),
-      prisma.$queryRawUnsafe<Array<{ max_order_notional: string; fee_bps: number; trading_enabled: boolean }>>(
+      fastify.prisma.$queryRawUnsafe<Array<{ max_order_notional: string; fee_bps: number; trading_enabled: boolean }>>(
         'SELECT max_order_notional::text, 5::integer AS fee_bps, trading_enabled FROM quant_paper_risk_policies WHERE user_id = $1',
         userId,
       ),
@@ -625,7 +624,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(400).send({ error: 'Paper orders are limited to 10,000 in simulated notional.' });
       }
       try {
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await fastify.prisma.$transaction(async (tx) => {
           await tx.$executeRawUnsafe(
             'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
             userId,
@@ -834,11 +833,11 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   // User-adjustable paper-risk policy. Server-side hard caps remain authoritative.
   fastify.get('/api/quant/paper/risk', async (request) => {
     const userId = request.authUser!.id;
-    await prisma.$executeRawUnsafe(
+    await fastify.prisma.$executeRawUnsafe(
       'INSERT INTO quant_paper_risk_policies (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
       userId,
     );
-    const rows = await prisma.$queryRawUnsafe<Array<{
+    const rows = await fastify.prisma.$queryRawUnsafe<Array<{
       max_order_notional: string; max_position_notional: string;
       max_gross_exposure: string; trading_enabled: boolean;
     }>>(
@@ -881,14 +880,14 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: 'Risk limits must satisfy order ≤ position ≤ gross exposure.' });
     }
     const userId = request.authUser!.id;
-    const existingPolicy = await prisma.$queryRawUnsafe<Array<{ emergency_stop: boolean }>>(
+    const existingPolicy = await fastify.prisma.$queryRawUnsafe<Array<{ emergency_stop: boolean }>>(
       'SELECT emergency_stop FROM quant_paper_risk_policies WHERE user_id = $1',
       userId,
     );
     if (existingPolicy[0]?.emergency_stop && tradingEnabled) {
       return reply.code(423).send({ error: 'Reset the emergency stop explicitly before re-enabling paper trading.' });
     }
-    await prisma.$executeRawUnsafe(
+    await fastify.prisma.$executeRawUnsafe(
       'INSERT INTO quant_paper_risk_policies (user_id, max_order_notional, max_position_notional, max_gross_exposure, trading_enabled, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (user_id) DO UPDATE SET max_order_notional = EXCLUDED.max_order_notional, max_position_notional = EXCLUDED.max_position_notional, max_gross_exposure = EXCLUDED.max_gross_exposure, trading_enabled = EXCLUDED.trading_enabled, updated_at = NOW()',
       userId, maxOrderNotional, maxPositionNotional, maxGrossExposure, tradingEnabled,
     );
@@ -903,7 +902,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   // Promote a completed, user-owned research experiment into a paper portfolio plan.
   // Promotion allocates a target budget only; it does not place or schedule orders.
   fastify.get('/api/quant/paper/strategies', async (request) => {
-    const strategies = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+    const strategies = await fastify.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       "SELECT s.id, s.experiment_id, e.strategy, s.allocation_pct::text, s.enabled, s.created_at, (e.result -> 'metrics') AS metrics FROM quant_paper_strategies s INNER JOIN quant_experiments e ON e.id = s.experiment_id AND e.user_id = s.user_id WHERE s.user_id = $1 ORDER BY s.created_at DESC",
       request.authUser!.id,
     );
@@ -923,7 +922,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     },
   }, async (request, reply) => {
     const userId = request.authUser!.id;
-    const experiment = await prisma.quantExperiment.findFirst({
+    const experiment = await fastify.prisma.quantExperiment.findFirst({
       where: { id: request.body.experimentId, userId, status: 'completed' },
       select: { id: true, strategy: true, status: true, result: true },
     });
@@ -931,7 +930,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'Completed research experiment not found for this account.' });
     }
 
-    const promoted = await prisma.$transaction(async (tx) => {
+    const promoted = await fastify.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
         'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
         userId,
@@ -977,7 +976,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete<{ Params: { experimentId: string } }>(
     '/api/quant/paper/strategies/:experimentId',
     async (request, reply) => {
-      const deleted = await prisma.$executeRawUnsafe(
+      const deleted = await fastify.prisma.$executeRawUnsafe(
         'DELETE FROM quant_paper_strategies WHERE user_id = $1 AND experiment_id = $2',
         request.authUser!.id, request.params.experimentId,
       );
