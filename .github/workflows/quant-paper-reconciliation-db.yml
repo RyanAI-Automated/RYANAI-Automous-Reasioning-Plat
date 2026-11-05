@@ -1,0 +1,99 @@
+name: Quant paper reconciliation database fixtures
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'prisma/migrations/**'
+      - 'prisma/schema.prisma'
+      - 'src/server/quant/paperOrderReconciliation.ts'
+      - 'scripts/test-quant-paper-fill-reconciliation.mjs'
+      - 'tests/fixtures/quant-paper-reconciliation-legacy.sql'
+      - '.github/workflows/quant-paper-reconciliation-db.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'prisma/migrations/**'
+      - 'prisma/schema.prisma'
+      - 'src/server/quant/paperOrderReconciliation.ts'
+      - 'scripts/test-quant-paper-fill-reconciliation.mjs'
+      - 'tests/fixtures/quant-paper-reconciliation-legacy.sql'
+      - '.github/workflows/quant-paper-reconciliation-db.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quant-paper-reconciliation:
+    name: Disposable PostgreSQL migration and ledger fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ryanai
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ryanai_quant_reconciliation
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ryanai -d ryanai_quant_reconciliation"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ryanai:ci_password@127.0.0.1:5432/ryanai_quant_reconciliation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=prisma/schema.prisma
+
+      - name: Prepare disposable Supabase Auth compatibility objects
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/prepare-disposable-supabase-auth-fixture.sql
+
+      - name: Apply all migrations preceding paper-fill reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration_backup="$(mktemp -d)"
+          cp -a prisma/migrations "$migration_backup/migrations"
+          restore_migrations() {
+            rm -rf prisma/migrations
+            cp -a "$migration_backup/migrations" prisma/migrations
+          }
+          trap restore_migrations EXIT
+          rm -rf prisma/migrations/20261105233000_quant_paper_fill_reconciliation
+          npx prisma migrate deploy --schema=prisma/schema.prisma
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/quant-paper-reconciliation-legacy.sql
+          restore_migrations
+          trap - EXIT
+          rm -rf "$migration_backup"
+
+      - name: Apply paper-fill reconciliation migration to seeded legacy rows
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: Verify historical backfill, partial fills, duplicate IDs and invalid references
+        run: node --import tsx/esm scripts/test-quant-paper-fill-reconciliation.mjs
+
+      - name: Confirm migration deployment is repeatable
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: Re-run ledger fixtures and verify deterministic reconciliation
+        run: node --import tsx/esm scripts/test-quant-paper-fill-reconciliation.mjs
