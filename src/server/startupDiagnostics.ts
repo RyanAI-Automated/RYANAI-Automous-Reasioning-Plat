@@ -2,7 +2,7 @@ const connectionHints: Record<string, string> = {
   ECONNREFUSED:
     'Connection refused. Check that PostgreSQL is running and the configured host and port are reachable.',
   ENOTFOUND:
-    'Hostname or Supavisor tenant lookup failed. Copy the exact Session Pooler host from Supabase Connect and confirm the shared-pooler username includes the project reference.',
+    'Database hostname could not be resolved. Copy the exact Session Pooler host from Supabase Connect and check DNS resolution.',
   EAI_AGAIN:
     'Database hostname lookup temporarily failed. Check DNS and retry.',
   ETIMEDOUT:
