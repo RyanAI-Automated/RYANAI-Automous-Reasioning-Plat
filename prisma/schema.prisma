@@ -404,6 +404,19 @@ model CommunicationAttachment {
   @@map("communication_attachments")
 }
 
+model CommunicationAttachmentAudit {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communicationAttachmentId String   @map("communication_attachment_id")
+  ownerUserId               String   @db.Uuid @map("owner_user_id")
+  event                     String
+  metadata                  Json?
+  createdAt                 DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  @@index([communicationAttachmentId, createdAt], map: "communication_attachment_audit_attachment_created_idx")
+  @@index([ownerUserId, createdAt], map: "communication_attachment_audit_owner_created_idx")
+  @@map("communication_attachment_audit")
+}
+
 // LangGraph's PostgresSaver owns these tables and their versioned DDL. They are
 // represented here so Prisma's schema-drift check includes the full public
 // schema without attempting to create or mutate them from application code.
