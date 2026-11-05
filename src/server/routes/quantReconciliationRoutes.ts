@@ -29,11 +29,12 @@ export const quantReconciliationRoutes: FastifyPluginAsync = async (fastify) => 
         provider: string;
         feed: string;
         timeframe: string;
+        adjustment: string;
         first_bar_at: Date | string;
         last_bar_at: Date | string;
         bars: unknown;
       }>>(
-        `SELECT id, symbol, provider, feed, timeframe, first_bar_at, last_bar_at, bars
+        `SELECT id, symbol, provider, feed, timeframe, adjustment, first_bar_at, last_bar_at, bars
          FROM quant_market_data_imports
          WHERE id = $1 AND user_id = $2
          LIMIT 1`,
@@ -49,6 +50,13 @@ export const quantReconciliationRoutes: FastifyPluginAsync = async (fastify) => 
       }
       if (!Array.isArray(imported.bars) || imported.bars.length === 0) {
         return reply.code(422).send({ error: 'The selected historical import contains no usable bars.' });
+      }
+      if (imported.adjustment !== 'raw') {
+        return reply.code(409).send({
+          error: 'Stream reconciliation requires raw historical bars because Alpaca stream events are unadjusted.',
+          requiredAdjustment: 'raw',
+          currentAdjustment: imported.adjustment,
+        });
       }
       if (!['alpaca'].includes(imported.provider) || !['iex', 'sip', 'delayed_sip'].includes(imported.feed)) {
         return reply.code(409).send({ error: 'The historical provider/feed cannot be reconciled with the stored stream events.' });
