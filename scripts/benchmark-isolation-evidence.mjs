@@ -59,6 +59,19 @@ const dockerRunArgv = [
   '/workspace/benchmark-isolation-container.mjs', imageDigest
 ];
 const checks = Array.isArray(probeResult?.checks) ? probeResult.checks : [];
+const requiredCheckNames = [
+  'only-loopback-network-interface',
+  'ipv4-loopback-fixture',
+  'ipv6-loopback-fixture',
+  'public-ip-egress-denied',
+  'private-lan-egress-denied',
+  'public-dns-denied',
+  'docker-host-alias-denied',
+  'policy-endpoint-allowlist',
+  'credential-environment-absent'
+];
+const reportedCheckNames = checks.map(check => check.name);
+const missingChecks = requiredCheckNames.filter(name => !reportedCheckNames.includes(name));
 const failures = [];
 if (!/^[a-f0-9]{40}$/i.test(testedCommit)) failures.push('The checked-out Git commit SHA is missing or invalid.');
 if (pullExitCode !== 0) failures.push(`docker pull exited ${pullExitCode}.`);
@@ -67,11 +80,18 @@ if (!/^node@sha256:[a-f0-9]{64}$/i.test(imageDigest)) failures.push('The immutab
 if (probeExitCode !== 0) failures.push(`The isolated probe container exited ${probeExitCode}.`);
 if (probeParseError) failures.push(`Probe stdout is not valid JSON: ${probeParseError}`);
 if (!probeResult) failures.push('No structured probe result was produced.');
-if (probeResult && (probeResult.networkMode !== 'none' || probeResult.modelInvocation !== false)) {
-  failures.push('Probe result does not attest the required no-network, no-model mode.');
-}
-if (checks.length === 0 || checks.some(check => check.status !== 'PASS' || check.exitCode !== 0)) {
-  failures.push('One or more individual probe checks are missing or did not exit successfully.');
+if (probeResult && (
+  probeResult.networkMode !== 'none' ||
+  probeResult.modelInvocation !== false ||
+  probeResult.verdict !== 'HARNESS_PASS_ONLY_NOT_GATE_PASS' ||
+  probeResult.containerImageDigest !== imageDigest
+)) failures.push('Probe result does not attest the expected image digest and harness-only, no-network, no-model mode.');
+if (missingChecks.length > 0) failures.push('Required probe checks are missing: ' + missingChecks.join(', '));
+if (new Set(reportedCheckNames).size !== reportedCheckNames.length) failures.push('Probe result contains duplicate check names.');
+for (const check of checks) {
+  if (check.status !== 'PASS' || check.exitCode !== 0 || typeof check.command !== 'string' || !check.command) {
+    failures.push(`Probe check "${check.name ?? 'unnamed'}" failed or is missing command/exit-code evidence.`);
+  }
 }
 
 const report = {
@@ -96,8 +116,8 @@ const report = {
     immutableContainerImageDigest: imageDigest || null,
     networkMode: 'none',
     hostEnvironmentPassed: false,
-    mountedFiles: [probeScript, policyFile],
-    repositoryMount: 'two-file-allowlist'
+    mountedFiles: [probeScript, 'scripts/benchmark-endpoint-policy.mjs', policyFile],
+    repositoryMount: 'three-file-allowlist'
   },
   commands: {
     imagePull: {
