@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import {\n  Activity,\n  BookAudio,\n  Cpu,\n  MessageSquareText,\n  TrendingUp,
+import {
+  Activity,
+  BookAudio,
+  Cpu,
+  MessageSquareText,
+  TrendingUp,
   AlertCircle,
   CheckCircle2,
   Clock3,
