@@ -60,7 +60,7 @@ export async function createPADelegation(input: {
         objective: input.objective.trim(),
         requestedCapabilities: input.capabilities,
         status: 'queued',
-        traceId: input.traceId || captureQueueTraceContext().traceId || randomUUID(),
+        traceId: input.traceId || randomUUID(),
       },
     });
     const run = await tx.agentRun.create({
@@ -68,9 +68,9 @@ export async function createPADelegation(input: {
         userId: input.ownerUserId,
         objective: input.objective.trim(),
         executionScope: { paDelegationId: delegation.id, capabilities: input.capabilities },
-        traceContext: captureQueueTraceContext(),
+        traceContext: captureQueueTraceContext() ?? undefined,
         status: 'queued',
-        approvalStatus: 'approved',
+        approvalStatus: 'pending',
       },
     });
     await tx.paDelegation.update({ where: { id: delegation.id }, data: { agentRunId: run.id } });
