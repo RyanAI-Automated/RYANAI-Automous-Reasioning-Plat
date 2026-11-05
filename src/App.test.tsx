@@ -128,6 +128,17 @@ describe('application authentication boundary', () => {
     expect(container.querySelector('nav a[href="#/cockpit"]')).not.toBeNull();
     expect(container.querySelector('nav a[href="#/workspace"]')).not.toBeNull();
   });
+  it('renders accessible desktop and mobile navigation for authenticated routes', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/dashboard');
+    await expectContent('Private dashboard');
+    const desktopNavigation = container.querySelector('nav[aria-label="Main navigation"]');
+    const mobileNavigation = container.querySelector('nav[aria-label="Mobile navigation"]');
+    expect(desktopNavigation?.querySelector('a[href="#/dashboard"]')?.getAttribute('aria-current')).toBe('page');
+    expect(mobileNavigation?.querySelector('a[href="#/dashboard"]')?.textContent).toContain('Dashboard');
+    expect(container.querySelector('a.skip-link[href="#main-content"]')).not.toBeNull();
+  });
+
   it('does not mount protected content before restoration completes', async () => {
     let restore!: (value: unknown) => void;
     auth.getSession.mockReturnValue(

@@ -67,6 +67,30 @@ export default function QuantLabPage() {
     return () => { active = false; };
   }, [fetchHistory, applyHistory, applyHistoryError, finishHistoryLoad]);
 
+  // Refresh persisted experiments while this workspace is open. Background
+  // failures retain the last successful snapshot instead of disrupting the page.
+  useEffect(() => {
+    let active = true;
+    const refreshHistory = async () => {
+      try {
+        const history = await fetchHistory();
+        if (active) setExperiments(history);
+      } catch {
+        // The initial load already reports an error; background polls stay quiet.
+      }
+    };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshHistory();
+    }, 30_000);
+    const handleFocus = () => { void refreshHistory(); };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchHistory]);
+
   const openExperiment = async (experimentId: string) => {
     setError('');
     try {
