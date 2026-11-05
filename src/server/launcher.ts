@@ -42,6 +42,7 @@ import { internalOpenAiGatewayRoutes } from './routes/internalOpenAi.js';
 import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { inspectDatabaseSchema } from './databaseSchema.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
+import { memoryRoutes } from './routes/memory.js';
 import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { audioIntelligenceRoutes } from './routes/audioIntelligence.js';
 import { audiobookProjectRoutes } from './routes/audiobookProjects.js';
@@ -510,6 +511,7 @@ async function registerPlugins() {
   await fastify.register(quantRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
+  await fastify.register(memoryRoutes);
   await fastify.register(realtimeVoiceRoutes);
   await fastify.register(audioIntelligenceRoutes);
   await fastify.register(audiobookProjectRoutes);
