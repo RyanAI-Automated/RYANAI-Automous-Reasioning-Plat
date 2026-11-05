@@ -144,5 +144,48 @@
     "explicit_evaluation_approval": {
       "type": "boolean"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "A_OFFLINE_OLLAMA"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "remote_credentials_mounted",
+          "cloud_fallback_enabled",
+          "os_egress_enforcement_evidence"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "profile": {
+            "const": "B_REMOTE_PROVIDER"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "remote_credentials_mounted",
+          "provider_secret_name",
+          "endpoint_host",
+          "spend_ceiling_zar",
+          "explicit_evaluation_approval",
+          "cloud_fallback_enabled"
+        ]
+      }
+    }
+  ]
 }
