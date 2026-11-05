@@ -238,17 +238,46 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1 FOR UPDATE',
             userId,
           );
+          await tx.$executeRawUnsafe(
+            'INSERT INTO quant_paper_risk_policies (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
+            userId,
+          );
+          const policies = await tx.$queryRawUnsafe<Array<{
+            max_order_notional: string; max_position_notional: string;
+            max_gross_exposure: string; trading_enabled: boolean;
+          }>>(
+            'SELECT max_order_notional::text, max_position_notional::text, max_gross_exposure::text, trading_enabled FROM quant_paper_risk_policies WHERE user_id = $1 FOR UPDATE',
+            userId,
+          );
+          const policy = policies[0] ?? {
+            max_order_notional: '10000', max_position_notional: '25000',
+            max_gross_exposure: '75000', trading_enabled: true,
+          };
+          if (!policy.trading_enabled) throw new Error('PAPER_TRADING_DISABLED');
+          if (notional > Number(policy.max_order_notional)) throw new Error('PAPER_ORDER_RISK_LIMIT');
           const prior = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
             'SELECT id, status FROM quant_paper_orders WHERE user_id = $1 AND client_order_id = $2',
             userId, request.body.client_order_id,
           );
           if (prior.length) return { duplicate: true, orderId: prior[0].id, status: prior[0].status };
           const cash = Number(accounts[0]?.cash_balance ?? 0);
-          const positions = await tx.$queryRawUnsafe<Array<{ quantity: string; average_entry_price: string }>>(
-            'SELECT quantity::text, average_entry_price::text FROM quant_paper_positions WHERE user_id = $1 AND symbol = $2 FOR UPDATE',
+          const positions = await tx.$queryRawUnsafe<Array<{
+            quantity: string; average_entry_price: string; last_price: string;
+          }>>(
+            'SELECT quantity::text, average_entry_price::text, last_price::text FROM quant_paper_positions WHERE user_id = $1 AND symbol = $2 FOR UPDATE',
             userId, symbol,
           );
           const held = Number(positions[0]?.quantity ?? 0);
+          if (request.body.side === 'buy') {
+            const exposureRows = await tx.$queryRawUnsafe<Array<{ gross_exposure: string }>>(
+              'SELECT COALESCE(SUM(quantity * last_price), 0)::text AS gross_exposure FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0',
+              userId,
+            );
+            const grossExposure = Number(exposureRows[0]?.gross_exposure ?? 0);
+            const symbolExposure = held * Number(positions[0]?.last_price ?? 0);
+            if (symbolExposure + notional > Number(policy.max_position_notional)) throw new Error('PAPER_POSITION_RISK_LIMIT');
+            if (grossExposure + notional > Number(policy.max_gross_exposure)) throw new Error('PAPER_GROSS_RISK_LIMIT');
+          }
           const averageEntry = Number(positions[0]?.average_entry_price ?? 0);
           let realizedPnl = 0;
           if (request.body.side === 'buy') {
@@ -293,10 +322,76 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
         const message = error instanceof Error ? error.message : '';
         if (message === 'INSUFFICIENT_PAPER_CASH') return reply.code(409).send({ error: 'Insufficient simulated cash for this order, including fees.' });
         if (message === 'INSUFFICIENT_PAPER_POSITION') return reply.code(409).send({ error: 'You cannot sell more units than your simulated position holds.' });
+        if (message === 'PAPER_TRADING_DISABLED') return reply.code(423).send({ error: 'Paper trading is paused by your risk policy.' });
+        if (message === 'PAPER_ORDER_RISK_LIMIT') return reply.code(409).send({ error: 'Order exceeds your configured per-order risk limit.' });
+        if (message === 'PAPER_POSITION_RISK_LIMIT') return reply.code(409).send({ error: 'Order would exceed your configured single-position exposure limit.' });
+        if (message === 'PAPER_GROSS_RISK_LIMIT') return reply.code(409).send({ error: 'Order would exceed your configured total portfolio exposure limit.' });
         fastify.log.error({ message: 'paper order transaction failed' }, 'Paper order rejected');
         return reply.code(503).send({ error: 'Paper order could not be safely recorded.' });
       }
     },
   );
+
+
+  // User-adjustable paper-risk policy. Server-side hard caps remain authoritative.
+  fastify.get('/api/quant/paper/risk', async (request) => {
+    const userId = request.authUser!.id;
+    await prisma.$executeRawUnsafe(
+      'INSERT INTO quant_paper_risk_policies (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
+      userId,
+    );
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      max_order_notional: string; max_position_notional: string;
+      max_gross_exposure: string; trading_enabled: boolean;
+    }>>(
+      'SELECT max_order_notional::text, max_position_notional::text, max_gross_exposure::text, trading_enabled FROM quant_paper_risk_policies WHERE user_id = $1',
+      userId,
+    );
+    const policy = rows[0];
+    return {
+      tradingEnabled: policy?.trading_enabled ?? true,
+      maxOrderNotional: Number(policy?.max_order_notional ?? 10000),
+      maxPositionNotional: Number(policy?.max_position_notional ?? 25000),
+      maxGrossExposure: Number(policy?.max_gross_exposure ?? 75000),
+      hardCaps: { maxOrderNotional: 10000, maxPositionNotional: 50000, maxGrossExposure: 100000 },
+      shortSelling: false,
+      mode: 'paper_simulation_only',
+    };
+  });
+
+  fastify.put<{ Body: {
+    tradingEnabled: boolean;
+    maxOrderNotional: number;
+    maxPositionNotional: number;
+    maxGrossExposure: number;
+  } }>('/api/quant/paper/risk', {
+    schema: {
+      body: {
+        type: 'object', additionalProperties: false,
+        required: ['tradingEnabled', 'maxOrderNotional', 'maxPositionNotional', 'maxGrossExposure'],
+        properties: {
+          tradingEnabled: { type: 'boolean' },
+          maxOrderNotional: { type: 'number', minimum: 100, maximum: 10000 },
+          maxPositionNotional: { type: 'number', minimum: 100, maximum: 50000 },
+          maxGrossExposure: { type: 'number', minimum: 100, maximum: 100000 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { tradingEnabled, maxOrderNotional, maxPositionNotional, maxGrossExposure } = request.body;
+    if (maxOrderNotional > maxPositionNotional || maxPositionNotional > maxGrossExposure) {
+      return reply.code(400).send({ error: 'Risk limits must satisfy order ≤ position ≤ gross exposure.' });
+    }
+    const userId = request.authUser!.id;
+    await prisma.$executeRawUnsafe(
+      'INSERT INTO quant_paper_risk_policies (user_id, max_order_notional, max_position_notional, max_gross_exposure, trading_enabled, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) ON CONFLICT (user_id) DO UPDATE SET max_order_notional = EXCLUDED.max_order_notional, max_position_notional = EXCLUDED.max_position_notional, max_gross_exposure = EXCLUDED.max_gross_exposure, trading_enabled = EXCLUDED.trading_enabled, updated_at = NOW()',
+      userId, maxOrderNotional, maxPositionNotional, maxGrossExposure, tradingEnabled,
+    );
+    return reply.code(200).send({
+      tradingEnabled, maxOrderNotional, maxPositionNotional, maxGrossExposure,
+      hardCaps: { maxOrderNotional: 10000, maxPositionNotional: 50000, maxGrossExposure: 100000 },
+      shortSelling: false, mode: 'paper_simulation_only',
+    });
+  });
 
 };
