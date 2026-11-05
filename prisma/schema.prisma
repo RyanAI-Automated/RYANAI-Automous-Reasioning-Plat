@@ -633,6 +633,35 @@ model AudiobookChapter {
   @@map("audiobook_chapters")
 }
 
+model GitHubAppConnection {
+  userId                 String   @id @map("user_id")
+  githubUserId           String   @map("github_user_id")
+  githubLogin            String   @map("github_login") @db.VarChar(120)
+  repositoryId           String   @map("repository_id")
+  repositoryFullName     String   @map("repository_full_name") @db.VarChar(255)
+  repositoryPermissions  Json     @default("{}") @map("repository_permissions")
+  encryptedAccessToken   String   @map("encrypted_access_token") @db.Text
+  encryptedRefreshToken  String?  @map("encrypted_refresh_token") @db.Text
+  accessTokenExpiresAt   DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt  DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  connectedAt            DateTime @default(now()) @map("connected_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("github_app_connections")
+}
+
+model GitHubOAuthState {
+  stateHash               String   @id @map("state_hash") @db.VarChar(64)
+  userId                  String   @map("user_id")
+  encryptedCodeVerifier   String   @map("encrypted_code_verifier") @db.Text
+  expiresAt               DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([expiresAt], map: "github_oauth_states_expires_idx")
+  @@index([userId], map: "github_oauth_states_user_idx")
+  @@map("github_oauth_states")
+}
+
 model AudiobookRenderJob {
   id             String          @id @default(uuid())
   userId         String          @map("user_id")
