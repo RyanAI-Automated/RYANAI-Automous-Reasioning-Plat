@@ -33,8 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run hardened network-disabled container probes
-        run: npm run benchmark:isolation:container | tee benchmark-isolation-evidence.json
+        run: bash scripts/benchmark-isolation-container.sh
       - name: Upload isolation harness evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-isolation-harness-evidence
