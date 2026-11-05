@@ -29,6 +29,15 @@ vi.mock('@/pages/LandingPage', () => ({
 vi.mock('@/pages/Dashboard', () => ({
   default: () => <div>Private dashboard</div>,
 }));
+vi.mock('@/pages/QuantLab', () => ({
+  default: () => <div>Private quant lab</div>,
+}));
+vi.mock('@/components/CommunicationsCenter', () => ({
+  default: () => <div>Private communications</div>,
+}));
+vi.mock('@/pages/AudiobookStudio', () => ({
+  default: () => <div>Private audiobook studio</div>,
+}));
 vi.mock('@/components/dashboard/RyanAICockpit', () => ({
   default: () => <div>Private cockpit</div>,
 }));
@@ -42,6 +51,14 @@ let container: HTMLDivElement;
 let root: Root;
 const session = {
   user: { id: 'alice', email: 'alice@example.com', user_metadata: {} },
+} as Session;
+const ownerSession = {
+  user: {
+    id: 'owner',
+    email: 'owner@example.com',
+    user_metadata: {},
+    app_metadata: { owner: true },
+  },
 } as Session;
 
 beforeEach(() => {
@@ -120,6 +137,35 @@ describe('application authentication boundary', () => {
     expect(container.querySelectorAll('[data-testid="primary-multilingual-greeting"]')).toHaveLength(1);
     expect(container.textContent).not.toContain('RyanAI · Personal welcome');
   });
+  it('makes every regular-account workspace reachable from authenticated navigation', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/dashboard');
+    await expectContent('Private dashboard');
+
+    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook']) {
+      expect(container.querySelector(`nav[aria-label="Main navigation"] a[href="#${path}"]`)).not.toBeNull();
+      expect(container.querySelector(`nav[aria-label="Mobile navigation"] a[href="#${path}"]`)).not.toBeNull();
+    }
+    expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/comms"]')).toBeNull();
+  });
+
+  it('makes owner-only Comms available to an authenticated owner', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: ownerSession }, error: null });
+    await mount('/comms');
+    await expectContent('Private communications');
+    expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/comms"]')).not.toBeNull();
+    expect(container.querySelector('nav[aria-label="Mobile navigation"] a[href="#/comms"]')).not.toBeNull();
+  });
+
+  it.each([
+    ['quant', 'Private quant lab'],
+    ['audiobook', 'Private audiobook studio'],
+  ])('opens the %s workspace by its registered route', async (route, content) => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount(`/${route}`);
+    await expectContent(content);
+  });
+
   it('shows protected destinations after an authenticated session is restored', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/dashboard');
