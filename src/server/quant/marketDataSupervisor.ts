@@ -102,7 +102,7 @@ export function createMarketDataStreamSupervisor(options: {
       attempt = 0;
       setState({ status: 'connected', attempt: 0, connectedAt: new Date().toISOString() });
     } catch (error) {
-      scheduleRetry(error instanceof Error ? error.message : 'Market-data stream connection failed.', run);
+      if (!failed) scheduleRetry(error instanceof Error ? error.message : 'Market-data stream connection failed.', run);
     }
   };
   return {
