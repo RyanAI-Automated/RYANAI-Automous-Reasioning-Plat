@@ -37,23 +37,35 @@ export default function QuantLabPage() {
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
+  const fetchHistory = useCallback(async () => {
+    const response = await authenticatedFetch('/api/quant/experiments');
+    if (!response.ok) throw new Error('Experiment history is unavailable.');
+    const data = await response.json() as { experiments: Experiment[] };
+    return data.experiments;
+  }, []);
   const loadHistory = useCallback(async () => {
     try {
-      const response = await authenticatedFetch('/api/quant/experiments');
-      if (!response.ok) throw new Error('Experiment history is unavailable.');
-      const data = await response.json() as { experiments: Experiment[] };
-      setExperiments(data.experiments);
+      setExperiments(await fetchHistory());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load experiment history.');
     } finally {
       setHistoryLoading(false);
     }
+  }, [fetchHistory]);
+  const applyHistory = useCallback((history: Experiment[]) => setExperiments(history), []);
+  const applyHistoryError = useCallback((cause: unknown) => {
+    setError(cause instanceof Error ? cause.message : 'Unable to load experiment history.');
   }, []);
+  const finishHistoryLoad = useCallback(() => setHistoryLoading(false), []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void loadHistory(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [loadHistory]);
+    let active = true;
+    void fetchHistory().then(
+      (history) => { if (active) applyHistory(history); },
+      (cause) => { if (active) applyHistoryError(cause); },
+    ).finally(() => { if (active) finishHistoryLoad(); });
+    return () => { active = false; };
+  }, [fetchHistory, applyHistory, applyHistoryError, finishHistoryLoad]);
 
   const openExperiment = async (experimentId: string) => {
     setError('');
