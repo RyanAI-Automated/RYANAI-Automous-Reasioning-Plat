@@ -72,6 +72,24 @@ describe('Tauri authenticated reasoning bridge', () => {
     expect(mocks.invoke).not.toHaveBeenCalled();
   });
 
+  it('fails closed for Supabase anonymous sessions', async () => {
+    mocks.getSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          access_token: 'anonymous-session-token',
+          user: { is_anonymous: true },
+        },
+      },
+      error: null,
+    });
+
+    await expect(TauriBridge.executeObjective('inspect the service')).rejects.toThrow(
+      'Sign in to continue.',
+    );
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
+
   it('keeps the browser fallback on the authenticated API service', async () => {
     mocks.isTauri.mockReturnValue(false);
     mocks.executeAgentReasoning.mockResolvedValue({
