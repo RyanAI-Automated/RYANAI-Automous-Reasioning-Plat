@@ -2,51 +2,67 @@
 import React, { useState } from "react";
 import { TauriBridge } from "../services/tauriBridge";
 
-/** Render an objective input with execution progress, output, and caught errors. */
+/** Render an authenticated native reasoning console with progress and error states. */
 export function AgentControlPanel() {
   const [objective, setObjective] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleRunObjective = async () => {
-    if (!objective.trim()) return;
+    const normalizedObjective = objective.trim();
+    if (!normalizedObjective || loading) return;
     setLoading(true);
-    setOutput("Executing autonomous reasoning workflow...");
+    setOutput("Submitting an authenticated reasoning request…");
 
     try {
-      const res = await TauriBridge.executeObjective(objective);
+      const res = await TauriBridge.executeObjective(normalizedObjective);
       setOutput(res.result);
     } catch (err: unknown) {
-      setOutput(`Error: ${(err instanceof Error ? err.message : String(err))}`);
+      setOutput(`Request failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-6 bg-slate-900 text-slate-100 rounded-xl shadow-2xl border border-slate-800 max-w-2xl mx-auto mt-10">
-      <h2 className="text-xl font-bold mb-4">RyanAI Agent Evolution Console</h2>
-      
-      <div className="flex gap-2 mb-4">
+    <section
+      className="mx-auto mt-10 max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100 shadow-2xl"
+      aria-labelledby="native-reasoning-title"
+    >
+      <h2 id="native-reasoning-title" className="mb-2 text-xl font-bold">
+        RyanAI Native Reasoning Console
+      </h2>
+      <p className="mb-4 text-sm text-slate-400">
+        Send a reasoning objective through your signed-in RyanAI account. Administrative and engineering actions remain subject to their separate permissions and approvals.
+      </p>
+
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <input
           type="text"
           value={objective}
-          onChange={(e) => setObjective(e.target.value)}
-          placeholder="Enter task or self-dev objective (e.g., 'Refactor database module')..."
-          className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-indigo-500"
+          onChange={(event) => setObjective(event.target.value)}
+          maxLength={20000}
+          aria-label="Reasoning objective"
+          placeholder="Describe a question or reasoning task…"
+          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 focus:border-cyan-400 focus:outline-none"
         />
         <button
-          onClick={handleRunObjective}
-          disabled={loading}
-          className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg font-semibold transition"
+          type="button"
+          onClick={() => void handleRunObjective()}
+          disabled={loading || !objective.trim()}
+          className="rounded-lg bg-cyan-500 px-6 py-2 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Reasoning..." : "Execute"}
+          {loading ? "Reasoning…" : "Run request"}
         </button>
       </div>
 
-      <div className="p-4 bg-black/50 border border-slate-800 rounded-lg min-h-[150px] font-mono text-sm whitespace-pre-wrap overflow-y-auto">
-        {output || "Awaiting instructions..."}
+      <div
+        role="status"
+        aria-live="polite"
+        className="min-h-[150px] overflow-y-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-black/50 p-4 font-mono text-sm"
+      >
+        {output || "Waiting for a signed-in reasoning request…"}
       </div>
-    </div>
+    </section>
   );
 }

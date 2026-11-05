@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { supabase } from '@/lib/supabase';
 import { executeAgentReasoning, fetchSystemHealth } from './api';
 
 export interface AgentResponse {
@@ -13,8 +14,22 @@ export interface HardwareTelemetry {
   memoryTotal: number;
 }
 
+async function getSignedInAccessToken(): Promise<string> {
+  if (!supabase) {
+    throw new Error('Sign-in is unavailable. Please contact your administrator.');
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (error || !accessToken) {
+    throw new Error('Sign in to continue.');
+  }
+
+  return accessToken;
+}
+
 export class TauriBridge {
-  /** Route an objective to native IPC on desktop or the same reasoning API on web. */
+  /** Route an objective to native IPC on desktop or the same authenticated API on web. */
   public static async executeObjective(objective: string): Promise<AgentResponse> {
     const normalizedObjective = objective.trim();
     if (!normalizedObjective) {
@@ -23,8 +38,12 @@ export class TauriBridge {
 
     try {
       if (isTauri()) {
+        // The native process receives only the current user's short-lived session
+        // token for this request. It must never persist or log this credential.
+        const accessToken = await getSignedInAccessToken();
         return await invoke<AgentResponse>('trigger_agent_objective', {
           objective: normalizedObjective,
+          accessToken,
         });
       }
 
