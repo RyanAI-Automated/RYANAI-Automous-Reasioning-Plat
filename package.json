@@ -56,7 +56,7 @@
     "db:push": "prisma db push",
     "db:migrate": "node --import tsx/esm src/db/migrate.ts",
     "db:setup": "npm run db:generate && npm run db:migrate",
-    "test": "node --test scripts/verify-node-ca.test.mjs && vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs --exclude scripts/genaicode-adapter.test.mjs --exclude scripts/container-sandbox-runner.test.mjs --exclude scripts/coding-task-queue.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox && npm run test:coding-queue && npm run test:benchmark:contracts && npm run test:server-assets",
+    "test": "node --test scripts/verify-node-ca.test.mjs && npm run test:security-schema && vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs --exclude scripts/genaicode-adapter.test.mjs --exclude scripts/container-sandbox-runner.test.mjs --exclude scripts/coding-task-queue.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox && npm run test:coding-queue && npm run test:benchmark:contracts && npm run test:server-assets",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
     "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
@@ -142,7 +142,8 @@
     "test:ghostunnel": "node --test scripts/validate-ghostunnel-contract.node-test.mjs",
     "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-endpoint-policy.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs scripts/benchmark-genx-approval-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs && vitest run src/server/routes/pendingActions.auth.test.ts",
     "benchmark:evidence:bundle": "node scripts/benchmark-evidence-bundle.mjs",
-    "benchmark:isolation:container": "bash scripts/benchmark-isolation-container.sh"
+    "benchmark:isolation:container": "bash scripts/benchmark-isolation-container.sh",
+    "test:security-schema": "node --test scripts/security-schema-contract.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

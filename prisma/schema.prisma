@@ -744,3 +744,126 @@ model AudiobookRenderJob {
   @@index([projectId, createdAt(sort: Desc)], map: "audiobook_render_jobs_project_created_idx")
   @@map("audiobook_render_jobs")
 }
+
+// Security Centre records. Operational audit events continue to use JarvisAuditEvent;
+// engineering execution evidence continues to use AgentRunEvidence.
+model SecurityScan {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId      String?               @map("owner_user_id") @db.Uuid
+  initiatedBy      String                @map("initiated_by")
+  source           String
+  environment      String
+  targetRef        String?               @map("target_ref")
+  branch           String?
+  commitSha        String?               @map("commit_sha")
+  workflowRunId    String?               @map("workflow_run_id")
+  status           String                @default("queued")
+  toolchain        Json                  @default("{}")
+  summary          Json                  @default("{}")
+  approvalId       String?               @map("approval_id") @db.Uuid
+  startedAt        DateTime?             @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  approval         SecurityApproval?     @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  findings         SecurityFinding[]
+  evidence         SecurityEvidence[]
+  verifiedRemediations SecurityRemediation[] @relation("SecurityRemediationVerification")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([commitSha, createdAt(sort: Desc)])
+  @@index([environment, status, createdAt(sort: Desc)])
+  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@map("security_scans")
+}
+
+model SecurityFinding {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId            String                @map("scan_id") @db.Uuid
+  fingerprint       String
+  sourceTool        String                @map("source_tool")
+  ruleId            String?               @map("rule_id")
+  severity          String
+  confidence        String                @default("unknown")
+  title             String
+  description       String?               @db.Text
+  affectedComponent String?               @map("affected_component")
+  filePath          String?               @map("file_path")
+  startLine         Int?                  @map("start_line")
+  endLine           Int?                  @map("end_line")
+  cve               String?
+  cwe               String?
+  cvss              Decimal?             @db.Decimal(4, 2)
+  status            String                @default("open")
+  firstSeenAt       DateTime              @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime              @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  scan              SecurityScan          @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  evidence          SecurityEvidence[]
+  remediations      SecurityRemediation[]
+
+  @@unique([scanId, fingerprint])
+  @@index([severity, status, lastSeenAt(sort: Desc)])
+  @@index([fingerprint, lastSeenAt(sort: Desc)])
+  @@index([affectedComponent, status])
+  @@map("security_findings")
+}
+
+model SecurityEvidence {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId         String          @map("scan_id") @db.Uuid
+  findingId      String?         @map("finding_id") @db.Uuid
+  evidenceType   String          @map("evidence_type")
+  artifactRef    String?         @map("artifact_ref")
+  sha256         String?
+  mediaType      String?         @map("media_type")
+  redactedExcerpt String?        @map("redacted_excerpt") @db.Text
+  metadata       Json            @default("{}")
+  capturedAt     DateTime        @default(now()) @map("captured_at") @db.Timestamptz(6)
+  scan           SecurityScan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  finding        SecurityFinding? @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([scanId, capturedAt(sort: Desc)])
+  @@index([findingId, capturedAt(sort: Desc)])
+  @@map("security_evidence")
+}
+
+model SecurityRemediation {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  findingId          String           @map("finding_id") @db.Uuid
+  recommendation     String           @db.Text
+  rationale          String?          @db.Text
+  status             String           @default("proposed")
+  proposedBy         String           @map("proposed_by")
+  reviewedBy         String?          @map("reviewed_by")
+  reviewedAt         DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  verificationScanId String?          @map("verification_scan_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  finding            SecurityFinding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  verificationScan   SecurityScan?    @relation("SecurityRemediationVerification", fields: [verificationScanId], references: [id], onDelete: SetNull)
+
+  @@index([findingId, status, createdAt(sort: Desc)])
+  @@map("security_remediations")
+}
+
+model SecurityApproval {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope       String
+  environment String
+  targetRef   String         @map("target_ref")
+  commitSha   String?        @map("commit_sha")
+  requestHash String         @map("request_hash")
+  requestedBy String         @map("requested_by")
+  decidedBy   String?        @map("decided_by")
+  status      String         @default("pending")
+  reason      String?        @db.Text
+  expiresAt   DateTime       @map("expires_at") @db.Timestamptz(6)
+  usedAt      DateTime?      @map("used_at") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  scans       SecurityScan[]
+
+  @@index([status, expiresAt])
+  @@index([targetRef, commitSha])
+  @@map("security_approvals")
+}
