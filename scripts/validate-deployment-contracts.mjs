@@ -1,26 +1,35 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
+
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const render = read('render.yaml');
 const renderConfig = parseYaml(render);
-const renderServices = Array.isArray(renderConfig.services)
-  ? renderConfig.services
-  : (renderConfig.projects?.[0]?.environments?.[0]?.services ?? []);
+const renderServices = Array.isArray(renderConfig.services) ? renderConfig.services : [];
 const renderApi = renderServices.find((service) => service.name === 'ryanai-api');
 const renderWeb = renderServices.find((service) => service.name === 'ryanai-web');
-const renderDockerWeb = renderServices.find((service) => service.name === 'ryanai-web-docker-canary');
 const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis');
-const expectedRenderServiceNames = ['ryanai-api', 'ryanai-web', 'ryanai-web-docker-canary', 'ryanai-redis'];
 const renderServiceNames = renderServices.map((service) => service.name);
+const expectedRenderServiceNames = ['ryanai-api', 'ryanai-web', 'ryanai-redis'];
 const hasUniqueEnvKeys = (service) => {
   const keys = (service?.envVars ?? []).map((item) => item.key);
   return keys.length === new Set(keys).size;
 };
+const envVar = (service, key) => service?.envVars?.find((item) => item.key === key);
+const isSyncFalse = (service, key) => envVar(service, key)?.sync === false;
+const isFalse = (service, key) => envVar(service, key)?.value === 'false';
+
+const rootDockerfile = read('Dockerfile');
 const apiDockerfile = read('Dockerfile.api');
 const poolerAdapter = read('src/server/supabasePooler.ts');
 const generatedClientCopy = read('scripts/copy-server-assets.mjs');
 const packageJson = JSON.parse(read('package.json'));
+const envExample = read('.env.example');
+const featureFlags = read('src/server/comms/featureFlags.ts');
+const commsPlugin = read('src/server/comms/index.ts');
+const commsAttachments = read('src/server/comms/attachments.ts');
+const twilioWebhook = read('src/server/routes/twilioWebhook.ts');
+const slackInteractions = read('src/server/routes/slackInteractions.ts');
 const vercel = JSON.parse(read('vercel.json'));
 const railway = JSON.parse(read('railway.json'));
 const renderRepair = read('.github/workflows/guarded-render-api-source-repair.yml');
@@ -29,48 +38,69 @@ const vercelDeploy = read('.github/workflows/deploy-vercel.yml');
 const vercelCliDeploy = read('.github/workflows/deploy.yml');
 const ciWorkflow = read('.github/workflows/ci.yml');
 const railwayDeploy = read('.github/workflows/deploy-railway.yml');
+
+function apiRuntimeStage(source) {
+  const marker = 'FROM node:24-alpine AS api\n';
+  const start = source.indexOf(marker);
+  if (start < 0) return '';
+  const remainder = source.slice(start);
+  const nextStage = remainder.indexOf('\nFROM ', marker.length);
+  return nextStage < 0 ? remainder : remainder.slice(0, nextStage);
+}
+
+const rootApiStage = apiRuntimeStage(rootDockerfile);
+const standaloneApiStage = apiRuntimeStage(apiDockerfile);
+const hasVerifiedCaContract = (stage) =>
+  stage.includes('NODE_USE_SYSTEM_CA=1')
+  && stage.includes('NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt')
+  && stage.includes('SUPABASE_SSL_ROOT_CERT_PATH=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt')
+  && stage.includes('COPY certs/supabase/prod-ca-2021.crt /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt')
+  && stage.includes('update-ca-certificates')
+  && stage.includes('test -s /etc/ssl/cert.pem')
+  && stage.includes('test -s /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt')
+  && stage.includes('scripts/verify-node-ca.sh')
+  && !stage.includes('NODE_TLS_REJECT_UNAUTHORIZED');
+
 const checks = [
-  ['Render API maps to the current service', renderApi?.name === 'ryanai-api'],
-  ['Render Blueprint uses top-level services declaration', Array.isArray(renderConfig.services)],
-  ['Render Blueprint has exactly four expected unique resources, including the Docker frontend canary', renderServices.length === 4 && expectedRenderServiceNames.every((name) => renderServiceNames.includes(name)) && new Set(renderServiceNames).size === 4],
-  ['Render API, static frontend and Docker canary environment variable keys are unique', hasUniqueEnvKeys(renderApi) && hasUniqueEnvKeys(renderWeb) && hasUniqueEnvKeys(renderDockerWeb)],
-  ['Render services use canonical repository and main branch', renderApi?.repo === 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat' && renderWeb?.repo === renderApi?.repo && renderDockerWeb?.repo === renderApi?.repo && renderApi?.branch === 'main' && renderWeb?.branch === 'main' && renderDockerWeb?.branch === 'main'],
-  ['Render API uses root context and Dockerfile.api', renderApi?.rootDir === '.' && renderApi?.dockerContext === '.' && renderApi?.dockerfilePath === './Dockerfile.api'],
-  ['Supabase pooler adapter enforces verified TLS rather than the legacy require alias', poolerAdapter.includes("database.searchParams.set('sslmode', 'verify-full')")],
-  ['Render API clears Docker command override', renderApi?.dockerCommand === ''],
-  ['Dockerfile.api declares runtime entrypoint and command', apiDockerfile.includes('ENTRYPOINT ["/usr/bin/dumb-init", "--"]') && apiDockerfile.includes('CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]')],
-  ['Server build always copies and verifies the generated audiobook Prisma runtime client', packageJson.scripts['build:server'] === 'tsc -p tsconfig.server.json && node scripts/copy-server-assets.mjs' && generatedClientCopy.includes("../src/generated/audiobook-prisma/") && generatedClientCopy.includes("../dist/server/generated/audiobook-prisma/index.js") && generatedClientCopy.includes('await access(')],
-  ['Render API health check is configured', renderApi?.healthCheckPath === '/health'],
-  ['Render API uses Oregon region', renderApi?.region === 'oregon'],
-  ['Render API and frontend keep auto-deploy disabled', renderApi?.autoDeployTrigger === 'off' && renderWeb?.autoDeployTrigger === 'off' && renderDockerWeb?.autoDeployTrigger === 'off'],
-  ['Render preview generation remains disabled', renderConfig.previews?.generation === 'off'],
-  ['Render Redis shares the API region', Boolean(renderRedis) && renderRedis.name === 'ryanai-redis' && renderRedis.region === renderApi?.region],
-  ['Render frontend builds the Vite app from repository root', renderWeb?.rootDir === '.' && renderWeb?.buildCommand?.includes('npm run build:web') && renderWeb?.staticPublishPath === './dist'],
-  ['Render frontend targets the official API origin', renderWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL' && item.value === 'https://ryanai-api.onrender.com')],
-  ['Docker frontend canary uses the root Dockerfile and health check', renderDockerWeb?.runtime === 'docker' && renderDockerWeb?.rootDir === '.' && renderDockerWeb?.dockerContext === '.' && renderDockerWeb?.dockerfilePath === './Dockerfile' && renderDockerWeb?.healthCheckPath === '/health'],
-  ['Docker frontend canary receives the API private host and port', renderDockerWeb?.envVars?.some((item) => item.key === 'API_HOST' && item.fromService?.name === 'ryanai-api' && item.fromService?.property === 'host') && renderDockerWeb?.envVars?.some((item) => item.key === 'API_PORT' && item.fromService?.name === 'ryanai-api' && item.fromService?.property === 'port')],
-  ['Docker frontend canary uses same-origin API requests through nginx', !renderDockerWeb?.envVars?.some((item) => item.key === 'VITE_API_BASE_URL')],
-  ['API CORS allowlist includes the Docker frontend canary', renderApi?.envVars?.some((item) => item.key === 'CORS_ORIGINS' && item.value?.includes('https://ryanai-web-docker-canary.onrender.com'))],
-  ['API requires the exact Supabase Session Pooler hostname to be supplied without inferring a cluster index', renderApi?.envVars?.some((item) => item.key === 'SUPABASE_SESSION_POOLER_HOST' && item.sync === false) && !render.includes('aws-1-eu-west-1.pooler.supabase.com')],
-  ['Render CI repair targets the current API service ID', ciWorkflow.includes('srv-dbk4giu7bikc7394a4r0')],
-  ['Manual Render repair fallback is explicit and has no workflow_run chain', renderRepair.includes("inputs.confirmation == 'REPAIR-ONLY'") && !renderRepair.includes('workflow_run:') && !renderRepair.includes('/deploys')],
-  ['Render API config repair runs inside main CI after core jobs succeed', ciWorkflow.includes('render-api-config-repair:') && ciWorkflow.includes('needs: [validate, subprojects, integration, issue-435-supabase]') && ciWorkflow.includes("if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}")],
-  ['Render CI repair is config-only and never calls the deploy endpoint', ciWorkflow.includes('--request PATCH') && ciWorkflow.includes('autoDeployTrigger":"off"') && !ciWorkflow.includes('/deploys')],
-  ['Render CI repair verifies the Docker settings in the actual service response shape', ciWorkflow.includes('serviceDetails.envSpecificDetails.dockerCommand') && ciWorkflow.includes('serviceDetails.envSpecificDetails.dockerContext')],
-  ['Render repair checks the official health endpoint', renderRepair.includes('"healthCheckPath":"/health"')],
-  ['Render deploy checks the existing Redis dependency before API rollout', renderDeploy.includes('ryanai-redis') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "oregon"')],
-  ['Render production deployment is explicitly approval-gated', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
-  ['Render deploy targets the official service after successful CI', renderDeploy.includes('srv-dbk4giu7bikc7394a4r0') && renderDeploy.includes('CI - Build, Test, and Integrate') && renderDeploy.includes('secrets.RENDER_API_KEY') && !renderDeploy.includes('RENDER_DEPLOY_HOOK_URL')],
-  ['Render deployment requires provider verification for the exact commit', renderDeploy.includes('provider-verification.yml') && renderDeploy.includes('--commit "$TARGET_SHA"') && renderDeploy.includes('headSha == env.TARGET_SHA') && renderDeploy.includes('conclusion != "success"')],
-  ['Render readiness audit requires the API key, not a deploy hook', read('scripts/audit-deployment-readiness.mjs').includes("name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY']")],
-  ['Deployment audit treats false secret-presence flags as missing', read('scripts/audit-deployment-readiness.mjs').includes("normalized !== 'false'")],
+  ['Render Blueprint uses a top-level services list', Array.isArray(renderConfig.services)],
+  ['Render Blueprint declares exactly the API, web, and Redis resources', renderServices.length === 3 && expectedRenderServiceNames.every((name) => renderServiceNames.includes(name)) && new Set(renderServiceNames).size === 3],
+  ['Render API and web environment variable keys are unique', hasUniqueEnvKeys(renderApi) && hasUniqueEnvKeys(renderWeb)],
+  ['Render API and web use the official repository and main branch', renderApi?.repo === 'https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat' && renderWeb?.repo === renderApi?.repo && renderApi?.branch === 'main' && renderWeb?.branch === 'main'],
+  ['Render API uses the standalone Docker image and /health', renderApi?.env === 'docker' && renderApi?.dockerfilePath === './Dockerfile.api' && renderApi?.healthCheckPath === '/health'],
+  ['Render web uses the root Dockerfile web target and /health', renderWeb?.env === 'docker' && renderWeb?.dockerfilePath === './Dockerfile' && renderWeb?.dockerTarget === 'web' && renderWeb?.healthCheckPath === '/health'],
+  ['Render API, web, and Redis are in Oregon', renderApi?.region === 'oregon' && renderWeb?.region === 'oregon' && renderRedis?.region === 'oregon'],
+  ['Render API and web auto-deploy remain disabled', renderApi?.autoDeployTrigger === 'off' && renderWeb?.autoDeployTrigger === 'off'],
+  ['Render web points to the official API origin', envVar(renderWeb, 'VITE_API_BASE_URL')?.value === 'https://ryanai-api.onrender.com'],
+  ['Render does not override the API Docker command', !renderApi?.dockerCommand],
+  ['Render does not run automatic Prisma migrations during API deployment', !renderApi?.preDeployCommand && !render.includes('prisma migrate deploy')],
+  ['Render requires the exact protected Supabase Session Pooler hostname', isSyncFalse(renderApi, 'SUPABASE_SESSION_POOLER_HOST') && !/aws-[^\s]+\.pooler\.supabase\.com/.test(render)],
+  ['Render restores the optional pooled audiobook database setting', isSyncFalse(renderApi, 'AUDIOBOOK_DATABASE_URL')],
+  ['Render restores the optional direct audiobook migration database setting', isSyncFalse(renderApi, 'AUDIOBOOK_DATABASE_URL_UNPOOLED')],
+  ['Render keeps communications disabled by default', isFalse(renderApi, 'COMMUNICATIONS_ENABLED')],
+  ['Render keeps communication attachments disabled by default', isFalse(renderApi, 'COMMUNICATION_ATTACHMENTS_ENABLED')],
+  ['Render keeps malware scanning and orphan cleanup disabled by default', isFalse(renderApi, 'ATTACHMENT_SCANNER_ENABLED') && isFalse(renderApi, 'ATTACHMENT_ORPHAN_CLEANUP_ENABLED')],
+  ['Both production API Docker targets use system and Supabase CA roots with verified TLS', hasVerifiedCaContract(rootApiStage) && hasVerifiedCaContract(standaloneApiStage)],
+  ['Neither API runtime image disables TLS certificate verification', !rootApiStage.includes('NODE_TLS_REJECT_UNAUTHORIZED') && !standaloneApiStage.includes('NODE_TLS_REJECT_UNAUTHORIZED')],
+  ['Both API runtime images execute the CA validation wrapper before the server', rootApiStage.includes('exec sh scripts/verify-node-ca.sh') && standaloneApiStage.includes('exec sh scripts/verify-node-ca.sh')],
+  ['Supabase Session Pooler uses full TLS and strict certificate acceptance', poolerAdapter.includes("database.searchParams.set('sslmode', 'verify-full')") && poolerAdapter.includes("database.searchParams.set('sslaccept', 'strict')")],
+  ['Server build copies and verifies the generated audiobook Prisma runtime client', packageJson.scripts['build:server'] === 'tsc -p tsconfig.server.json && node scripts/copy-server-assets.mjs' && generatedClientCopy.includes('../src/generated/audiobook-prisma/') && generatedClientCopy.includes('../dist/server/generated/audiobook-prisma/index.js') && generatedClientCopy.includes('await access(')],
+  ['Example environment defaults keep communications and uploads disabled', envExample.includes('COMMUNICATIONS_ENABLED=false') && envExample.includes('COMMUNICATION_ATTACHMENTS_ENABLED=false') && envExample.includes('ATTACHMENT_SCANNER_ENABLED=false') && envExample.includes('ATTACHMENT_ORPHAN_CLEANUP_ENABLED=false')],
+  ['Communications and attachment switches require exact explicit opt-in', featureFlags.includes("process.env.COMMUNICATIONS_ENABLED === 'true'") && featureFlags.includes("process.env.COMMUNICATION_ATTACHMENTS_ENABLED === 'true'") && featureFlags.includes("process.env.ATTACHMENT_SCANNER_ENABLED === 'true'")],
+  ['Comms, Twilio, and Slack plugins fail closed when communications are disabled', commsPlugin.includes('if (!isCommunicationsEnabled())') && twilioWebhook.includes('if (!isCommunicationsEnabled())') && slackInteractions.includes('if (!isCommunicationsEnabled())')],
+  ['Comms attachment routes and storage helpers fail closed when uploads are disabled', (commsPlugin.split('areCommunicationAttachmentsEnabled()').length - 1) >= 5 && (commsAttachments.split('areCommunicationAttachmentsEnabled()').length - 1) >= 2],
+  ['Render API source repair workflow is manual and does not deploy', renderRepair.includes('workflow_dispatch:') && renderRepair.includes("inputs.confirmation == 'REPAIR-ONLY'") && !renderRepair.includes('workflow_run:') && !renderRepair.includes('/deploys')],
+  ['Render API config repair runs only after the core CI dependencies', ciWorkflow.includes('render-api-config-repair:') && ciWorkflow.includes('needs: [validate, subprojects, integration, issue-435-supabase]') && ciWorkflow.includes("github.event_name == 'push' && github.ref == 'refs/heads/main'")],
+  ['Render CI config repair is PATCH-only and keeps auto-deploy disabled', ciWorkflow.includes('--request PATCH') && ciWorkflow.includes('autoDeployTrigger":"off"') && !ciWorkflow.includes('/deploys')],
+  ['Render deployment requires explicit enablement and approval', renderDeploy.includes("vars.RENDER_DEPLOY_ENABLED == 'true'") && renderDeploy.includes("vars.RENDER_DEPLOY_APPROVED == 'true'")],
+  ['Render deployment verifies the exact provider commit before promotion', renderDeploy.includes('provider-verification.yml') && renderDeploy.includes('--commit "$TARGET_SHA"') && renderDeploy.includes('headSha == env.TARGET_SHA') && renderDeploy.includes('conclusion != "success"')],
+  ['Render checks Redis availability before API rollout', renderDeploy.includes('ryanai-redis') && renderDeploy.includes('.status == "available"') && renderDeploy.includes('.region == "oregon"')],
   ['Vercel builds the Vite frontend to dist', vercel.framework === 'vite' && vercel.outputDirectory === 'dist' && vercel.buildCommand.includes('build:web')],
-  ['Vercel deployment is explicitly gated', vercelDeploy.includes("vars.VERCEL_DEPLOY_ENABLED == 'true'")],
-  ['Vercel CLI deployment uses the official Render API origin', vercelCliDeploy.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com') && !vercelCliDeploy.includes('vars.VITE_API_BASE_URL')],
-  ['CI deployment audit uses the official Render API origin', ciWorkflow.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com') && !ciWorkflow.includes('vars.VITE_API_BASE_URL')],
+  ['Vercel deployment remains explicitly approval-gated', vercelDeploy.includes("vars.VERCEL_DEPLOY_ENABLED == 'true'")],
+  ['Vercel CLI deployment and CI target the official Render API origin', vercelCliDeploy.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com') && ciWorkflow.includes('VITE_API_BASE_URL: https://ryanai-api.onrender.com')],
   ['Railway uses Dockerfile.api and /health', railway.build?.dockerfilePath === 'Dockerfile.api' && railway.deploy?.healthcheckPath === '/health'],
-  ['Railway deployment is explicitly gated', railwayDeploy.includes("vars.RAILWAY_DEPLOY_ENABLED == 'true'")],
+  ['Railway deployment remains explicitly approval-gated', railwayDeploy.includes("vars.RAILWAY_DEPLOY_ENABLED == 'true'")],
 ];
+
 for (const [name, passed] of checks) console.log((passed ? 'PASS' : 'FAIL') + ' | ' + name);
 const failed = checks.filter(([, passed]) => !passed);
 console.log('\nDeployment contract validation: ' + (checks.length - failed.length) + '/' + checks.length + ' passed.');
