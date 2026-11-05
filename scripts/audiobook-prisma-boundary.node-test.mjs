@@ -12,7 +12,7 @@ async function sourceFiles(directory) {
   for (const entry of entries) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) results.push(...await sourceFiles(path));
-    else if (/\\.(?:ts|tsx|js|jsx)$/.test(entry.name)) results.push(path);
+    else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name)) results.push(path);
   }
   return results;
 }
@@ -43,7 +43,7 @@ test('audiobook Prisma client stays on the server-only boundary', async () => {
   const offenders = [];
   for (const file of files) {
     const source = await readFile(file, 'utf8');
-    if (/(?:from\\s*|import\\s*\\()(['"])(?:@\\/server|@\\/lib\\/audiobookPrisma|\\.\\.\\/server\\/audiobookPrisma)/.test(source)) {
+    if (/(?:from\s*|import\s*\()(['"])(?:@\/lib\/audiobookPrisma|@\/server\/audiobookPrisma|\.\.\/server\/audiobookPrisma)/.test(source)) {
       offenders.push(relative(root, file));
     }
   }
@@ -51,6 +51,6 @@ test('audiobook Prisma client stays on the server-only boundary', async () => {
 
   const launcher = await readFile(join(root, 'src/server/launcher.ts'), 'utf8');
   const worker = await readFile(join(root, 'scripts/audiobook-render-worker.ts'), 'utf8');
-  assert.match(launcher, /from ['"]\\.\\/audiobookPrisma\\.js['"]/);
-  assert.match(worker, /from ['"]\\.\\.\\/src\\/server\\/audiobookPrisma\\.js['"]/);
+  assert.match(launcher, /from ['"]\.\/audiobookPrisma\.js['"]/);
+  assert.match(worker, /from ['"]\.\.\/src\/server\/audiobookPrisma\.js['"]/);
 });
