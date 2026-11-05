@@ -19,6 +19,7 @@ const statusChannels = [
   { id: 'voice', label: 'Voice call', icon: Phone },
   { id: 'email', label: 'Outbound email (SMTP)', icon: Mail },
   { id: 'inboundEmail', label: 'Inbound email (Resend)', icon: Mail },
+  { id: 'attachments', label: 'Private attachments', icon: Paperclip },
   { id: 'openai', label: 'Central OpenAI API', icon: BrainCircuit },
 ];
 
@@ -45,6 +46,7 @@ export default function CommunicationsCenter() {
   const [notice, setNotice] = useState('');
   const [conversationSearch, setConversationSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState<'all' | CommsChannel>('all');
+  const attachmentsEnabled = status?.channels?.attachments === true;
 
   function startNewDraft() {
     setIdempotencyKey(crypto.randomUUID());
@@ -209,13 +211,19 @@ export default function CommunicationsCenter() {
           const configured = id === 'openai'
             ? status?.ai?.openai?.status === 'configured_unverified'
             : status?.channels?.[id] === true;
+          const statusLabel = id === 'attachments'
+            ? configured ? 'Configured · scan-gated' : 'Disabled · storage/scanner required'
+            : configured ? 'Configured · unverified' : 'Credentials missing';
+          const statusDetail = id === 'attachments'
+            ? 'Uploads require owner-bound private storage and the malware scanner; every file must pass its scan before sending.'
+            : 'Configuration presence only; live connectivity is not implied.';
           return (
             <div key={id} className="rounded-xl border border-white/10 bg-slate-900/70 p-4">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-medium text-slate-200"><Icon className="h-4 w-4 text-cyan-300" />{label}</span>
-                <span className={`rounded-full px-2 py-1 text-[10px] ${configured ? 'bg-amber-400/10 text-amber-200' : 'bg-slate-700 text-slate-300'}`}>{configured ? 'Configured · unverified' : 'Credentials missing'}</span>
+                <span className={`rounded-full px-2 py-1 text-[10px] ${configured ? 'bg-amber-400/10 text-amber-200' : 'bg-slate-700 text-slate-300'}`}>{statusLabel}</span>
               </div>
-              <p className="mt-2 text-xs text-slate-500">Configuration presence only; live connectivity is not implied.</p>
+              <p className="mt-2 text-xs text-slate-500">{statusDetail}</p>
             </div>
           );
         })}
@@ -223,7 +231,7 @@ export default function CommunicationsCenter() {
 
       <div role="note" aria-label="Attachment security" className="flex items-start gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-4 text-sm text-cyan-100">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
-        <div><p className="font-semibold">Private Comms attachments</p><p className="mt-1 text-xs leading-5 text-cyan-100/70">Files use the separate private Comms bucket. Sending and downloading are blocked until malware scans are clean. Images, audio, video and documents are stored securely but are not yet interpreted by RyanAI.</p></div>
+        <div><p className="font-semibold">Private Comms attachments</p><p className="mt-1 text-xs leading-5 text-cyan-100/70">{attachmentsEnabled ? 'The API reports private storage and scanner controls as configured. Sending and downloading remain blocked until each file has a clean scan. RyanAI does not yet interpret uploaded images, audio, video or documents.' : 'Uploads are disabled until owner-bound private storage and malware scanning are configured. Text-only Comms remains available; no attachment is sent or exposed while this gate is off.'}</p></div>
       </div>
       {error && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-950/30 p-3 text-sm text-rose-200">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-3 text-sm text-cyan-100">{notice}</p>}
@@ -300,7 +308,7 @@ export default function CommunicationsCenter() {
             <div className="space-y-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5">
                 <Paperclip className="h-4 w-4 text-cyan-300" /> Attach files
-                <input type="file" multiple disabled={sending || channel === 'voice'} accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="sr-only" onChange={(event) => { setSelectedFiles(Array.from(event.target.files ?? [])); setAttachmentIds([]); setAttachmentStatuses([]); setIdempotencyKey(crypto.randomUUID()); }} />
+                <input type="file" multiple disabled={sending || channel === 'voice' || !attachmentsEnabled} accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf,text/plain,text/markdown,text/csv,application/json,application/xml,application/zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" className="sr-only" onChange={(event) => { setSelectedFiles(Array.from(event.target.files ?? [])); setAttachmentIds([]); setAttachmentStatuses([]); setIdempotencyKey(crypto.randomUUID()); }} />
               </label>
               {selectedFiles.length > 0 && <div className="space-y-1 rounded-lg border border-white/10 p-2">
                 {selectedFiles.map((file, index) => <p key={index} className="truncate text-xs text-slate-400">{file.name} · {Math.ceil(file.size / 1024)} KB</p>)}

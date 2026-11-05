@@ -153,8 +153,10 @@ if (!commsPage.includes('Search messages or addresses') || !commsPage.includes('
 if (!commsPage.includes('Private Comms attachments')
   || !commsPage.includes('getCommsAttachmentStatuses')
   || !commsPage.includes("item.status !== 'clean'")
-  || !commsPage.includes("attachment.status === 'clean'")) {
-  fail('Comms must retain private attachment upload, scan-gated dispatch, and clean-only downloads');
+  || !commsPage.includes("attachment.status === 'clean'")
+  || !commsPage.includes('status?.channels?.attachments === true')
+  || !commsPage.includes('!attachmentsEnabled')) {
+  fail('Comms must retain private attachment upload, scan-gated dispatch, clean-only downloads, and the server-reported attachment feature gate');
 }
 const audiobookPage = readText('src/pages/AudiobookStudio.tsx');
 const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
