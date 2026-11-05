@@ -12,8 +12,12 @@ export interface SupabasePoolerResolution {
 }
 
 /**
- * Adapt a Supabase direct URL to the Shared Pooler Session endpoint when a
- * persistent production service runs on an IPv4-only network.
+ * Normalize a Supabase direct or shared-pooler URL to the explicitly configured
+ * Shared Pooler Session endpoint for this project.
+ *
+ * This also repairs existing pooler URLs: a previous region-derived hostname,
+ * an unqualified postgres username, or a missing/weak sslmode must not survive
+ * once the operator supplies the verified Connect-dialog hostname.
  *
  * Only connection routing is changed. The existing password remains in the
  * URL in memory and is never returned in diagnostics or logged.
@@ -52,14 +56,16 @@ export function resolveSupabaseSessionPoolerUrl(
 
   const projectRef = projectMatch[1].toLowerCase();
   const directHost = `db.${projectRef}.supabase.co`;
+  const currentHost = database.hostname.toLowerCase();
   const normalizedPoolerHost = poolerHost.trim().toLowerCase();
+  const isSupabaseDirect = currentHost === directHost;
+  const isSupabaseSharedPooler = currentHost.endsWith('.pooler.supabase.com');
 
-  if (database.hostname.toLowerCase() !== directHost) {
-    const alreadyPooled = database.hostname.toLowerCase() === normalizedPoolerHost;
+  if (!isSupabaseDirect && !isSupabaseSharedPooler) {
     return {
       databaseUrl: original,
       changed: false,
-      reason: alreadyPooled ? 'already-pooled' : 'not-supabase-direct',
+      reason: 'not-supabase-direct',
     };
   }
 
@@ -71,19 +77,28 @@ export function resolveSupabaseSessionPoolerUrl(
     return { databaseUrl: original, changed: false, reason: 'invalid-pooler-host' };
   }
 
+  // Shared-pooler usernames must include the project reference. Preserve a
+  // custom role name if supplied; otherwise qualify the default postgres role.
+  let currentUsername: string;
+  try {
+    currentUsername = decodeURIComponent(database.username);
+  } catch {
+    return { databaseUrl: original, changed: false, reason: 'invalid-url' };
+  }
+  const role = currentUsername.split('.')[0] || 'postgres';
+
   database.hostname = normalizedPoolerHost;
   database.port = '5432';
-  database.username = `postgres.${projectRef}`;
-  const sslMode = database.searchParams.get('sslmode')?.toLowerCase();
-  // node-postgres currently treats "require" as verify-full; set that
-  // explicitly so production behavior does not depend on legacy aliases.
-  if (!sslMode || sslMode === 'require' || !['verify-ca', 'verify-full'].includes(sslMode)) {
-    database.searchParams.set('sslmode', 'verify-full');
-  }
+  database.username = `${role}.${projectRef}`;
+  // Require full certificate/hostname verification for both newly-routed and
+  // previously-pooled URLs; do not retain require, disable, or verify-ca.
+  database.searchParams.set('sslmode', 'verify-full');
 
+  const normalized = database.toString();
+  const changed = normalized !== original;
   return {
-    databaseUrl: database.toString(),
-    changed: true,
-    reason: 'rewritten',
+    databaseUrl: changed ? normalized : original,
+    changed,
+    reason: changed ? 'rewritten' : 'already-pooled',
   };
 }
