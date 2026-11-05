@@ -283,6 +283,7 @@ model AgentRun {
   handoffs AgentHandoff[]
   evidence AgentRunEvidence[]
   codingTasks CodingTask[]
+  paDelegation PaDelegation?
   queueType String @default("reasoning") @map("queue_type")
   @@index([queueType, status, createdAt], map: "agent_runs_queue_type_status_created_idx")
   @@index([userId, createdAt])
@@ -292,6 +293,49 @@ model AgentRun {
   @@index([approvalStatus, createdAt], map: "agent_runs_approval_status_created_idx")
   @@map("agent_runs")
 }
+model PaIdentityNonce {
+  id String @id @default(uuid())
+  nonce String @unique
+  expiresAt DateTime @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([expiresAt])
+  @@map("pa_identity_nonces")
+}
+
+model PaDelegation {
+  id String @id @default(uuid())
+  ownerUserId String @map("owner_user_id")
+  objective String @db.Text
+  requestedCapabilities Json @map("requested_capabilities")
+  status String @default("queued")
+  traceId String @map("trace_id")
+  agentRunId String? @unique @map("agent_run_id")
+  agentRun AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  receipt PaExecutionReceipt?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([ownerUserId, createdAt])
+  @@index([status, createdAt])
+  @@map("pa_delegations")
+}
+
+model PaExecutionReceipt {
+  id String @id @default(uuid())
+  delegationId String @unique @map("delegation_id")
+  delegation PaDelegation @relation(fields: [delegationId], references: [id], onDelete: Cascade)
+  agentRunId String @map("agent_run_id")
+  status String
+  traceId String @map("trace_id")
+  attempt Int
+  result Json?
+  error String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([agentRunId, createdAt])
+  @@index([traceId, createdAt])
+  @@map("pa_execution_receipts")
+}
+
 model AgentRunEvidence {
   id String @id @default(uuid())
   runId String @map("run_id")
