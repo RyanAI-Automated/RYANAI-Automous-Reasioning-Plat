@@ -4,7 +4,7 @@ import { parse as parseYaml } from 'yaml';
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const render = read('render.yaml');
 const renderConfig = parseYaml(render);
-const renderServices = renderConfig.projects?.[0]?.environments?.[0]?.services ?? [];
+const renderServices = renderConfig.services ?? renderConfig.projects?.[0]?.environments?.[0]?.services ?? [];
 const renderApi = renderServices.find((service) => service.name === 'ryanai-api');
 const renderWeb = renderServices.find((service) => service.name === 'ryanai-web');
 const renderRedis = renderServices.find((service) => service.name === 'ryanai-redis');
