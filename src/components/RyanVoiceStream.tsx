@@ -316,22 +316,22 @@ export const RyanVoiceStream = ({ language }: RyanVoiceStreamProps) => {
   return (
     <div className="absolute top-4 right-4 z-30 flex w-80 max-w-[calc(100%-2rem)] flex-col gap-2 rounded-lg border border-cyan-500/60 bg-black/85 p-3 shadow-[0_0_15px_#0ff]">
       <div className="flex items-center gap-3">
-      <span className={`h-3 w-3 shrink-0 rounded-full ${
-        status === 'listening' ? 'bg-green-500 animate-pulse' :
-        status === 'connecting' ? 'bg-amber-400 animate-pulse' :
-        status === 'error' ? 'bg-rose-500' : 'bg-slate-500'
-      }`} />
-      <div className="min-w-0">
-        <button
-          type="button"
-          onClick={toggleVoiceLink}
-          className="text-left font-mono text-xs uppercase tracking-wider text-cyan-300 hover:text-white"
-        >
-          {status === 'listening' ? 'Terminate live voice' :
-            status === 'connecting' ? 'Cancel voice connection' :
-            status === 'error' ? 'Retry live voice' : 'Initialize live voice'}
-        </button>
-        {error && <p role="status" className="mt-1 max-w-56 text-[10px] text-rose-300">{error}</p>}
+        <span className={`h-3 w-3 shrink-0 rounded-full ${
+          status === 'listening' ? 'bg-green-500 animate-pulse' :
+          status === 'connecting' ? 'bg-amber-400 animate-pulse' :
+          status === 'error' ? 'bg-rose-500' : 'bg-slate-500'
+        }`} />
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={toggleVoiceLink}
+            className="text-left font-mono text-xs uppercase tracking-wider text-cyan-300 hover:text-white"
+          >
+            {status === 'listening' ? 'Terminate live voice' :
+              status === 'connecting' ? 'Cancel voice connection' :
+              status === 'error' ? 'Retry live voice' : 'Initialize live voice'}
+          </button>
+          {error && <p role="status" className="mt-1 max-w-56 text-[10px] text-rose-300">{error}</p>}
         </div>
       </div>
       {(status === 'listening' || inputTranscript || outputTranscript) && (
