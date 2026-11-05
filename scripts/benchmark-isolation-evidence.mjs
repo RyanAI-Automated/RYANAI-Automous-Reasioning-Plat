@@ -71,7 +71,9 @@ const requiredCheckNames = [
   'policy-endpoint-allowlist',
   'credential-environment-absent'
 ];
-const reportedCheckNames = checks.map(check => check.name);
+const reportedCheckNames = checks.map(check =>
+  check && typeof check === 'object' && !Array.isArray(check) ? check.name : undefined
+);
 const missingChecks = requiredCheckNames.filter(name => !reportedCheckNames.includes(name));
 const failures = [];
 if (!/^[a-f0-9]{40}$/i.test(testedCommit)) failures.push('The checked-out Git commit SHA is missing or invalid.');
