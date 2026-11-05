@@ -3,6 +3,7 @@ import {
   createSpecialistAdapterRegistry,
   defineSpecialistAdapter,
   SpecialistRegistryError,
+  type SpecialistExecutionContext,
   type SpecialistPolicyRecord,
 } from './adapterRegistry.js';
 
@@ -198,4 +199,76 @@ describe('specialist adapter registry', () => {
     });
     expect(authorizer.authorize).not.toHaveBeenCalled();
   });
+
+  it('aborts the adapter and rejects when the inference deadline is exceeded', async () => {
+    let executionSignal: AbortSignal | undefined;
+    const run = vi.fn(async (_value: typeof input, context: SpecialistExecutionContext) =>
+      new Promise<{ readonly ok: boolean }>(() => {
+        executionSignal = context.signal;
+      }),
+    );
+    const authorizer = {
+      authorize: vi.fn(async () => ({
+        allowed: true,
+        policyVersion: 'gen-x-policy-v1',
+        authorizationReference: 'audit-ref-timeout',
+      })),
+    };
+    const instance = createSpecialistAdapterRegistry({
+      adapters: [adapter(run)],
+      getPolicy: () => policy(),
+      authorizer,
+      defaultTimeoutMs: 5,
+      maxTimeoutMs: 25,
+    });
+
+    await expect(instance.invoke(request())).rejects.toMatchObject({
+      code: 'timeout',
+    });
+    expect(executionSignal?.aborted).toBe(true);
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('propagates caller cancellation to an in-flight adapter', async () => {
+    const controller = new AbortController();
+    let executionSignal: AbortSignal | undefined;
+    const run = vi.fn(async (_value: typeof input, context: SpecialistExecutionContext) =>
+      new Promise<{ readonly ok: boolean }>((_resolve, reject) => {
+        executionSignal = context.signal;
+        context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true });
+      }),
+    );
+    const { registry: instance } = registry({ adapters: [adapter(run)] });
+    const invocation = instance.invoke(request({ signal: controller.signal }));
+
+    await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+    controller.abort(new Error('caller cancelled'));
+    await expect(invocation).rejects.toMatchObject({
+      code: 'cancelled',
+    });
+    expect(executionSignal?.aborted).toBe(true);
+  });
+
+  it('rejects caller-supplied deadlines above the registry maximum before authorization', async () => {
+    const authorizer = {
+      authorize: vi.fn(async () => ({
+        allowed: true,
+        policyVersion: 'gen-x-policy-v1',
+        authorizationReference: 'audit-ref-limit',
+      })),
+    };
+    const instance = createSpecialistAdapterRegistry({
+      adapters: [adapter()],
+      getPolicy: () => policy(),
+      authorizer,
+      defaultTimeoutMs: 10,
+      maxTimeoutMs: 20,
+    });
+
+    await expect(instance.invoke(request({ timeoutMs: 21 }))).rejects.toMatchObject({
+      code: 'invalid_input',
+    });
+    expect(authorizer.authorize).not.toHaveBeenCalled();
+  });
+
 });
