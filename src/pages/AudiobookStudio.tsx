@@ -5,6 +5,7 @@ import { useVoiceRecognition } from '@/lib/useVoiceRecognition';
 import { DEFAULT_LANGUAGE, RYANAI_LANGUAGES, isRyanLanguage } from '@/shared/languages';
 
 const KEY = 'ryanai:audiobook-project:v1:';
+const STORAGE_ERROR_EVENT = 'ryanai:audiobook-storage-error';
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'] as const;
 interface Chapter { id: string; title: string; text: string; voice: string; style: string; speed: number }
@@ -55,6 +56,9 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
   const [busy, setBusy] = useState<'transcribe' | 'render' | 'book' | null>(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const reportStorageError = useCallback(() => {
+    setError('Browser storage is full. Export your manuscript before continuing.');
+  }, []);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioName, setAudioName] = useState('chapter.mp3');
   const [renderedFiles, setRenderedFiles] = useState<Record<string, { url: string; name: string }>>({});
@@ -95,14 +99,15 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     return () => { active = false; };
   }, [userId, initialProject]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        localStorage.setItem(KEY + userId, JSON.stringify(project));
-      } catch {
-        setError('Browser storage is full. Export your manuscript before continuing.');
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    window.addEventListener(STORAGE_ERROR_EVENT, reportStorageError);
+    return () => window.removeEventListener(STORAGE_ERROR_EVENT, reportStorageError);
+  }, [reportStorageError]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(KEY + userId, JSON.stringify(project));
+    } catch {
+      queueMicrotask(() => window.dispatchEvent(new Event(STORAGE_ERROR_EVENT)));
+    }
   }, [project, userId]);
   useEffect(() => {
     if (!serverReady || !serverProjectId) return;
