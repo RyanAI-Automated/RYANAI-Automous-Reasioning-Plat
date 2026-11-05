@@ -8,6 +8,10 @@ import {
 
 const MAX_STREAM_EVENTS = 100_000;
 
+function asDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
 export const quantReconciliationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
 
@@ -70,8 +74,8 @@ export const quantReconciliationRoutes: FastifyPluginAsync = async (fastify) => 
         imported.symbol,
         imported.provider,
         imported.feed,
-        new Date(imported.first_bar_at),
-        new Date(imported.last_bar_at),
+        asDate(imported.first_bar_at),
+        asDate(imported.last_bar_at),
         MAX_STREAM_EVENTS + 1,
       );
       const eventsTruncated = eventRows.length > MAX_STREAM_EVENTS;
@@ -81,7 +85,7 @@ export const quantReconciliationRoutes: FastifyPluginAsync = async (fastify) => 
         bar: event.bar,
       }));
       const historicalBars = imported.bars as ReconciliationBar[];
-      let reconciliations;
+      let reconciliations: ReturnType<typeof reconcileDailyBarsWithMinuteEvents>;
       try {
         reconciliations = reconcileDailyBarsWithMinuteEvents(historicalBars, streamEvents, { eventsTruncated });
       } catch {
