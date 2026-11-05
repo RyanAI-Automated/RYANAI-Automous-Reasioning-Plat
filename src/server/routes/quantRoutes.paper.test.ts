@@ -84,8 +84,13 @@ describe('Quant paper trading routes', () => {
       'paper-user-a', 200.1,
     );
     expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('filled_quantity, remaining_quantity, average_fill_price'),
+      'paper-user-a', 'paper-order-client-001', 'AAPL', 'buy', 2, 100, 0.1,
+    );
+    expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO quant_paper_trades'),
       'paper-order-1', 'paper-user-a', 'AAPL', 'buy', 2, 100, 0.1, null,
+      'paper:paper-order-client-001',
     );
     await app.close();
   });
