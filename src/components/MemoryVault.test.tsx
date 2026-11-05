@@ -2,13 +2,18 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import MemoryVault from './MemoryVault';
 
-vi.mock('@/lib/authenticatedFetch', () => ({ authenticatedFetch: vi.fn() }));
+const api = vi.hoisted(() => ({
+  listMemory: vi.fn(),
+  createMemory: vi.fn(),
+  updateMemory: vi.fn(),
+  deleteMemory: vi.fn(),
+}));
+
+vi.mock('@/lib/memoryVaultApi', () => api);
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const api = vi.mocked(authenticatedFetch);
 const entry = {
   id: '7b0f1c1e-3c0a-4d3e-9a52-0b5f3b6a1c11',
   key: 'vault_test',
@@ -23,10 +28,6 @@ const secondEntry = {
 };
 let container: HTMLDivElement;
 let root: Root;
-
-function response(payload: unknown, ok = true) {
-  return { ok, json: async () => payload } as Response;
-}
 
 async function mount(open = true) {
   await act(async () => root.render(<MemoryVault open={open} userId="user-a" onClose={vi.fn()} />));
@@ -48,23 +49,10 @@ async function setTextValue(element: HTMLInputElement | HTMLTextAreaElement, val
 
 beforeEach(() => {
   vi.clearAllMocks();
-  api.mockImplementation(async (input, init) => {
-    const url = new URL(String(input), 'http://localhost');
-    const path = url.pathname;
-    if (path === '/api/user/memory' && (!init?.method || init.method === 'GET')) {
-      return response({ entries: [entry], limit: 50, hasMore: false, nextCursor: null });
-    }
-    if (path === '/api/user/memory' && init?.method === 'POST') {
-      return response({ entry: { ...entry, value: JSON.parse(String(init.body)).value } }, true);
-    }
-    if (path === '/api/user/memory/' + entry.id && init?.method === 'PUT') {
-      return response({ entry: { ...entry, value: JSON.parse(String(init.body)).value } });
-    }
-    if (path === '/api/user/memory/' + entry.id && init?.method === 'DELETE') {
-      return response({ deleted: true, id: entry.id });
-    }
-    throw new Error('Unexpected memory API request: ' + path + ' ' + init?.method);
-  });
+  api.listMemory.mockResolvedValue({ entries: [entry], limit: 50, hasMore: false, nextCursor: null, query: '' });
+  api.createMemory.mockResolvedValue(entry);
+  api.updateMemory.mockResolvedValue(entry);
+  api.deleteMemory.mockResolvedValue({ deleted: true, id: entry.id });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -76,38 +64,44 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe('persistent Memory Vault', () => {
-  it('loads entries from the authenticated shared memory API when opened', async () => {
+describe('Memory Vault backed by Supabase Data API', () => {
+  it('loads account memories using the active Supabase identity', async () => {
     await mount();
     await vi.waitFor(() => expect(container.textContent).toContain(entry.value));
-    expect(api).toHaveBeenCalledWith('/api/user/memory?limit=50', expect.objectContaining({ headers: { Accept: 'application/json' } }));
+    expect(api.listMemory).toHaveBeenCalledWith('user-a', { query: '', limit: 50, cursor: undefined });
     expect(container.textContent).toContain('same store');
   });
 
-  it('creates a memory through the shared Postgres API', async () => {
+  it('creates a memory through the Supabase Data API adapter', async () => {
     await mount();
     await vi.waitFor(() => expect(container.textContent).toContain(entry.value));
     const textarea = container.querySelector('#memory-new-content') as HTMLTextAreaElement;
     await setTextValue(textarea, 'Remember the release checklist.');
     await click(Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Save memory')) ?? null);
-    await vi.waitFor(() => expect(api).toHaveBeenCalledWith('/api/user/memory', expect.objectContaining({ method: 'POST' })));
+    await vi.waitFor(() => expect(api.createMemory).toHaveBeenCalledWith('user-a', {
+      value: 'Remember the release checklist.',
+      category: 'preference',
+    }));
   });
 
-  it('edits an existing memory using its account-scoped endpoint', async () => {
+  it('edits an existing memory through the Supabase Data API adapter', async () => {
     await mount();
     await vi.waitFor(() => expect(container.textContent).toContain(entry.value));
     await click(container.querySelector('button[aria-label="Edit memory"]'));
     const textarea = container.querySelector('textarea[aria-label="Edit memory content"]') as HTMLTextAreaElement;
     await setTextValue(textarea, 'Updated project preference.');
     await click(Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Save changes')) ?? null);
-    await vi.waitFor(() => expect(api).toHaveBeenCalledWith('/api/user/memory/' + entry.id, expect.objectContaining({ method: 'PUT' })));
+    await vi.waitFor(() => expect(api.updateMemory).toHaveBeenCalledWith('user-a', entry.id, {
+      value: 'Updated project preference.',
+      category: 'preference',
+    }));
   });
 
-  it('deletes an existing memory through the shared Postgres API', async () => {
+  it('deletes an existing memory through the Supabase Data API adapter', async () => {
     await mount();
     await vi.waitFor(() => expect(container.textContent).toContain(entry.value));
     await click(container.querySelector('button[aria-label="Delete memory"]'));
-    await vi.waitFor(() => expect(api).toHaveBeenCalledWith('/api/user/memory/' + entry.id, expect.objectContaining({ method: 'DELETE' })));
+    await vi.waitFor(() => expect(api.deleteMemory).toHaveBeenCalledWith('user-a', entry.id));
   });
 
   it('searches the current account memories using the requested query', async () => {
@@ -116,35 +110,31 @@ describe('persistent Memory Vault', () => {
     const search = container.querySelector('#memory-search') as HTMLInputElement;
     await setTextValue(search, 'project');
     await click(Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Search') ?? null);
-    await vi.waitFor(() => expect(api).toHaveBeenCalledWith(
-      '/api/user/memory?q=project&limit=50',
-      expect.objectContaining({ headers: { Accept: 'application/json' } }),
-    ));
+    await vi.waitFor(() => expect(api.listMemory).toHaveBeenLastCalledWith('user-a', {
+      query: 'project',
+      limit: 50,
+      cursor: undefined,
+    }));
   });
 
-  it('loads the next memory page without replacing the current page', async () => {
-    api.mockImplementation(async (input, init) => {
-      const url = new URL(String(input), 'http://localhost');
-      if (url.pathname === '/api/user/memory' && (!init?.method || init.method === 'GET')) {
-        return url.searchParams.has('cursor')
-          ? response({ entries: [secondEntry], limit: 50, hasMore: false, nextCursor: null })
-          : response({ entries: [entry], limit: 50, hasMore: true, nextCursor: entry.id });
-      }
-      throw new Error('Unexpected memory API request: ' + url.pathname + ' ' + init?.method);
-    });
+  it('appends the next page without replacing the current page', async () => {
+    api.listMemory
+      .mockResolvedValueOnce({ entries: [entry], limit: 50, hasMore: true, nextCursor: entry.id, query: '' })
+      .mockResolvedValueOnce({ entries: [secondEntry], limit: 50, hasMore: false, nextCursor: null, query: '' });
     await mount();
     await vi.waitFor(() => expect(container.textContent).toContain(entry.value));
     await click(Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Load more memories')) ?? null);
     await vi.waitFor(() => expect(container.textContent).toContain(secondEntry.value));
     expect(container.textContent).toContain(entry.value);
-    expect(api).toHaveBeenCalledWith(
-      '/api/user/memory?cursor=' + entry.id + '&limit=50',
-      expect.objectContaining({ headers: { Accept: 'application/json' } }),
-    );
+    expect(api.listMemory).toHaveBeenLastCalledWith('user-a', {
+      query: '',
+      limit: 50,
+      cursor: entry.id,
+    });
   });
 
-  it('shows API failures instead of pretending a memory was saved', async () => {
-    api.mockRejectedValueOnce(new Error('Private memory storage is unavailable.'));
+  it('shows data access failures instead of pretending a memory was saved', async () => {
+    api.listMemory.mockRejectedValueOnce(new Error('Private memory storage is unavailable.'));
     await mount();
     await vi.waitFor(() => expect(container.textContent).toContain('Private memory storage is unavailable.'));
   });
