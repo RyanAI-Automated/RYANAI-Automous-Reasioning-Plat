@@ -10,6 +10,7 @@ export type PortfolioOptimizationInput = {
   maxTurnoverPct?: number;
   transactionCostBps?: number;
   riskFreeRatePct?: number;
+  maxAnnualizedVolatilityPct?: number;
   currentWeights?: Record<string, number>;
 };
 
@@ -32,6 +33,7 @@ export type PortfolioOptimizationResult = {
     investedWeight: number;
     maxWeight: number;
     maxTurnoverPct: number;
+    maxAnnualizedVolatilityPct: number | null;
     turnoverConstraintApplied: boolean;
     allSatisfied: true;
   };
@@ -114,6 +116,7 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   const maxTurnoverPct = input.maxTurnoverPct ?? 100;
   const transactionCostBps = input.transactionCostBps ?? 10;
   const riskFreeRatePct = input.riskFreeRatePct ?? 0;
+  const maxAnnualizedVolatilityPct = input.maxAnnualizedVolatilityPct;
   if (!finite(investedWeight) || investedWeight <= 0 || investedWeight > 1) {
     throw new Error('investedWeight must be greater than 0 and no more than 1.');
   }
@@ -129,6 +132,10 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   }
   if (!finite(riskFreeRatePct) || riskFreeRatePct < 0 || riskFreeRatePct > 100) {
     throw new Error('riskFreeRatePct must be between 0 and 100.');
+  }
+  if (maxAnnualizedVolatilityPct !== undefined &&
+      (!finite(maxAnnualizedVolatilityPct) || maxAnnualizedVolatilityPct <= 0 || maxAnnualizedVolatilityPct > 100)) {
+    throw new Error('maxAnnualizedVolatilityPct must be greater than 0 and no more than 100.');
   }
 
   const assetCount = input.assets.length;
@@ -218,6 +225,9 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   const sharpe = annualizedVolatility > 1e-12
     ? (expectedAnnualReturn - riskFreeRatePct) / annualizedVolatility
     : 0;
+  if (maxAnnualizedVolatilityPct !== undefined && annualizedVolatility > maxAnnualizedVolatilityPct) {
+    throw new Error('Minimum-variance allocation exceeds maxAnnualizedVolatilityPct; no allocation was returned.');
+  }
   const estimatedTransactionCostPct = turnover * transactionCostBps / 10000 * 100;
   if (![annualizedVolatility, expectedAnnualReturn, sharpe, estimatedTransactionCostPct].every(Number.isFinite)) {
     throw new Error('Portfolio metrics are numerically unstable.');
@@ -245,6 +255,7 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
       investedWeight: round(investedWeight),
       maxWeight: round(maxWeight),
       maxTurnoverPct: round(maxTurnoverPct, 4),
+      maxAnnualizedVolatilityPct: maxAnnualizedVolatilityPct ?? null,
       turnoverConstraintApplied,
       allSatisfied: true,
     },
