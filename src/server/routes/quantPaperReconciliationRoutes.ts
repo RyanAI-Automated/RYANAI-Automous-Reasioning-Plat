@@ -78,7 +78,7 @@ export const quantPaperReconciliationRoutes: FastifyPluginAsync = async (fastify
         storedFillPrice: Number(row.fill_price),
         storedFee: Number(row.fee),
         fills: rawFills.map((value) => {
-          const fill = value as Record<string, unknown>;
+          const fill = value && typeof value === 'object' ? value as Record<string, unknown> : {};
           return {
             id: String(fill.id ?? ''),
             clientFillId: String(fill.clientFillId ?? ''),
