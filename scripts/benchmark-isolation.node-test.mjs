@@ -11,7 +11,7 @@ test('isolation harness contract requires network-disabled, hardened container e
   assert.equal(contract.container.noNewPrivileges, true);
   assert.equal(contract.container.dockerSocketMounted, false);
   assert.equal(contract.container.hostEnvironmentPassed, false);
-  assert.equal(contract.container.repositoryMount, 'two-file-allowlist');
+  assert.equal(contract.container.repositoryMount, 'three-file-allowlist');
   assert.equal(contract.successMeaning, 'HARNESS_PASS_ONLY_NOT_GATE_PASS');
   assert.ok(contract.requiredChecks.includes('public-ip-egress-denied'));
   assert.ok(contract.requiredChecks.includes('public-dns-denied'));
@@ -22,7 +22,7 @@ test('isolation harness contract requires network-disabled, hardened container e
   assert.equal(contract.evidence.validJsonRequiredOnFailure, true);
 });
 
-test('container runner passes no host environment and mounts only two allowlisted files', async () => {
+test('container runner passes no host environment and mounts only three allowlisted files', async () => {
   const runner = await readFile('scripts/benchmark-isolation-container.sh', 'utf8');
   assert.match(runner, /--network=none/);
   assert.match(runner, /--read-only/);
@@ -30,6 +30,7 @@ test('container runner passes no host environment and mounts only two allowliste
   assert.match(runner, /--security-opt=no-new-privileges:true/);
   assert.match(runner, /--user=10001:10001/);
   assert.match(runner, /benchmark-isolation-container\.mjs,readonly/);
+  assert.match(runner, /benchmark-endpoint-policy\.mjs,readonly/);
   assert.match(runner, /local-isolation-policy\.json,readonly/);
   assert.doesNotMatch(runner, /src=\$\(pwd\)|--env-file|--env\s| -e\s|docker\.sock/);
 });
@@ -42,6 +43,7 @@ test('isolation probes reject connection-refused as evidence of a blocked route'
   assert.doesNotMatch(probe, /'ECONNREFUSED'\s*,?\s*'ETIMEDOUT'/);
   assert.match(probe, /resolver\.setServers\(\['1\.1\.1\.1'\]\)/);
   assert.match(probe, /only-loopback-network-interface/);
+  assert.match(probe, /isAllowedInferenceEndpoint/);
   assert.match(probe, /HARNESS_PASS_ONLY_NOT_GATE_PASS/);
 });
 
