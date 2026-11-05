@@ -185,9 +185,12 @@ test('Render API repair runs inside core CI, waits for security, and never deplo
   assert.ok(blueprint.includes('name: ryanai-redis'));
   assert.ok(blueprint.includes('repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat'));
   assert.ok(blueprint.includes('branch: main'));
-  assert.ok(blueprint.includes('dockerfilePath: ./Dockerfile.api'));
-  assert.ok(blueprint.includes('dockerfilePath: ./Dockerfile'));
-  assert.ok(blueprint.includes('dockerTarget: web'));
+  assert.ok(blueprint.includes('runtime: docker'));
+  assert.ok(blueprint.includes('runtime: static'));
+  assert.ok(blueprint.includes('buildCommand: npm ci --legacy-peer-deps && npm run build:web'));
+  assert.ok(blueprint.includes('staticPublishPath: ./dist'));
+  assert.ok(!blueprint.includes('dockerTarget:'));
+  assert.ok(blueprint.includes('ipAllowList: []'));
   assert.ok(blueprint.includes('healthCheckPath: /health'));
   assert.ok(blueprint.includes('value: https://ryanai-api.onrender.com'));
   assert.ok(blueprint.includes('autoDeployTrigger: off'));
@@ -221,4 +224,29 @@ test('boolean false secret-presence indicators are treated as missing', () => {
   }).find((target) => target.name === 'Render');
   assert.equal(result.status, 'BLOCKED');
   assert.deepEqual(result.missing, ['RENDER_API_KEY']);
+});
+
+
+test('production migration and Render deployment require independent environment reviewers', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const migration = await readFile(new URL('../.github/workflows/migrate-production.yml', import.meta.url), 'utf8');
+  const deployment = await readFile(new URL('../.github/workflows/deploy-render.yml', import.meta.url), 'utf8');
+  for (const [workflow, environment] of [
+    [migration, 'production-migrations'],
+    [deployment, 'production'],
+  ]) {
+    assert.ok(workflow.includes('deployments: read'));
+    assert.ok(workflow.includes(`repos/${GITHUB_REPOSITORY}/environments/${environment}`));
+    assert.ok(workflow.includes('.type == "required_reviewers"'));
+    assert.ok(workflow.includes('.prevent_self_review == true'));
+    assert.ok(workflow.includes('((.reviewers // []) | length > 0)'));
+    assert.ok(workflow.includes('No production') || workflow.includes('No Render API deployment'));
+  }
+  assert.ok(migration.includes('inputs.confirmation'));
+  assert.ok(migration.includes('== "APPLY"'));
+  assert.ok(deployment.includes('inputs.confirmation'));
+  assert.ok(deployment.includes("== 'DEPLOY'"));
+  assert.ok(deployment.includes('migrate-production.yml'));
+  assert.ok(deployment.includes('PRODUCTION_DATABASE_URL'));
+  assert.ok(deployment.includes('sslmode=verify-full') || deployment.includes('verified TLS'));
 });
