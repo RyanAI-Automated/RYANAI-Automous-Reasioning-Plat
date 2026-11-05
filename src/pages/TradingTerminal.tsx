@@ -1,6 +1,6 @@
 import PaperTradingPanel from '@/components/quant/PaperTradingPanel';
 import PaperStrategyAllocations from '@/components/quant/PaperStrategyAllocations';
-import { Activity, ShieldCheck, Workflow } from 'lucide-react';
+import { Activity, ShieldCheck, Workflow, type LucideIcon } from 'lucide-react';
 
 export default function TradingTerminalPage() {
   return (
@@ -24,6 +24,6 @@ export default function TradingTerminalPage() {
   );
 }
 
-function Module({ icon: Icon, title, detail }: { icon: typeof Activity; title: string; detail: string }) {
+function Module({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
   return <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4"><Icon className="h-5 w-5 text-cyan-300" /><h2 className="mt-3 text-sm font-semibold text-white">{title}</h2><p className="mt-1 text-xs leading-5 text-slate-400">{detail}</p></article>;
 }
