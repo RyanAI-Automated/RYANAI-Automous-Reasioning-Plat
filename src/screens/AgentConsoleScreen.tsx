@@ -11,29 +11,48 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { MobileApiClient } from "../services/mobileApiClient";
+import {
+  executeAuthenticatedMobileObjective,
+  type MobileSessionReader,
+} from "../services/mobileApiClient";
 
-/** Render a mobile objective form with request progress, output, and caught errors. */
-export function AgentConsoleScreen() {
+export interface AgentConsoleScreenProps {
+  /** Read the current verified Supabase session from the host mobile app. */
+  getSession: MobileSessionReader;
+}
+
+/**
+ * Render the mobile reasoning console. Authentication is supplied by the
+ * host app so this screen never owns, stores, or invents a session token.
+ */
+export function AgentConsoleScreen({ getSession }: AgentConsoleScreenProps) {
   const [objective, setObjective] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleRunObjective = async () => {
-    if (!objective.trim() || loading) return;
+    const normalizedObjective = objective.trim();
+    if (!normalizedObjective || loading) return;
 
     setLoading(true);
-    setOutput("Transmitting objective to RyanAI engine...");
+    setOutput("Verifying your RyanAI session…");
 
     try {
-      const res = await MobileApiClient.executeObjective(objective);
-      setOutput(res.result);
+      const response = await executeAuthenticatedMobileObjective(
+        normalizedObjective,
+        getSession,
+      );
+      setOutput(response.result);
     } catch (error: unknown) {
-      setOutput(`Execution Failed: ${(error instanceof Error ? error.message : String(error))}`);
+      setOutput(
+        `Request failed: ${error instanceof Error ? error.message : "Please try again."}`,
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  const submitDisabled = loading || !objective.trim();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -41,33 +60,48 @@ export function AgentConsoleScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.innerContainer}
       >
-        <Text style={styles.headerTitle}>RyanAI Mobile Console</Text>
-        <Text style={styles.headerSubtitle}>Autonomous Reasoning & Ops Hub</Text>
+        <Text style={styles.headerTitle}>RyanAI Mobile Reasoning</Text>
+        <Text style={styles.headerSubtitle}>
+          Authenticated reasoning through your RyanAI account
+        </Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Enter task or evolution objective..."
+          placeholder="Enter a reasoning question or task…"
           placeholderTextColor="#64748b"
           value={objective}
           onChangeText={setObjective}
           multiline
+          maxLength={20000}
+          editable={!loading}
+          accessibilityLabel="Reasoning objective"
+          textAlignVertical="top"
         />
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleRunObjective}
-          disabled={loading}
+          style={[styles.button, submitDisabled && styles.buttonDisabled]}
+          onPress={() => void handleRunObjective()}
+          disabled={submitDisabled}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: submitDisabled, busy: loading }}
+          accessibilityLabel="Run authenticated reasoning request"
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Execute Objective</Text>
+            <Text style={styles.buttonText}>Run reasoning</Text>
           )}
         </TouchableOpacity>
 
-        <ScrollView style={styles.outputContainer} contentContainerStyle={styles.outputContent}>
-          <Text style={styles.outputLabel}>Execution Output:</Text>
-          <Text style={styles.outputText}>{output || "Awaiting task execution..."}</Text>
+        <ScrollView
+          style={styles.outputContainer}
+          contentContainerStyle={styles.outputContent}
+          accessibilityLabel="Reasoning response"
+        >
+          <Text style={styles.outputLabel}>Reasoning output</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.outputText}>
+            {output || "Sign in with your RyanAI account to submit a reasoning request."}
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
