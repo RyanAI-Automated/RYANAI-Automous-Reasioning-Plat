@@ -304,29 +304,29 @@ export default function CommunicationsCenter() {
           <form onSubmit={submit} className="space-y-3 border-t border-white/10 bg-slate-950/50 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-xs text-slate-400">Channel
-                <select value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); setIdempotencyKey(crypto.randomUUID()); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
+                <select disabled={sending} value={channel} onChange={(event) => { setChannel(event.target.value as CommsChannel); setIdempotencyKey(crypto.randomUUID()); }} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">
                   {channels.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </label>
               <label className="space-y-1 text-xs text-slate-400">Recipient (optional; defaults to owner)
-                <input value={recipient} onChange={(event) => { setRecipient(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+                <input disabled={sending} value={recipient} onChange={(event) => { setRecipient(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} placeholder={channel === 'email' ? 'name@example.com' : '+27…'} className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
               </label>
             </div>
             {channel === 'email' && <label className="block space-y-1 text-xs text-slate-400">Subject
-              <input value={subject} onChange={(event) => { setSubject(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
+              <input disabled={sending} value={subject} onChange={(event) => { setSubject(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} maxLength={180} placeholder="RyanAI update" className="w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white" />
             </label>}
             <label className="block space-y-1 text-xs text-slate-400">Message
-              <textarea value={message} onChange={(event) => { setMessage(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
+              <textarea disabled={sending} value={message} onChange={(event) => { setMessage(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} required maxLength={4000} rows={3} placeholder="Write a message for RyanAI to send…" className="w-full resize-y rounded-lg border border-white/10 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-600" />
             </label>
             {attachmentsAllowed && <div className="space-y-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5">
                 <Paperclip className="h-4 w-4 text-cyan-300" /> Attach files
-                <input type="file" multiple accept={ACCEPTED_FILES} className="sr-only" onChange={event => selectFiles(event.target.files)} />
+                <input type="file" disabled={sending} multiple accept={ACCEPTED_FILES} className="sr-only" onChange={event => selectFiles(event.target.files)} />
               </label>
               {selectedFiles.length > 0 && <div className="space-y-1 rounded-lg border border-white/10 p-2">
                 {selectedFiles.map((file, index) => <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-2 text-xs text-slate-300">
                   <File className="h-3.5 w-3.5 text-cyan-300" /><span className="min-w-0 flex-1 truncate">{file.name} · {sizeLabel(file.size)}</span>
-                  <button type="button" onClick={() => { setSelectedFiles(items => items.filter((_, itemIndex) => itemIndex !== index)); setIdempotencyKey(crypto.randomUUID()); }} aria-label={`Remove ${file.name}`} className="rounded p-1 text-slate-400 hover:text-rose-300"><X className="h-3.5 w-3.5" /></button>
+                  <button type="button" disabled={sending} onClick={() => { setSelectedFiles(items => items.filter((_, itemIndex) => itemIndex !== index)); setIdempotencyKey(crypto.randomUUID()); }} aria-label={`Remove ${file.name}`} className="rounded p-1 text-slate-400 hover:text-rose-300"><X className="h-3.5 w-3.5" /></button>
                 </div>)}
                 <p className="text-[10px] text-slate-500">Up to 8 files · 20 MiB each · 40 MiB total · malware scan required before dispatch.</p>
               </div>}
