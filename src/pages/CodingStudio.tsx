@@ -37,7 +37,7 @@ type JobDetail = {
   acceptance: { accepted?: boolean; status?: string };
 };
 
-const AGENTS = ['codex', 'claude', 'gemini', 'qwen', 'opencode', 'copilot'] as const;
+const AGENTS = ['codex', 'claude', 'copilot', 'cursor', 'gemini', 'opencode', 'muse', 'vibe', 'antigravity'] as const;
 type Agent = (typeof AGENTS)[number];
 
 const DEFAULT_PLAN = JSON.stringify({
