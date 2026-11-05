@@ -576,6 +576,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.post<{ Body: WalkForwardBody }>('/api/quant/walk-forward', {
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
     schema: {
       body: {
         type: 'object',
