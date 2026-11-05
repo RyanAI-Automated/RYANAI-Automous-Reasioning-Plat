@@ -1,0 +1,13 @@
+{
+  "schemaVersion":"1.0.0",
+  "profile":"A-strict-offline-local-only",
+  "modelInvocation":false,
+  "allowedInferenceEndpoints":[
+    {"protocol":"http","host":"127.0.0.1","port":11434,"pathPrefixes":["/","/v1"]},
+    {"protocol":"http","host":"::1","port":11434,"pathPrefixes":["/","/v1"]}
+  ],
+  "explicitlyDisallowed":["host.docker.internal","ollama","public-ip","cloud-provider-domain","arbitrary-lan-host","unapproved-port"],
+  "credentials":{"providerCredentialsMounted":false,"productionDatabaseUrlMounted":false,"deploymentTokenMounted":false,"repositoryWriteTokenMounted":false},
+  "failClosed":true,
+  "cloudFallback":false
+}

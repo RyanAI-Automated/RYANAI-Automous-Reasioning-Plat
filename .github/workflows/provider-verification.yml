@@ -1,10 +1,8 @@
 name: Isolated Provider Verification
 
 on:
-  push:
-    branches:
-      - main
-      - automation/provider-verification-main-20261102
+  # Deliberately manual-only: this workflow performs real provider calls.
+  # A push to main must never become an implicit model invocation.
   workflow_dispatch:
     inputs:
       provider:
