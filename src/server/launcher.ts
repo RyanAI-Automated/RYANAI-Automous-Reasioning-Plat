@@ -46,7 +46,7 @@ import { memoryRoutes } from './routes/memory.js';
 import { realtimeVoiceRoutes } from './routes/realtimeVoice.js';
 import { audioIntelligenceRoutes } from './routes/audioIntelligence.js';
 import { audiobookProjectRoutes } from './routes/audiobookProjects.js';
-import { startAgentTaskWorker, startBrainHealthMonitor, type AgentRunProgressEvent } from '../agent/operations.js';
+import { getAgentTaskWorkerStatus, startAgentTaskWorker, startBrainHealthMonitor, type AgentRunProgressEvent } from '../agent/operations.js';
 import { AgentPAScript, setAgentPAObserver } from '../skills/agentPAScript.js';
 import { startAttachmentScanner } from './attachments/scanner.js';
 import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
@@ -168,6 +168,8 @@ function registerCoreRoutes() {
       },
       agentCheckpointerInitialized: serviceStatus.agentCheckpointer,
       apiListening: serviceStatus.api,
+      agentQueueListenerReady: getAgentTaskWorkerStatus().listener?.state === 'listening'
+        && getAgentTaskWorkerStatus().listener?.subscribed === true,
     });
     reply.code(readiness.ready ? 200 : 503);
     return {
@@ -175,6 +177,7 @@ function registerCoreRoutes() {
       service: 'ryanai-api-gateway',
       timestamp: new Date().toISOString(),
       services: readiness.services,
+      agentQueue: getAgentTaskWorkerStatus(),
       engine: 'LangGraph ReAct',
       architect: 'RyanAI',
       cudaActive: false,
