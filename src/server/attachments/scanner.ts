@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import net from 'node:net';
+import { validateCommsFileSignature } from '../comms/attachments.js';
 
 type ScanJob = { bucket_id: string; object_name: string; attempt: number };
 type ScanResult = 'clean' | 'infected';
@@ -7,6 +8,7 @@ type ScanResult = 'clean' | 'infected';
 type ScannerDatabase = {
   public: {
     Tables: {
+      communication_attachments: { Row: { object_name: string; mime_type: string }; Insert: { object_name: string; mime_type: string }; Update: { object_name?: string; mime_type?: string }; Relationships: [] };
       ryanai_attachment_scans: {
         Row: {
           bucket_id: string;
@@ -239,7 +241,12 @@ export function startAttachmentScanner(): () => void {
         if (file.size === 0 || file.size > MAX_ATTACHMENT_BYTES) {
           throw new Error('Attachment size is outside the scanner limit.');
         }
-        const result = await scanWithClamAv(new Uint8Array(await file.arrayBuffer()));
+        const attachmentBytes = new Uint8Array(await file.arrayBuffer());
+        if (job.bucket_id === 'ryanai-comms-attachments') {
+          const { data: attachment, error: attachmentError } = await supabase.from('communication_attachments').select('mime_type').eq('object_name', job.object_name).maybeSingle();
+          if (attachmentError || !attachment || !validateCommsFileSignature(attachmentBytes, attachment.mime_type)) throw new Error('Comms attachment signature does not match its reserved MIME type.');
+        }
+        const result = await scanWithClamAv(attachmentBytes);
         const { error: finishError } = await supabase.rpc('finish_ryanai_attachment_scan', {
           p_bucket_id: job.bucket_id,
           p_object_name: job.object_name,
