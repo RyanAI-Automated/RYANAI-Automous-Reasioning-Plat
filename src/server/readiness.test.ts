@@ -21,6 +21,7 @@ describe('live dependency readiness', () => {
         database: true,
         redis: true,
         agentCheckpointer: true,
+        agentQueueListener: true,
         api: true,
       },
     });
@@ -39,6 +40,7 @@ describe('live dependency readiness', () => {
       database: false,
       redis: true,
       agentCheckpointer: false,
+      agentQueueListener: true,
       api: true,
     });
     expect(JSON.stringify(result)).not.toContain('sensitive');
@@ -135,6 +137,12 @@ describe('live dependency readiness', () => {
 
     expect(result.ready).toBe(false);
     expect(result.services.agentCheckpointer).toBe(false);
+  });
+
+  it('does not report ready when the agent queue listener is disconnected', async () => {
+    const result = await inspectReadiness({ database: healthy, redis: healthy, agentCheckpointerInitialized: true, apiListening: true, agentQueueListenerReady: false });
+    expect(result.ready).toBe(false);
+    expect(result.services.agentQueueListener).toBe(false);
   });
 
   it('does not report ready before the API listener is active', async () => {
