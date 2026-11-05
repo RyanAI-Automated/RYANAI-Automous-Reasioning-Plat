@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { dispatchJarvisTask, listAgentRuns } from '../../agent/operations.js';
 import { authorizeJarvisCapability, getJarvisAgentRegistry, type JarvisCapability } from '../../agent/jarvisRegistry.js';
 import { prisma } from '../../lib/prisma.js';
+import { createJarvisIdentityProof, createPADelegation, getPADelegation, verifyPAHandshake } from '../../agent/paDelegationService.js';
 
 interface CreateTaskBody { objective: string; }
 
@@ -54,6 +55,46 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     const { agentId, capability } = request.params as { agentId: string; capability: JarvisCapability };
     const decision = authorizeJarvisCapability(agentId, capability);
     return { agentId, capability, ...decision };
+  });
+
+  fastify.post<{ Body: { identityProof: string; objective: string; capabilities: JarvisCapability[] } }>('/api/jarvis/internal/pa/handshake', {
+    schema: { body: { type: 'object', required: ['identityProof', 'objective', 'capabilities'], additionalProperties: false } },
+  }, async (request, reply) => {
+    try {
+      const proof = await verifyPAHandshake(request.body.identityProof);
+      if (request.body.capabilities.some((capability) => !proof.capabilities.includes(capability))) {
+        return reply.code(403).send({ error: 'Delegated capability scope cannot be expanded by the handshake request.' });
+      }
+      const delegation = await createPADelegation({
+        ownerUserId: proof.ownerUserId,
+        delegationId: proof.delegationId,
+        objective: request.body.objective,
+        capabilities: request.body.capabilities,
+        traceId: proof.delegationId,
+      });
+      const jarvisProof = await createJarvisIdentityProof(proof.ownerUserId, delegation.delegation.id);
+      return reply.code(202).send({
+        success: true,
+        identity: { issuer: 'ryanai-jarvis', audience: 'ryanai-pa', proof: jarvisProof },
+        delegation: {
+          id: delegation.delegation.id,
+          agentRunId: delegation.run.id,
+          status: delegation.delegation.status,
+          traceId: delegation.delegation.traceId,
+        },
+      });
+    } catch (error) {
+      request.log.warn({ err: error instanceof Error ? error.message : String(error) }, 'PA handshake rejected');
+      return reply.code(401).send({ error: 'PA identity handshake rejected.' });
+    }
+  });
+
+  fastify.get<{ Params: { delegationId: string } }>('/api/jarvis/internal/pa/delegations/:delegationId', async (request, reply) => {
+    if (!request.authUser) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (!isAdmin(request)) return reply.code(403).send({ error: 'Administrator access is required.' });
+    const delegation = await getPADelegation(request.authUser.id, request.params.delegationId);
+    if (!delegation) return reply.code(404).send({ error: 'Delegation not found.' });
+    return { delegation };
   });
 
   fastify.get('/api/jarvis/internal/audit', async (request, reply) => {

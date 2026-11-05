@@ -8,7 +8,7 @@ import { installAuthentication } from '../routes/auth.js';
 const { invoke, prismaMock } = vi.hoisted(() => ({
   invoke: vi.fn(),
   prismaMock: {
-    communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }) },
+    communicationConversation: { upsert: vi.fn().mockResolvedValue({ id: 'conversation-1' }), findFirst: vi.fn() },
     communicationMessage: {
       findUnique: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({}),
@@ -51,7 +51,7 @@ async function send(path: string, url: string, payload: Record<string, string>, 
 
 beforeEach(() => {
   vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
-  prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
+  prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });\n  prismaMock.communicationConversation.findFirst.mockResolvedValue({ id: 'conversation-1', messages: [{ direction: 'inbound', body: 'Please confirm the delivery window.', status: 'received', createdAt: new Date('2026-11-05T10:00:00.000Z') }] });
   prismaMock.communicationMessage.findUnique.mockResolvedValue(null);
   prismaMock.communicationMessage.upsert.mockResolvedValue({});
   prismaMock.communicationMessage.update.mockResolvedValue({});
@@ -163,6 +163,34 @@ describe('Twilio delivery status callbacks', () => {
     expect(prismaMock.communicationMessage.updateMany).toHaveBeenCalledWith({
       where: { providerMessageId: 'SM-delivered-1' }, data: { status: 'delivered' },
     });
+  });
+});
+
+describe('Comms conversation intelligence', () => {
+  it('keeps analysis owner-scoped and never dispatches a provider request', async () => {
+    const app = Fastify();
+    apps.push(app);
+    app.decorateRequest('authUser', null);
+    app.addHook('preHandler', async (request) => {
+      request.authUser = { id: 'owner-test', role: 'user', isOwner: true };
+    });
+    app.decorate('prisma', prismaMock as never);
+    await app.register(commsPlugin);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/comms/assist',
+      payload: { operation: 'summarize', conversationId: 'conversation-1' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      operation: 'summarize',
+      output: 'RyanAI says hello & welcome',
+      sourceMessageCount: 1,
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(prismaMock.communicationMessage.create).not.toHaveBeenCalled();
   });
 });
 
