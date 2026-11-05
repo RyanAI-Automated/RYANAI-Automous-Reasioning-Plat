@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createHmac } from 'node:crypto';
 import { slackInteractionsPlugin } from './slackInteractions.js';
@@ -7,6 +7,10 @@ const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('../../agent/approvalEngine.js', () => ({ humanInTheLoopAgent: { invoke } }));
 const applications: FastifyInstance[] = [];
 const secret = 'synthetic-slack-signing-secret';
+
+beforeEach(() => {
+  vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
+});
 
 async function sendInteraction(sign = false) {
   const app = Fastify();
@@ -51,5 +55,14 @@ describe('Slack interaction authentication', () => {
   it('allows a correctly signed request to reach the handler', async () => {
     vi.stubEnv('SLACK_SIGNING_SECRET', secret);
     expect((await sendInteraction(true)).statusCode).toBe(200);
+  });
+});
+
+describe('Slack communications feature gate', () => {
+  it('does not register interaction routes when communications are disabled', async () => {
+    vi.stubEnv('COMMUNICATIONS_ENABLED', 'false');
+    const response = await sendInteraction();
+    expect(response.statusCode).toBe(404);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
