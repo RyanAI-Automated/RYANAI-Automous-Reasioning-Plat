@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { requireUser } from './auth.js';
 
 const MEMORY_LIMIT = 50;
@@ -35,7 +36,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: 'Page size must be between 1 and 100.' });
     }
 
-    const where: Record<string, unknown> = { userId };
+    const where: Prisma.MemoryEntryWhereInput = { userId };
     if (query) {
       where.OR = [
         { value: { contains: query, mode: 'insensitive' } },
