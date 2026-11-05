@@ -4,24 +4,28 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { requireUser } from './auth.js';
 import { prisma } from '../../lib/prisma.js';
+import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
+import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
 
 type Bar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
 type BacktestBody = {
   strategy?: 'sma_crossover';
-  bars: Bar[];
+  bars?: Bar[];
+  market_data_import_id?: string;
   fast_window?: number;
   slow_window?: number;
   initial_cash?: number;
   fee_bps?: number;
   slippage_bps?: number;
 };
+type EngineInput = Omit<BacktestBody, 'bars' | 'market_data_import_id'> & { bars: Bar[] };
 type EngineResponse = { ok: true; result: Record<string, unknown> } | { ok: false; error: string };
 
 const MAX_INPUT_BYTES = 2_000_000;
 const MAX_OUTPUT_BYTES = 4_000_000;
 const ENGINE_TIMEOUT_MS = 15_000;
 
-function runPythonEngine(input: BacktestBody): Promise<EngineResponse> {
+function runPythonEngine(input: EngineInput): Promise<EngineResponse> {
   return new Promise((resolve, reject) => {
     const script = path.resolve(process.cwd(), 'quant-engine/quant_engine.py');
     const python = process.env.RYANAI_PYTHON_BIN?.trim() || 'python3';
@@ -85,6 +89,208 @@ function runPythonEngine(input: BacktestBody): Promise<EngineResponse> {
 export const quantRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
 
+  fastify.get('/api/quant/market-data/imports', async (request) => {
+    const imports = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT id, symbol, provider, feed, timeframe, adjustment, bar_count,
+              first_bar_at, last_bar_at, fetched_at,
+              (is_stale OR last_bar_at < NOW() - INTERVAL '5 days') AS is_stale,
+              provenance
+       FROM quant_market_data_imports
+       WHERE user_id = $1
+       ORDER BY fetched_at DESC
+       LIMIT 20`,
+      request.authUser!.id,
+    );
+    return { imports };
+  });
+
+  fastify.post<{ Body: { symbol: string; limit?: number } }>('/api/quant/market-data/imports', {
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['symbol'],
+        properties: {
+          symbol: { type: 'string', minLength: 1, maxLength: 15 },
+          limit: { type: 'integer', minimum: 30, maximum: 1000 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    let imported;
+    try {
+      imported = await fetchAlpacaDailyBars({
+        symbol: request.body.symbol,
+        limit: request.body.limit ?? 250,
+        apiKey: process.env.ALPACA_API_KEY,
+        apiSecret: process.env.ALPACA_API_SECRET,
+      });
+    } catch (error) {
+      if (error instanceof MarketDataError) {
+        return reply.code(error.statusCode).send({
+          error: error.message,
+          code: error.code,
+          lastBarAt: error.lastBarAt,
+          provider: 'alpaca',
+        });
+      }
+      fastify.log.error({ message: 'Market-data provider request failed.' });
+      return reply.code(502).send({ error: 'Market-data provider request failed safely.' });
+    }
+
+    const provenance = {
+      provider: imported.provider,
+      feed: imported.feed,
+      timeframe: imported.timeframe,
+      adjustment: imported.adjustment,
+      fetchedAt: imported.fetchedAt,
+      firstBarAt: imported.firstBarAt,
+      lastBarAt: imported.lastBarAt,
+      coverageNote: imported.coverageNote,
+    };
+    const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO quant_market_data_imports
+        (user_id, symbol, provider, feed, timeframe, adjustment, bar_count,
+         first_bar_at, last_bar_at, fetched_at, is_stale, bars, provenance)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE, $11::jsonb, $12::jsonb)
+       RETURNING id`,
+      request.authUser!.id,
+      imported.symbol,
+      imported.provider,
+      imported.feed,
+      imported.timeframe,
+      imported.adjustment,
+      imported.bars.length,
+      imported.firstBarAt,
+      imported.lastBarAt,
+      imported.fetchedAt,
+      JSON.stringify(imported.bars),
+      JSON.stringify(provenance),
+    );
+    return reply.code(201).send({
+      import: {
+        id: rows[0].id,
+        symbol: imported.symbol,
+        provider: imported.provider,
+        feed: imported.feed,
+        timeframe: imported.timeframe,
+        adjustment: imported.adjustment,
+        bar_count: imported.bars.length,
+        first_bar_at: imported.firstBarAt,
+        last_bar_at: imported.lastBarAt,
+        fetched_at: imported.fetchedAt,
+        is_stale: false,
+        provenance,
+      },
+      mode: 'historical_research_data',
+    });
+  });
+
+  fastify.get('/api/quant/strategy-signals', async (request) => {
+    const signals = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT id, market_data_import_id, strategy, fast_window, slow_window, action,
+              reference_price::text, previous_fast_sma::text, previous_slow_sma::text,
+              fast_sma::text, slow_sma::text, generated_at, metadata
+       FROM quant_strategy_signals
+       WHERE user_id = $1
+       ORDER BY generated_at DESC
+       LIMIT 30`,
+      request.authUser!.id,
+    );
+    return { signals, executionEnabled: false };
+  });
+
+  fastify.post<{ Body: { importId: string; fastWindow?: number; slowWindow?: number } }>('/api/quant/strategy-signals', {
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['importId'],
+        properties: {
+          importId: { type: 'string', minLength: 1, maxLength: 64 },
+          fastWindow: { type: 'integer', minimum: 2, maximum: 50 },
+          slowWindow: { type: 'integer', minimum: 3, maximum: 200 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const userId = request.authUser!.id;
+    const fastWindow = request.body.fastWindow ?? 5;
+    const slowWindow = request.body.slowWindow ?? 20;
+    if (fastWindow >= slowWindow) {
+      return reply.code(400).send({ error: 'Slow SMA window must be greater than the fast SMA window.' });
+    }
+    const imports = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      symbol: string;
+      last_bar_at: Date | string;
+      is_stale: boolean;
+      bars: Bar[];
+      provenance: Record<string, unknown>;
+    }>>(
+      `SELECT id, symbol, last_bar_at, is_stale, bars, provenance
+       FROM quant_market_data_imports
+       WHERE id = $1 AND user_id = $2
+       LIMIT 1`,
+      request.body.importId,
+      userId,
+    );
+    const imported = imports[0];
+    if (!imported) return reply.code(404).send({ error: 'Market-data import not found for this account.' });
+    const lastBarAt = new Date(imported.last_bar_at).getTime();
+    if (imported.is_stale || !Number.isFinite(lastBarAt) || Date.now() - lastBarAt > 5 * 24 * 60 * 60 * 1000) {
+      return reply.code(409).send({ error: 'Market-data import is stale. Refresh it before generating a signal.' });
+    }
+    if (!Array.isArray(imported.bars)) {
+      return reply.code(422).send({ error: 'Stored market-data import has an invalid bar set.' });
+    }
+
+    let signal;
+    try {
+      signal = createSmaCrossoverSignal(imported.bars, fastWindow, slowWindow);
+    } catch (error) {
+      return reply.code(422).send({ error: error instanceof Error ? error.message : 'Signal validation failed.' });
+    }
+    const metadata = {
+      source: 'alpaca',
+      feed: imported.provenance?.feed ?? 'unknown',
+      sourceBarDate: signal.sourceBarDate,
+      generatedFromImportId: imported.id,
+      description: 'A research signal only. It does not create, schedule or execute a paper order.',
+    };
+    const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO quant_strategy_signals
+        (user_id, market_data_import_id, strategy, fast_window, slow_window, action,
+         reference_price, previous_fast_sma, previous_slow_sma, fast_sma, slow_sma,
+         generated_at, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+       ON CONFLICT (user_id, market_data_import_id, strategy, fast_window, slow_window)
+       DO UPDATE SET action = EXCLUDED.action, reference_price = EXCLUDED.reference_price,
+         previous_fast_sma = EXCLUDED.previous_fast_sma, previous_slow_sma = EXCLUDED.previous_slow_sma,
+         fast_sma = EXCLUDED.fast_sma, slow_sma = EXCLUDED.slow_sma,
+         generated_at = EXCLUDED.generated_at, metadata = EXCLUDED.metadata
+       RETURNING id`,
+      userId,
+      imported.id,
+      signal.strategy,
+      fastWindow,
+      slowWindow,
+      signal.action,
+      signal.referencePrice,
+      signal.previousFastSma,
+      signal.previousSlowSma,
+      signal.fastSma,
+      signal.slowSma,
+      signal.generatedAt,
+      JSON.stringify(metadata),
+    );
+    return reply.code(201).send({
+      signal: { id: rows[0].id, symbol: imported.symbol, ...signal, importId: imported.id, metadata },
+      executionEnabled: false,
+      message: 'Signal saved for research. No paper order was created.',
+    });
+  });
+
   fastify.get('/api/quant/experiments', async (request) => {
     const experiments = await prisma.quantExperiment.findMany({
       where: { userId: request.authUser!.id },
@@ -112,8 +318,9 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       body: {
         type: 'object',
         additionalProperties: false,
-        required: ['bars'],
+        anyOf: [{ required: ['bars'] }, { required: ['market_data_import_id'] }],
         properties: {
+          market_data_import_id: { type: 'string', minLength: 1, maxLength: 64 },
           strategy: { type: 'string', enum: ['sma_crossover'] },
           bars: {
             type: 'array', minItems: 30, maxItems: 2500,
@@ -139,7 +346,54 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
   }, async (request, reply) => {
-    const input: BacktestBody = { strategy: 'sma_crossover', ...request.body };
+    let bars = request.body.bars;
+    let marketDataProvenance: Record<string, unknown> | null = null;
+    if (request.body.market_data_import_id) {
+      const imports = await prisma.$queryRawUnsafe<Array<{
+        id: string; symbol: string; provider: string; feed: string; timeframe: string;
+        adjustment: string; last_bar_at: Date | string; fetched_at: Date | string;
+        is_stale: boolean; bars: Bar[]; provenance: Record<string, unknown>;
+      }>>(
+        `SELECT id, symbol, provider, feed, timeframe, adjustment, last_bar_at,
+                fetched_at, is_stale, bars, provenance
+         FROM quant_market_data_imports
+         WHERE id = $1 AND user_id = $2
+         LIMIT 1`,
+        request.body.market_data_import_id,
+        request.authUser!.id,
+      );
+      const imported = imports[0];
+      if (!imported) return reply.code(404).send({ error: 'Market-data import not found for this account.' });
+      const lastBarAt = new Date(imported.last_bar_at).getTime();
+      if (imported.is_stale || !Number.isFinite(lastBarAt) || Date.now() - lastBarAt > 5 * 24 * 60 * 60 * 1000) {
+        return reply.code(409).send({ error: 'Market-data import is stale. Refresh it before running a backtest.' });
+      }
+      if (!Array.isArray(imported.bars) || imported.bars.length < 30) {
+        return reply.code(422).send({ error: 'Stored market-data import does not contain enough valid bars.' });
+      }
+      bars = imported.bars;
+      marketDataProvenance = {
+        id: imported.id,
+        symbol: imported.symbol,
+        provider: imported.provider,
+        feed: imported.feed,
+        timeframe: imported.timeframe,
+        adjustment: imported.adjustment,
+        fetchedAt: imported.fetched_at,
+        lastBarAt: imported.last_bar_at,
+        ...(imported.provenance ?? {}),
+      };
+    }
+    if (!bars) return reply.code(400).send({ error: 'Provide bars or select an owned market-data import.' });
+    const input: EngineInput = {
+      strategy: 'sma_crossover',
+      bars,
+      fast_window: request.body.fast_window,
+      slow_window: request.body.slow_window,
+      initial_cash: request.body.initial_cash,
+      fee_bps: request.body.fee_bps,
+      slippage_bps: request.body.slippage_bps,
+    };
     if ((input.fast_window ?? 5) >= (input.slow_window ?? 20)) {
       return reply.code(400).send({ error: 'slow_window must be greater than fast_window.' });
     }
@@ -157,7 +411,10 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
         userId: request.authUser!.id,
         strategy: 'sma_crossover',
         status: 'completed',
-        input: input as unknown as Prisma.InputJsonValue,
+        input: {
+          ...input,
+          ...(request.body.market_data_import_id ? { market_data_import_id: request.body.market_data_import_id } : {}),
+        } as unknown as Prisma.InputJsonValue,
         result: engine.result as Prisma.InputJsonValue,
       },
       select: { id: true, strategy: true, status: true, createdAt: true },
@@ -166,6 +423,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       experiment: saved,
       result: engine.result,
       executionMode: 'historical_simulation_only',
+      marketData: marketDataProvenance,
     });
   });
 
