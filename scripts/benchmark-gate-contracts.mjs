@@ -19,7 +19,7 @@ for (const gate of gateContract.gates) {
 function assertLocalOllamaEndpoint(endpoint) {
   const url = new URL(endpoint);
   const host = url.hostname.toLowerCase();
-  const allowedHost = host === '127.0.0.1' || host === '::1';
+  const allowedHost = host === '127.0.0.1' || host === '::1' || host === '[::1]';
   if (url.protocol !== 'http:' || !allowedHost || url.port !== '11434') {
     throw new Error('Strict local profile rejected a non-loopback Ollama endpoint.');
   }
