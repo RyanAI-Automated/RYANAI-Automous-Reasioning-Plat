@@ -47,6 +47,11 @@
       "path": "/cockpit"
     },
     {
+      "id": "studio",
+      "label": "RyanAI Studio",
+      "path": "/studio"
+    },
+    {
       "id": "comms",
       "label": "Comms",
       "path": "/comms"
