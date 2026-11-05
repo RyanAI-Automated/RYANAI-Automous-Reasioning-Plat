@@ -253,7 +253,7 @@ export default function CommunicationsCenter() {
         </article>
         <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Attachments</p>
-          <p className="mt-2 text-lg font-semibold ${attachmentsEnabled ? 'text-amber-200' : 'text-slate-300'}">{attachmentsEnabled ? 'Scan-gated' : 'Disabled'}</p>
+          <p className={`mt-2 text-lg font-semibold ${attachmentsEnabled ? 'text-amber-200' : 'text-slate-300'}`}>{attachmentsEnabled ? 'Scan-gated' : 'Disabled'}</p>
           <p className="mt-1 text-[11px] text-slate-500">Only clean scans can be shared</p>
         </article>
       </section>
