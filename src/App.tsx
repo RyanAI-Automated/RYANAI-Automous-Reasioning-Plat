@@ -183,7 +183,7 @@ export default function App() {
               : loading ? <p role="status" className="p-8 text-slate-300">Restoring your session…</p>
               : !user ? <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
               : <>
-                {route === 'dashboard' && <DashboardPage />}
+                {route === 'dashboard' && <DashboardPage isOwner={isOwner} />}
                 {route === 'quant' && <QuantLabPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
