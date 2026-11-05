@@ -32,7 +32,7 @@ Ed25519 custody attestations, signed provenance pins, deterministic scoring cont
 repeatability inputs, ZAR arithmetic, and the current Gen-X policy function.
 Signed custody assertions still require an independent runtime ACL probe. The
 checks do not prove provider-side revision claims, actual model performance,
-durable audit persistence, or production runner isolation.
+production approval-service authentication, transactional audit persistence, or production runner isolation.
 
 A structurally valid evidence bundle with BLOCKED gates remains blocked.
 Do not commit provider outputs, secrets, held-out data, private datasets, or
