@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0.0",
+  "profile": "A-strict-offline-local-only",
+  "modelInvocation": false,
+  "container": {
+    "networkMode": "none",
+    "readOnlyRootFilesystem": true,
+    "dropAllCapabilities": true,
+    "noNewPrivileges": true,
+    "nonRootUid": 10001,
+    "memoryLimitMb": 256,
+    "cpuLimit": 1,
+    "pidsLimit": 64,
+    "repositoryMount": "read-only",
+    "dockerSocketMounted": false,
+    "providerCredentialsPassed": false
+  },
+  "requiredChecks": [
+    "ipv4-loopback-fixture",
+    "ipv6-loopback-fixture",
+    "public-ip-egress-denied",
+    "private-lan-egress-denied",
+    "public-dns-denied",
+    "docker-host-alias-denied",
+    "policy-endpoint-allowlist",
+    "credential-environment-absent"
+  ],
+  "successMeaning": "HARNESS_PASS_ONLY_NOT_GATE_PASS",
+  "doesNotProve": [
+    "production-runner-isolation",
+    "ollama-runtime-isolation",
+    "model-identity-or-revision",
+    "held-out-dataset-integrity",
+    "six-gate-readiness"
+  ],
+  "failClosed": true
+}
