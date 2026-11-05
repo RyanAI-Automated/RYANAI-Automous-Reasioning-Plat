@@ -56,7 +56,7 @@ describe('safe database diagnostics', () => {
 
   it.each([
     ['28P01', 'Password authentication failed'],
-    ['ENOTFOUND', 'hostname could not be resolved'],
+    ['ENOTFOUND', 'Supavisor tenant lookup failed'],
     ['3D000', 'database does not exist'],
     ['ETIMEDOUT', 'Connection timed out'],
   ])('provides actionable guidance for %s', (code, hint) => {
@@ -80,6 +80,29 @@ describe('safe database diagnostics', () => {
       expect(result).not.toContain('secret');
     },
   );
+
+  it('reports TLS certificate hostname failures without exposing connection details', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('private hostname details', {
+        cause: { code: 'ERR_TLS_CERT_ALTNAME_INVALID' },
+      }),
+    );
+    expect(result).toContain('TLS certificate hostname validation failed');
+    expect(result).toContain('Supabase Connect');
+    expect(result).not.toContain('private hostname');
+  });
+
+  it('preserves unknown safe driver codes without logging raw messages', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('postgresql://user:private-password@host/db', {
+        cause: { code: 'SASL_AUTHENTICATION_FAILED' },
+      }),
+    );
+    expect(result).toContain('SASL_AUTHENTICATION_FAILED');
+    expect(result).toContain('project-qualified username');
+    expect(result).not.toContain('private-password');
+    expect(result).not.toContain('postgresql://');
+  });
 
   it('terminates when causes form a cycle', () => {
     const error: { cause?: unknown } = {};
