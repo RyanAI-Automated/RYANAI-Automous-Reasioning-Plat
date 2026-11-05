@@ -305,6 +305,33 @@ async function processAgentRun(
         eventType: cancelled ? 'execution.cancelled' : retry ? 'execution.retry_scheduled' : 'execution.failed',
         payload: { attempt: run.attempts, message, nextAttemptAt: retry ? nextAttemptAt.toISOString() : null },
       });
+      if (!retry) {
+        const scope = run.execution_scope && typeof run.execution_scope === 'object' ? run.execution_scope as Record<string, unknown> : {};
+        const paDelegationId = typeof scope.paDelegationId === 'string' ? scope.paDelegationId : null;
+        if (paDelegationId) {
+          const delegation = await tx.paDelegation.findUnique({ where: { id: paDelegationId }, select: { id: true, traceId: true } });
+          if (delegation) {
+            await tx.paExecutionReceipt.upsert({
+              where: { delegationId: delegation.id },
+              create: {
+                delegationId: delegation.id,
+                agentRunId: run.id,
+                traceId: delegation.traceId,
+                attempt: run.attempts,
+                status: cancelled ? 'cancelled' : 'failed',
+                error: message,
+              },
+              update: {
+                agentRunId: run.id,
+                traceId: delegation.traceId,
+                attempt: run.attempts,
+                status: cancelled ? 'cancelled' : 'failed',
+                error: message,
+              },
+            });
+          }
+        }
+      }
     });
     console.error('[agent-worker] Run ' + run.id + (cancelled ? ' cancelled' : retry ? ' scheduled for retry' : ' failed permanently') + ': ' + message);
   } finally {
