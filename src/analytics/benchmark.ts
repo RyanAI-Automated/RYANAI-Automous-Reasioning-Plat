@@ -1,94 +1,120 @@
-// src/analytics/benchmark.ts
-import { db } from '../database/db';
-import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains';
-import { HumanMessage } from '@langchain/core/messages';
+import { createHash } from 'node:crypto';
 
-export interface BenchmarkResult {
-  brainName: string;
-  latencyMs: number;
-  tokenCountEstimate: number;
-  tokensPerSecond: number;
-  success: boolean;
-  error?: string;
+/**
+ * Evidence contract for an isolated model evaluation.
+ *
+ * This module deliberately has no provider, network, database, or runtime
+ * imports. It validates evidence produced elsewhere; it never invokes a model.
+ * A separately reviewed runner must enforce the six readiness gates before
+ * producing observations for this contract.
+ */
+export interface BenchmarkCase {
+  caseId: string;
+  input: string;
+  expected: string;
+  slice: string;
 }
 
-export class RyanAIBenchmarkEngine {
-  /**
-   * Run a telemetry benchmark across all three configured brain nodes.
-   * Return latency in milliseconds and throughput estimated at four characters per
-   * token. Model failures become failed results; database archival is attempted,
-   * but persistence failures do not prevent returning the results.
-   */
-  static async runClusterBenchmark(testPrompt = "Evaluate the efficiency of eBPF packet filtering over standard socket routing."): Promise<BenchmarkResult[]> {
-    console.log("[Benchmark] Initiating cluster performance analysis...");
-    
-    const brains = [
-      { name: "nvidia-primary", model: primaryBrain },
-      { name: "qwen-secondary", model: secondaryBrain },
-      { name: "lmstudio-logic", model: logicBrain }
-    ];
+export interface BenchmarkObservation {
+  caseId: string;
+  output: string;
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+}
 
-    const results: BenchmarkResult[] = [];
+export interface ModelBenchmarkEvidence {
+  modelId: string;
+  provider: string;
+  revision: string;
+  datasetId: string;
+  datasetSha256: string;
+  runnerRevision: string;
+  observations: BenchmarkObservation[];
+}
 
-    for (const b of brains) {
-      const startTime = performance.now();
-      let success = true;
-      let errorMsg: string | undefined;
-      let responseContent = "";
+export interface EvidenceValidation {
+  valid: boolean;
+  errors: string[];
+  datasetSha256: string;
+  expectedCaseCount: number;
+  observedCaseCount: number;
+}
 
-      try {
-        const response = await b.model.invoke([new HumanMessage(testPrompt)]);
-        responseContent = response.content.toString();
-      } catch (err: unknown) {
-        success = false;
-        errorMsg = (err instanceof Error ? err.message : String(err));
-      }
+function canonicalDataset(cases: BenchmarkCase[]): string {
+  return JSON.stringify(
+    [...cases]
+      .map(({ caseId, input, expected, slice }) => ({ caseId, input, expected, slice }))
+      .sort((a, b) => a.caseId.localeCompare(b.caseId)),
+  );
+}
 
-      const endTime = performance.now();
-      const latencyMs = parseFloat((endTime - startTime).toFixed(2));
-      
-      // Rough token estimation (approx. 4 chars per token)
-      const tokenCountEstimate = Math.ceil(responseContent.length / 4);
-      const tokensPerSecond = latencyMs > 0 ? parseFloat(((tokenCountEstimate / latencyMs) * 1000).toFixed(2)) : 0;
+export function hashBenchmarkDataset(cases: BenchmarkCase[]): string {
+  return createHash('sha256').update(canonicalDataset(cases), 'utf8').digest('hex');
+}
 
-      results.push({
-        brainName: b.name,
-        latencyMs,
-        tokenCountEstimate,
-        tokensPerSecond,
-        success,
-        error: errorMsg
-      });
+/**
+ * Validate evidence integrity and completeness only. A valid report is not a
+ * quality pass, provider-health assertion, or authorization to activate a model.
+ */
+export function validateBenchmarkEvidence(
+  dataset: BenchmarkCase[],
+  evidence: ModelBenchmarkEvidence,
+): EvidenceValidation {
+  const errors: string[] = [];
+  const expectedHash = hashBenchmarkDataset(dataset);
+  const caseIds = new Set<string>();
 
-      console.log(`[Benchmark] ${b.name} -> Latency: ${latencyMs}ms | Speed: ${tokensPerSecond} tok/s | Status: ${success ? 'PASS' : 'FAIL'}`);
+  if (!Array.isArray(dataset) || dataset.length === 0) {
+    errors.push('Benchmark dataset must contain at least one case.');
+  }
+  for (const item of dataset) {
+    if (!item.caseId?.trim() || !item.input?.trim() || !item.expected?.trim() || !item.slice?.trim()) {
+      errors.push('Every dataset case requires caseId, input, expected, and slice.');
+      break;
     }
-
-    // Persist benchmark metrics to PostgreSQL
-    await this.saveBenchmarkMetrics(results);
-
-    return results;
+    if (caseIds.has(item.caseId)) errors.push(`Duplicate dataset case id: ${item.caseId}`);
+    caseIds.add(item.caseId);
   }
 
-  private static async saveBenchmarkMetrics(results: BenchmarkResult[]) {
-    try {
-      for (const res of results) {
-        await db.agentMemory.create({
-          data: {
-            sessionId: "benchmark-telemetry-run",
-            brainSource: `benchmark_${res.brainName}`,
-            content: JSON.stringify(res),
-            metadata: {
-              latencyMs: res.latencyMs,
-              tokensPerSecond: res.tokensPerSecond,
-              success: res.success,
-              timestamp: Date.now()
-            }
-          }
-        });
-      }
-      console.log("[Benchmark] Performance metrics successfully archived to PostgreSQL.");
-    } catch (error) {
-      console.error("[Benchmark Error] Failed to persist telemetry metrics:", error);
+  if (!evidence.modelId?.trim()) errors.push('Exact model id is required.');
+  if (!evidence.provider?.trim()) errors.push('Provider identity is required.');
+  if (!evidence.revision?.trim()) errors.push('Exact model revision is required.');
+  if (!evidence.datasetId?.trim()) errors.push('Dataset id/version is required.');
+  if (!evidence.runnerRevision?.trim()) errors.push('Exact runner revision is required.');
+  if (evidence.datasetSha256 !== expectedHash) errors.push('Dataset SHA-256 does not match the supplied held-out dataset.');
+
+  const observations = Array.isArray(evidence.observations) ? evidence.observations : [];
+  const observedIds = new Set<string>();
+  for (const observation of observations) {
+    if (!observation.caseId?.trim()) {
+      errors.push('Every observation requires a case id.');
+      continue;
+    }
+    if (observedIds.has(observation.caseId)) errors.push(`Duplicate observation case id: ${observation.caseId}`);
+    observedIds.add(observation.caseId);
+    if (!caseIds.has(observation.caseId)) errors.push(`Unknown observation case id: ${observation.caseId}`);
+    if (!observation.output?.trim()) errors.push(`Empty output for case: ${observation.caseId}`);
+    if (!Number.isFinite(observation.latencyMs) || observation.latencyMs < 0) {
+      errors.push(`Invalid latency for case: ${observation.caseId}`);
+    }
+    if (!Number.isInteger(observation.inputTokens) || observation.inputTokens < 0) {
+      errors.push(`Invalid input token count for case: ${observation.caseId}`);
+    }
+    if (!Number.isInteger(observation.outputTokens) || observation.outputTokens < 0) {
+      errors.push(`Invalid output token count for case: ${observation.caseId}`);
     }
   }
+
+  for (const caseId of caseIds) {
+    if (!observedIds.has(caseId)) errors.push(`Missing observation for case: ${caseId}`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    datasetSha256: expectedHash,
+    expectedCaseCount: caseIds.size,
+    observedCaseCount: observedIds.size,
+  };
 }
