@@ -107,3 +107,27 @@ test('evidence writer rejects malformed probe output without corrupting report J
     await rm(result.temp, { recursive: true, force: true });
   }
 });
+
+test('evidence writer rejects missing and duplicate required probe records', async () => {
+  const parsed = JSON.parse(fixtureProbe());
+  parsed.checks = parsed.checks.slice(1);
+  const missing = await runEvidence({ probeText: JSON.stringify(parsed) });
+  try {
+    assert.equal(missing.run.status, 1);
+    const report = JSON.parse(missing.run.stdout);
+    assert.ok(report.failureReasons.some(reason => reason.includes('Required probe checks are missing')));
+  } finally {
+    await rm(missing.temp, { recursive: true, force: true });
+  }
+
+  const duplicate = JSON.parse(fixtureProbe());
+  duplicate.checks.push({ ...duplicate.checks[0] });
+  const duplicated = await runEvidence({ probeText: JSON.stringify(duplicate) });
+  try {
+    assert.equal(duplicated.run.status, 1);
+    const report = JSON.parse(duplicated.run.stdout);
+    assert.ok(report.failureReasons.some(reason => reason.includes('duplicate check names')));
+  } finally {
+    await rm(duplicated.temp, { recursive: true, force: true });
+  }
+});

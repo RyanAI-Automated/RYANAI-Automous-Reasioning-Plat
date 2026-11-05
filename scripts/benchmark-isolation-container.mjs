@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { Resolver, lookup } from 'node:dns/promises';
 import { readdir, readFile } from 'node:fs/promises';
 import net from 'node:net';
+import { isAllowedInferenceEndpoint } from './benchmark-endpoint-policy.mjs';
 
 const policy = JSON.parse(await readFile('./local-isolation-policy.json', 'utf8'));
 assert.equal(policy.modelInvocation, false, 'isolation harness must never invoke a model');
@@ -217,19 +218,7 @@ try {
         ['http', '127.0.0.1', 11434],
         ['http', '::1', 11434]
       ]);
-      const endpointAllowed = endpoint => {
-        try {
-          const url = new URL(endpoint);
-          const hostname = url.hostname.replace(/^\\[|\\]$/g, '').toLowerCase();
-          return url.protocol === 'http:' &&
-            (hostname === '127.0.0.1' || hostname === '::1') &&
-            url.port === '11434' &&
-            ['', '/', '/v1', '/v1/'].includes(url.pathname) &&
-            !url.username && !url.password && !url.search && !url.hash;
-        } catch {
-          return false;
-        }
-      };
+      const endpointAllowed = endpoint => isAllowedInferenceEndpoint(endpoint, allowed);
       const allowedEndpoints = ['http://127.0.0.1:11434/', 'http://[::1]:11434/v1'];
       const rejectedEndpoints = [
         'https://127.0.0.1:11434/',
