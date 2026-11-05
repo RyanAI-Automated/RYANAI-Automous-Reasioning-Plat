@@ -14,10 +14,16 @@ describe('durable queue trace context privacy contract', () => {
     });
   });
 
-  it('rejects malformed identifiers and oversized state', () => {
+  it('rejects malformed or all-zero identifiers and oversized state', () => {
     expect(normalizePersistedTraceContext({
       traceparent: 'not-a-trace-id',
       tracestate: 'x'.repeat(513),
+    })).toBeNull();
+    expect(normalizePersistedTraceContext({
+      traceparent: '00-00000000000000000000000000000000-00f067aa0ba902b7-01',
+    })).toBeNull();
+    expect(normalizePersistedTraceContext({
+      traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01',
     })).toBeNull();
   });
 
