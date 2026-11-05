@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Calculator as CalculatorIcon, Delete, RotateCcw } from 'lucide-react';
+import { Calculator as CalculatorIcon } from 'lucide-react';
 import { evaluateCalculatorExpression, formatCalculatorResult, CalculatorInputError } from '@/utils/calculator';
 
 type KeyAction = 'clear' | 'backspace' | 'digit' | 'decimal' | 'operator' | 'equals';
