@@ -19,8 +19,8 @@ assert.deepEqual(
 );
 const suspiciousValues = Object.entries(process.env)
   .filter(([name, value]) => !/(PATH|VERSION|HOME|NODE_OPTIONS|PWD|HOSTNAME)/i.test(name) &&
-    (/(?:Bearer\\s+[A-Za-z0-9._~+/-]{12,}|sk-[A-Za-z0-9]{16,})/i.test(value ?? '') ||
-     /(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["']?\\s*[:=]\\s*["']?[A-Za-z0-9._~+/-]{12,}/i.test(value ?? '')))
+    (/(?:Bearer\s+[A-Za-z0-9._~+/-]{12,}|sk-[A-Za-z0-9]{16,})/i.test(value ?? '') ||
+     /(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["']?\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{12,}/i.test(value ?? '')))
   .map(([name]) => name);
 const allowedContainerEnvNames = new Set([
   'PATH', 'HOME', 'HOSTNAME', 'NODE_VERSION', 'YARN_VERSION', 'PWD', 'TERM'
@@ -32,9 +32,24 @@ assert.deepEqual(unexpectedEnvNames, [], 'container environment contains a varia
 assert.deepEqual(suspiciousValues, [], 'credential-shaped values must not enter the container');
 
 const checks = [];
-const record = (name, command, detail, observedCode = null) => checks.push({
-  name, status: 'PASS', command, exitCode: 0, observedCode, detail
-});
+let failedChecks = 0;
+const runCheck = async (name, command, operation) => {
+  try {
+    const result = await operation();
+    checks.push({
+      name, status: 'PASS', command, exitCode: 0,
+      observedCode: result?.observedCode ?? null,
+      detail: result?.detail ?? 'check completed'
+    });
+  } catch (error) {
+    failedChecks += 1;
+    checks.push({
+      name, status: 'FAIL', command, exitCode: 1,
+      observedCode: error?.code ?? error?.name ?? 'UNKNOWN',
+      failureReason: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
 
 async function startFixture(host) {
   const server = createServer((request, response) => {
@@ -121,78 +136,143 @@ async function expectHostAliasUnavailable(hostname) {
   }
 }
 
-const interfaces = (await readdir('/sys/class/net')).sort();
-assert.deepEqual(interfaces, ['lo'], 'network=none container must expose only loopback');
-record('only-loopback-network-interface', 'readdir /sys/class/net', 'network namespace exposes only the loopback interface', 'lo');
-
-const ipv4 = await startFixture('127.0.0.1');
+let interfaces = [];
+let ipv4;
 let ipv6;
 try {
-  const response4 = await requestLoopback('127.0.0.1');
-  assert.match(response4, /200 OK/);
-  record('ipv4-loopback-fixture', 'TCP + HTTP GET 127.0.0.1:11434', 'fixture returned HTTP 200 inside the isolated namespace', 'HTTP_200');
-
-  ipv6 = await startFixture('::1');
-  const response6 = await requestLoopback('::1');
-  assert.match(response6, /200 OK/);
-  record('ipv6-loopback-fixture', 'TCP + HTTP GET [::1]:11434', 'fixture returned HTTP 200 inside the isolated namespace', 'HTTP_200');
-
-  const publicCode = await expectTcpBlocked('1.1.1.1', 443);
-  record('public-ip-egress-denied', 'TCP connect 1.1.1.1:443', `direct public-IP connection denied by the network boundary (${publicCode})`, publicCode);
-
-  const privateCode = await expectTcpBlocked('10.0.0.1', 11434);
-  record('private-lan-egress-denied', 'TCP connect 10.0.0.1:11434', `private-LAN connection denied by the network boundary (${privateCode})`, privateCode);
-
-  const dnsCode = await expectPublicDnsBlocked('example.com');
-  record('public-dns-denied', 'DNS A query example.com via 1.1.1.1:53', `direct public DNS query denied (${dnsCode})`, dnsCode);
-
-  const aliasCode = await expectHostAliasUnavailable('host.docker.internal');
-  record('docker-host-alias-denied', 'system DNS lookup host.docker.internal', `Docker host alias is unavailable (${aliasCode})`, aliasCode);
-
-  const allowed = policy.allowedInferenceEndpoints;
-  assert.deepEqual(allowed.map(item => [item.protocol, item.host, item.port]), [
-    ['http', '127.0.0.1', 11434],
-    ['http', '::1', 11434]
-  ]);
-  const endpointAllowed = endpoint => {
-    try {
-      const url = new URL(endpoint);
-      const hostname = url.hostname.replace(/^\\[|\\]$/g, '').toLowerCase();
-      return url.protocol === 'http:' &&
-        (hostname === '127.0.0.1' || hostname === '::1') &&
-        url.port === '11434' &&
-        ['', '/', '/v1', '/v1/'].includes(url.pathname) &&
-        !url.username && !url.password && !url.search && !url.hash;
-    } catch {
-      return false;
+  await runCheck(
+    'only-loopback-network-interface',
+    'readdir /sys/class/net',
+    async () => {
+      interfaces = (await readdir('/sys/class/net')).sort();
+      assert.deepEqual(interfaces, ['lo'], 'network=none container must expose only loopback');
+      return { observedCode: interfaces.join(','), detail: 'network namespace exposes only the loopback interface' };
     }
-  };
-  const allowedEndpoints = ['http://127.0.0.1:11434/', 'http://[::1]:11434/v1'];
-  const rejectedEndpoints = [
-    'https://127.0.0.1:11434/',
-    'http://localhost:11434/',
-    'http://host.docker.internal:11434/',
-    'http://ollama:11434/',
-    'http://192.168.1.10:11434/',
-    'http://127.0.0.1:11435/',
-    'http://127.0.0.1:11434/v1/models',
-    'http://user:pass@127.0.0.1:11434/',
-    'http://127.0.0.1:11434/?token=not-allowed',
-    'http://127.0.0.1:11434/#not-allowed'
-  ];
-  for (const endpoint of allowedEndpoints) assert.equal(endpointAllowed(endpoint), true, `expected endpoint to be allowed: ${endpoint}`);
-  for (const endpoint of rejectedEndpoints) assert.equal(endpointAllowed(endpoint), false, `expected endpoint to be rejected: ${endpoint}`);
-  record(
-    'policy-endpoint-allowlist',
-    'URL allow/deny fixtures: 2 allowed and 10 rejected',
-    'only the two explicit HTTP loopback endpoints on port 11434 are accepted',
-    '2_ALLOWED_10_REJECTED'
   );
 
-  assert.deepEqual(forbiddenEnv, []);
-  assert.deepEqual(suspiciousValues, []);
-  record('credential-environment-absent', 'inspect process.env names and credential-shaped values', 'only explicit Node image runtime variables are present; no credential-like values detected', 'ENV_ALLOWLIST_MATCH');
+  await runCheck(
+    'ipv4-loopback-fixture',
+    'start fixture on 127.0.0.1:11434; TCP + HTTP GET 127.0.0.1:11434',
+    async () => {
+      ipv4 = await startFixture('127.0.0.1');
+      const response = await requestLoopback('127.0.0.1');
+      assert.match(response, /200 OK/);
+      return { observedCode: 'HTTP_200', detail: 'IPv4 loopback fixture returned HTTP 200' };
+    }
+  );
 
+  await runCheck(
+    'ipv6-loopback-fixture',
+    'start fixture on [::1]:11434; TCP + HTTP GET [::1]:11434',
+    async () => {
+      ipv6 = await startFixture('::1');
+      const response = await requestLoopback('::1');
+      assert.match(response, /200 OK/);
+      return { observedCode: 'HTTP_200', detail: 'IPv6 loopback fixture returned HTTP 200' };
+    }
+  );
+
+  await runCheck(
+    'public-ip-egress-denied',
+    'TCP connect 1.1.1.1:443',
+    async () => {
+      const code = await expectTcpBlocked('1.1.1.1', 443);
+      return { observedCode: code, detail: 'direct public-IP connection denied by the network boundary' };
+    }
+  );
+
+  await runCheck(
+    'private-lan-egress-denied',
+    'TCP connect 10.0.0.1:11434',
+    async () => {
+      const code = await expectTcpBlocked('10.0.0.1', 11434);
+      return { observedCode: code, detail: 'private-LAN connection denied by the network boundary' };
+    }
+  );
+
+  await runCheck(
+    'public-dns-denied',
+    'DNS A query example.com via 1.1.1.1:53',
+    async () => {
+      const code = await expectPublicDnsBlocked('example.com');
+      return { observedCode: code, detail: 'direct public DNS query denied' };
+    }
+  );
+
+  await runCheck(
+    'docker-host-alias-denied',
+    'system DNS lookup host.docker.internal',
+    async () => {
+      const code = await expectHostAliasUnavailable('host.docker.internal');
+      return { observedCode: code, detail: 'Docker host alias is unavailable' };
+    }
+  );
+
+  await runCheck(
+    'policy-endpoint-allowlist',
+    'URL allow/deny fixtures: two permitted loopback endpoints and ten rejected variants',
+    async () => {
+      const allowed = policy.allowedInferenceEndpoints;
+      assert.deepEqual(allowed.map(item => [item.protocol, item.host, item.port]), [
+        ['http', '127.0.0.1', 11434],
+        ['http', '::1', 11434]
+      ]);
+      const endpointAllowed = endpoint => {
+        try {
+          const url = new URL(endpoint);
+          const hostname = url.hostname.replace(/^\\[|\\]$/g, '').toLowerCase();
+          return url.protocol === 'http:' &&
+            (hostname === '127.0.0.1' || hostname === '::1') &&
+            url.port === '11434' &&
+            ['', '/', '/v1', '/v1/'].includes(url.pathname) &&
+            !url.username && !url.password && !url.search && !url.hash;
+        } catch {
+          return false;
+        }
+      };
+      const allowedEndpoints = ['http://127.0.0.1:11434/', 'http://[::1]:11434/v1'];
+      const rejectedEndpoints = [
+        'https://127.0.0.1:11434/',
+        'http://localhost:11434/',
+        'http://host.docker.internal:11434/',
+        'http://ollama:11434/',
+        'http://192.168.1.10:11434/',
+        'http://127.0.0.1:11435/',
+        'http://127.0.0.1:11434/v1/models',
+        'http://user:pass@127.0.0.1:11434/',
+        'http://127.0.0.1:11434/?token=not-allowed',
+        'http://127.0.0.1:11434/#not-allowed'
+      ];
+      for (const endpoint of allowedEndpoints) {
+        assert.equal(endpointAllowed(endpoint), true, `expected endpoint to be allowed: ${endpoint}`);
+      }
+      for (const endpoint of rejectedEndpoints) {
+        assert.equal(endpointAllowed(endpoint), false, `expected endpoint to be rejected: ${endpoint}`);
+      }
+      return {
+        observedCode: '2_ALLOWED_10_REJECTED',
+        detail: 'only two explicit HTTP loopback endpoint forms were accepted; ten invalid variants were rejected'
+      };
+    }
+  );
+
+  await runCheck(
+    'credential-environment-absent',
+    'inspect process.env variable names and credential-shaped values; do not emit values',
+    async () => {
+      assert.deepEqual(forbiddenEnv, []);
+      assert.deepEqual(unexpectedEnvNames, []);
+      assert.deepEqual(suspiciousValues, []);
+      return {
+        observedCode: 'ENV_ALLOWLIST_MATCH',
+        detail: 'only explicit Node image runtime variables are present; no credential-like values detected'
+      };
+    }
+  );
+
+  const probeVerdict = failedChecks === 0
+    ? 'HARNESS_PASS_ONLY_NOT_GATE_PASS'
+    : 'HARNESS_FAIL';
   console.log(JSON.stringify({
     schemaVersion: '1.0.0',
     evidenceType: 'isolated-container-network-boundary-test',
@@ -205,10 +285,12 @@ try {
     allowedEnvironmentVariableNames: [...allowedContainerEnvNames].sort(),
     containerImageDigest: process.argv[2] ?? 'unknown',
     checks,
-    verdict: 'HARNESS_PASS_ONLY_NOT_GATE_PASS',
+    failedChecks,
+    verdict: probeVerdict,
     note: 'Only the two allowlisted harness files are mounted. This proves the disposable test container boundary only; it does not certify a production runner or Ollama deployment.'
   }, null, 2));
+  if (failedChecks > 0) process.exitCode = 1;
 } finally {
-  await new Promise(resolve => ipv4.close(resolve));
+  if (ipv4) await new Promise(resolve => ipv4.close(resolve));
   if (ipv6) await new Promise(resolve => ipv6.close(resolve));
 }
