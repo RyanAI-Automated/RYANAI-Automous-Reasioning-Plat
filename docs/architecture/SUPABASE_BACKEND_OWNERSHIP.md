@@ -63,7 +63,7 @@ The repository's Data API grant migration also grants authenticated CRUD privile
 8. Verify that reasoning and agent memory retrieval continue to see the same records.
 9. Only then deprecate/remove the matching Fastify routes and their tests.
 
-**Implementation note:** This baseline PR records the ownership and acceptance contract. It deliberately does not remove the existing Memory Vault API or alter database policies before the behavior-preserving direct-Data-API implementation and its tests are ready.
+**Implementation status:** Memory Vault's React UI now uses a dedicated Supabase Data API adapter for list/search/create/update/delete. The existing Fastify routes and their tests remain in place as compatibility endpoints; they have not been retired. Client queries rely on the verified Supabase Auth identity and database RLS rather than trusting a client-supplied owner filter. Unit tests cover query construction, search escaping, account identity matching, ordering and cursor behavior. A transaction-scoped two-user pgTAP suite is added at `supabase/tests/memory_entries_rls.test.sql`; it must be executed with the repository's local Supabase test stack before claiming end-to-end RLS isolation. No hosted database policy or schema was changed.
 
 ## Direct PostgreSQL connection requirements
 
@@ -114,7 +114,9 @@ Before changing hosting responsibilities, inventory every actual deployment, ser
 ## Acceptance gates for the consolidation workstream
 
 - [ ] Complete route-to-module-to-table-to-auth-boundary inventory.
-- [ ] Memory Vault direct Supabase CRUD passes behavior and RLS isolation tests before old routes are removed.
+- [ ] Memory Vault UI uses the Supabase Data API adapter; unit tests cover validation, search-filter escaping, authenticated identity matching, stable ordering and cursor behavior.
+- [ ] Execute `supabase/tests/memory_entries_rls.test.sql` against the local Supabase test stack and retain the pgTAP output proving two-user RLS isolation.
+- [ ] Verify actual authenticated browser CRUD and reasoning-memory continuity; only then deprecate/remove the retained Fastify Memory Vault routes and their tests.
 - [ ] Conversation/profile CRUD ownership is documented and duplicate API handlers are removed only after caller proof.
 - [ ] Browser, mobile and API user identity consistently resolve through Supabase Auth.
 - [ ] LangGraph checkpoints and agent workers persist through Supabase PostgreSQL using a verified connection mode.
