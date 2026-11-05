@@ -50,6 +50,9 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
       },
     },
   }, async (request, reply) => {
+    const importIdPlaceholders = request.body.market_data_import_ids
+      .map((_, index) => `${index + 2}`)
+      .join(', ');
     const imports = await fastify.prisma.$queryRawUnsafe<Array<{
       id: string;
       symbol: string;
@@ -65,10 +68,10 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
       `SELECT id, symbol, provider, feed, timeframe, adjustment,
               last_bar_at, fetched_at, is_stale, bars
        FROM quant_market_data_imports
-       WHERE user_id = $1 AND id = ANY($2::text[])
+       WHERE user_id = $1 AND id IN (${importIdPlaceholders})
        ORDER BY symbol ASC`,
       request.authUser!.id,
-      request.body.market_data_import_ids,
+      ...request.body.market_data_import_ids,
     );
     if (imports.length !== request.body.market_data_import_ids.length) {
       return reply.code(404).send({ error: 'One or more market-data imports were not found for this account.' });
