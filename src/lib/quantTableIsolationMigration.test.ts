@@ -6,6 +6,11 @@ const migration = readFileSync(
   'utf8',
 );
 
+const privateRiskStateMigration = readFileSync(
+  new URL('../../prisma/migrations/20261105200000_quant_risk_state_private_access/migration.sql', import.meta.url),
+  'utf8',
+);
+
 const privateQuantTables = [
   'quant_experiments',
   'quant_paper_accounts',
@@ -40,5 +45,21 @@ describe('Quant account-data database isolation migration', () => {
   it('does not assume Supabase roles exist on local PostgreSQL targets', () => {
     expect(migration).toContain('FROM pg_roles WHERE rolname = browser_role');
     expect(migration).toContain('IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = \'service_role\')');
+  });
+});
+
+
+describe('Quant daily-risk-state database isolation migration', () => {
+  it('protects both account-owned daily and lifetime risk state tables', () => {
+    expect(privateRiskStateMigration).toContain("'quant_paper_daily_risk_state'");
+    expect(privateRiskStateMigration).toContain("'quant_paper_portfolio_risk_state'");
+  });
+
+  it('enables RLS, revokes browser access and grants only the server role conditionally', () => {
+    expect(privateRiskStateMigration).toContain('ENABLE ROW LEVEL SECURITY');
+    expect(privateRiskStateMigration).toContain('REVOKE ALL ON TABLE public.%I FROM PUBLIC');
+    expect(privateRiskStateMigration).toContain("ARRAY['anon', 'authenticated']");
+    expect(privateRiskStateMigration).toContain("rolname = 'service_role'");
+    expect(privateRiskStateMigration).toContain('GRANT ALL ON TABLE public.%I TO service_role');
   });
 });

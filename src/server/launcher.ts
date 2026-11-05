@@ -28,12 +28,14 @@ import { registerWebSocketRoutes } from '../api/websocket.js';
 import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
+import { githubIntegrationRoutes } from './routes/githubIntegration.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js';
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
 import { twilioWebhookPlugin } from './routes/twilioWebhook.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { quantRoutes } from './routes/quantRoutes.js';
+import { quantPaperSafetyRoutes } from './routes/quantPaperSafetyRoutes.js';
 import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
@@ -522,6 +524,7 @@ async function registerPlugins() {
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
   await fastify.register(authSigninRoute);
+  await fastify.register(githubIntegrationRoutes);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
   await fastify.register(engineeringEvidenceRoutes);
@@ -529,6 +532,7 @@ async function registerPlugins() {
   await fastify.register(twilioWebhookPlugin);
   await fastify.register(metricsRoutes);
   await fastify.register(quantRoutes);
+  await fastify.register(quantPaperSafetyRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(agentOperationsRoutes);
   await fastify.register(memoryRoutes);

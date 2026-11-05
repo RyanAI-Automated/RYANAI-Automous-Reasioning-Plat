@@ -19,7 +19,7 @@ export function readGitHubAppConfig(env: NodeJS.ProcessEnv = process.env): GitHu
   const encryptionRaw = env.GITHUB_TOKEN_ENCRYPTION_KEY?.trim();
 
   if (!clientId || !clientSecret || !callbackRaw || !returnRaw || !encryptionRaw) return null;
-  if (!/^[A-Za-z0-9]+$/.test(clientId) || !/^[0-9a-f]{64}$/i.test(encryptionRaw)) return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(clientId) || !/^[0-9a-f]{64}$/i.test(encryptionRaw)) return null;
 
   try {
     const callback = new URL(callbackRaw);
@@ -93,7 +93,6 @@ export function buildGitHubAuthorizationUrl(
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('scope', 'offline_access');
   url.searchParams.set('allow_signup', 'false');
-  url.searchParams.set('prompt', 'select_account');
   return url.toString();
 }
 
