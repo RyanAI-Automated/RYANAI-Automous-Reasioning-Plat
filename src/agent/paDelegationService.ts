@@ -41,6 +41,7 @@ export async function verifyPAHandshake(token: string) {
 
 export async function createPADelegation(input: {
   ownerUserId: string;
+  delegationId?: string;
   objective: string;
   capabilities: PADelegationCapability[];
   traceId?: string;
@@ -54,7 +55,7 @@ export async function createPADelegation(input: {
   return prisma.$transaction(async (tx) => {
     const delegation = await tx.paDelegation.create({
       data: {
-        id: randomUUID(),
+        id: input.delegationId || randomUUID(),
         ownerUserId: input.ownerUserId,
         objective: input.objective.trim(),
         requestedCapabilities: input.capabilities,
@@ -107,6 +108,29 @@ export async function createJarvisIdentityProof(ownerUserId: string, delegationI
     expiresAt: now + 60,
     capabilities: [...PA_DELEGATION_CAPABILITIES],
   }, requirePAIdentitySecret());
+}
+
+export async function persistPAExecutionReceipt(input: { delegationId: string; agentRunId: string; traceId: string; attempt: number; status: string; result?: unknown; error?: string }) {
+  return prisma.paExecutionReceipt.upsert({
+    where: { delegationId: input.delegationId },
+    create: {
+      delegationId: input.delegationId,
+      agentRunId: input.agentRunId,
+      traceId: input.traceId,
+      attempt: input.attempt,
+      status: input.status,
+      result: input.result as object | undefined,
+      error: input.error,
+    },
+    update: {
+      agentRunId: input.agentRunId,
+      traceId: input.traceId,
+      attempt: input.attempt,
+      status: input.status,
+      result: input.result as object | undefined,
+      error: input.error,
+    },
+  });
 }
 
 export async function getPADelegation(ownerUserId: string, delegationId: string) {
