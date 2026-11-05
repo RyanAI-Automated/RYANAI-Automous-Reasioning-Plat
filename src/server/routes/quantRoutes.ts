@@ -7,6 +7,7 @@ import { prisma } from '../../lib/prisma.js';
 import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
 import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
 import { assessPaperOrderRisk } from '../quant/paperRisk.js';
+import { analyzeQuantCore, assessRiskGuardian } from '../quant/quantCore.js';
 import { quantPaperProposalRoutes } from './quantPaperProposalRoutes.js';
 
 type Bar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
@@ -315,6 +316,104 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       executionEnabled: false,
       message: 'Signal saved for research. No paper order was created.',
     });
+  });
+
+  fastify.post<{ Body: { importId: string; targetOrderNotional?: number } }>('/api/quant/core/analyze', {
+    schema: {
+      body: {
+        type: 'object', additionalProperties: false,
+        required: ['importId'],
+        properties: {
+          importId: { type: 'string', minLength: 1, maxLength: 64 },
+          targetOrderNotional: { type: 'number', minimum: 0, maximum: 10000 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const userId = request.authUser!.id;
+    const imports = await prisma.$queryRawUnsafe<Array<{
+      id: string; symbol: string; last_bar_at: Date | string; is_stale: boolean;
+      bars: Array<{ date: string; open: number; high: number; low: number; close: number; volume?: number }>;
+      provenance: Record<string, unknown>;
+    }>>(
+      'SELECT id, symbol, last_bar_at, is_stale, bars, provenance FROM quant_market_data_imports WHERE id = $1 AND user_id = $2 LIMIT 1',
+      request.body.importId, userId,
+    );
+    const imported = imports[0];
+    if (!imported) return reply.code(404).send({ error: 'Market-data import not found for this account.' });
+    const lastBarAt = new Date(imported.last_bar_at).getTime();
+    if (imported.is_stale || !Number.isFinite(lastBarAt) || Date.now() - lastBarAt > 5 * 24 * 60 * 60 * 1000) {
+      return reply.code(409).send({ error: 'Market-data import is stale. Refresh it before running QuantCore analysis.' });
+    }
+    if (!Array.isArray(imported.bars) || imported.bars.length < 35) {
+      return reply.code(422).send({ error: 'QuantCore requires at least 35 completed bars.' });
+    }
+
+    const [accountRows, positionRows, riskRows] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
+        'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1 LIMIT 1', userId,
+      ),
+      prisma.$queryRawUnsafe<Array<{ symbol: string; market_value: string }>>(
+        'SELECT symbol, (quantity * last_price)::text AS market_value FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0',
+        userId,
+      ),
+      prisma.$queryRawUnsafe<Array<{
+        max_order_notional: string; max_gross_exposure: string; trading_enabled: boolean; emergency_stop: boolean;
+      }>>(
+        'SELECT max_order_notional::text, max_gross_exposure::text, trading_enabled, emergency_stop FROM quant_paper_risk_policies WHERE user_id = $1 LIMIT 1',
+        userId,
+      ),
+    ]);
+
+    let analysis;
+    try {
+      analysis = analyzeQuantCore({
+        bars: imported.bars,
+        portfolio: {
+          cash: Number(accountRows[0]?.cash_balance ?? 0),
+          positions: positionRows.map((position) => ({ symbol: position.symbol, marketValue: Number(position.market_value) })),
+        },
+      });
+    } catch (error) {
+      return reply.code(422).send({ error: error instanceof Error ? error.message : 'QuantCore analysis failed.' });
+    }
+
+    const risk = riskRows[0];
+    const targetOrderNotional = request.body.targetOrderNotional ?? 0;
+    const riskDecision = risk
+      ? assessRiskGuardian({
+          equity: analysis.portfolio.equity,
+          currentGrossExposure: analysis.portfolio.grossExposure,
+          projectedOrderNotional: targetOrderNotional,
+          projectedDailyLoss: 0,
+          maxOrderNotional: Number(risk.max_order_notional),
+          maxGrossExposure: Number(risk.max_gross_exposure),
+          maxDailyLoss: Number.MAX_SAFE_INTEGER,
+          emergencyStop: risk.emergency_stop,
+          tradingEnabled: risk.trading_enabled,
+        })
+      : {
+          decision: 'block' as const,
+          reasons: ['paper risk policy is not configured'],
+          projectedGrossExposure: analysis.portfolio.grossExposure + targetOrderNotional,
+          projectedDailyLoss: 0,
+        };
+
+    return {
+      symbol: imported.symbol,
+      analysis,
+      riskDecision,
+      marketData: {
+        importId: imported.id,
+        provenance: imported.provenance,
+        lastBarAt: imported.last_bar_at,
+        mode: 'research_and_paper_only',
+      },
+      execution: {
+        liveBrokerEnabled: false,
+        paperExecutionRequiresExplicitConfirmation: true,
+      },
+    };
   });
 
   fastify.get('/api/quant/experiments', async (request) => {
