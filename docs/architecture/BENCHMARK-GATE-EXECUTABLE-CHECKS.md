@@ -9,8 +9,8 @@
 | 1. Isolation | Disposable Docker network namespace; loopback fixture and blocked public/private/DNS probes | Harness evidence only; actual runner deployment remains BLOCKED |
 | 2. Dataset | Development file SHA-256, task count, unique IDs, path/symlink checks, evaluator-key leakage checks, externally pinned trust roots, distinct Ed25519 signatures for custody, access audit and contamination review | Signed claims are verified; external ACL runtime enforcement still needs independent probing |
 | 3. Provenance | Harness commit, lockfile, prompt/config hashes, candidate revision pin and secret scan | Local hashes only; provider revision claims need confirmation |
-| 4. Scoring | Deterministic assertion completeness, safety override, scoring-oracle exclusion, blinded-review fields | Synthetic contract tests only; real reviewer calibration remains BLOCKED |
-| 5. Economics | Failure-inclusive task accounting, latency percentiles, repeatability inputs and measured ZAR formula | Synthetic arithmetic only; actual telemetry and tariff evidence remain BLOCKED |
+| 4. Scoring | Unique deterministic assertion IDs, one pinned evaluator version, expected/observed SHA-256 consistency, scoring-oracle exclusion, safety override, conflict-checked blinded-review metadata | Synthetic contract tests only; signed reviewer identity, calibration and real blinded review remain BLOCKED |
+| 5. Economics | Failure-inclusive accounting, meter calibration/raw hashes, sampling windows, idle baseline, tariff/amortization evidence, ZAR calculation and three-run repeatability | Supplied evidence metadata and arithmetic only; instrument authenticity and actual measurements remain BLOCKED |
 | 6. Gen-X | Tests call the current deterministic Gen-X policy for forged claims, injection, escalation and identity failures | Policy-function tests only; approval-service outage and durable audit integration remain BLOCKED |
 
 ## Commands
@@ -48,10 +48,14 @@ model.
   at runtime. An independent ACL probe and externally retained trust-root pin remain required.
 - A revision string and local hash do not prove a provider's immutable model
   snapshot; provider-side confirmation is still required.
-- Synthetic scoring fixtures do not replace blinded human review or reviewer
-  calibration.
-- ZAR calculations require measured energy, declared tariff and disclosed
-  amortisation assumptions. No estimate is reported as measured.
+- Deterministic scoring requires unique assertion IDs, a pinned evaluator version,
+  and matching expected/observed hashes. Structured review metadata does not
+  authenticate the reviewer; signed reviewer identity, blinded review and
+  calibration remain independently required.
+- ZAR calculations require meter start/end readings, idle baseline, calibration
+  and raw-meter evidence hashes, effective tariff evidence, hardware amortization
+  evidence, and failure-inclusive task denominators. Validated metadata does not
+  prove instrument authenticity; independent telemetry review remains required.
 - The current Gen-X policy is a synchronous application policy function.
   The tests do not prove durable audit storage or an external approval service
   is available and fail-closed during an outage.
