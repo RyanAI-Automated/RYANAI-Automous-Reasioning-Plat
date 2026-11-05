@@ -161,6 +161,12 @@ export async function createFsyncAuditStore(filePath) {
 }
 
 function approvalRequestFor(event, policy, requestId, now) {
+  const targetBytes = event.target === undefined || event.target === null
+    ? null
+    : Buffer.from(typeof event.target === 'string' ? event.target : canonicalJson(event.target));
+  const commandBytes = event.command === undefined || event.command === null
+    ? null
+    : Buffer.from(typeof event.command === 'string' ? event.command : canonicalJson(event.command));
   const requestPayload = {
     schemaVersion: '1.0.0',
     requestId,
@@ -168,8 +174,10 @@ function approvalRequestFor(event, policy, requestId, now) {
     agentId: event.agentId,
     toolName: event.toolName,
     action: event.action,
-    targetSha256: event.target ? sha256(Buffer.from(event.target)) : null,
-    commandPresent: event.command !== undefined,
+    environment: event.environment ?? null,
+    targetSha256: targetBytes ? sha256(targetBytes) : null,
+    commandPresent: commandBytes !== null,
+    commandSha256: commandBytes ? sha256(commandBytes) : null,
     policyRuleId: policy.ruleId,
     createdAt: new Date(now).toISOString()
   };
@@ -244,7 +252,10 @@ function sanitizedAuditRecord(event, policy, details) {
     action: event.action,
     environment: event.environment ?? null,
     targetSha256: event.target ? sha256(Buffer.from(event.target)) : null,
-    commandPresent: event.command !== undefined,
+    commandPresent: event.command !== undefined && event.command !== null,
+    commandSha256: event.command === undefined || event.command === null
+      ? null
+      : sha256(Buffer.from(typeof event.command === 'string' ? event.command : canonicalJson(event.command))),
     policyDecision: policy.decision,
     policyRuleId: policy.ruleId,
     approvalStatus: details.approvalStatus,

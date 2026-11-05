@@ -56,12 +56,18 @@ async function fixture(options = {}) {
   await mkdir(path.dirname(journalPath));
   const keyPair = generateKeyPairSync('ed25519');
   const auditStore = await createFsyncAuditStore(journalPath);
-  const approvalService = makeService(keyPair, options);
+  const approvalRequests = [];
+  const respond = makeService(keyPair, options);
+  const approvalService = async request => {
+    approvalRequests.push(request);
+    return respond(request);
+  };
   return {
     temp,
     journalPath,
     keyPair,
     auditStore,
+    approvalRequests,
     deps: {
       now: () => now,
       requestId: options.requestId ?? 'synthetic-request-0001',
@@ -102,6 +108,42 @@ test('authenticated approval is request-bound, one-time and durably audited befo
     assert.equal(typeof audit.targetSha256, 'string');
   } finally {
     await rm(f.temp, { recursive: true, force: true });
+  }
+});
+
+test('approval request signature binds exact command content and execution environment without logging raw command', async () => {
+  const first = await fixture({ requestId: 'synthetic-command-binding-request' });
+  const second = await fixture({ requestId: 'synthetic-command-binding-request' });
+  const firstCommand = 'write-config key=alpha';
+  const secondCommand = 'write-config key=beta';
+  try {
+    const firstResult = await evaluateGenXApprovalBoundary({
+      ...event, environment: 'staging', command: firstCommand
+    }, first.deps);
+    const secondResult = await evaluateGenXApprovalBoundary({
+      ...event, environment: 'production', command: secondCommand
+    }, second.deps);
+    assert.equal(firstResult.decision, 'ALLOW');
+    assert.equal(secondResult.decision, 'ALLOW');
+    const firstRequest = first.approvalRequests[0];
+    const secondRequest = second.approvalRequests[0];
+    assert.equal(firstRequest.commandSha256, hash(firstCommand));
+    assert.equal(secondRequest.commandSha256, hash(secondCommand));
+    assert.notEqual(firstRequest.commandSha256, secondRequest.commandSha256);
+    assert.equal(firstRequest.environment, 'staging');
+    assert.equal(secondRequest.environment, 'production');
+    assert.notEqual(firstRequest.requestSha256, secondRequest.requestSha256);
+    assert.equal(JSON.stringify(firstRequest).includes(firstCommand), false);
+    assert.equal(JSON.stringify(secondRequest).includes(secondCommand), false);
+    const firstJournal = await first.auditStore.verify();
+    const firstAudit = firstJournal.entries.find(item => item.type === 'authorization.audit');
+    assert.equal(firstAudit.commandPresent, true);
+    assert.equal(firstAudit.environment, 'staging');
+    assert.equal(firstAudit.commandSha256, hash(firstCommand));
+    assert.equal(JSON.stringify(firstAudit).includes(firstCommand), false, 'audit record must not retain raw command text');
+  } finally {
+    await rm(first.temp, { recursive: true, force: true });
+    await rm(second.temp, { recursive: true, force: true });
   }
 });
 
