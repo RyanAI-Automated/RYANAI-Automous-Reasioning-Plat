@@ -29,7 +29,6 @@ const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
 import { useAuth } from '@/hooks/useAuth';
 import { Analytics } from '@vercel/analytics/react';
-import RyanWelcome from '@/components/RyanWelcome';
 import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
@@ -79,9 +78,6 @@ export default function App() {
   const isOAuthConsentRoute = window.location.pathname.replace(/\/+$/, '') === '/oauth/consent';
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
-  const preferredTitle = typeof user?.user_metadata?.preferred_title === 'string'
-    ? user.user_metadata.preferred_title
-    : isAdmin ? 'Sir' : undefined;
   const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
@@ -192,13 +188,6 @@ export default function App() {
         tabIndex={-1}
         className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
       >
-        {user && (
-          <RyanWelcome
-            userId={user.id}
-            displayName={displayName || 'there'}
-            preferredTitle={preferredTitle}
-          />
-        )}
         {user && verifiedIdentity?.userId === user.id && <Greeting userId={user.id} displayName={verifiedIdentity.displayName || displayName} isOwner={isOwner} />}
         {error && (
           <p role="alert" className="p-4 text-rose-300">
