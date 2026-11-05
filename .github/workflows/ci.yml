@@ -450,3 +450,142 @@ jobs:
       - name: Stop isolated Supabase stack
         if: always() && steps.setup_supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
+
+  render-api-config-repair:
+    name: Repair Render API configuration (no deployment)
+    needs: [validate, subprojects, integration, issue-435-supabase]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      checks: read
+    env:
+      TARGET_SHA: ${{ github.sha }}
+    steps:
+      - name: Verify exact current main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid commit SHA"; exit 1; }
+          MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$TARGET_SHA" == "$MAIN_SHA" ]] || { echo "::error::Commit is no longer current main; no Render change made"; exit 1; }
+
+      - name: Require successful independent security checks for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          required=(
+            "Test agent API contracts"
+            "Dependency audit"
+            "Trivy filesystem scan"
+            "Analyze (javascript-typescript)"
+            "Analyze (python)"
+            "TruffleHog secret audit"
+            "Codacy Security Scan"
+            "Validate configuration files"
+          )
+          ready=false
+          for attempt in $(seq 1 40); do
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs?per_page=100" > checks-pages.json
+            jq -s '[.[].check_runs[]]' checks-pages.json > checks.json
+            missing=0
+            pending=0
+            failed=0
+            for name in "${required[@]}"; do
+              check="$(jq -c --arg n "$name" '[.[] | select(.name == $n)] | sort_by(.id) | last // empty' checks.json)"
+              if [[ -z "$check" ]]; then
+                missing=$((missing + 1))
+                continue
+              fi
+              state="$(jq -r '.status' <<<"$check")"
+              conclusion="$(jq -r '.conclusion // empty' <<<"$check")"
+              if [[ "$state" != "completed" ]]; then
+                pending=$((pending + 1))
+              elif [[ "$conclusion" != "success" ]]; then
+                failed=$((failed + 1))
+                echo "::error::Required check failed: $name ($conclusion)"
+              fi
+            done
+            [[ "$failed" -eq 0 ]] || exit 1
+            if [[ "$missing" -eq 0 && "$pending" -eq 0 ]]; then
+              ready=true
+              break
+            fi
+            echo "Waiting for security/configuration checks: $missing missing, $pending pending (attempt $attempt/40)"
+            sleep 30
+          done
+          [[ "$ready" == true ]] || { echo "::error::Required security/configuration checks did not all pass"; exit 1; }
+
+      - name: Confirm Render API credential is available
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$RENDER_API_KEY" ]] || { echo "::error::RENDER_API_KEY is missing; no Render change made"; exit 1; }
+
+      - name: Read current API service settings
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --output render-service-before.json
+
+      - name: Correct service source and Docker settings without deploying
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          desired='
+            .repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and
+            .branch == "main" and
+            .rootDir == "." and
+            .autoDeployTrigger == "off" and
+            .serviceDetails.envSpecificDetails.dockerContext == "." and
+            .serviceDetails.envSpecificDetails.dockerfilePath == "./Dockerfile.api" and
+            (.serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
+            .serviceDetails.healthCheckPath == "/health"
+          '
+          if jq -e "$desired" render-service-before.json >/dev/null; then
+            echo "Render API already matches the expected configuration; no PATCH required."
+          else
+            curl --fail-with-body --silent --show-error \
+              --request PATCH \
+              --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
+              --header "accept: application/json" \
+              --header "content-type: application/json" \
+              --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","rootDir":".","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","dockerCommand":"","healthCheckPath":"/health"}}' \
+              --output render-service-update.json
+            jq -e "$desired" render-service-update.json
+          fi
+
+      - name: Read back and verify repaired API settings
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header "accept: application/json" \
+            --output render-service-final.json
+          jq -e '
+            .repo == "https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat" and
+            .branch == "main" and
+            .rootDir == "." and
+            .autoDeployTrigger == "off" and
+            .serviceDetails.envSpecificDetails.dockerContext == "." and
+            .serviceDetails.envSpecificDetails.dockerfilePath == "./Dockerfile.api" and
+            (.serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
+            .serviceDetails.healthCheckPath == "/health"
+          ' render-service-final.json
+          echo "Render API configuration corrected and read back. No deploy endpoint was called."
+          echo "API deployment remains disabled."

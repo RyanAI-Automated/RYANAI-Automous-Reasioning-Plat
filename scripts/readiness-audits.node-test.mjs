@@ -149,27 +149,34 @@ test('provider verification supports one brain or all three isolated brains in p
 });
 
 
-test('Render repair is CI-gated, idempotent, and never calls the deploy endpoint', async () => {
+test('Render API repair runs inside core CI, waits for security, and never deploys', async () => {
   const { readFile } = await import('node:fs/promises');
-  const workflow = await readFile(new URL('../.github/workflows/guarded-render-api-source-repair.yml', import.meta.url), 'utf8');
+  const ci = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const fallback = await readFile(new URL('../.github/workflows/guarded-render-api-source-repair.yml', import.meta.url), 'utf8');
   const blueprint = await readFile(new URL('../render.yaml', import.meta.url), 'utf8');
-  assert.ok(workflow.includes('workflow_run:'));
-  assert.ok(workflow.includes('CI - Build, Test, and Integrate'));
-  assert.ok(workflow.includes("github.event.workflow_run.conclusion == 'success'"));
-  assert.ok(workflow.includes("github.event.workflow_run.event == 'push'"));
-  assert.ok(workflow.includes('github.event.workflow_run.head_sha'));
-  assert.ok(workflow.includes('inputs.confirmation == \'REPAIR-ONLY\''));
-  assert.ok(workflow.includes('srv-dbk4giu7bikc7394a4r0'));
-  assert.ok(workflow.includes('https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0'));
-  assert.ok(workflow.includes('"dockerfilePath":"./Dockerfile.api"'));
-  assert.ok(workflow.includes('"dockerCommand":""'));
-  assert.ok(workflow.includes('"autoDeployTrigger":"off"'));
-  assert.ok(workflow.includes('"healthCheckPath":"/health"'));
-  assert.ok(workflow.includes('Read current API service configuration'));
-  assert.ok(workflow.includes('Read back and verify live API configuration'));
-  assert.ok(workflow.includes('serviceDetails.envSpecificDetails.dockerCommand'));
-  assert.ok(!workflow.includes('/deploys'));
-  assert.ok(!workflow.includes('srv-dafvs4ht0dsc7380mapg'));
+  assert.ok(ci.includes('render-api-config-repair:'));
+  assert.ok(ci.includes('needs: [validate, subprojects, integration, issue-435-supabase]'));
+  assert.ok(ci.includes("if: \${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"));
+  assert.ok(ci.includes('Test agent API contracts'));
+  assert.ok(ci.includes('Dependency audit'));
+  assert.ok(ci.includes('Trivy filesystem scan'));
+  assert.ok(ci.includes('Analyze (javascript-typescript)'));
+  assert.ok(ci.includes('Analyze (python)'));
+  assert.ok(ci.includes('TruffleHog secret audit'));
+  assert.ok(ci.includes('Codacy Security Scan'));
+  assert.ok(ci.includes('Validate configuration files'));
+  assert.ok(ci.includes('srv-dbk4giu7bikc7394a4r0'));
+  assert.ok(ci.includes('"dockerfilePath":"./Dockerfile.api"'));
+  assert.ok(ci.includes('"dockerCommand":""'));
+  assert.ok(ci.includes('"autoDeployTrigger":"off"'));
+  assert.ok(ci.includes('"healthCheckPath":"/health"'));
+  assert.ok(ci.includes('Read current API service settings'));
+  assert.ok(ci.includes('Read back and verify repaired API settings'));
+  assert.ok(!ci.includes('/deploys'));
+  assert.ok(fallback.includes('workflow_dispatch:'));
+  assert.ok(fallback.includes("inputs.confirmation == 'REPAIR-ONLY'"));
+  assert.ok(!fallback.includes('workflow_run:'));
+  assert.ok(!fallback.includes('/deploys'));
   assert.ok(blueprint.includes('name: ryanai-api'));
   assert.ok(blueprint.includes('repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat'));
   assert.ok(blueprint.includes('branch: main'));

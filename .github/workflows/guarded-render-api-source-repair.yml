@@ -11,10 +11,6 @@ on:
         description: Type REPAIR-ONLY to correct settings without deploying
         required: true
         type: string
-  workflow_run:
-    workflows: ["CI - Build, Test, and Integrate"]
-    branches: [main]
-    types: [completed]
 
 permissions:
   contents: read
@@ -27,18 +23,12 @@ concurrency:
 jobs:
   repair-only:
     name: Validate main CI/security, repair Render settings only
-    if: >-
-      ${{ (github.event_name == 'workflow_run' &&
-            github.event.workflow_run.conclusion == 'success' &&
-            github.event.workflow_run.event == 'push' &&
-            github.event.workflow_run.head_branch == 'main') ||
-          (github.event_name == 'workflow_dispatch' &&
-            inputs.confirmation == 'REPAIR-ONLY') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirmation == 'REPAIR-ONLY' }}
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.commit_sha }}
+      TARGET_SHA: ${{ inputs.commit_sha }}
     steps:
       - name: Validate exact current main SHA
         env:
@@ -125,7 +115,7 @@ jobs:
             .autoDeployTrigger == "off" and
             .serviceDetails.envSpecificDetails.dockerContext == "." and
             .serviceDetails.envSpecificDetails.dockerfilePath == "./Dockerfile.api" and
-            .(serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
+            (.serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
             .serviceDetails.healthCheckPath == "/health"
           '
           if jq -e "$desired" render-service-before.json >/dev/null; then
@@ -148,7 +138,7 @@ jobs:
             .autoDeployTrigger == "off" and
             .serviceDetails.envSpecificDetails.dockerContext == "." and
             .serviceDetails.envSpecificDetails.dockerfilePath == "./Dockerfile.api" and
-            .(serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
+            (.serviceDetails.envSpecificDetails.dockerCommand // "") == "" and
             .serviceDetails.healthCheckPath == "/health"
           ' render-service-final.json
           echo "Render API configuration corrected and verified. No deploy endpoint was called."
