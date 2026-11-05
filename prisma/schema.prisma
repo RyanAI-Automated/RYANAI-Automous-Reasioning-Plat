@@ -279,7 +279,7 @@ model AgentRun {
   evidence AgentRunEvidence[]
   codingTasks CodingTask[]
   queueType String @default("reasoning") @map("queue_type")
-  @@index([queueType, status, createdAt])
+  @@index([queueType, status, createdAt], map: "agent_runs_queue_type_status_created_idx")
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([status, lockedAt])
