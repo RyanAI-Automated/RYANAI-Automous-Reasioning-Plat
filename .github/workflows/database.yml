@@ -179,3 +179,8 @@ jobs:
 
       - name: Verify migrations match the Prisma data model
         run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Generate Prisma client and verify live agent notification delivery
+        run: |
+          npx prisma generate --schema=prisma/schema.prisma
+          RYANAI_NOTIFICATION_TEST_DATABASE_URL="$DATABASE_URL" npm run test:agent-notifications

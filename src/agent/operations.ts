@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Client } from 'pg';
+import { startPostgresNotificationListener, type PostgresNotificationListenerStatus } from './postgresNotificationListener.js';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { primaryBrain, secondaryBrain, logicBrain } from '../config/brains.js';
 import { prisma } from '../lib/prisma.js';
@@ -221,7 +221,10 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
   return rows[0] ?? null;
 }
 
-async function processAgentRun(run: ClaimedAgentRun) {
+async function processAgentRun(
+  run: ClaimedAgentRun,
+  testBrainInvoker?: (brain: BrainId, prompt: string, signal?: AbortSignal) => Promise<BrainOutput>,
+) {
   const cancellation = new AbortController();
   const stopHeartbeat = startAgentRunLeaseHeartbeat(
     { id: run.id, workerId: run.worker_id, attempts: run.attempts },
@@ -257,7 +260,9 @@ async function processAgentRun(run: ClaimedAgentRun) {
     const sharedObjective = knowledge
       ? knowledge + '\n\n' + plannedObjective
       : plannedObjective;
-    const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => invokeWithRecovery(brain, prompt, signal, run), cancellation.signal);
+    const plan = await executeThreeBrainPlan(sharedObjective, (brain, prompt, signal) => testBrainInvoker
+      ? testBrainInvoker(brain, prompt, signal)
+      : invokeWithRecovery(brain, prompt, signal, run), cancellation.signal);
     if (plan.outputs.length === 0 || plan.outputs.some((item) => !item.output.trim()) || !plan.synthesis.trim()) {
       throw new Error('No usable reasoning brain result was produced.');
     }
@@ -433,62 +438,154 @@ export async function waitForAutonomousTask(
   throw new Error('Autonomous task is still queued or running. Retrieve its status from task history.');
 }
 
-/** Durable PostgreSQL-backed worker. LISTEN/NOTIFY wakes it on new work; a low-frequency sweep recovers missed notifications and expired leases. */
-export function startAgentTaskWorker(options: { concurrency?: number; recoveryIntervalMs?: number } = {}) {
-  if (!process.env.DATABASE_URL) {
+export type AgentTaskWorkerTrigger = 'startup' | 'listener-connected' | 'notification' | 'recovery-sweep' | 'task-completed';
+
+export interface AgentTaskWorkerStatus {
+  state: 'not_started' | 'running' | 'stopped';
+  workerId: string | null;
+  startedAt: string | null;
+  recoveryIntervalMs: number | null;
+  listener: PostgresNotificationListenerStatus | null;
+  lastNotificationAt: string | null;
+  lastNotificationPayload: string | null;
+  lastRecoverySweepAt: string | null;
+  lastClaimedTask: { runId: string; trigger: AgentTaskWorkerTrigger; claimedAt: string } | null;
+  lastProcessedTask: { runId: string; trigger: AgentTaskWorkerTrigger; startedAt: string; completedAt: string; status: string } | null;
+}
+let agentTaskWorkerStatus: AgentTaskWorkerStatus = {
+  state: 'not_started', workerId: null, startedAt: null, recoveryIntervalMs: null, listener: null,
+  lastNotificationAt: null, lastNotificationPayload: null, lastRecoverySweepAt: null,
+  lastClaimedTask: null, lastProcessedTask: null,
+};
+export function getAgentTaskWorkerStatus(): AgentTaskWorkerStatus {
+  return {
+    ...agentTaskWorkerStatus,
+    listener: agentTaskWorkerStatus.listener ? { ...agentTaskWorkerStatus.listener } : null,
+    lastClaimedTask: agentTaskWorkerStatus.lastClaimedTask ? { ...agentTaskWorkerStatus.lastClaimedTask } : null,
+    lastProcessedTask: agentTaskWorkerStatus.lastProcessedTask ? { ...agentTaskWorkerStatus.lastProcessedTask } : null,
+  };
+}
+
+/** LISTEN/NOTIFY is the fast wake-up path; committed rows and the periodic sweep remain authoritative. */
+export function startAgentTaskWorker(options: {
+  concurrency?: number;
+  recoveryIntervalMs?: number;
+  reconnectBaseDelayMs?: number;
+  reconnectMaxDelayMs?: number;
+  testBrainInvoker?: (brain: BrainId, prompt: string, signal?: AbortSignal) => Promise<BrainOutput>;
+} = {}) {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
     console.warn('[agent-worker] Disabled: DATABASE_URL is not configured.');
+    agentTaskWorkerStatus = { ...agentTaskWorkerStatus, state: 'stopped' };
     return () => undefined;
+  }
+  if (options.testBrainInvoker && process.env.NODE_ENV !== 'test') {
+    throw new Error('The deterministic reasoning adapter is available only in NODE_ENV=test.');
   }
   const concurrency = Math.max(1, Math.min(8, Math.trunc(options.concurrency ?? Number(process.env.RYANAI_AGENT_WORKER_CONCURRENCY || 2))));
   const recoveryIntervalMs = Math.max(10_000, options.recoveryIntervalMs ?? 30_000);
   const workerId = randomUUID();
-  const listener = new Client({ connectionString: process.env.DATABASE_URL });
+  const startedAt = new Date().toISOString();
   let stopped = false;
-  let connected = false;
   let polling = false;
+  let pendingDrainTrigger: AgentTaskWorkerTrigger | null = null;
   let inFlight = 0;
+  const updateStatus = (patch: Partial<AgentTaskWorkerStatus>) => {
+    agentTaskWorkerStatus = { ...agentTaskWorkerStatus, ...patch };
+  };
+  updateStatus({
+    state: 'running', workerId, startedAt, recoveryIntervalMs,
+    listener: {
+      state: 'connecting', connected: false, subscribed: false, reconnectAttempts: 0,
+      backoffMs: 0, lastConnectedAt: null, lastNotificationAt: null,
+      lastNotificationPayload: null, lastErrorCode: null,
+    },
+    lastNotificationAt: null, lastNotificationPayload: null, lastRecoverySweepAt: null,
+    lastClaimedTask: null, lastProcessedTask: null,
+  });
 
-  const drain = async () => {
-    if (stopped || polling) return;
+  const drain = async (trigger: AgentTaskWorkerTrigger) => {
+    if (stopped) return;
+    if (polling) {
+      pendingDrainTrigger = trigger;
+      return;
+    }
     polling = true;
+    let activeTrigger = trigger;
     try {
-      while (!stopped && inFlight < concurrency) {
-        const run = await claimNextAgentRun(workerId);
-        if (!run) break;
-        inFlight += 1;
-        void processAgentRun(run).catch((error) => { console.error('[agent-worker] Unexpected run failure:', error instanceof Error ? error.message : String(error)); }).finally(() => {
-          inFlight -= 1;
-          void drain();
-        });
-      }
+      do {
+        pendingDrainTrigger = null;
+        while (!stopped && inFlight < concurrency) {
+          const run = await claimNextAgentRun(workerId);
+          if (!run) break;
+          const pendingTrigger = pendingDrainTrigger;
+          const taskTrigger = pendingTrigger ?? activeTrigger;
+          if (pendingTrigger) {
+            activeTrigger = pendingTrigger;
+            pendingDrainTrigger = null;
+          }
+          const claimedAt = new Date().toISOString();
+          updateStatus({ lastClaimedTask: { runId: run.id, trigger: taskTrigger, claimedAt } });
+          inFlight += 1;
+          void processAgentRun(run, options.testBrainInvoker)
+            .then(async () => {
+              const persisted = await prisma.agentRun.findUnique({ where: { id: run.id }, select: { status: true } });
+              updateStatus({
+                lastProcessedTask: {
+                  runId: run.id, trigger: taskTrigger, startedAt: claimedAt,
+                  completedAt: new Date().toISOString(), status: persisted?.status ?? 'missing',
+                },
+              });
+            })
+            .catch((error) => {
+              console.error('[agent-worker] Unexpected run failure:', error instanceof Error ? error.message : String(error));
+            })
+            .finally(() => {
+              inFlight -= 1;
+              void drain('task-completed');
+            });
+        }
+        if (pendingDrainTrigger) activeTrigger = pendingDrainTrigger;
+      } while (pendingDrainTrigger && !stopped);
     } catch (error) {
       console.error('[agent-worker] Queue claim failed:', error instanceof Error ? error.message : String(error));
     } finally {
       polling = false;
+      if (pendingDrainTrigger && !stopped) {
+        const nextTrigger = pendingDrainTrigger;
+        pendingDrainTrigger = null;
+        void drain(nextTrigger);
+      }
     }
   };
 
-  void listener.connect().then(async () => {
-    if (stopped) { await listener.end(); return; }
-    await listener.query('LISTEN agent_task_queue');
-    connected = true;
-    listener.on('notification', () => { void drain(); });
-    listener.on('error', (error) => {
-      connected = false;
-      console.error('[agent-worker] PostgreSQL notification listener error:', error.message);
-    });
-    console.log('[agent-worker] Listening for durable agent tasks; concurrency=' + concurrency);
-    await drain();
-  }).catch((error) => {
-    console.error('[agent-worker] Could not establish LISTEN connection:', error instanceof Error ? error.message : String(error));
+  const listener = startPostgresNotificationListener({
+    connectionString: databaseUrl,
+    channel: 'agent_task_queue',
+    reconnectBaseDelayMs: options.reconnectBaseDelayMs,
+    reconnectMaxDelayMs: options.reconnectMaxDelayMs,
+    onStatusChange: (listenerStatus) => {
+      updateStatus({ listener: listenerStatus });
+      if (listenerStatus.state === 'listening') void drain('listener-connected');
+    },
+    onNotification: (payload) => {
+      updateStatus({ lastNotificationAt: new Date().toISOString(), lastNotificationPayload: payload ?? null });
+      void drain('notification');
+    },
   });
-
-  const recoveryTimer = setInterval(() => { void drain(); }, recoveryIntervalMs);
-  recoveryTimer.unref();
+  const recoveryTimer = setInterval(() => {
+    updateStatus({ lastRecoverySweepAt: new Date().toISOString() });
+    void drain('recovery-sweep');
+  }, recoveryIntervalMs);
+  recoveryTimer.unref?.();
+  void drain('startup');
   return () => {
+    if (stopped) return;
     stopped = true;
-    if (recoveryTimer) clearInterval(recoveryTimer);
-    if (connected) void listener.end().catch((error) => console.error('[agent-worker] Listener shutdown failed:', error));
+    clearInterval(recoveryTimer);
+    listener.stop();
+    updateStatus({ state: 'stopped', listener: listener.getStatus() });
   };
 }
 
