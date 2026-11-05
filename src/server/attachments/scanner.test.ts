@@ -126,28 +126,23 @@ describe('quarantine purge execution', () => {
 
   function makeQueryStub(candidates: Array<{ bucket_id: string; object_name: string }>, updateError: { message: string } | null = null) {
     const updates: Array<Record<string, unknown>> = [];
-    const client = {
-      from(_table: string) {
-        let operation: 'select' | 'update' = 'select';
-        const query: any = {
-          select() { operation = 'select'; return query; },
-          update(values: Record<string, unknown>) { operation = 'update'; updates.push(values); return query; },
-          in() { return query; },
-          eq() { return query; },
-          is() { return query; },
-          lt() { return query; },
-          order() { return query; },
-          limit() { return query; },
-          then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
-            return Promise.resolve(operation === 'select'
-              ? { data: candidates, error: null }
-              : { data: null, error: updateError }).then(resolve, reject);
-          },
-        };
-        return query;
-      },
-    };
-    return { client, updates };
+    class QueryStub {
+      private operation: 'select' | 'update' = 'select';
+      select() { this.operation = 'select'; return this; }
+      update(values: Record<string, unknown>) { this.operation = 'update'; updates.push(values); return this; }
+      in() { return this; }
+      eq() { return this; }
+      is() { return this; }
+      lt() { return this; }
+      order() { return this; }
+      limit() { return this; }
+      then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+        return Promise.resolve(this.operation === 'select'
+          ? { data: candidates, error: null }
+          : { data: null, error: updateError }).then(resolve, reject);
+      }
+    }
+    return { client: { from: (_table: string) => new QueryStub() }, updates };
   }
 
   it('removes only expired infected objects through Storage and persists the purge audit marker', async () => {
