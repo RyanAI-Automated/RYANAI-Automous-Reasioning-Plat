@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import WebSocket from 'ws';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { requireUser } from './auth.js';
+import { prisma } from '../../lib/prisma.js';
 import { createAlpacaStockStream, type MarketDataSocket, type StreamedMarketBar } from '../quant/marketDataStream.js';
 import { createMarketDataFanout, createMarketDataStreamSupervisor, type StreamSupervisorState } from '../quant/marketDataSupervisor.js';
 
@@ -49,6 +50,42 @@ export function normalizeQuantStreamRequest(value: unknown): StreamRequest {
   return { symbols, feed };
 }
 
+export function marketBarPayloadHash(bar: StreamedMarketBar): string {
+  const canonical = {
+    symbol: bar.symbol.toUpperCase(),
+    provider: bar.provider,
+    feed: bar.feed,
+    timeframe: '1Min',
+    timestamp: new Date(bar.timestamp).toISOString(),
+    open: bar.open,
+    high: bar.high,
+    low: bar.low,
+    close: bar.close,
+    volume: bar.volume ?? 0,
+  };
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+async function persistMarketBar(userId: string, bar: StreamedMarketBar): Promise<void> {
+  const payloadHash = marketBarPayloadHash(bar);
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO quant_market_data_events
+      (user_id, symbol, provider, feed, timeframe, event_timestamp, received_at,
+       payload_hash, source, bar)
+     VALUES ($1, $2, $3, $4, '1Min', $5, $6, $7, 'stream', $8::jsonb)
+     ON CONFLICT (user_id, provider, feed, timeframe, symbol, event_timestamp, payload_hash)
+     DO NOTHING`,
+    userId,
+    bar.symbol,
+    bar.provider,
+    bar.feed,
+    new Date(bar.timestamp),
+    new Date(bar.receivedAt),
+    payloadHash,
+    JSON.stringify(bar),
+  );
+}
+
 function allowedOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
   const configured = (process.env.CORS_ORIGINS ?? '').split(',').map((value) => value.trim()).filter(Boolean);
@@ -67,6 +104,57 @@ function safeState(state: StreamSupervisorState): Record<string, unknown> {
 
 export const quantStreamingRoutes: FastifyPluginAsync = async (fastify) => {
   const redis = fastify.redis as unknown as RedisTicketClient;
+
+  fastify.get<{ Querystring: { symbol?: string; after_id?: string; limit?: string } }>(
+    '/api/quant/stream/events',
+    async (request, reply) => {
+      const symbol = request.query.symbol?.trim().toUpperCase();
+      const afterId = request.query.after_id ?? '0';
+      const limitValue = request.query.limit === undefined ? 200 : Number(request.query.limit);
+      if (!symbol || !/^[A-Z0-9.-]{1,15}$/.test(symbol)) {
+        return reply.code(400).send({ error: 'A valid symbol is required.' });
+      }
+      if (!/^\\d{1,19}$/.test(afterId) || BigInt(afterId) > 9_223_372_036_854_775_807n) {
+        return reply.code(400).send({ error: 'after_id must be a valid non-negative event cursor.' });
+      }
+      if (!Number.isInteger(limitValue) || limitValue < 1 || limitValue > 500) {
+        return reply.code(400).send({ error: 'limit must be an integer between 1 and 500.' });
+      }
+      const rows = await prisma.$queryRawUnsafe<Array<{
+        id: string; symbol: string; provider: string; feed: string; timeframe: string;
+        event_timestamp: Date; received_at: Date; source: string; bar: unknown; created_at: Date;
+      }>>(
+        `SELECT id::text, symbol, provider, feed, timeframe, event_timestamp,
+                received_at, source, bar, created_at
+         FROM quant_market_data_events
+         WHERE user_id = $1 AND symbol = $2 AND id > $3::bigint
+         ORDER BY id ASC
+         LIMIT $4`,
+        request.authUser!.id,
+        symbol,
+        afterId,
+        limitValue,
+      );
+      const events = rows.map((row) => ({
+        id: row.id,
+        symbol: row.symbol,
+        provider: row.provider,
+        feed: row.feed,
+        timeframe: row.timeframe,
+        eventTimestamp: row.event_timestamp,
+        receivedAt: row.received_at,
+        source: row.source,
+        bar: row.bar,
+        createdAt: row.created_at,
+      }));
+      return {
+        events,
+        nextCursor: events.length ? events[events.length - 1].id : afterId,
+        hasMore: events.length === limitValue,
+        persistence: 'postgresql',
+      };
+    },
+  );
 
   fastify.post<{ Body: unknown }>('/api/quant/stream-ticket', {
     preHandler: requireUser,
@@ -159,7 +247,17 @@ export const quantStreamingRoutes: FastifyPluginAsync = async (fastify) => {
         onBar: handlers.onBar,
         onError: handlers.onError,
       }),
-      onBar: (bar) => fanout.publish(bar),
+      onBar: (bar) => {
+        // A bar is sent to subscribers only after its durable insert succeeds.
+        void persistMarketBar(identity.userId, bar)
+          .then(() => { fanout.publish(bar); })
+          .catch(() => {
+            fastify.log.error({ userId: identity.userId, symbol: bar.symbol }, 'QuantCore market-data event persistence failed');
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ type: 'error', code: 'PERSISTENCE_FAILED', message: 'Market-data event could not be stored; this bar was not delivered.' }));
+            }
+          });
+      },
       onState: (state) => {
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'status', data: safeState(state) }));
       },
