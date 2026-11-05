@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { usePlatformHealth } from '@/hooks/usePlatformHealth';
+import { getSnapshotFreshness } from '@/lib/healthFreshness';
 
 const STALE_AFTER_MS = 90_000;
 const PA_HEARTBEAT_STALE_AFTER_MS = 45_000;
@@ -68,18 +69,20 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const healthFreshness = getSnapshotFreshness(health?.timestamp, now, STALE_AFTER_MS);
   const reportedAt = health?.timestamp ? Date.parse(health.timestamp) : Number.NaN;
-  const hasTimestamp = Number.isFinite(reportedAt);
-  const ageMs = hasTimestamp ? Math.max(0, now - reportedAt) : null;
-  const isStale = ageMs !== null && ageMs > STALE_AFTER_MS;
-  const healthFresh = Boolean(health && hasTimestamp && !isStale);
-  const healthFreshnessUnknown = Boolean(health && !hasTimestamp);
+  const hasTimestamp = healthFreshness !== 'unknown' && Number.isFinite(reportedAt);
+  const ageMs = hasTimestamp ? now - reportedAt : null;
+  const isStale = healthFreshness === 'stale';
+  const healthFresh = Boolean(health && healthFreshness === 'fresh');
+  const healthFreshnessUnknown = Boolean(health && healthFreshness === 'unknown');
+  const paHeartbeatFreshness = getSnapshotFreshness(paStatus?.lastHeartbeat, now, PA_HEARTBEAT_STALE_AFTER_MS);
   const paHeartbeatAt = paStatus?.lastHeartbeat ? Date.parse(paStatus.lastHeartbeat) : Number.NaN;
-  const paHeartbeatKnown = Number.isFinite(paHeartbeatAt);
-  const paHeartbeatAge = paHeartbeatKnown ? Math.max(0, now - paHeartbeatAt) : null;
-  const paHeartbeatStale = !paHeartbeatKnown || paHeartbeatAge! > PA_HEARTBEAT_STALE_AFTER_MS;
-  const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && !paHeartbeatStale);
-  const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paStatus.workState;
+  const paHeartbeatKnown = paHeartbeatFreshness !== 'unknown' && Number.isFinite(paHeartbeatAt);
+  const paHeartbeatStale = paHeartbeatFreshness === 'stale';
+  const paHeartbeatUnverified = paHeartbeatFreshness === 'unknown';
+  const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && paHeartbeatFreshness === 'fresh');
+  const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paHeartbeatUnverified ? 'Heartbeat unverified' : paStatus.workState;
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-8 sm:px-10">
@@ -127,7 +130,7 @@ export default function DashboardPage() {
           <InfoRow label="Observations" value={paStatus ? String(paStatus.observationsCompleted) : '—'} />
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          Last heartbeat: {paHeartbeatKnown ? new Date(paHeartbeatAt).toLocaleString() : 'Not received'} · {paHeartbeatStale ? 'Heartbeat is older than 45 seconds or missing; observer status is not live.' : 'Heartbeat is current.'} Read-only monitoring; no messages, calls, file edits or privileged actions.
+          Last heartbeat: {paHeartbeatKnown ? new Date(paHeartbeatAt).toLocaleString() : paStatus?.lastHeartbeat ? 'Invalid or future timestamp' : 'Not received'} · {paHeartbeatStale || paHeartbeatUnverified ? 'Heartbeat is stale or unverified; observer status is not live.' : 'Heartbeat is current.'} Read-only monitoring; no messages, calls, file edits or privileged actions.
         </p>
       </article>
 
