@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { prisma } from '../src/lib/prisma.js';
+import { createAudiobookPrismaClient } from '../src/lib/audiobookPrisma.js';
 import { getLanguageName, isRyanLanguage } from '../src/shared/languages.js';
 
 const BUCKET = 'ryanai-audiobooks';
@@ -9,6 +9,12 @@ const MAX_SEGMENT_CHARS = 4_000;
 const LEASE_MS = 5 * 60_000;
 const POLL_MS = 2_000;
 const workerId = `audiobook-${process.env.HOSTNAME || 'worker'}-${randomUUID()}`;
+
+let prisma: ReturnType<typeof createAudiobookPrismaClient> | null = null;
+function db() {
+  if (!prisma) throw new Error('Audiobook database client is not initialized.');
+  return prisma;
+}
 
 type RenderChapter = { id: string; title: string; text: string; voice: string; style: string; speed: number };
 type RenderRequest = { projectId: string; title: string; language: string; chapters: RenderChapter[] };
@@ -42,9 +48,9 @@ function backoff(attempt: number): Date {
 }
 
 async function claimJob(): Promise<ClaimedJob | null> {
-  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW(), error = 'Cancellation finalized after worker lease expiry.' WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
-  await prisma.$executeRaw`UPDATE audiobook_render_jobs SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END, worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = CASE WHEN attempts >= max_attempts THEN NOW() ELSE NULL END, updated_at = NOW(), error = 'Worker lease expired; job recovered by queue supervisor.' WHERE status = 'running' AND lease_expires_at < NOW()`;
-  const rows = await prisma.$queryRaw<ClaimedJob[]> `
+  await db().$executeRaw`UPDATE audiobook_render_jobs SET status = 'cancelled', worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = NOW(), updated_at = NOW(), error = 'Cancellation finalized after worker lease expiry.' WHERE status = 'cancel_requested' AND lease_expires_at < NOW()`;
+  await db().$executeRaw`UPDATE audiobook_render_jobs SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END, worker_id = NULL, locked_at = NULL, lease_expires_at = NULL, completed_at = CASE WHEN attempts >= max_attempts THEN NOW() ELSE NULL END, updated_at = NOW(), error = 'Worker lease expired; job recovered by queue supervisor.' WHERE status = 'running' AND lease_expires_at < NOW()`;
+  const rows = await db().$queryRaw<ClaimedJob[]> `
     UPDATE audiobook_render_jobs
     SET status = 'running',
         worker_id = ${workerId},
@@ -69,7 +75,7 @@ async function claimJob(): Promise<ClaimedJob | null> {
 }
 
 async function updateProgress(job: ClaimedJob, progress: Record<string, unknown>) {
-  const updated = await prisma.audiobookRenderJob.updateMany({
+  const updated = await db().audiobookRenderJob.updateMany({
     where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null, leaseExpiresAt: { gt: new Date() } },
     data: { progress, lockedAt: new Date(), leaseExpiresAt: new Date(Date.now() + LEASE_MS), updatedAt: new Date() },
   });
@@ -77,7 +83,7 @@ async function updateProgress(job: ClaimedJob, progress: Record<string, unknown>
 }
 
 async function isCancelled(job: ClaimedJob): Promise<boolean> {
-  const current = await prisma.audiobookRenderJob.findUnique({ where: { id: job.id }, select: { status: true, cancelRequestedAt: true, workerId: true, attempts: true } });
+  const current = await db().audiobookRenderJob.findUnique({ where: { id: job.id }, select: { status: true, cancelRequestedAt: true, workerId: true, attempts: true } });
   return !current || current.workerId !== workerId || current.attempts !== job.attempts || current.status === 'cancel_requested' || current.cancelRequestedAt !== null;
 }
 
@@ -144,7 +150,7 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
       totalSegments: segments.length,
     });
   }
-  const completed = await prisma.audiobookRenderJob.updateMany({
+  const completed = await db().audiobookRenderJob.updateMany({
     where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null, leaseExpiresAt: { gt: new Date() } },
     data: {
       status: 'completed', result: { artifacts, projectTitle: snapshot.title, completedAt: new Date().toISOString() },
@@ -163,19 +169,19 @@ async function processJob(job: ClaimedJob, storage: ReturnType<typeof createClie
 }
 
 async function markCancelled(job: ClaimedJob) {
-  await prisma.audiobookRenderJob.updateMany({
+  await db().audiobookRenderJob.updateMany({
     where: { id: job.id, workerId, attempts: job.attempts, status: 'cancel_requested' },
     data: { status: 'cancelled', workerId: null, lockedAt: null, leaseExpiresAt: null, completedAt: new Date(), updatedAt: new Date() },
   });
 }
 
 async function markFailure(job: ClaimedJob, error: unknown) {
-  const current = await prisma.audiobookRenderJob.findUnique({ where: { id: job.id } });
+  const current = await db().audiobookRenderJob.findUnique({ where: { id: job.id } });
   if (!current || current.workerId !== workerId || current.attempts !== job.attempts) return;
   const cancelled = current.status === 'cancel_requested' || current.cancelRequestedAt !== null;
   const permanent = error instanceof PermanentRenderError;
   const retry = !cancelled && !permanent && job.attempts < job.maxAttempts;
-  await prisma.audiobookRenderJob.updateMany({
+  await db().audiobookRenderJob.updateMany({
     where: { id: job.id, workerId, attempts: job.attempts },
     data: {
       status: cancelled ? 'cancelled' : retry ? 'queued' : 'failed',
@@ -189,6 +195,8 @@ async function markFailure(job: ClaimedJob, error: unknown) {
 }
 
 async function run() {
+  const databaseUrl = required('AUDIOBOOK_DATABASE_URL');
+  prisma = createAudiobookPrismaClient(databaseUrl);
   const apiKey = required('OPENAI_API_KEY');
   const storageUrl = required('SUPABASE_URL');
   const serviceRoleKey = required('SUPABASE_SERVICE_ROLE_KEY');
@@ -207,7 +215,7 @@ async function run() {
       const job = await claimJob();
       if (!job) return;
       const heartbeat = setInterval(() => {
-        void prisma.audiobookRenderJob.updateMany({
+        void db().audiobookRenderJob.updateMany({
           where: { id: job.id, workerId, attempts: job.attempts, status: 'running', cancelRequestedAt: null, leaseExpiresAt: { gt: new Date() } },
           data: { lockedAt: new Date(), leaseExpiresAt: new Date(Date.now() + LEASE_MS), updatedAt: new Date() },
         }).catch(error => console.error('[audiobook-worker] heartbeat failed', error instanceof Error ? error.message : 'unknown'));
@@ -238,7 +246,7 @@ async function run() {
     clearInterval(timer);
     // A running job keeps its lease; the recovery sweep will safely reclaim it after expiry.
     while (active) await new Promise(resolve => setTimeout(resolve, 100));
-    await prisma.$disconnect();
+    await db().$disconnect();
   };
   process.once('SIGINT', () => { void shutdown(); });
   process.once('SIGTERM', () => { void shutdown(); });
