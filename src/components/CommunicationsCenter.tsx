@@ -42,7 +42,10 @@ export default function CommunicationsCenter() {
   const [attachmentStatuses, setAttachmentStatuses] = useState<CommsAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [reviewing, setReviewing] = useState(false);\n  const [assistBusy, setAssistBusy] = useState(false);\n  const [assistOutput, setAssistOutput] = useState('');\n  const [assistOperation, setAssistOperation] = useState<'summarize' | 'draft' | 'translate' | 'extract_tasks' | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [assistBusy, setAssistBusy] = useState(false);
+  const [assistOutput, setAssistOutput] = useState('');
+  const [assistOperation, setAssistOperation] = useState<'summarize' | 'draft' | 'translate' | 'extract_tasks' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [conversationSearch, setConversationSearch] = useState('');
