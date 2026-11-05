@@ -47,6 +47,7 @@ describe('AgentPAScript read-only observer', () => {
 
     expect(healthCheck).toHaveBeenCalledTimes(2);
     expect(observer.getStatus().workState).toBe('degraded');
+    expect(observer.getStatus().health).toEqual({ api: true, database: true, redis: true });
     expect(observer.getStatus().lastError).not.toContain('secret');
     expect(observer.getStatus().lastReport).toContain('Read-only monitoring continues');
     await observer.stop();
