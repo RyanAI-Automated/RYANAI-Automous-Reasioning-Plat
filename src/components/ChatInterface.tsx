@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { AlertCircle, LoaderCircle, Send, Terminal } from 'lucide-react';
 import { getAvailableModels, DEFAULT_MODEL } from '@/lib/models';
 import type { ModelId } from '@/lib/types';
-import { quickReason } from '@/lib/reasoning';
+import { streamReasoning } from '@/lib/reasoning';
 
 /** Authenticated interactive console backed by the same reasoning API as chat. */
 export default function ChatInterface() {
@@ -12,6 +12,7 @@ export default function ChatInterface() {
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [progress, setProgress] = useState('');
 
   async function runInference(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -21,10 +22,17 @@ export default function ChatInterface() {
     setError('');
     setOutput('');
     setLastRun(null);
+    setProgress('Connecting to the reasoning API…');
     try {
-      const result = await quickReason(request, model);
-      setOutput(result);
-      setLastRun(new Date().toLocaleTimeString());
+      await streamReasoning(request, model, {
+        onToken: (token) => setOutput((current) => current + token),
+        onStep: (step) => setProgress(step.result || 'Reasoning in progress…'),
+        onDone: () => {
+          setProgress('Completed');
+          setLastRun(new Date().toLocaleTimeString());
+        },
+        onError: (message) => setError(message),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The inference request failed.');
     } finally {
@@ -73,11 +81,11 @@ export default function ChatInterface() {
           <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Model output</span>
           {lastRun && <span className="text-[10px] text-ink-500">Completed {lastRun}</span>}
         </div>
-        {running && <p role="status" className="text-xs text-cyan-200">The API accepted the request. Waiting for the reasoning result…</p>}
+        {running && <p role="status" className="mb-2 text-xs text-cyan-200">{progress || 'Streaming reasoning output…'}</p>}
         {!running && !output && !error && <p className="text-xs text-ink-600">Output will appear here after a successful authenticated inference request.</p>}
         {output && <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-200">{output}</pre>}
       </div>
-      <p className="text-[10px] text-ink-600">Provider availability depends on server configuration. A failed request is shown as an error; no provider health is inferred from the model list.</p>
+      <p className="text-[10px] text-ink-600">Output is streamed from the authenticated reasoning endpoint. Provider availability depends on server configuration; model catalog entries do not prove provider health.</p>
     </section>
   );
 }
