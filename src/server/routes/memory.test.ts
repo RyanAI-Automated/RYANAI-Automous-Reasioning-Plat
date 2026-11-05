@@ -161,4 +161,79 @@ describe('account-scoped Postgres Memory Vault API', () => {
     expect(store.deleteMany).not.toHaveBeenCalled();
     expect(store.create).not.toHaveBeenCalled();
   });
+  it('filters search results within the authenticated account', async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/user/memory?q=PROJECT&limit=25',
+      headers: { 'x-test-user': 'user-a' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ query: 'PROJECT', limit: 25, hasMore: false, nextCursor: null });
+    expect(store.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        userId: 'user-a',
+        OR: [
+          { value: { contains: 'PROJECT', mode: 'insensitive' } },
+          { category: { contains: 'PROJECT', mode: 'insensitive' } },
+          { key: { contains: 'PROJECT', mode: 'insensitive' } },
+        ],
+      },
+      take: 26,
+    }));
+  });
+
+  it('uses an account-owned cursor and returns the next cursor when another page exists', async () => {
+    store.findMany.mockResolvedValue([sampleEntry, { ...sampleEntry, id: '8b0f1c1e-3c0a-4d3e-9a52-0b5f3b6a1c12' }]);
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/user/memory?limit=1&cursor=' + memoryId,
+      headers: { 'x-test-user': 'user-a' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ hasMore: true, nextCursor: memoryId });
+    expect(store.findFirst).toHaveBeenCalledWith({
+      where: { id: memoryId, userId: 'user-a' },
+      select: { id: true, createdAt: true },
+    });
+    expect(store.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        userId: 'user-a',
+        AND: [{ OR: [
+          { createdAt: { lt: sampleEntry.createdAt } },
+          { createdAt: sampleEntry.createdAt, id: { lt: memoryId } },
+        ] }],
+      },
+      take: 2,
+    }));
+  });
+
+  it('rejects a cursor that is not owned by the authenticated account', async () => {
+    store.findFirst.mockResolvedValue(null);
+    const app = await createApp();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/user/memory?cursor=' + memoryId,
+      headers: { 'x-test-user': 'user-b' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(store.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid page sizes and oversized search queries', async () => {
+    const app = await createApp();
+    const invalidLimit = await app.inject({
+      method: 'GET', url: '/api/user/memory?limit=500',
+      headers: { 'x-test-user': 'user-a' },
+    });
+    const invalidQuery = await app.inject({
+      method: 'GET', url: '/api/user/memory?q=' + 'x'.repeat(101),
+      headers: { 'x-test-user': 'user-a' },
+    });
+    expect(invalidLimit.statusCode).toBe(400);
+    expect(invalidQuery.statusCode).toBe(400);
+    expect(store.findMany).not.toHaveBeenCalled();
+  });
+
 });
