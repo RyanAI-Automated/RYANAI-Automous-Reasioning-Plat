@@ -2,7 +2,7 @@ import '../src/loadEnv.js';
 
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { createAudiobookPrismaClient } from '../src/lib/audiobookPrisma.js';
+import { createAudiobookPrismaClient } from '../src/server/audiobookPrisma.js';
 import { getLanguageName, isRyanLanguage } from '../src/shared/languages.js';
 
 const BUCKET = 'ryanai-audiobooks';
