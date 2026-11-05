@@ -16,6 +16,7 @@ interface GitHubStatus {
 interface GitHubModalProps {
   open: boolean;
   onClose: () => void;
+  presentation?: 'modal' | 'page';
 }
 
 function statusLabel(status: GitHubStatus['status'] | null, checking: boolean): string {
@@ -31,7 +32,7 @@ function statusLabel(status: GitHubStatus['status'] | null, checking: boolean): 
 }
 
 /** The app reports connected only after server-side account and repository verification. */
-export default function GithubModal({ open, onClose }: GitHubModalProps) {
+export default function GithubModal({ open, onClose, presentation = 'modal' }: GitHubModalProps) {
   const [integration, setIntegration] = useState<GitHubStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,8 +110,7 @@ export default function GithubModal({ open, onClose }: GitHubModalProps) {
   const connected = integration?.status === 'connected';
   const notConfigured = !integration || integration.status === 'not_configured';
 
-  return (
-    <Modal open={open} onClose={onClose} title="GitHub Integration" icon={<Github size={20} />}>
+  const content = (
       <div className="space-y-4 text-sm text-ink-300">
         <div className="flex items-center justify-between gap-3">
           <strong>RyanAI GitHub connection</strong>
@@ -196,6 +196,20 @@ export default function GithubModal({ open, onClose }: GitHubModalProps) {
           OAuth uses a short-lived one-time state value, PKCE S256 and encrypted server-side tokens. Browser code receives no access or refresh token. An external engineering connector is not treated as an in-app GitHub session.
         </p>
       </div>
-    </Modal>
   );
+
+  if (presentation === 'page') {
+    return (
+      <section className="mx-auto max-w-5xl space-y-5 px-5 py-8 sm:px-8">
+        <header>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Repository access</p>
+          <h1 className="mt-2 text-3xl font-bold text-white">GitHub Integration</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Manage the verified RyanAI GitHub account connection. This integration reports repository access; it does not provide push, merge or deployment controls.</p>
+        </header>
+        {content}
+      </section>
+    );
+  }
+
+  return <Modal open={open} onClose={onClose} title="GitHub Integration" icon={<Github size={20} />}>{content}</Modal>;
 }
