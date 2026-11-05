@@ -46,6 +46,7 @@ model User {
   quantExperiments QuantExperiment[]
   marketDataImports QuantMarketDataImport[]
   strategySignals QuantStrategySignal[]
+  paperOrderProposals QuantPaperOrderProposal[]
   audiobookProjects AudiobookProject[]
   audiobookRenderJobs AudiobookRenderJob[]
 
@@ -538,6 +539,7 @@ model QuantMarketDataImport {
   bars        Json
   provenance  Json
   signals     QuantStrategySignal[]
+  proposals   QuantPaperOrderProposal[]
 
   @@index([userId, symbol, fetchedAt(sort: Desc)], map: "quant_market_data_imports_user_symbol_fetched_idx")
   @@map("quant_market_data_imports")
@@ -562,9 +564,37 @@ model QuantStrategySignal {
   metadata          Json
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  proposals         QuantPaperOrderProposal[]
+
   @@unique([userId, marketDataImportId, strategy, fastWindow, slowWindow], map: "quant_strategy_signals_user_import_strategy_windows_key")
   @@index([userId, generatedAt(sort: Desc)], map: "quant_strategy_signals_user_generated_idx")
   @@map("quant_strategy_signals")
+}
+
+model QuantPaperOrderProposal {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId             String   @map("user_id")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signalId           String   @map("signal_id")
+  signal             QuantStrategySignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  marketDataImportId String   @map("market_data_import_id")
+  marketDataImport   QuantMarketDataImport @relation(fields: [marketDataImportId], references: [id], onDelete: Cascade)
+  symbol             String   @db.VarChar(15)
+  side               String   @db.VarChar(4)
+  quantity           Decimal  @db.Decimal(24, 8)
+  referencePrice     Decimal  @map("reference_price") @db.Decimal(24, 8)
+  notional           Decimal  @db.Decimal(24, 8)
+  clientOrderId      String   @map("client_order_id") @db.VarChar(64)
+  status             String   @default("pending") @db.VarChar(16)
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(6)
+  orderId            String?  @map("order_id")
+  reason             String?  @db.Text
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  decidedAt          DateTime? @map("decided_at") @db.Timestamptz(6)
+
+  @@unique([userId, clientOrderId], map: "quant_paper_order_proposals_user_client_order_key")
+  @@index([userId, status, createdAt(sort: Desc)], map: "quant_paper_order_proposals_user_status_created_idx")
+  @@map("quant_paper_order_proposals")
 }
 
 model CodingTask {
