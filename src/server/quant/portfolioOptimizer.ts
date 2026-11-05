@@ -87,7 +87,7 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   if (symbols.some((symbol) => !/^[A-Z0-9.-]{1,15}$/.test(symbol)) || new Set(symbols).size !== symbols.length) {
     throw new Error('Portfolio symbols must be unique valid tickers.');
   }
-  const dates = input.assets[0].bars.map((bar) => bar.date);
+  const dates = input.assets[0].bars.map((bar) => bar && typeof bar === 'object' ? bar.date : '');
   if (dates.length < 31 || dates.length > 2500) {
     throw new Error('Each asset must contain between 31 and 2500 aligned daily bars.');
   }
