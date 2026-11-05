@@ -7,9 +7,10 @@ const policy = [
   { protocol: 'http', host: '::1', port: 11434, pathPrefixes: ['/', '/v1'] }
 ];
 
-test('allows both IPv4 and bracketed IPv6 loopback endpoints', () => {
+test('allows IPv4 and bracketed IPv6 loopback paths declared in policy', () => {
   assert.equal(isAllowedInferenceEndpoint('http://127.0.0.1:11434/', policy), true);
   assert.equal(isAllowedInferenceEndpoint('http://[::1]:11434/v1', policy), true);
+  assert.equal(isAllowedInferenceEndpoint('http://[::1]:11434/v1/', policy), true);
 });
 
 test('rejects non-loopback, alternate protocols, ports, paths and URL credentials', () => {
