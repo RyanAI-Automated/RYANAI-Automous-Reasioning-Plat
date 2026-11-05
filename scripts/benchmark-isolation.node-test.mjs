@@ -16,6 +16,10 @@ test('isolation harness contract requires network-disabled, hardened container e
   assert.ok(contract.requiredChecks.includes('public-ip-egress-denied'));
   assert.ok(contract.requiredChecks.includes('public-dns-denied'));
   assert.ok(contract.requiredChecks.includes('only-loopback-network-interface'));
+  assert.equal(contract.evidence.format, 'single-json-document');
+  assert.equal(contract.evidence.testedRevisionSource, 'git-rev-parse-HEAD');
+  assert.equal(contract.evidence.stdoutAndStderrSeparated, true);
+  assert.equal(contract.evidence.validJsonRequiredOnFailure, true);
 });
 
 test('container runner passes no host environment and mounts only two allowlisted files', async () => {
@@ -55,4 +59,12 @@ test('isolation probe exercises positive loopback and negative public/private eg
     'HARNESS_PASS_ONLY_NOT_GATE_PASS'
   ]) assert.ok(probe.includes(marker), `missing isolation assertion: ${marker}`);
   assert.match(probe, /modelInvocation:\s*false/);
+});
+
+
+test('workflow writes a clean evidence document and uploads it even after probe failure', async () => {
+  const workflow = await readFile('.github/workflows/benchmark-contracts.yml', 'utf8');
+  assert.match(workflow, /run: bash scripts\\/benchmark-isolation-container\\.sh/);
+  assert.match(workflow, /if: always\\(\\)[\\s\\S]*uses: actions\\/upload-artifact@v4/);
+  assert.doesNotMatch(workflow, /npm run benchmark:isolation:container \\| tee/);
 });
