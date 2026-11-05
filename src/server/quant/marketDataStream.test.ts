@@ -60,8 +60,6 @@ describe('Alpaca streaming market-data adapter', () => {
     socket.message([bar()]); socket.message([bar()]);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/duplicate or out-of-order/) }));
   });
-});
-
 
   it('rejects future-dated bars', async () => {
     const socket = new FakeSocket(), onError = vi.fn(), onBar = vi.fn();
@@ -92,3 +90,5 @@ describe('Alpaca streaming market-data adapter', () => {
     expect(onBar).not.toHaveBeenCalled();
     expect(socket.closed).toBe(true);
   });
+
+});
