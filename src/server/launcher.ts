@@ -29,6 +29,7 @@ import { authPlugin, installAuthentication } from './routes/auth.js';
 import authSigninRoute from '../api/auth/signin.js';
 import { commsPlugin } from './comms/index.js';
 import { githubIntegrationRoutes } from './routes/githubIntegration.js';
+import { githubIntegrationRoutes } from './routes/githubIntegration.js';
 import { approvalRoutes } from './routes/approvalRoutes.js';
 import { engineeringEvidenceRoutes } from './routes/engineeringEvidenceRoutes.js';
 import { slackInteractionsPlugin } from './routes/slackInteractions.js';
@@ -506,6 +507,7 @@ async function registerPlugins() {
   // 3. Register Application & Webhook Routes
   await fastify.register(authPlugin);
   await fastify.register(authSigninRoute);
+  await fastify.register(githubIntegrationRoutes);
   await fastify.register(githubIntegrationRoutes);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
