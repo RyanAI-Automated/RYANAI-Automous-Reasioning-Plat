@@ -1,5 +1,3 @@
-const ALLOWED_PATHS = new Set(['', '/', '/v1', '/v1/']);
-
 export function isAllowedInferenceEndpoint(endpoint, allowedInferenceEndpoints) {
   try {
     const url = new URL(endpoint);
@@ -7,13 +5,23 @@ export function isAllowedInferenceEndpoint(endpoint, allowedInferenceEndpoints) 
     const normalizedHost = hostname.startsWith('[') && hostname.endsWith(']')
       ? hostname.slice(1, -1)
       : hostname;
-    return allowedInferenceEndpoints.some(allowed =>
-      url.protocol === `${allowed.protocol}:` &&
-      normalizedHost === allowed.host.toLowerCase() &&
-      url.port === String(allowed.port) &&
-      ALLOWED_PATHS.has(url.pathname) &&
-      !url.username && !url.password && !url.search && !url.hash
-    );
+
+    return allowedInferenceEndpoints.some(allowed => {
+      const allowedPaths = (allowed.pathPrefixes ?? []).map(path =>
+        path === '/' ? '/' : path.replace(/\/$/, '')
+      );
+      const pathIsAllowed = allowedPaths.some(path =>
+        url.pathname === path || (path !== '/' && url.pathname === `${path}/`)
+      );
+      return url.protocol === `${allowed.protocol}:` &&
+        normalizedHost === allowed.host.toLowerCase() &&
+        url.port === String(allowed.port) &&
+        pathIsAllowed &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash;
+    });
   } catch {
     return false;
   }
