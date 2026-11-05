@@ -3,6 +3,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import {
   Activity,
   Cpu,
+  Code2,
   LayoutDashboard,
   TrendingUp,
   Wallet,
@@ -79,6 +80,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   workspace: MessageSquareText,
   comms: Mail,
   audiobook: BookAudio,
+  studio: Code2,
 };
 
 const destinations = appManifest.routes.map((route) => ({
