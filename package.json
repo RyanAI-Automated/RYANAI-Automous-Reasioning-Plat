@@ -108,7 +108,7 @@
     "dev:desktop:services": "node scripts/dev-desktop.mjs",
     "platform:wiring:check": "node scripts/check-platform-wiring.mjs",
     "test:legacy-server-entrypoints": "node --test scripts/legacy-server-entrypoints.node-test.mjs",
-    "test:server-assets": "node --test scripts/copy-server-assets.node-test.mjs",
+    "test:server-assets": "node --test scripts/copy-server-assets.node-test.mjs scripts/audiobook-prisma-boundary.node-test.mjs",
     "index:check": "node scripts/check-index-html.mjs",
     "test:stack-validator": "node --test scripts/validate-stack-manifest.test.mjs",
     "audit:inspector": "node scripts/ai-inspector-audit.mjs",
@@ -136,8 +136,6 @@
     "test:comms-orchestration": "python3 -m unittest discover -s comms-orchestration/tests -v",
     "ghostunnel:validate": "node scripts/validate-ghostunnel-contract.mjs",
     "test:ghostunnel": "node --test scripts/validate-ghostunnel-contract.node-test.mjs",
-    "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs scripts/benchmark-genx-approval-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs",
-    "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-endpoint-policy.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs",
     "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs scripts/benchmark-isolation.node-test.mjs scripts/benchmark-isolation-evidence.node-test.mjs scripts/benchmark-endpoint-policy.node-test.mjs scripts/benchmark-evidence-contracts.node-test.mjs scripts/benchmark-genx-policy-contract.node-test.mjs scripts/benchmark-genx-approval-contract.node-test.mjs && node --test scripts/validate-benchmark-gate-evidence.node-test.mjs && vitest run src/server/routes/pendingActions.auth.test.ts",
     "benchmark:evidence:bundle": "node scripts/benchmark-evidence-bundle.mjs",
     "benchmark:isolation:container": "bash scripts/benchmark-isolation-container.sh"
