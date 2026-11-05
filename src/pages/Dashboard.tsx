@@ -87,11 +87,6 @@ export default function DashboardPage({ isOwner = false }: { isOwner?: boolean }
   const paHeartbeatUnverified = paHeartbeatFreshness === 'unknown';
   const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && paHeartbeatFreshness === 'fresh');
   const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paHeartbeatUnverified ? 'Heartbeat unverified' : paStatus.workState;
-  const paHeartbeatKnown = Number.isFinite(paHeartbeatAt);
-  const paHeartbeatAge = paHeartbeatKnown ? Math.max(0, now - paHeartbeatAt) : null;
-  const paHeartbeatStale = !paHeartbeatKnown || paHeartbeatAge! > PA_HEARTBEAT_STALE_AFTER_MS;
-  const paMonitoring = Boolean(paStatus?.active && paStatus.workState === 'monitoring' && !paHeartbeatStale);
-  const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paStatus.workState;
   const workspaces = [
     {
       href: '#/cockpit',
@@ -137,7 +132,7 @@ export default function DashboardPage({ isOwner = false }: { isOwner?: boolean }
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${isStale ? 'border-amber-300/30 bg-amber-300/5 text-amber-200' : healthFresh ? 'border-emerald-300/20 text-emerald-200' : 'border-slate-500/30 text-slate-300'}`}>
               <Clock3 className="h-3.5 w-3.5" />
-              {checking && !health ? 'Checking health…' : hasTimestamp ? `Health signal ${isStale ? 'stale' : 'updated'} ${formatAge(ageMs!)} ago` : health ? 'Health timestamp missing · unverified' : 'Health timestamp not reported'}
+              {checking && !health ? 'Checking health…' : hasTimestamp ? `Health signal ${isStale ? 'stale' : 'updated'} ${formatAge(ageMs!)} ago` : health ? 'Health timestamp missing, invalid or future · unverified' : 'Health timestamp not reported'}
             </span>
             {hasTimestamp && (
               <span className="text-slate-500">Reported at {new Date(reportedAt).toLocaleString()}</span>
@@ -151,7 +146,7 @@ export default function DashboardPage({ isOwner = false }: { isOwner?: boolean }
 
       {error && <div role="alert" className="mt-6 flex items-start gap-3 rounded-xl border border-rose-400/20 bg-rose-400/5 p-4 text-sm text-rose-200"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
       {isStale && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">The API timestamp is more than 90 seconds old. Treat this snapshot as stale until a fresh health response is received.</div>}
-      {healthFreshnessUnknown && <div role="status" className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">The API returned a health payload without a timestamp. Service signals are shown as unverified until freshness can be established.</div>}
+      {healthFreshnessUnknown && <div role="status" className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">The API returned a missing, invalid or future timestamp. Service signals are unverified until a valid current timestamp is received.</div>}
 
       <article className="mt-6 rounded-2xl border border-cyan-300/20 bg-slate-900/70 p-5" aria-live="polite">
         <div className="flex flex-wrap items-center justify-between gap-3">

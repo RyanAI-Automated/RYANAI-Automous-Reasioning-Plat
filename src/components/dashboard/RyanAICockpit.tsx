@@ -168,7 +168,7 @@ export default function RyanAICockpit() {
       <section className="mt-7 rounded-2xl border border-cyan-400/20 bg-slate-950/80 p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs uppercase tracking-[0.18em] text-cyan-300">Neural core network</p><h2 className="mt-1 text-xl font-semibold text-white">Three-brain status</h2></div>
-          <span className={brainSnapshotStale ? 'text-xs text-amber-200' : 'text-xs text-slate-500'}>{brainSnapshotStale ? 'Brain snapshot stale · last read ' + new Date(checkedAtMs).toLocaleTimeString() : checkedAt ? 'Health snapshot ' + new Date(checkedAt).toLocaleTimeString() : 'Awaiting provider health snapshot'}</span>
+          <span className={brainSnapshotStale ? 'text-xs text-amber-200' : 'text-xs text-slate-500'}>{brainSnapshotStale ? 'Brain snapshot stale · last read ' + new Date(checkedAtMs).toLocaleTimeString() : brainSnapshotUnverified && checkedAt ? 'Brain timestamp unverified' : checkedAt ? 'Health snapshot ' + new Date(checkedAt).toLocaleTimeString() : 'Awaiting provider health snapshot'}</span>
         </div>
         {brainError && <Alert tone="warning">{brainError}</Alert>}
         {brainSnapshotStale && <Alert tone="warning">No fresh brain snapshot has arrived in over 60 seconds. Last-known provider states are marked stale and are not counted as currently healthy.</Alert>}
