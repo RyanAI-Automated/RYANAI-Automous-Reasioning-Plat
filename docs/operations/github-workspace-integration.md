@@ -33,7 +33,7 @@ The application fails closed when any setting is missing or malformed. No values
 
 ## Security and token lifecycle
 
-- The authenticated RyanAI user starts the flow through `GET /api/github/connect`.
+- The authenticated RyanAI user starts the flow through `POST /api/github/connect`.
 - The server creates a high-entropy, ten-minute, one-time state value and an S256 PKCE verifier. It stores only the SHA-256 state hash and an AES-256-GCM encrypted verifier, bound to the authenticated RyanAI user.
 - Only `GET /api/github/callback` is public. It must claim and delete the matching, unexpired state row before exchanging the code. A repeated, expired or unknown state is rejected. Callback access logging is disabled so codes and state query parameters are not written to request logs.
 - The server exchanges the code with the registered callback URI and PKCE verifier, then verifies the GitHub account and official repository before persisting credentials.
