@@ -95,8 +95,14 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     return () => { active = false; };
   }, [userId, initialProject]);
   useEffect(() => {
-    try { localStorage.setItem(KEY + userId, JSON.stringify(project)); }
-    catch { setError('Browser storage is full. Export your manuscript before continuing.'); }
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(KEY + userId, JSON.stringify(project));
+      } catch {
+        setError('Browser storage is full. Export your manuscript before continuing.');
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [project, userId]);
   useEffect(() => {
     if (!serverReady || !serverProjectId) return;
@@ -122,7 +128,8 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     if (final && text.trim()) setProject(current => ({ ...current, chapters: current.chapters.map(c => c.id === activeId ? { ...c, text: [c.text.trim(), text.trim()].filter(Boolean).join(' ') } : c) }));
   }, [activeId]);
   const recognition = useVoiceRecognition({ language: project.language, onTranscript });
-  useEffect(() => { recognition.stop(); }, [activeId, recognition.stop]);
+  const stopRecognition = recognition.stop;
+  useEffect(() => { stopRecognition(); }, [activeId, stopRecognition]);
 
   const transcribe = async (file?: File) => {
     if (!file || !chapter) return;
