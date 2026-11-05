@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Brain, Pencil, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
-import { authenticatedFetch } from '@/lib/authenticatedFetch';
-
-interface VaultEntry {
-  id: string;
-  key: string;
-  value: string;
-  category: string;
-  createdAt: string | null;
-}
+import { createMemory, deleteMemory, listMemory, updateMemory, type VaultEntry } from '@/lib/memoryVaultApi';
 
 interface MemoryVaultProps {
   open: boolean;
@@ -47,27 +39,18 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams();
-      if (query) params.set('q', query);
-      if (cursor) params.set('cursor', cursor);
-      params.set('limit', '50');
-      const response = await authenticatedFetch('/api/user/memory?' + params.toString(), {
-        headers: { Accept: 'application/json' },
-        signal,
-      });
-      const payload = await response.json().catch(() => ({})) as { entries?: VaultEntry[]; error?: string; hasMore?: boolean; nextCursor?: string | null };
-      if (!response.ok) throw new Error(payload.error || 'Could not load saved memories.');
-      const loaded = Array.isArray(payload.entries) ? payload.entries : [];
-      setEntries((current) => append ? [...current, ...loaded] : loaded);
-      setHasMore(payload.hasMore === true);
-      setNextCursor(typeof payload.nextCursor === 'string' ? payload.nextCursor : null);
+      const page = await listMemory(userId, { query, limit: 50, cursor });
+      if (signal?.aborted) return;
+      setEntries((current) => append ? [...current, ...page.entries] : page.entries);
+      setHasMore(page.hasMore);
+      setNextCursor(page.nextCursor);
     } catch (cause) {
       if (signal?.aborted) return;
       setError(cause instanceof Error ? cause.message : 'Could not load saved memories.');
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [activeSearch]);
+  }, [activeSearch, userId]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,13 +67,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
     setError('');
     setNotice('');
     try {
-      const response = await authenticatedFetch('/api/user/memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value, category }),
-      });
-      const payload = await response.json().catch(() => ({})) as { entry?: VaultEntry; error?: string };
-      if (!response.ok || !payload.entry) throw new Error(payload.error || 'Could not save this memory.');
+      await createMemory(userId, { value, category });
       setInput('');
       setNotice('Memory saved to your account and made available to RyanAI reasoning.');
       // Reload the active filter so a new entry cannot corrupt filtered results or page cursors.
@@ -117,13 +94,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
     setError('');
     setNotice('');
     try {
-      const response = await authenticatedFetch('/api/user/memory/' + encodeURIComponent(entry.id), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value, category: editCategory }),
-      });
-      const payload = await response.json().catch(() => ({})) as { entry?: VaultEntry; error?: string };
-      if (!response.ok || !payload.entry) throw new Error(payload.error || 'Could not update this memory.');
+      await updateMemory(userId, entry.id, { value, category: editCategory });
       setEditingId(null);
       setNotice('Memory updated.');
       // Editing can change whether an entry matches the active query and its page position.
@@ -141,11 +112,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
     setError('');
     setNotice('');
     try {
-      const response = await authenticatedFetch('/api/user/memory/' + encodeURIComponent(entry.id), {
-        method: 'DELETE',
-      });
-      const payload = await response.json().catch(() => ({})) as { deleted?: boolean; error?: string };
-      if (!response.ok || payload.deleted !== true) throw new Error(payload.error || 'Could not delete this memory.');
+      await deleteMemory(userId, entry.id);
       if (editingId === entry.id) setEditingId(null);
       setNotice('Memory deleted from your account.');
       // Rebuild the first page so deleting a cursor row cannot strand later pages.
