@@ -33,6 +33,7 @@ const CommunicationsCenter = lazy(() => import('@/components/CommunicationsCente
 const AudiobookStudio = lazy(() => import('@/pages/AudiobookStudio'));
 const MemoryVaultPage = lazy(() => import('@/pages/MemoryVaultPage'));
 const InferenceConsolePage = lazy(() => import('@/pages/InferenceConsole'));
+const GitHubIntegrationPage = lazy(() => import('@/pages/GitHubIntegration'));
 const CalculatorPage = lazy(() => import('@/pages/Calculator'));
 const DashboardPage = lazy(() => import('@/pages/Dashboard'));
 const PAAgentPage = lazy(() => import('@/pages/PAAgent'));
@@ -87,6 +88,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   cockpit: Cpu,
   memory: BrainCircuit,
   inference: Cpu,
+  github: Code2,
   workspace: MessageSquareText,
   comms: Mail,
   audiobook: BookAudio,
@@ -226,6 +228,7 @@ export default function App() {
                 {route === 'studio' && (isAdmin ? <CodingStudio /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open RyanAI Studio.</p>)}
                 {route === 'memory' && <MemoryVaultPage userId={user.id} />}
                 {route === 'inference' && <InferenceConsolePage />}
+                {route === 'github' && <GitHubIntegrationPage />}
                 {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
                 {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email!} userFullName={displayName} /></div>}
               </>}
