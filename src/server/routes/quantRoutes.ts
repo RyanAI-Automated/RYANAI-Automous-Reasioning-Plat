@@ -633,8 +633,8 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             startingDailyEquity: Number(dailyRows[0]?.starting_equity ?? (cash + grossExposure)),
             lifetimePeakEquity: Number(portfolioRows[0]?.peak_equity ?? (cash + grossExposure)),
             limits: {
-              maxDailyLoss: Number(policy.max_daily_loss),
-              maxDrawdownPct: Number(policy.max_drawdown_pct),
+              maxDailyLoss: Number(policy.max_daily_loss ?? 5000),
+              maxDrawdownPct: Number(policy.max_drawdown_pct ?? 10),
             },
           });
           if (assessment.breach) {
