@@ -454,7 +454,7 @@ jobs:
   render-api-config-repair:
     name: Repair Render API configuration (no deployment)
     needs: [validate, subprojects, integration, issue-435-supabase]
-    if: \${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 25
@@ -462,20 +462,20 @@ jobs:
       contents: read
       checks: read
     env:
-      TARGET_SHA: \${{ github.sha }}
+      TARGET_SHA: ${{ github.sha }}
     steps:
       - name: Verify exact current main commit
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid commit SHA"; exit 1; }
-          MAIN_SHA="$(gh api "repos/\${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$TARGET_SHA" == "$MAIN_SHA" ]] || { echo "::error::Commit is no longer current main; no Render change made"; exit 1; }
 
       - name: Require successful independent security checks for this exact commit
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           required=(
@@ -490,12 +490,12 @@ jobs:
           )
           ready=false
           for attempt in $(seq 1 40); do
-            gh api --paginate "repos/\${GITHUB_REPOSITORY}/commits/\${TARGET_SHA}/check-runs?per_page=100" > checks-pages.json
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs?per_page=100" > checks-pages.json
             jq -s '[.[].check_runs[]]' checks-pages.json > checks.json
             missing=0
             pending=0
             failed=0
-            for name in "\${required[@]}"; do
+            for name in "${required[@]}"; do
               check="$(jq -c --arg n "$name" '[.[] | select(.name == $n)] | sort_by(.id) | last // empty' checks.json)"
               if [[ -z "$check" ]]; then
                 missing=$((missing + 1))
@@ -522,25 +522,25 @@ jobs:
 
       - name: Confirm Render API credential is available
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           [[ -n "$RENDER_API_KEY" ]] || { echo "::error::RENDER_API_KEY is missing; no Render change made"; exit 1; }
 
       - name: Read current API service settings
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
             --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
-            --header "Authorization: Bearer \${RENDER_API_KEY}" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --output render-service-before.json
 
       - name: Correct service source and Docker settings without deploying
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           desired='
@@ -559,7 +559,7 @@ jobs:
             curl --fail-with-body --silent --show-error \
               --request PATCH \
               --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
-              --header "Authorization: Bearer \${RENDER_API_KEY}" \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
               --header "accept: application/json" \
               --header "content-type: application/json" \
               --data '{"repo":"https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat","branch":"main","rootDir":".","autoDeployTrigger":"off","serviceDetails":{"dockerContext":".","dockerfilePath":"./Dockerfile.api","dockerCommand":"","healthCheckPath":"/health"}}' \
@@ -569,12 +569,12 @@ jobs:
 
       - name: Read back and verify repaired API settings
         env:
-          RENDER_API_KEY: \${{ secrets.RENDER_API_KEY }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
             --url "https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0" \
-            --header "Authorization: Bearer \${RENDER_API_KEY}" \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
             --header "accept: application/json" \
             --output render-service-final.json
           jq -e '
