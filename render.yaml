@@ -34,7 +34,6 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile.api
     healthCheckPath: /health
-    preDeployCommand: npx prisma migrate deploy
     autoDeployTrigger: off
     envVars:
       - key: NODE_ENV
@@ -48,15 +47,26 @@ services:
           property: connectionString
       - key: SUPABASE_URL
         value: https://narsvpwymvlrhurqbthu.supabase.co
+      - key: SUPABASE_SESSION_POOLER_HOST
+        sync: false
+      - key: AUDIOBOOK_DATABASE_URL
+        sync: false
+      - key: AUDIOBOOK_DATABASE_URL_UNPOOLED
+        sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # Keep Comms and uploads unavailable until provider, storage and scanning checks pass.
       - key: COMMUNICATIONS_ENABLED
-        value: "true"
+        value: "false"
+      - key: COMMUNICATION_ATTACHMENTS_ENABLED
+        value: "false"
       - key: ATTACHMENT_SCANNER_ENABLED
+        value: "false"
+      - key: ATTACHMENT_ORPHAN_CLEANUP_ENABLED
         value: "false"
       - key: CLAMAV_HOST
         sync: false

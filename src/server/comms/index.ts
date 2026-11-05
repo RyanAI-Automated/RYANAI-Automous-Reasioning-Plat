@@ -9,6 +9,7 @@ import { beginOutboundCommunication, claimInboundCommunication, completeOutbound
 import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
 import { createCommsUploadIntents, createCommsStorageAdmin, cleanCommsAttachmentUrls, downloadCleanCommsAttachments, getCommsAttachmentScanStates, getCommsAttachmentStatuses } from './attachments.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
+import { areCommunicationAttachmentsEnabled, isCommunicationsEnabled } from './featureFlags.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
 type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string; idempotencyKey?: string; attachmentIds?: string[] };
@@ -86,11 +87,16 @@ function smtpTransport() {
 
 /** Real provider-backed channels. Twilio and Resend webhooks are signature verified. */
 export const commsPlugin: FastifyPluginAsync = async (fastify) => {
+  if (!isCommunicationsEnabled()) {
+    fastify.log.info('Communications routes are disabled by configuration.');
+    return;
+  }
   await fastify.register(formbody);
   await fastify.register(rawBody, { field: 'rawBody', global: false, encoding: 'utf8', runFirst: true });
 
 
   fastify.post<{ Body: { channel?: Channel; recipient?: string; message?: string; subject?: string; idempotencyKey?: string; files?: Array<{ name: string; mimeType: string; size: number }> } }>('/api/comms/attachments/prepare', async (request, reply) => {
+    if (!areCommunicationAttachmentsEnabled()) return reply.code(503).send({ error: 'Communication attachments are disabled.' });
     if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
     const { channel, recipient, message, subject, idempotencyKey, files } = request.body ?? {};
     if (!channel || !['whatsapp', 'sms', 'email'].includes(channel)) return reply.code(400).send({ error: 'Attachments are supported for WhatsApp, SMS and email.' });
@@ -123,6 +129,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get<{ Querystring: { ids?: string } }>('/api/comms/attachments/status', async (request, reply) => {
+    if (!areCommunicationAttachmentsEnabled()) return reply.code(503).send({ error: 'Communication attachments are disabled.' });
     if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
     const ids = (request.query.ids || '').split(',').filter(Boolean);
     if (!ids.length || ids.length > 8 || ids.some(id => !/^[0-9a-f-]{36}$/i.test(id))) return reply.code(400).send({ error: 'Provide 1–8 valid attachment IDs.' });
@@ -135,6 +142,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.get<{ Params: { id: string } }>('/api/comms/attachments/:id/download', async (request, reply) => {
+    if (!areCommunicationAttachmentsEnabled()) return reply.code(503).send({ error: 'Communication attachments are disabled.' });
     if (!request.authUser?.isOwner) return reply.code(403).send({ error: 'Owner access is required.' });
     if (!/^[0-9a-f-]{36}$/i.test(request.params.id)) return reply.code(400).send({ error: 'Invalid attachment ID.' });
     try {
@@ -148,6 +156,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
     const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [] } = request.body ?? {};
+    if (attachmentIds.length && !areCommunicationAttachmentsEnabled()) return reply.code(503).send({ success: false, error: 'Communication attachments are disabled.' });
     if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
     if (!Array.isArray(attachmentIds) || attachmentIds.length > 8 || new Set(attachmentIds).size !== attachmentIds.length) return reply.code(400).send({ success: false, error: 'At most 8 unique attachment IDs are supported.' });
     if (attachmentIds.length && (channel === 'voice' || (channel === 'whatsapp' && Boolean(contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim())))) return reply.code(400).send({ success: false, error: 'Voice and approved WhatsApp template sends cannot include attachments.' });
@@ -297,7 +306,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       voice: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER && process.env.TWILIO_VOICE_WEBHOOK_URL && process.env.TWILIO_VOICE_ACTION_URL),
       email: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM && process.env.RYANAI_OWNER_EMAIL),
       inboundEmail: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_WEBHOOK_SECRET),
-      attachments: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      attachments: areCommunicationAttachmentsEnabled() && Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
     },
     ai: {
       openai: {
