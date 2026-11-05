@@ -50,7 +50,7 @@ A successful mTLS handshake proves that the peer possesses an accepted workload 
 
 ### Stage 0 — contract and threat-model baseline
 
-This PR adds a machine-readable contract and automated validator. Ghostunnel remains evaluation-only and is not wired into Docker Compose, Render, Vercel, or production traffic.
+This PR adds a machine-readable contract and automated validator. Ghostunnel remains evaluation-only and is not wired into Docker Compose, Render, Railway, or production traffic.
 
 ### Stage 1 — isolated staging pilot
 
