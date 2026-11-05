@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   transaction: vi.fn(),
   riskPolicy: null as null | { max_order_notional: string; max_position_notional: string; max_gross_exposure: string; trading_enabled: boolean },
+  position: null as null | { quantity: string; average_entry_price: string; last_price: string },
 }));
 
 vi.mock('../../lib/prisma.js', () => ({
@@ -34,13 +35,14 @@ describe('Quant paper trading routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.riskPolicy = null;
+    mocks.position = null;
     mocks.transaction.mockImplementation(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx));
     tx.$executeRawUnsafe.mockResolvedValue(1);
     tx.$queryRawUnsafe.mockImplementation(async (query: string) => {
       if (query.includes('SELECT cash_balance::text')) return [{ cash_balance: '100000' }];
       if (query.includes('FROM quant_paper_risk_policies')) return mocks.riskPolicy ? [mocks.riskPolicy] : [];
       if (query.includes('SELECT id, status FROM quant_paper_orders')) return [];
-      if (query.includes('SELECT quantity::text')) return [];
+      if (query.includes('SELECT quantity::text')) return mocks.position ? [mocks.position] : [];
       if (query.includes('SUM(quantity * last_price)')) return [{ gross_exposure: '0' }];
       if (query.includes('RETURNING id')) return [{ id: 'paper-order-1' }];
       return [];
@@ -129,16 +131,17 @@ describe('Quant paper trading routes', () => {
 
   it('rejects a buy that would exceed the single-position exposure limit', async () => {
     mocks.riskPolicy = {
-      max_order_notional: '10000',
+      max_order_notional: '400',
       max_position_notional: '500',
       max_gross_exposure: '5000',
       trading_enabled: true,
     };
+    mocks.position = { quantity: '2', average_entry_price: '100', last_price: '100' };
     const app = await createApp();
     const response = await app.inject({
       method: 'POST', url: '/api/quant/paper/orders',
       payload: {
-        symbol: 'AAPL', side: 'buy', quantity: 6,
+        symbol: 'AAPL', side: 'buy', quantity: 4,
         reference_price: 100, client_order_id: 'paper-order-client-005',
       },
     });
