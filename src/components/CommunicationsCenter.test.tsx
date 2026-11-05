@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   comms.getCommsStatus.mockResolvedValue({
     status: 'configuration_snapshot',
-    channels: { whatsapp: true, sms: false, voice: false, email: true },
+    channels: { whatsapp: true, sms: false, voice: false, email: true, attachments: true },
     note: 'Configuration only.',
   });
   comms.getCommsConversations.mockResolvedValue(conversations);
@@ -138,5 +138,20 @@ describe('RyanAI Comms inbox controls', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input).not.toBeNull();
     expect(input.multiple).toBe(true);
+    expect(input.disabled).toBe(false);
+  });
+
+  it('disables attachment selection when the server reports the private-storage or scanner gate is off', async () => {
+    comms.getCommsStatus.mockResolvedValueOnce({
+      status: 'configuration_snapshot',
+      channels: { whatsapp: true, sms: false, voice: false, email: true, attachments: false },
+      note: 'Configuration only.',
+    });
+    await render();
+    expect(container.textContent).toContain('Disabled · storage/scanner required');
+    expect(container.textContent).toContain('Uploads are disabled until owner-bound private storage and malware scanning are configured.');
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.disabled).toBe(true);
   });
 });
