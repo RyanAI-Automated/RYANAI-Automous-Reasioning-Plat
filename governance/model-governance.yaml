@@ -144,3 +144,11 @@ model_registry:
     authority: none
     activation: disabled_research_only_pending_licence_and_security_review
     evaluation_required: true
+  - id: specialist.twil8b
+    provider: webai
+    role: math_code_instruction_reasoning
+    status: evaluation_only
+    task_families: [mathematics, code_generation, code_review, instruction_following, structured_reasoning]
+    authority: none
+    activation: offline_benchmark_only_pending_licence_review
+    evaluation_required: true
