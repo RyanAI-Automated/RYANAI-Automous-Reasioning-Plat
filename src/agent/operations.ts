@@ -566,6 +566,9 @@ export function startAgentTaskWorker(options: {
     reconnectBaseDelayMs: options.reconnectBaseDelayMs,
     reconnectMaxDelayMs: options.reconnectMaxDelayMs,
     onStatusChange: (listenerStatus) => {
+      const previousState = agentTaskWorkerStatus.listener?.state;
+      updateStatus({ listener: listenerStatus });
+      if (listenerStatus.state === 'listening' && previousState !== 'listening') void drain('listener-connected');
       updateStatus({ listener: listenerStatus });
       if (listenerStatus.state === 'listening') void drain('listener-connected');
     },
