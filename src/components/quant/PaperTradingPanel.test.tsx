@@ -48,6 +48,20 @@ beforeEach(() => {
         maxGrossExposure: 75000,
       }), { status: 200 });
     }
+    if (url === '/api/quant/strategy-signals') {
+      return new Response(JSON.stringify({
+        signals: [{
+          id: 'signal-1',
+          symbol: 'SPY',
+          strategy: 'sma_crossover',
+          action: 'buy',
+          referencePrice: 600,
+          generatedAt: '2026-11-05T10:00:00.000Z',
+          sourceBarDate: '2026-11-04',
+        }],
+        executionEnabled: false,
+      }), { status: 200 });
+    }
     return new Response(JSON.stringify({ error: 'Unexpected request.' }), { status: 404 });
   });
   container = document.createElement('div');
@@ -70,7 +84,11 @@ describe('paper trading performance summary', () => {
     expect(container.textContent).toContain('100.0%');
     expect(container.textContent).toContain('latest 50 simulated fills');
     expect(container.textContent).toContain('not total net portfolio return');
+    expect(container.textContent).toContain('Recent research signals');
+    expect(container.textContent).toContain('SPY · BUY');
+    expect(container.textContent).toContain('600.00');
     expect(api.fetch).toHaveBeenCalledWith('/api/quant/paper');
     expect(api.fetch).toHaveBeenCalledWith('/api/quant/paper/risk');
+    expect(api.fetch).toHaveBeenCalledWith('/api/quant/strategy-signals');
   });
 });
