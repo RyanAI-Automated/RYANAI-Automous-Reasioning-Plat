@@ -44,6 +44,9 @@ vi.mock('@/pages/AdminConsole', () => ({
 vi.mock('@/pages/QuantLab', () => ({
   default: () => <div>Private quant lab</div>,
 }));
+vi.mock('@/pages/TradingTerminal', () => ({
+  default: () => <div>Private trading terminal</div>,
+}));
 vi.mock('@/components/CommunicationsCenter', () => ({
   default: () => <div>Private communications</div>,
 }));
@@ -166,7 +169,7 @@ describe('application authentication boundary', () => {
     await mount('/dashboard');
     await expectContent('Private dashboard');
 
-    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations', '/settings']) {
+    for (const path of ['/dashboard', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations', '/settings', '/trading']) {
       expect(container.querySelector(`nav[aria-label="Main navigation"] a[href="#${path}"]`)).not.toBeNull();
       expect(container.querySelector(`nav[aria-label="Mobile navigation"] a[href="#${path}"]`)).not.toBeNull();
     }
@@ -200,6 +203,7 @@ describe('application authentication boundary', () => {
 
   it.each([
     ['quant', 'Private quant lab'],
+    ['trading', 'Private trading terminal'],
     ['audiobook', 'Private audiobook studio'],
   ])('opens the %s workspace by its registered route', async (route, content) => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });

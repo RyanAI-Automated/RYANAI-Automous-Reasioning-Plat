@@ -5,6 +5,7 @@ import {
   Cpu,
   LayoutDashboard,
   TrendingUp,
+  Wallet,
   MessageSquareText,
   BookAudio,
   Mail,
@@ -33,6 +34,7 @@ const OperationsCenter = lazy(() => import('@/pages/OperationsCenter'));
 const AdminConsole = lazy(() => import('@/pages/AdminConsole'));
 const ProfileSettings = lazy(() => import('@/pages/ProfileSettings'));
 const QuantLabPage = lazy(() => import('@/pages/QuantLab'));
+const TradingTerminalPage = lazy(() => import('@/pages/TradingTerminal'));
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const OAuthConsentPage = lazy(() => import('@/pages/OAuthConsentPage'));
@@ -72,6 +74,7 @@ const routeIcons: Record<Route, LucideIcon> = {
   admin: ShieldCheck,
   settings: Settings,
   quant: TrendingUp,
+  trading: Wallet,
   cockpit: Cpu,
   workspace: MessageSquareText,
   comms: Mail,
@@ -203,6 +206,7 @@ export default function App() {
                 {route === 'operations' && <OperationsCenter isAdmin={isAdmin} />}
                 {route === 'admin' && (isAdmin ? <AdminConsole key={user.id} userId={user.id} /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the RyanAI Admin Console.</p>)}
                 {route === 'quant' && <QuantLabPage />}
+                {route === 'trading' && <TradingTerminalPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
                 {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
