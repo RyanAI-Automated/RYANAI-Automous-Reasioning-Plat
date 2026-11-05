@@ -21,13 +21,13 @@ The corresponding endpoint and model overrides are `NVIDIA_API_ENDPOINT`/`NVIDIA
 
 Use the hosting provider's encrypted environment-variable UI. Never add the values to Git, a Docker build argument, a client-side `VITE_*` variable, issue, or chat. Restart/redeploy the API after setting them so the process loads the new environment.
 
-Vercel is configured as the Vite frontend in this repository. Finding no model-provider keys in the Vercel project is therefore not evidence that the API runtime is missing them; Vercel should not receive these server secrets when the API is hosted separately.
+Render is the default hosted frontend delivery provider and Railway is the default Docker/persistent-workload provider. Model-provider credentials belong only in the approved server-side runtime secret store; never expose them to the browser or frontend build.
 
 ## 2. Put the admin test token on the test runner, not the API
 
 `TEST_ADMIN_ACCESS_TOKEN` is read by `scripts/test-e2e-flow.ts`. It is a **Supabase admin user's access JWT** used by the test runner to authenticate against the API. The probe route itself does not read this environment variable: it uses the normal authenticated request context and requires `request.authUser.role === 'admin'`.
 
-Configure the token as an encrypted GitHub Actions repository or environment secret for the workflow/job that runs the live E2E probe. Also set the non-secret runner variable `RYANAI_LIVE_PROVIDER_TESTS=true`. Do not put this test token in Vercel's frontend environment or expose it to browser code. Do not commit it.
+Configure the token as an encrypted GitHub Actions repository or environment secret for the workflow/job that runs the live E2E probe. Also set the non-secret runner variable `RYANAI_LIVE_PROVIDER_TESTS=true`. Do not put this test token in the frontend build environment or expose it to browser code. Do not commit it.
 
 The test runner needs the following:
 - `TEST_ADMIN_ACCESS_TOKEN`: admin user's Supabase access JWT, stored as a CI secret.
