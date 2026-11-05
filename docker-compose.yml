@@ -12,8 +12,11 @@ services:
     networks: [ryanai-net]
     ports:
       - "127.0.0.1:5432:5432"
+    # The bootstrap runs only when the local Postgres data volume is first initialized.
+    # Supabase remains the credential authority; this table contains no auth secrets.
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/docker-init/01-supabase-auth-compat.sql:/docker-entrypoint-initdb.d/01-supabase-auth-compat.sql:ro
     healthcheck:
       test:
         - CMD-SHELL
