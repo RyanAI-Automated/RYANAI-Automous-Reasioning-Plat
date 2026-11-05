@@ -9,6 +9,14 @@ const connectionHints: Record<string, string> = {
     'Connection timed out. Check database reachability and network rules.',
   ECONNRESET:
     'Connection was reset. Check database availability and TLS settings.',
+  EHOSTUNREACH:
+    'The database host is not reachable from this service. Check the configured host and network route.',
+  ENETUNREACH:
+    'No network route to the database host is available. Check the configured host and network route.',
+  EPIPE:
+    'The database connection closed unexpectedly. Check database availability and TLS settings.',
+  'XX000':
+    'The Supabase shared pooler returned an internal error. Verify the exact Session Pooler hostname and the project-qualified postgres.<project-ref> username.'
   ERR_TLS_CERT_ALTNAME_INVALID:
     'TLS certificate hostname validation failed. Verify the exact pooler hostname copied from Supabase Connect.',
   SELF_SIGNED_CERT_IN_CHAIN:
