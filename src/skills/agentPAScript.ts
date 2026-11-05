@@ -144,7 +144,7 @@ export class AgentPAScript extends EventEmitter {
       fastifyApiPort: this.fastifyPort,
       lastHeartbeat: this.lastHeartbeatISO,
       health: { ...this.health },
-      workState: !this.active ? "stopped" : healthy ? "monitoring" : "degraded",
+      workState: !this.active ? "stopped" : this.lastError !== null || !healthy ? "degraded" : "monitoring",
       lastReport: this.lastReport,
       lastError: this.lastError,
       observationsCompleted: this.observationsCompleted,
