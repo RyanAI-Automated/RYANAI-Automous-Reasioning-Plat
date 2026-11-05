@@ -343,7 +343,7 @@ async function processAgentRun(
 export async function dispatchAutonomousTask(userId: string, objective: string, executionScope: ExecutionChange = { eventKnown: false, snapshotFresh: false }) {
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.agentRun.create({
-      data: { userId, objective, executionScope, traceContext: captureQueueTraceContext(), status: 'queued' },
+      data: { userId, objective, executionScope, traceContext: captureQueueTraceContext() ?? undefined, status: 'queued' },
       select: { id: true, userId: true, objective: true, status: true, createdAt: true },
     });
     await tx.agentHandoff.createMany({ data: [
