@@ -67,12 +67,13 @@ COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
 COPY --chown=node:node quant-engine ./quant-engine
 COPY --chown=node:node scripts/backup-on-startup.mjs ./scripts/backup-on-startup.mjs
+COPY --chown=node:node scripts/verify-node-ca.sh ./scripts/verify-node-ca.sh
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]
+CMD ["sh", "-c", "exec sh scripts/verify-node-ca.sh sh -c 'node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js'"]
 
 # Build-time Vite configuration contains public browser values only.
 FROM node:24-alpine AS web-builder

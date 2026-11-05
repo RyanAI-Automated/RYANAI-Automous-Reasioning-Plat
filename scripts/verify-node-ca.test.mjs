@@ -24,9 +24,12 @@ function runGuard(extraCaPath) {
 
 test('API image uses system CAs without disabling TLS verification', async () => {
   const dockerfile = await readFile(dockerfilePath, 'utf8');
-  assert.match(dockerfile, /NODE_USE_SYSTEM_CA=1/);
-  assert.doesNotMatch(dockerfile, /NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0/);
-  assert.match(dockerfile, /verify-node-ca\.sh/);
+  const rootDockerfile = await readFile(path.join(repositoryRoot, 'Dockerfile'), 'utf8');
+  for (const image of [dockerfile, rootDockerfile]) {
+    assert.match(image, /NODE_USE_SYSTEM_CA=1/);
+    assert.doesNotMatch(image, /NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0/);
+    assert.match(image, /scripts\/verify-node-ca\.sh/);
+  }
 });
 
 test('startup continues when no additional CA bundle is configured', {
@@ -62,15 +65,7 @@ test('startup rejects a file that is not PEM certificate material', {
 test('startup accepts a readable PEM bundle and preserves its path for Node', {
   skip: process.platform === 'win32' ? 'The container entrypoint is exercised in Linux CI/WSL.' : false,
 }, async (t) => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'ryanai-ca-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const caPath = path.join(directory, 'supabase-root-ca.pem');
-  await writeFile(
-    caPath,
-    '-----BEGIN CERTIFICATE-----\nfixture-pem-payload\n-----END CERTIFICATE-----\n',
-    'utf8',
-  );
-
+  const caPath = path.join(repositoryRoot, 'certs', 'supabase', 'prod-ca-2021.crt');
   const result = runGuard(caPath);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, 'startup-allowed');
