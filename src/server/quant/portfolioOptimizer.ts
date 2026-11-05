@@ -80,6 +80,9 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   if (!Array.isArray(input.assets) || input.assets.length < 2 || input.assets.length > 20) {
     throw new Error('Portfolio optimization requires between 2 and 20 assets.');
   }
+  if (input.assets.some((asset) => !asset || typeof asset.symbol !== 'string' || !Array.isArray(asset.bars))) {
+    throw new Error('Each portfolio asset must include a symbol and daily bars.');
+  }
   const symbols = input.assets.map((asset) => asset.symbol.trim().toUpperCase());
   if (symbols.some((symbol) => !/^[A-Z0-9.-]{1,15}$/.test(symbol)) || new Set(symbols).size !== symbols.length) {
     throw new Error('Portfolio symbols must be unique valid tickers.');
@@ -155,25 +158,36 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   let weights = Array(assetCount).fill(investedWeight / assetCount) as number[];
   let converged = false;
   let iterations = 0;
-  for (iterations = 1; iterations <= 2000; iterations += 1) {
+  for (iterations = 1; iterations <= 5000; iterations += 1) {
     const gradient = stableCovariance.map((row) =>
       2 * row.reduce((sum, value, column) => sum + value * weights[column], 0),
     );
     const next = projectCappedSimplex(weights.map((weight, index) => weight - step * gradient[index]), investedWeight, maxWeight);
     const difference = Math.max(...next.map((weight, index) => Math.abs(weight - weights[index])));
     weights = next;
-    if (difference < 1e-10) {
+    if (difference < 1e-8) {
       converged = true;
       break;
     }
   }
 
+  if (!converged) throw new Error('Minimum-variance optimizer did not converge within its iteration budget.');
+
   let turnover = investedWeight;
   let turnoverConstraintApplied = false;
   if (input.currentWeights !== undefined) {
-    const unknown = Object.keys(input.currentWeights).filter((symbol) => !symbols.includes(symbol.toUpperCase()));
+    if (!input.currentWeights || typeof input.currentWeights !== 'object' || Array.isArray(input.currentWeights)) {
+      throw new Error('currentWeights must be an object keyed by selected symbols.');
+    }
+    const normalizedCurrent = new Map<string, number>();
+    for (const [symbol, value] of Object.entries(input.currentWeights)) {
+      const key = symbol.toUpperCase();
+      if (normalizedCurrent.has(key)) throw new Error('currentWeights cannot repeat a symbol with different casing.');
+      normalizedCurrent.set(key, value);
+    }
+    const unknown = [...normalizedCurrent.keys()].filter((symbol) => !symbols.includes(symbol));
     if (unknown.length) throw new Error('currentWeights contains symbols outside the selected asset universe.');
-    const current = symbols.map((symbol) => input.currentWeights?.[symbol] ?? input.currentWeights?.[symbol.toLowerCase()] ?? 0);
+    const current = symbols.map((symbol) => normalizedCurrent.get(symbol) ?? 0);
     if (current.some((value) => !finite(value) || value < 0 || value > maxWeight) ||
         Math.abs(current.reduce((sum, value) => sum + value, 0) - investedWeight) > 1e-6) {
       throw new Error('currentWeights must be long-only, respect maxWeight, and sum to investedWeight.');
@@ -224,7 +238,7 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
       turnoverConstraintApplied,
       allSatisfied: true,
     },
-    solver: { iterations: Math.min(iterations, 2000), converged, shrinkage },
+    solver: { iterations: Math.min(iterations, 5000), converged, shrinkage },
     executionMode: 'research_allocation_only',
     ordersCreated: false,
   };
