@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   checks: read
+  deployments: read
 
 concurrency:
   group: production-database-migrations
@@ -121,6 +122,25 @@ jobs:
         with:
           ref: ${{ needs.preflight.outputs.target_sha }}
           persist-credentials: false
+
+      - name: Require an independently reviewed production-migrations environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          environment="$(gh api "repos/${GITHUB_REPOSITORY}/environments/production-migrations")"
+          jq -e '
+            [ .protection_rules[]?
+              | select(
+                  .type == "required_reviewers"
+                  and .prevent_self_review == true
+                  and ((.reviewers // []) | length > 0)
+                )
+            ] | length > 0
+          ' <<<"$environment" > /dev/null || {
+            echo "::error::production-migrations must have required reviewers configured and prevent_self_review enabled. No production migration will run."
+            exit 1
+          }
 
       - name: Validate protected database configuration without exposing credentials
         env:

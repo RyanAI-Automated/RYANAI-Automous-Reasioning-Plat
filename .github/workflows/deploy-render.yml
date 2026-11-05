@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   checks: read
+  deployments: read
 
 concurrency:
   group: render-production
@@ -137,6 +138,25 @@ jobs:
             sleep 15
           done
           [[ "$ready" == true ]] || { echo "::error::No successful isolated provider verification found for exact commit $TARGET_SHA"; exit 1; }
+
+      - name: Require an independently reviewed production deployment environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          environment="$(gh api "repos/${GITHUB_REPOSITORY}/environments/production")"
+          jq -e '
+            [ .protection_rules[]?
+              | select(
+                  .type == "required_reviewers"
+                  and .prevent_self_review == true
+                  and ((.reviewers // []) | length > 0)
+                )
+            ] | length > 0
+          ' <<<"$environment" > /dev/null || {
+            echo "::error::production must have required reviewers configured and prevent_self_review enabled. No Render API deployment will run."
+            exit 1
+          }
 
       - name: Validate Render API credential
         env:
