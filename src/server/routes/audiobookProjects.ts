@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from 'fastify';
 import { requireUser } from './auth.js';
 import { isRyanLanguage } from '../../shared/languages.js';
+import { ensureSupabaseIdentity } from '../audiobookIdentityBridge.js';
 
 const BUCKET = 'ryanai-audiobooks';
 const VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']);
@@ -53,11 +54,22 @@ function getStorage() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+function getAudiobookDatabase(fastify: FastifyInstance, reply: FastifyReply) {
+  const db = fastify.audiobookPrisma;
+  if (!db) {
+    reply.code(503).send({ error: 'Audiobook database is not configured on this server.' });
+    return null;
+  }
+  return db;
+}
+
 export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/v1/audiobooks', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
-    const projects = await fastify.prisma.audiobookProject.findMany({
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
+    const projects = await db.audiobookProject.findMany({
       where: { userId }, orderBy: { updatedAt: 'desc' }, take: 1,
       include: { chapters: { orderBy: { position: 'asc' } } },
     });
@@ -67,9 +79,18 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: ProjectInput }>('/api/v1/audiobooks', { bodyLimit: 3 * 1024 * 1024, preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
     const input = validateProject(request.body ?? {});
     if (!input) return reply.code(400).send({ error: 'Project title, language and 1–200 valid chapters are required.' });
-    const project = await fastify.prisma.audiobookProject.create({
+    try {
+      // request.authUser is populated only after requireUser() verifies the bearer token with Supabase Auth.
+      await ensureSupabaseIdentity(db, { id: userId });
+    } catch {
+      request.log.error('Unable to persist verified Supabase subject in Neon audiobook database.');
+      return reply.code(503).send({ error: 'Audiobook persistence is temporarily unavailable.' });
+    }
+    const project = await db.audiobookProject.create({
       data: { userId, title: input.title, language: input.language, chapters: { create: input.chapters } },
       include: { chapters: { orderBy: { position: 'asc' } } },
     });
@@ -79,7 +100,9 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { projectId: string } }>('/api/v1/audiobooks/:projectId', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
-    const project = await fastify.prisma.audiobookProject.findFirst({
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
+    const project = await db.audiobookProject.findFirst({
       where: { id: request.params.projectId, userId },
       include: { chapters: { orderBy: { position: 'asc' } } },
     });
@@ -90,11 +113,13 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put<{ Params: { projectId: string }; Body: ProjectInput }>('/api/v1/audiobooks/:projectId', { bodyLimit: 3 * 1024 * 1024, preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
     const input = validateProject(request.body ?? {});
     if (!input) return reply.code(400).send({ error: 'Project title, language and 1–200 valid chapters are required.' });
-    const exists = await fastify.prisma.audiobookProject.findFirst({ where: { id: request.params.projectId, userId }, select: { id: true } });
+    const exists = await db.audiobookProject.findFirst({ where: { id: request.params.projectId, userId }, select: { id: true } });
     if (!exists) return reply.code(404).send({ error: 'Audiobook project not found.' });
-    const project = await fastify.prisma.$transaction(async (tx) => {
+    const project = await db.$transaction(async (tx) => {
       await tx.audiobookProject.update({ where: { id: exists.id }, data: { title: input.title, language: input.language } });
       await tx.audiobookChapter.deleteMany({ where: { projectId: exists.id } });
       await tx.audiobookChapter.createMany({ data: input.chapters.map(chapter => ({ ...chapter, projectId: exists.id })) });
@@ -109,9 +134,11 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
     if (!process.env.OPENAI_API_KEY?.trim()) return reply.code(503).send({ error: 'Audiobook rendering is not configured on this server.' });
     if (!process.env.SUPABASE_URL?.trim() || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) return reply.code(503).send({ error: 'Private audiobook storage is not configured on this server.' });
-    const project = await fastify.prisma.audiobookProject.findFirst({
+    const project = await db.audiobookProject.findFirst({
       where: { id: request.params.projectId, userId }, include: { chapters: { orderBy: { position: 'asc' } } },
     });
     if (!project) return reply.code(404).send({ error: 'Audiobook project not found.' });
@@ -130,22 +157,22 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
         return { id: chapter.id, title: chapter.title, text: chapter.content, voice, style, speed };
       }),
     };
-    const existing = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
+    const existing = await db.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
     if (existing) return reply.code(200).send({ job: jobSummary(existing), reused: true });
-    const activeJob = await fastify.prisma.audiobookRenderJob.findFirst({
+    const activeJob = await db.audiobookRenderJob.findFirst({
       where: { userId, projectId: project.id, status: { in: ['queued', 'running', 'cancel_requested'] } },
     });
     if (activeJob) return reply.code(409).send({ error: 'Another render is already active for this project.', jobId: activeJob.id });
     try {
-      const job = await fastify.prisma.audiobookRenderJob.create({
+      const job = await db.audiobookRenderJob.create({
         data: { userId, projectId: project.id, idempotencyKey, request: snapshot, progress: { completedChapters: 0, totalChapters: project.chapters.length } },
       });
       return reply.code(202).send({ job: jobSummary(job), reused: false });
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-        const job = await fastify.prisma.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
+        const job = await db.audiobookRenderJob.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
         if (job) return reply.code(200).send({ job: jobSummary(job), reused: true });
-        const active = await fastify.prisma.audiobookRenderJob.findFirst({
+        const active = await db.audiobookRenderJob.findFirst({
           where: { userId, projectId: project.id, status: { in: ['queued', 'running', 'cancel_requested'] } },
         });
         if (active) return reply.code(409).send({ error: 'Another render is already active for this project.', jobId: active.id });
@@ -157,7 +184,9 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { jobId: string } }>('/api/v1/audiobook-jobs/:jobId', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
-    const job = await fastify.prisma.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId } });
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
+    const job = await db.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId } });
     if (!job) return reply.code(404).send({ error: 'Audiobook render job not found.' });
     return { job: jobSummary(job) };
   });
@@ -165,17 +194,19 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: { jobId: string } }>('/api/v1/audiobook-jobs/:jobId/cancel', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
-    const queued = await fastify.prisma.audiobookRenderJob.updateMany({
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
+    const queued = await db.audiobookRenderJob.updateMany({
       where: { id: request.params.jobId, userId, status: 'queued' },
       data: { status: 'cancelled', cancelRequestedAt: new Date(), completedAt: new Date() },
     });
     if (queued.count) return { status: 'cancelled' };
-    const running = await fastify.prisma.audiobookRenderJob.updateMany({
+    const running = await db.audiobookRenderJob.updateMany({
       where: { id: request.params.jobId, userId, status: 'running' },
       data: { status: 'cancel_requested', cancelRequestedAt: new Date() },
     });
     if (running.count) return { status: 'cancel_requested' };
-    const job = await fastify.prisma.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId }, select: { status: true } });
+    const job = await db.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId }, select: { status: true } });
     if (!job) return reply.code(404).send({ error: 'Audiobook render job not found.' });
     return reply.code(409).send({ error: 'This render job can no longer be cancelled.', status: job.status });
   });
@@ -183,7 +214,9 @@ export const audiobookProjectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { jobId: string } }>('/api/v1/audiobook-jobs/:jobId/downloads', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
-    const job = await fastify.prisma.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId } });
+    const db = getAudiobookDatabase(fastify, reply);
+    if (!db) return;
+    const job = await db.audiobookRenderJob.findFirst({ where: { id: request.params.jobId, userId } });
     if (!job) return reply.code(404).send({ error: 'Audiobook render job not found.' });
     if (job.status !== 'completed' || !job.result || typeof job.result !== 'object') return reply.code(409).send({ error: 'Audiobook artifacts are not ready.' });
     const artifacts = (job.result as { artifacts?: Array<{ chapterId: string; chapterTitle: string; path: string }> }).artifacts;

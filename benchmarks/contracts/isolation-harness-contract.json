@@ -11,12 +11,13 @@
     "memoryLimitMb": 256,
     "cpuLimit": 1,
     "pidsLimit": 64,
-    "repositoryMount": "two-file-allowlist",
+    "repositoryMount": "three-file-allowlist",
     "dockerSocketMounted": false,
     "providerCredentialsPassed": false,
     "hostEnvironmentPassed": false,
     "mountedFiles": [
       "scripts/benchmark-isolation-container.mjs",
+      "scripts/benchmark-endpoint-policy.mjs",
       "benchmarks/contracts/local-isolation-policy.json"
     ]
   },
