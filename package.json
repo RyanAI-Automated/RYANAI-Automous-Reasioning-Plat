@@ -127,7 +127,9 @@
     "worker:audiobook": "tsx scripts/audiobook-render-worker.ts",
     "test:comms-orchestration": "python3 -m unittest discover -s comms-orchestration/tests -v",
     "ghostunnel:validate": "node scripts/validate-ghostunnel-contract.mjs",
-    "test:ghostunnel": "node --test scripts/validate-ghostunnel-contract.node-test.mjs"
+    "test:ghostunnel": "node --test scripts/validate-ghostunnel-contract.node-test.mjs",
+    "test:benchmark:contracts": "node --test scripts/benchmark-contracts.node-test.mjs",
+    "benchmark:evidence:bundle": "node scripts/benchmark-evidence-bundle.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
