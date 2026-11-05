@@ -39,5 +39,26 @@
     "held-out-dataset-integrity",
     "six-gate-readiness"
   ],
-  "failClosed": true
+  "failClosed": true,
+  "evidence": {
+    "file": "benchmark-isolation-evidence.json",
+    "format": "single-json-document",
+    "testedRevisionSource": "git-rev-parse-HEAD",
+    "requiredMetadata": [
+      "testedRevision.gitCommit",
+      "testedRevision.githubRunId",
+      "runtime.immutableContainerImageDigest",
+      "commands.imagePull.exitCode",
+      "commands.imageDigestInspection.exitCode",
+      "commands.isolatedContainer.argv",
+      "commands.isolatedContainer.exitCode",
+      "checks[].command",
+      "checks[].exitCode",
+      "checks[].observedCode",
+      "failureReasons"
+    ],
+    "stdoutAndStderrSeparated": true,
+    "validJsonRequiredOnFailure": true,
+    "uploadArtifactOnFailure": true
+  }
 }
