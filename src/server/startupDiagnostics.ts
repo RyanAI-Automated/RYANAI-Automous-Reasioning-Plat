@@ -55,6 +55,14 @@ const safeMessageHints: Array<{ pattern: RegExp; hint: string }> = [
     hint: 'The database URL did not provide a usable password string. Verify that the existing secret is present and percent-encoded.',
   },
   {
+    pattern: /URI malformed|URIError/i,
+    hint: 'DATABASE_URL contains a malformed percent escape. Percent-encode reserved characters in the password.',
+  },
+  {
+    pattern: /server does not support ssl|ssl is not supported/i,
+    hint: 'The PostgreSQL endpoint rejected SSL. Verify that the Supabase Session Pooler host and port 5432 are correct.',
+  },
+  {
     pattern: /ssl connection is required/i,
     hint: 'Supabase Session Pooler requires TLS. The client connection must enable SSL.',
   },
