@@ -256,6 +256,23 @@ export default function CommunicationsCenter() {
         })}
       </div>
 
+      <section aria-label="Conversation intelligence" className="rounded-xl border border-cyan-400/15 bg-slate-950/60 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Conversation intelligence</p>
+            <p className="mt-1 text-xs text-slate-500">Owner-scoped analysis of persisted history. Analysis and drafts never authorize dispatch.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void runConversationAssist('summarize')} disabled={!active || assistBusy} className="rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-100 disabled:opacity-40">Summarize</button>
+            <button type="button" onClick={() => void runConversationAssist('draft')} disabled={!active || assistBusy} className="rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-100 disabled:opacity-40">Draft reply</button>
+            <button type="button" onClick={() => void runConversationAssist('translate')} disabled={!active || assistBusy} className="rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-100 disabled:opacity-40">Translate</button>
+            <button type="button" onClick={() => void runConversationAssist('extract_tasks')} disabled={!active || assistBusy} className="rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-100 disabled:opacity-40">Extract tasks</button>
+          </div>
+        </div>
+        {assistBusy && <p className="mt-3 text-xs text-cyan-200">RyanAI is analysing the selected conversation…</p>}
+        {assistOutput && <div role="region" aria-label="Conversation intelligence result" className="mt-3 rounded-lg border border-white/10 bg-slate-900/70 p-3 text-sm leading-6 text-slate-200"><pre className="whitespace-pre-wrap font-sans">{assistOutput}</pre></div>}
+      </section>
+
       <section aria-label="Communication overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Conversations</p>
