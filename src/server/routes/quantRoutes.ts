@@ -168,4 +168,135 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       executionMode: 'historical_simulation_only',
     });
   });
+
+  // Paper trading is a separate, explicitly simulated ledger. It never calls a broker.
+  fastify.get('/api/quant/paper', async (request) => {
+    const userId = request.authUser!.id;
+    await prisma.$executeRawUnsafe(
+      'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
+      userId,
+    );
+    const [accounts, positions, trades] = await Promise.all([
+      prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
+        'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1', userId,
+      ),
+      prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        'SELECT symbol, quantity::text, average_entry_price::text, last_price::text, (quantity * last_price)::text AS market_value, ((last_price - average_entry_price) * quantity)::text AS unrealized_pnl FROM quant_paper_positions WHERE user_id = $1 AND quantity > 0 ORDER BY symbol',
+        userId,
+      ),
+      prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        'SELECT id, symbol, side, quantity::text, price::text, fee::text, realized_pnl::text, created_at FROM quant_paper_trades WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+        userId,
+      ),
+    ]);
+    const cash = Number(accounts[0]?.cash_balance ?? 0);
+    const marketValue = positions.reduce((sum, row) => sum + Number(row.market_value), 0);
+    return {
+      mode: 'paper_simulation_only',
+      brokerConnected: false,
+      risk: { maxOrderNotional: 10000, feeBps: 5, shortSelling: false },
+      account: { startingCash: 100000, cash, marketValue, equity: cash + marketValue },
+      positions,
+      trades,
+    };
+  });
+
+  fastify.post<{ Body: { symbol: string; side: 'buy' | 'sell'; quantity: number; reference_price: number; client_order_id: string } }>(
+    '/api/quant/paper/orders',
+    {
+      schema: {
+        body: {
+          type: 'object', additionalProperties: false,
+          required: ['symbol', 'side', 'quantity', 'reference_price', 'client_order_id'],
+          properties: {
+            symbol: { type: 'string', pattern: '^[A-Za-z0-9.\\-]{1,15}$' },
+            side: { type: 'string', enum: ['buy', 'sell'] },
+            quantity: { type: 'number', exclusiveMinimum: 0, maximum: 1000000 },
+            reference_price: { type: 'number', exclusiveMinimum: 0, maximum: 10000000 },
+            client_order_id: { type: 'string', minLength: 16, maxLength: 64 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.authUser!.id;
+      const symbol = request.body.symbol.toUpperCase();
+      const quantity = request.body.quantity;
+      const price = request.body.reference_price;
+      const notional = quantity * price;
+      const fee = notional * 0.0005;
+      if (!Number.isFinite(notional) || notional > 10000) {
+        return reply.code(400).send({ error: 'Paper orders are limited to 10,000 in simulated notional.' });
+      }
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(
+            'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
+            userId,
+          );
+          const accounts = await tx.$queryRawUnsafe<Array<{ cash_balance: string }>>(
+            'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1 FOR UPDATE',
+            userId,
+          );
+          const prior = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
+            'SELECT id, status FROM quant_paper_orders WHERE user_id = $1 AND client_order_id = $2',
+            userId, request.body.client_order_id,
+          );
+          if (prior.length) return { duplicate: true, orderId: prior[0].id, status: prior[0].status };
+          const cash = Number(accounts[0]?.cash_balance ?? 0);
+          const positions = await tx.$queryRawUnsafe<Array<{ quantity: string; average_entry_price: string }>>(
+            'SELECT quantity::text, average_entry_price::text FROM quant_paper_positions WHERE user_id = $1 AND symbol = $2 FOR UPDATE',
+            userId, symbol,
+          );
+          const held = Number(positions[0]?.quantity ?? 0);
+          const averageEntry = Number(positions[0]?.average_entry_price ?? 0);
+          let realizedPnl = 0;
+          if (request.body.side === 'buy') {
+            if (cash < notional + fee) throw new Error('INSUFFICIENT_PAPER_CASH');
+            await tx.$executeRawUnsafe(
+              'UPDATE quant_paper_accounts SET cash_balance = cash_balance - $2, updated_at = NOW() WHERE user_id = $1',
+              userId, notional + fee,
+            );
+            await tx.$executeRawUnsafe(
+              'INSERT INTO quant_paper_positions (user_id, symbol, quantity, average_entry_price, last_price, updated_at) VALUES ($1, $2, $3, $4, $4, NOW()) ON CONFLICT (user_id, symbol) DO UPDATE SET average_entry_price = ((quant_paper_positions.quantity * quant_paper_positions.average_entry_price) + (EXCLUDED.quantity * EXCLUDED.average_entry_price)) / (quant_paper_positions.quantity + EXCLUDED.quantity), quantity = quant_paper_positions.quantity + EXCLUDED.quantity, last_price = EXCLUDED.last_price, updated_at = NOW()',
+              userId, symbol, quantity, price,
+            );
+          } else {
+            if (held < quantity) throw new Error('INSUFFICIENT_PAPER_POSITION');
+            realizedPnl = (price - averageEntry) * quantity - fee;
+            await tx.$executeRawUnsafe(
+              'UPDATE quant_paper_accounts SET cash_balance = cash_balance + $2, updated_at = NOW() WHERE user_id = $1',
+              userId, notional - fee,
+            );
+            await tx.$executeRawUnsafe(
+              'UPDATE quant_paper_positions SET quantity = quantity - $3, last_price = $4, updated_at = NOW() WHERE user_id = $1 AND symbol = $2',
+              userId, symbol, quantity, price,
+            );
+            await tx.$executeRawUnsafe(
+              'DELETE FROM quant_paper_positions WHERE user_id = $1 AND symbol = $2 AND quantity <= 0',
+              userId, symbol,
+            );
+          }
+          const orders = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            "INSERT INTO quant_paper_orders (user_id, client_order_id, symbol, side, quantity, reference_price, fill_price, fee, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'filled', NOW()) RETURNING id",
+            userId, request.body.client_order_id, symbol, request.body.side, quantity, price, fee,
+          );
+          await tx.$executeRawUnsafe(
+            'INSERT INTO quant_paper_trades (order_id, user_id, symbol, side, quantity, price, fee, realized_pnl, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
+            orders[0].id, userId, symbol, request.body.side, quantity, price, fee, request.body.side === 'sell' ? realizedPnl : null,
+          );
+          return { duplicate: false, orderId: orders[0].id, status: 'filled', symbol, side: request.body.side, quantity, fillPrice: price, fee, realizedPnl };
+        });
+        if (result.duplicate) return reply.code(200).send(result);
+        return reply.code(201).send({ ...result, mode: 'paper_simulation_only', brokerConnected: false });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message === 'INSUFFICIENT_PAPER_CASH') return reply.code(409).send({ error: 'Insufficient simulated cash for this order, including fees.' });
+        if (message === 'INSUFFICIENT_PAPER_POSITION') return reply.code(409).send({ error: 'You cannot sell more units than your simulated position holds.' });
+        fastify.log.error({ message: 'paper order transaction failed' }, 'Paper order rejected');
+        return reply.code(503).send({ error: 'Paper order could not be safely recorded.' });
+      }
+    },
+  );
+
 };

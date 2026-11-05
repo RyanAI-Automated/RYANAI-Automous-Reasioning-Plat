@@ -274,12 +274,13 @@ export async function claimInboundCommunication(
     const leaseExpired = existing.status === 'processing'
       && existing.createdAt instanceof Date
       && Date.now() - existing.createdAt.getTime() >= INBOUND_PROCESSING_LEASE_MS;
-    if (leaseExpired) {
+    const attachmentRetryable = existing.status === 'attachment_failed';
+    if (leaseExpired || attachmentRetryable) {
       const reclaimed = await prisma.communicationMessage.updateMany({
         where: {
           id: existing.id,
-          status: 'processing',
-          createdAt: { lte: new Date(Date.now() - INBOUND_PROCESSING_LEASE_MS) },
+          status: existing.status,
+          ...(leaseExpired ? { createdAt: { lte: new Date(Date.now() - INBOUND_PROCESSING_LEASE_MS) } } : {}),
         },
         data: {
           status: input.status ?? 'processing',
