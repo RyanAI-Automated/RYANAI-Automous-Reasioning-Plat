@@ -98,7 +98,8 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
     }
     for (let index = 0; index < bars.length; index += 1) {
       const bar = bars[index];
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(bar.date) || bar.date !== dates[index] ||
+      if (!bar || typeof bar !== 'object' || typeof bar.date !== 'string' ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(bar.date) || bar.date !== dates[index] ||
           !finite(bar.close) || bar.close <= 0 ||
           (index > 0 && bar.date <= bars[index - 1].date)) {
         throw new Error('Asset histories must have aligned dates and finite positive closes.');
