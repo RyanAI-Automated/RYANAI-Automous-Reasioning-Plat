@@ -191,7 +191,6 @@ The repository is larger than the core application. Important paths include:
 | `Dockerfile` | Main application image targets |
 | `Dockerfile.api` | API Docker build used by the Render Blueprint |
 | `render.yaml` | Render Blueprint definition |
-| `vercel.json` | Vercel configuration |
 
 Use the checked-in source and workflow definitions as the authority when a document or deployment dashboard disagrees with this guide.
 
@@ -779,7 +778,7 @@ Health endpoints show whether a process or its configured dependencies respond. 
 
 ## Deployment
 
-Deployment configuration is environment-specific. This repository includes Docker, Render Blueprint, and Vercel configuration, but a checked-in configuration file does not prove that a provider service is connected correctly or deployed.
+Deployment configuration is environment-specific. This repository includes Docker, Render Blueprint, and Railway configuration, but a checked-in configuration file does not prove that a provider service is connected correctly or deployed.
 
 ### Docker deployment
 
@@ -809,11 +808,6 @@ The repository includes `render.yaml` describing a static web service and a Dock
 
 Do not create duplicate services to work around a repository-link or service-configuration issue.
 
-### Vercel
-
-The repository also contains `vercel.json`. Confirm the Vercel project root, build settings, environment variables, and API origin. The frontend and API may be separate services; ensure the browser points to the intended HTTPS API origin and the API allows the exact frontend origin.
-
-A Vercel preview or deployment can be blocked by account quotas or project permissions. Report those as infrastructure/provider blockers, not as a green production deployment.
 
 ### Release checklist
 

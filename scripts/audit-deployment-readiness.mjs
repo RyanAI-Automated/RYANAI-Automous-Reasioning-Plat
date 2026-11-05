@@ -7,7 +7,6 @@ const targets = [
   { name: 'Datadog Synthetics', gate: 'DATADOG_SYNTHETICS_ENABLED', required: ['DD_API_KEY','DD_APP_KEY'] },
   { name: 'Railway', gate: 'RAILWAY_DEPLOY_ENABLED', required: ['RAILWAY_TOKEN','RAILWAY_PROJECT_ID','RAILWAY_SERVICE_ID','RAILWAY_ENVIRONMENT_ID'] },
   { name: 'Render', gate: 'RENDER_DEPLOY_ENABLED', required: ['RENDER_API_KEY'] },
-  { name: 'Vercel', gate: 'VERCEL_DEPLOY_ENABLED', required: ['VERCEL_TOKEN','VERCEL_ORG_ID','VERCEL_PROJECT_ID','VITE_API_BASE_URL'] },
 ];
 
 function isConfigured(value) {
