@@ -190,6 +190,9 @@ test('Render API repair runs inside core CI, waits for security, and never deplo
   assert.ok(blueprint.includes('healthCheckPath: /health'));
   assert.ok(blueprint.includes('value: https://ryanai-api.onrender.com'));
   assert.ok(blueprint.includes('region: oregon'));
+  assert.ok(blueprint.includes('key: SUPABASE_SESSION_POOLER_HOST'));
+  assert.ok(blueprint.includes('sync: false'));
+  assert.ok(!blueprint.includes('aws-1-eu-west-1.pooler.supabase.com'));
 });
 
 

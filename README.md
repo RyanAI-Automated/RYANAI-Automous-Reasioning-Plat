@@ -415,12 +415,16 @@ The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_UR
 
 | Variable | Purpose / handling |
 | --- | --- |
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Supabase Auth endpoint and server-side publishable key used to verify user sessions. |\n| `SUPABASE_ANON_KEY` | Legacy public key alias retained where needed. |
+| `SUPABASE_SESSION_POOLER_HOST` | Exact Supabase Shared Pooler Session hostname copied from the project's Connect dialog; do not infer the cluster index from the region. |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Supabase Auth endpoint and server-side publishable key used to verify user sessions. |
+| `SUPABASE_ANON_KEY` | Legacy public key alias retained where needed. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Privileged server-only credential. Never expose to the browser. |
 | `VITE_SUPABASE_URL` | Public project URL compiled into the frontend when required. |
 | `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Public/publishable frontend keys only. |
 
 Never place a service-role key, provider secret, GitHub token, or signing secret in a `VITE_*` variable. Frontend variables are bundled into browser-delivered assets.
+
+For Render's IPv4-only API network, copy the **Session pooler** hostname from the Supabase project's **Connect** dialog and set that hostname (host only, no scheme or port) as `SUPABASE_SESSION_POOLER_HOST` on the existing `ryanai-api` service. Do not construct the `aws-[index]-[region]` host from the region: Supabase assigns a pooler cluster index that cannot be inferred from the region. The API resolver uses port `5432` and the project-qualified shared-pooler user `postgres.[PROJECT_REF]`; keep the original database password only in the protected `DATABASE_URL` setting.
 
 ### MCP variables
 

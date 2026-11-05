@@ -75,8 +75,10 @@ export function resolveSupabaseSessionPoolerUrl(
   database.port = '5432';
   database.username = `postgres.${projectRef}`;
   const sslMode = database.searchParams.get('sslmode')?.toLowerCase();
-  if (!sslMode || !['require', 'verify-ca', 'verify-full'].includes(sslMode)) {
-    database.searchParams.set('sslmode', 'require');
+  // node-postgres currently treats "require" as verify-full; set that
+  // explicitly so production behavior does not depend on legacy aliases.
+  if (!sslMode || sslMode === 'require' || !['verify-ca', 'verify-full'].includes(sslMode)) {
+    database.searchParams.set('sslmode', 'verify-full');
   }
 
   return {

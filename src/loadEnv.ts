@@ -14,8 +14,9 @@ if (process.env.NODE_ENV === 'production') {
 
   if (pooler.changed && pooler.databaseUrl) {
     process.env.DATABASE_URL = pooler.databaseUrl;
+    const selectedEndpoint = new URL(pooler.databaseUrl);
     console.info(
-      '[RyanAI] PostgreSQL transport selected: Supabase Shared Pooler Session mode (credentials omitted).',
+      `[RyanAI] PostgreSQL transport selected: Supabase Shared Pooler Session mode at ${selectedEndpoint.hostname}:${selectedEndpoint.port || '5432'} (credentials omitted).`,
     );
   }
 }

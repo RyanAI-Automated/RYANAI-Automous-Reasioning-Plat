@@ -100,6 +100,41 @@ describe('safe database diagnostics', () => {
     },
   );
 
+  it('reports Supavisor internal errors with safe pooler guidance', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('private pooler error details', {
+        cause: { code: 'XX000' },
+      }),
+    );
+    expect(result).toContain('XX000');
+    expect(result).toContain('exact Session Pooler hostname');
+    expect(result).toContain('postgres.<project-ref>');
+    expect(result).not.toContain('private pooler error details');
+  });
+
+  it('reports TLS certificate hostname failures without exposing connection details', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('private hostname details', {
+        cause: { code: 'ERR_TLS_CERT_ALTNAME_INVALID' },
+      }),
+    );
+    expect(result).toContain('TLS certificate hostname validation failed');
+    expect(result).toContain('Supabase Connect');
+    expect(result).not.toContain('private hostname');
+  });
+
+  it('preserves unknown safe driver codes without logging raw messages', () => {
+    const result = databaseFailureDiagnostic(
+      new Error('postgresql://user:private-password@host/db', {
+        cause: { code: 'SASL_AUTHENTICATION_FAILED' },
+      }),
+    );
+    expect(result).toContain('SASL_AUTHENTICATION_FAILED');
+    expect(result).toContain('project-qualified username');
+    expect(result).not.toContain('private-password');
+    expect(result).not.toContain('postgresql://');
+  });
+
   it('terminates when causes form a cycle', () => {
     const error: { cause?: unknown } = {};
     error.cause = error;
