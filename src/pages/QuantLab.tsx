@@ -50,7 +50,10 @@ export default function QuantLabPage() {
     }
   }, []);
 
-  useEffect(() => { void loadHistory(); }, [loadHistory]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadHistory(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadHistory]);
 
   const openExperiment = async (experimentId: string) => {
     setError('');
