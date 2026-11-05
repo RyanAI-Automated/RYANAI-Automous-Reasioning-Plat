@@ -259,6 +259,116 @@ if (!dashboard.includes("href: '#/pa'") || !dashboard.includes('Personal Assista
   fail('System dashboard must link to the dedicated Personal Assistant workspace');
 }
 
+// Product module integration contracts: frontend API paths, server routes, auth and mobile navigation.
+const adminPage = readText('src/pages/AdminConsole.tsx');
+const adminMetrics = readText('src/server/routes/metrics.ts');
+const pendingActions = readText('src/server/routes/pendingActions.ts');
+const engineeringEvidence = readText('src/server/routes/engineeringEvidenceRoutes.ts');
+if (!['/api/admin/metrics', '/api/actions', '/api/engineering/jobs'].every((path) => adminPage.includes(path))
+  || !adminMetrics.includes('requireAdmin')
+  || !pendingActions.includes('requireAdmin')
+  || !engineeringEvidence.includes('requireAdmin')) {
+  fail('Admin Console API contracts must match server routes protected by requireAdmin');
+}
+
+const operatorPage = readText('src/pages/OperatorConsole.tsx');
+const agentOperations = readText('src/server/routes/agentOperations.ts');
+if (!operatorPage.includes("authenticatedFetch('/api/agent/ops/tasks'")
+  || !agentOperations.includes("'/api/agent/ops/tasks'")
+  || !agentOperations.includes('dispatchAutonomousTask(request.authUser.id')
+  || !agentOperations.includes('listAgentRuns(request.authUser.id)')) {
+  fail('Operator Console must use the owner-scoped authenticated task dispatch and history APIs');
+}
+
+const quantPage = readText('src/pages/QuantLab.tsx');
+const quantRoutes = readText('src/server/routes/quantRoutes.ts');
+for (const endpoint of [
+  '/api/quant/experiments', '/api/quant/market-data/imports',
+  '/api/quant/strategy-signals', '/api/quant/backtests',
+  '/api/quant/paper/strategies',
+]) {
+  if (!quantPage.includes(endpoint) || !quantRoutes.includes(endpoint)) {
+    fail('Quant Lab frontend/backend route contract is missing: ' + endpoint);
+  }
+}
+if (!quantRoutes.includes('fastify.addHook(\'preHandler\', requireUser)')
+  || !quantRoutes.includes('WHERE id = $1 AND user_id = $2')) {
+  fail('Quant Lab routes must enforce authenticated account-scoped data access');
+}
+
+const memoryRoutes = readText('src/server/routes/memory.ts');
+if (!memoryComponent.includes("authenticatedFetch('/api/user/memory")
+  || !memoryRoutes.includes('fastify.addHook(\'preHandler\', requireUser)')
+  || !memoryRoutes.includes('request.authUser?.id')) {
+  fail('Memory Vault must use authenticated account-scoped persistent memory APIs');
+}
+
+const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
+for (const [pagePath, serverPath] of [
+  ['/api/v1/audiobooks', '/api/v1/audiobooks'],
+  ['/api/audiobook-jobs/', '/api/audiobook-jobs/:jobId'],
+  ['/cancel', '/cancel'],
+  ['/downloads', '/downloads'],
+]) {
+  if (!audiobookPage.includes(pagePath) || !audiobookRoutes.includes(serverPath)) {
+    fail('Audiobook Studio frontend/backend route contract is missing: ' + pagePath);
+  }
+}
+if (!audiobookRoutes.includes('preHandler: requireUser')) {
+  fail('Audiobook project and render-job APIs must require an authenticated user');
+}
+
+const githubRoutes = readText('src/server/routes/githubIntegration.ts');
+if (!githubComponent.includes("authenticatedFetch('/api/github/status')")
+  || !githubComponent.includes("authenticatedFetch('/api/github/connect'")
+  || !githubRoutes.includes("'/api/github/status'")
+  || !githubRoutes.includes('preHandler: requireUser')) {
+  fail('GitHub Integration must use the server-verified authenticated OAuth status and connect routes');
+}
+
+const commsApi = readText('src/lib/commsApi.ts');
+const commsServer = readText('src/server/comms/index.ts');
+if (!commsPage.includes('sendCommsMessage')
+  || !commsApi.includes("authenticatedFetch('/api/comms/send'")
+  || !commsServer.includes("'/api/comms/send'")
+  || !commsServer.includes('request.authUser?.isOwner')
+  || !commsPage.includes('setReviewing(true)')
+  || !commsPage.includes('dispatchReviewedMessage')) {
+  fail('Comms must use the owner-authorized server dispatch route and preserve the separate human-review step');
+}
+
+const cockpit = readText('src/components/dashboard/RyanAICockpit.tsx');
+if (!cockpit.includes('/api/agent/ops/brains')
+  || !agentOperations.includes("'/api/agent/ops/brains'")
+  || !agentOperations.includes('request.authUser')) {
+  fail('Command Cockpit must use the authenticated brain-health API');
+}
+
+// Mobile app-shell navigation must expose every authorised route through a horizontally scrollable nav.
+if (!app.includes('aria-label="Mobile navigation"')
+  || !app.includes('overflow-x-auto')
+  || !app.includes('visibleDestinations.map')
+  || !app.includes("(id !== 'comms' || isOwner)")
+  || !app.includes("(id !== 'admin' || isAdmin)")) {
+  fail('Mobile navigation must expose the same role-filtered destinations as desktop navigation');
+}
+for (const [name, source] of [
+  ['Dashboard', dashboard],
+  ['Admin Console', adminPage],
+  ['Operator Console', operatorPage],
+  ['Quant Lab', quantPage],
+  ['Audiobook Studio', audiobookPage],
+  ['Comms', commsPage],
+  ['Inference Console', inferencePage],
+  ['GitHub Integration', githubComponent],
+  ['Memory Vault', memoryComponent],
+  ['Command Cockpit', cockpit],
+]) {
+  if (!/sm:|md:|lg:/.test(source) || !/min-w-0|w-full|max-w-/.test(source)) {
+    fail(name + ' must include responsive width and breakpoint styling for mobile layouts');
+  }
+}
+
 const bridge = readText('src/services/tauriBridge.ts');
 const commands = readText('src-tauri/src/commands.rs');
 const registration = readText('src-tauri/src/lib.rs');
