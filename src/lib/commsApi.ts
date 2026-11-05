@@ -56,7 +56,9 @@ export async function getCommsStatus(): Promise<CommsStatus> {
 }
 
 export async function getCommsConversations(limit = 50): Promise<CommsConversation[]> {
-  const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  const safeLimit = Number.isFinite(limit)
+    ? Math.min(100, Math.max(1, Math.floor(limit)))
+    : 50;
   const response = await authenticatedFetch(`/api/comms/conversations?limit=${safeLimit}`);
   const body = await readJson<{ conversations: CommsConversation[] }>(response);
   return Array.isArray(body.conversations) ? body.conversations : [];

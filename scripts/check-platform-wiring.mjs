@@ -153,8 +153,10 @@ if (!commsPage.includes('Search messages or addresses') || !commsPage.includes('
 if (!commsPage.includes('Private Comms attachments')
   || !commsPage.includes('getCommsAttachmentStatuses')
   || !commsPage.includes("item.status !== 'clean'")
-  || !commsPage.includes("attachment.status === 'clean'")) {
-  fail('Comms must retain private attachment upload, scan-gated dispatch, and clean-only downloads');
+  || !commsPage.includes("attachment.status === 'clean'")
+  || !commsPage.includes('status?.channels?.attachments === true')
+  || !commsPage.includes('!attachmentsEnabled')) {
+  fail('Comms must retain private attachment upload, scan-gated dispatch, clean-only downloads, and the server-reported attachment feature gate');
 }
 const audiobookPage = readText('src/pages/AudiobookStudio.tsx');
 const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
@@ -203,8 +205,14 @@ if (!paScript.includes('Read-only monitoring continues') || !paScript.includes('
 if (!agentOps.includes("'/api/agent/ops/pa/status'") || !agentOps.includes('getAgentPAStatus()')) {
   fail('Authenticated agent operations API must expose PA observer status');
 }
-if (!dashboard.includes('PA Agent observer') || !dashboard.includes('/api/agent/ops/pa/status')) {
-  fail('System dashboard must display PA observer reports and heartbeat');
+if (
+  !dashboard.includes('PA Agent observer') ||
+  !dashboard.includes("import { authenticatedFetch } from '@/lib/authenticatedFetch';") ||
+  !dashboard.includes("authenticatedFetch('/api/agent/ops/pa/status'") ||
+  dashboard.includes("fetch('/api/agent/ops/pa/status'") ||
+  !dashboard.includes("returned a non-JSON response")
+) {
+  fail('System dashboard must use the authenticated API origin and validate PA observer JSON responses');
 }
 const bridge = readText('src/services/tauriBridge.ts');
 const commands = readText('src-tauri/src/commands.rs');

@@ -44,6 +44,8 @@ model User {
   agentRuns     AgentRun[]
   codingTasks   CodingTask[]
   quantExperiments QuantExperiment[]
+  marketDataImports QuantMarketDataImport[]
+  strategySignals QuantStrategySignal[]
   audiobookProjects AudiobookProject[]
   audiobookRenderJobs AudiobookRenderJob[]
 
@@ -517,6 +519,52 @@ model QuantExperiment {
 
   @@index([userId, createdAt(sort: Desc)], map: "quant_experiments_user_created_idx")
   @@map("quant_experiments")
+}
+
+model QuantMarketDataImport {
+  id          String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol      String   @db.VarChar(15)
+  provider    String   @db.VarChar(32)
+  feed        String   @db.VarChar(16)
+  timeframe   String   @db.VarChar(16)
+  adjustment  String   @db.VarChar(16)
+  barCount    Int      @map("bar_count")
+  firstBarAt  DateTime @map("first_bar_at") @db.Timestamptz(6)
+  lastBarAt   DateTime @map("last_bar_at") @db.Timestamptz(6)
+  fetchedAt   DateTime @default(now()) @map("fetched_at") @db.Timestamptz(6)
+  isStale     Boolean  @default(false) @map("is_stale")
+  bars        Json
+  provenance  Json
+  signals     QuantStrategySignal[]
+
+  @@index([userId, symbol, fetchedAt(sort: Desc)], map: "quant_market_data_imports_user_symbol_fetched_idx")
+  @@map("quant_market_data_imports")
+}
+
+model QuantStrategySignal {
+  id                String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  marketDataImportId String  @map("market_data_import_id")
+  marketDataImport  QuantMarketDataImport @relation(fields: [marketDataImportId], references: [id], onDelete: Cascade)
+  strategy          String   @db.VarChar(40)
+  fastWindow        Int      @map("fast_window") @db.SmallInt
+  slowWindow        Int      @map("slow_window") @db.SmallInt
+  action            String   @db.VarChar(8)
+  referencePrice    Decimal  @map("reference_price") @db.Decimal(18, 8)
+  previousFastSma   Decimal  @map("previous_fast_sma") @db.Decimal(18, 8)
+  previousSlowSma   Decimal  @map("previous_slow_sma") @db.Decimal(18, 8)
+  fastSma           Decimal  @map("fast_sma") @db.Decimal(18, 8)
+  slowSma           Decimal  @map("slow_sma") @db.Decimal(18, 8)
+  generatedAt       DateTime @map("generated_at") @db.Timestamptz(6)
+  metadata          Json
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([userId, marketDataImportId, strategy, fastWindow, slowWindow], map: "quant_strategy_signals_user_import_strategy_windows_key")
+  @@index([userId, generatedAt(sort: Desc)], map: "quant_strategy_signals_user_generated_idx")
+  @@map("quant_strategy_signals")
 }
 
 model CodingTask {

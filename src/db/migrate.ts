@@ -1,24 +1,112 @@
 /**
- * Apply committed Prisma migrations explicitly.
+ * Apply an explicitly approved Prisma migration.
  *
- * Application startup must only verify schema readiness; it must never use
- * prisma db push or run schema DDL implicitly.
- *
- * Production migrations are run only by the protected, manually dispatched
- * workflow. The URL is normalized to the operator-confirmed Supabase Session
- * Pooler host and pinned to the bundled CA with full certificate verification.
+ * Application startup performs read-only schema readiness checks and never
+ * applies DDL. Production execution is limited to one allowlisted migration
+ * after checking the database's complete migration history.
  */
 import { spawn } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { Pool } from 'pg';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { resolveSupabaseSessionPoolerUrl } from '../server/supabasePooler.js';
+import {
+  assertOnlyApprovedMigrationPending,
+  stageApprovedPrismaMigration,
+} from './scopedPrismaMigration.js';
 
-const databaseUrl = process.env.DATABASE_URL?.trim();
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required to apply committed Prisma migrations.');
+const prismaCli = resolve(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');
+
+async function runPrismaMigration(schemaPath) {
+  const args = [prismaCli, 'migrate', 'deploy'];
+  if (schemaPath) args.push('--schema', schemaPath);
+
+  await new Promise((resolvePromise, reject) => {
+    const child = spawn(process.execPath, args, {
+      stdio: 'inherit',
+      shell: false,
+    });
+    child.once('error', () => reject(new Error('Failed to start the Prisma migration CLI.')));
+    child.once('close', (code) => {
+      if (code === 0) resolvePromise();
+      else reject(new Error(`Prisma migration deployment failed with exit code ${code ?? 'unknown'}.`));
+    });
+  });
 }
 
-if (process.env.NODE_ENV === 'production') {
+async function runProductionMigration(databaseUrl) {
+  const prismaDirectory = resolve(process.cwd(), 'prisma');
+  const migrationName = process.env.PRODUCTION_MIGRATION_NAME?.trim();
+  if (!migrationName) {
+    throw new Error('PRODUCTION_MIGRATION_NAME is required for production migration execution.');
+  }
+
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 10000,
+  });
+
+  let temporaryDirectory;
+  try {
+    let history;
+    try {
+      history = await pool.query(
+        'SELECT migration_name, finished_at, rolled_back_at FROM "_prisma_migrations" ORDER BY migration_name',
+      );
+    } catch {
+      throw new Error('Production Prisma migration history could not be verified; refusing to migrate.');
+    }
+
+    const localEntries = await readdir(join(prismaDirectory, 'migrations'), { withFileTypes: true });
+    const localMigrationNames = localEntries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    const appliedMigrationNames = history.rows
+      .filter((row) => row.finished_at && !row.rolled_back_at)
+      .map((row) => row.migration_name);
+    const unresolvedMigrationNames = history.rows
+      .filter((row) => !row.finished_at)
+      .map((row) => row.migration_name);
+
+    assertOnlyApprovedMigrationPending({
+      localMigrationNames,
+      appliedMigrationNames,
+      unresolvedMigrationNames,
+      migrationName,
+    });
+
+    temporaryDirectory = await mkdtemp(join(tmpdir(), 'ryanai-approved-prisma-'));
+    const schemaPath = await stageApprovedPrismaMigration({
+      prismaDirectory,
+      migrationName,
+      destinationDirectory: temporaryDirectory,
+    });
+
+    await runPrismaMigration(schemaPath);
+  } finally {
+    await pool.end().catch(() => {});
+    if (temporaryDirectory) {
+      await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
+async function main() {
+  const originalDatabaseUrl = process.env.DATABASE_URL?.trim();
+  if (!originalDatabaseUrl) {
+    throw new Error('DATABASE_URL is required to apply committed Prisma migrations.');
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    await runPrismaMigration(undefined);
+    return;
+  }
+
   const rootCertPath = process.env.SUPABASE_SSL_ROOT_CERT_PATH?.trim();
   if (!rootCertPath) {
     throw new Error('Production migrations require the verified Supabase root CA path.');
@@ -31,7 +119,7 @@ if (process.env.NODE_ENV === 'production') {
   }
 
   const resolution = resolveSupabaseSessionPoolerUrl(
-    databaseUrl,
+    originalDatabaseUrl,
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SESSION_POOLER_HOST,
     rootCertPath,
@@ -57,26 +145,11 @@ if (process.env.NODE_ENV === 'production') {
 
   // Never print or otherwise expose the connection URL.
   process.env.DATABASE_URL = resolution.databaseUrl;
+  await runProductionMigration(resolution.databaseUrl);
 }
 
-const prismaCli = resolve(
-  process.cwd(),
-  'node_modules',
-  'prisma',
-  'build',
-  'index.js',
-);
-
-const child = spawn(process.execPath, [prismaCli, 'migrate', 'deploy'], {
-  stdio: 'inherit',
-  shell: false,
-});
-
-child.on('error', (error) => {
-  console.error('Failed to start Prisma migration deployment:', error.message);
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : 'unknown migration error';
+  console.error('Prisma migration blocked or failed:', message);
   process.exitCode = 1;
-});
-
-child.on('close', (code) => {
-  process.exitCode = code ?? 1;
 });
