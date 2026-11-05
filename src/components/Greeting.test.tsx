@@ -7,6 +7,7 @@ import Greeting from './Greeting';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let container: HTMLDivElement;
 let root: Root;
+const originalSpeechSynthesisDescriptor = Object.getOwnPropertyDescriptor(window, 'speechSynthesis');
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -18,6 +19,11 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  if (originalSpeechSynthesisDescriptor) {
+    Object.defineProperty(window, 'speechSynthesis', originalSpeechSynthesisDescriptor);
+  } else {
+    Reflect.deleteProperty(window, 'speechSynthesis');
+  }
 });
 
 describe('RyanAI multilingual welcome settings', () => {
@@ -29,6 +35,36 @@ describe('RyanAI multilingual welcome settings', () => {
     const language = container.querySelector('#ryanai-language') as HTMLSelectElement;
     expect(language.value).toBe('ve-ZA');
     expect(container.textContent).toContain('Tshivenda (Venda)');
+  });
+
+  it('preserves title and voice choices saved by the legacy welcome panel', async () => {
+    window.localStorage.setItem('ryanai:preferred-title:owner-legacy', 'Sir');
+    window.localStorage.setItem('ryanai:voice-greeting-uri', 'legacy-en-za-voice');
+    window.localStorage.setItem('ryanai:voice-greetings-enabled', 'false');
+    const legacyVoice = {
+      voiceURI: 'legacy-en-za-voice',
+      lang: 'en-ZA',
+      name: 'Legacy South African voice',
+    } as SpeechSynthesisVoice;
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        getVoices: () => [legacyVoice],
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        cancel: () => undefined,
+      } as unknown as SpeechSynthesis,
+    });
+
+    await act(async () => root.render(
+      <Greeting userId="owner-legacy" displayName="Ntsiyeni Ganyane" isOwner />,
+    ));
+
+    expect((container.querySelector('#ryanai-title') as HTMLSelectElement).value).toBe('Sir');
+    expect((container.querySelector('#ryanai-voice') as HTMLSelectElement).value).toBe('legacy-en-za-voice');
+    const voiceToggle = container.querySelector('button[aria-pressed]') as HTMLButtonElement;
+    expect(voiceToggle.getAttribute('aria-pressed')).toBe('false');
+    expect(voiceToggle.textContent).toContain('Voice off');
   });
 
   it('defaults other accounts to their name and South African English', async () => {
