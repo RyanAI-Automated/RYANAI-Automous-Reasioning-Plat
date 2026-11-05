@@ -53,32 +53,36 @@ export function reconcilePaperOrder(snapshot: PaperOrderLedgerSnapshot): PaperOr
       !Array.isArray(snapshot.fills)) {
     throw new Error('Paper order identity, side, or fill list is invalid.');
   }
-  const numericValues = [
+  const orderValues = [
     snapshot.quantity,
     snapshot.storedFilledQuantity,
     snapshot.storedRemainingQuantity,
     snapshot.storedFillPrice,
     snapshot.storedFee,
-    ...snapshot.fills.flatMap((fill) => [fill.quantity, fill.price, fill.fee]),
   ];
-  if (numericValues.some((value) => !finiteNonNegative(value)) || snapshot.quantity <= 0 ||
+  if (orderValues.some((value) => !finiteNonNegative(value)) || snapshot.quantity <= 0 ||
       snapshot.storedFillPrice <= 0 || snapshot.storedAverageFillPrice !== null &&
       (!Number.isFinite(snapshot.storedAverageFillPrice) || snapshot.storedAverageFillPrice <= 0)) {
-    throw new Error('Paper order and fill values must be finite and non-negative.');
+    throw new Error('Paper order values must be finite and non-negative.');
   }
 
   const fillIds = new Set<string>();
+  const validFills: PaperFillLedgerEntry[] = [];
   for (const fill of snapshot.fills) {
-    if (!fill.id || !fill.clientFillId || fill.price <= 0 || fill.quantity <= 0) {
+    if (!fill.id || !fill.clientFillId || !finiteNonNegative(fill.quantity) ||
+        !finiteNonNegative(fill.price) || !finiteNonNegative(fill.fee) ||
+        fill.price <= 0 || fill.quantity <= 0) {
       reasons.push('invalid_fill_record');
+      continue;
     }
     if (fillIds.has(fill.clientFillId)) reasons.push('duplicate_client_fill_id');
     fillIds.add(fill.clientFillId);
+    validFills.push(fill);
   }
 
-  const ledgerFilledQuantity = snapshot.fills.reduce((sum, fill) => sum + fill.quantity, 0);
-  const ledgerFee = snapshot.fills.reduce((sum, fill) => sum + fill.fee, 0);
-  const totalNotional = snapshot.fills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0);
+  const ledgerFilledQuantity = validFills.reduce((sum, fill) => sum + fill.quantity, 0);
+  const ledgerFee = validFills.reduce((sum, fill) => sum + fill.fee, 0);
+  const totalNotional = validFills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0);
   const averageFillPrice = ledgerFilledQuantity > 0 ? totalNotional / ledgerFilledQuantity : null;
   const remainingQuantity = snapshot.quantity - ledgerFilledQuantity;
 
