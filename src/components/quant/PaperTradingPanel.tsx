@@ -243,8 +243,17 @@ export default function PaperTradingPanel() {
           reference_price: Number(price), client_order_id: crypto.randomUUID(),
         }),
       });
-      const data = await response.json() as { error?: string; duplicate?: boolean; fillPrice?: number };
-      if (!response.ok) throw new Error(data.error || 'Paper order was rejected.');
+      const data = await response.json() as {
+        error?: string; duplicate?: boolean; fillPrice?: number; emergencyStop?: boolean;
+      };
+      if (!response.ok) {
+        if (data.emergencyStop) {
+          setNotice(data.error || 'An automatic risk breach activated the emergency stop. No order was placed.');
+          await refresh();
+          return;
+        }
+        throw new Error(data.error || 'Paper order was rejected.');
+      }
       setNotice(data.duplicate ? 'This order was already recorded.' : 'Paper order filled in the simulated ledger.');
       await refresh();
     } catch (cause) {
@@ -365,7 +374,7 @@ export default function PaperTradingPanel() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Metric label="Daily loss" value={riskState.dailyRisk ? money(riskState.dailyRisk.daily_loss) : '—'} />
           <Metric label="Daily loss limit" value={money(riskState.maxDailyLoss)} />
-          <Metric label="Current drawdown" value={riskState.portfolioRisk ? `${Number(riskState.portfolioRisk.max_drawdown_pct).toFixed(2)}%` : '—'} />
+          <Metric label="Max observed drawdown" value={riskState.portfolioRisk ? `${Number(riskState.portfolioRisk.max_drawdown_pct).toFixed(2)}%` : '—'} />
           <Metric label="Drawdown limit" value={`${riskState.maxDrawdownPct.toFixed(2)}%`} />
         </div>
         <form onSubmit={saveDailyRiskLimits} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
