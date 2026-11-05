@@ -447,6 +447,19 @@ jobs:
             END IF;
           END $$;
           SQL
+      - name: Generate Prisma clients for Comms integration
+        run: npm run db:generate
+      - name: Run Comms PostgreSQL callback and attachment scanner integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          export DATABASE_URL="$DB_URL"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          npx prisma migrate deploy
+          npm run test:comms-callback:integration
+          npm run test:comms-attachments:integration
       - name: Stop isolated Supabase stack
         if: always() && steps.setup_supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
