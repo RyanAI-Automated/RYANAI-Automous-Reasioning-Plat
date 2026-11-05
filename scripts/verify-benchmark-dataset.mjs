@@ -74,8 +74,10 @@ export async function verifyBenchmarkDataset(manifestPath, datasetRoot, evidence
   const ids = new Set();
   const files = [];
   for (const entry of manifest.files) {
-    if (!entry.path.startsWith('development/')) {
-      throw new Error('Only development/ files may be mounted for model-visible tasks.');
+    if (typeof entry.path !== 'string' || !entry.path.startsWith('development/') ||
+        entry.path.includes('\\\\') || entry.path.split('/').includes('..') ||
+        path.posix.normalize(entry.path) !== entry.path) {
+      throw new Error('Only normalized development/ paths may be model-visible.');
     }
     if (!isHash(entry.sha256)) throw new Error('Invalid SHA-256 for ' + entry.path);
     const bytes = await readSafeFile(datasetRoot, entry.path);
