@@ -102,7 +102,7 @@ export async function createCommsUploadIntents(prisma:PrismaClient,ownerUserId:s
   if(!msg||msg.conversation.ownerUserId!==ownerUserId)throw new Error('Communication draft is not owned by this session.');
   const storage=createCommsStorageAdmin(),created:string[]=[];
   const existing=await prisma.communicationAttachment.findMany({where:{communicationMessageId:messageId,ownerUserId,bucketId:COMMS_ATTACHMENT_BUCKET},select:{id:true,objectName:true,fileName:true,mimeType:true,size:true}});
-  const intents:Array<{id:string;name:string;mimeType:string;size:number;signedUploadUrl:string}>=[];
+  const intents:Array<{id:string;name:string;mimeType:string;size:number;uploadPath:string;uploadToken:string}>=[];
   if(existing.length){
     if(existing.length!==files.length)throw new Error('The attachment draft already has a different upload set.');
     for(const file of files){
@@ -110,7 +110,7 @@ export async function createCommsUploadIntents(prisma:PrismaClient,ownerUserId:s
       if(!match)throw new Error('The attachment retry does not match the original file set.');
       const {data,error}=await storage.storage.from(COMMS_ATTACHMENT_BUCKET).createSignedUploadUrl(match.objectName,{upsert:false});
       if(error||!data?.signedUrl)throw new Error(error?.message||'Unable to re-sign attachment upload.');
-      intents.push({id:match.id,name:match.fileName,mimeType:match.mimeType,size:Number(match.size),signedUploadUrl:data.signedUrl});
+      intents.push({id:match.id,name:match.fileName,mimeType:match.mimeType,size:Number(match.size),uploadPath:data.path,uploadToken:data.token});
     }
     return intents;
   }
@@ -122,7 +122,7 @@ export async function createCommsUploadIntents(prisma:PrismaClient,ownerUserId:s
       created.push(id);
       const {data,error}=await storage.storage.from(COMMS_ATTACHMENT_BUCKET).createSignedUploadUrl(objectName,{upsert:false});
       if(error||!data?.signedUrl)throw new Error(error?.message||'Unable to sign attachment upload.');
-      intents.push({id,name,mimeType:file.mimeType.toLowerCase(),size:file.size,signedUploadUrl:data.signedUrl});
+      intents.push({id,name,mimeType:file.mimeType.toLowerCase(),size:file.size,uploadPath:data.path,uploadToken:data.token});
     }
     return intents;
   }catch(error){if(created.length)await prisma.communicationAttachment.deleteMany({where:{id:{in:created}}});throw error;}
@@ -131,6 +131,16 @@ export async function storeInboundCommsAttachment(prisma:PrismaClient,input:{own
   if (!areCommunicationAttachmentsEnabled()) throw new Error('Communication attachments are disabled.');
   const mime=input.mimeType.toLowerCase(),bytes=Buffer.from(input.bytes);
   if(bytes.length>COMMS_ATTACHMENT_MAX_BYTES||!validateCommsFileSignature(bytes,mime))throw new Error('Inbound attachment signature or size is invalid.');
+  if(input.providerMediaId){
+    const existing=await prisma.communicationAttachment.findFirst({
+      where:{providerMediaId:input.providerMediaId,ownerUserId:input.ownerUserId,source:input.source},
+      select:{id:true,communicationMessageId:true,fileName:true,mimeType:true,size:true},
+    });
+    if(existing){
+      if(existing.communicationMessageId!==input.messageId)throw new Error('Provider attachment ID is already bound to another communication message.');
+      return {id:existing.id,name:existing.fileName,mimeType:existing.mimeType,size:Number(existing.size)};
+    }
+  }
   const msg=await prisma.communicationMessage.findUnique({where:{id:input.messageId},select:{id:true,conversationId:true,conversation:{select:{ownerUserId:true}}}});
   if(!msg||msg.conversationId!==input.conversationId||msg.conversation.ownerUserId!==input.ownerUserId)throw new Error('Inbound attachment has no verified owner-bound message.');
   const id=crypto.randomUUID(),name=safeCommsFileName(input.fileName,mime),objectName=input.ownerUserId+'/'+input.conversationId+'/'+input.messageId+'/'+id+'-'+name;
@@ -140,11 +150,56 @@ export async function storeInboundCommsAttachment(prisma:PrismaClient,input:{own
   if(error){await prisma.communicationAttachment.delete({where:{id}});throw new Error(error.message||'Unable to store provider attachment.');}
   return {id,name,mimeType:mime,size:bytes.length};
 }
+export interface TwilioInboundMedia { url: string; mimeType: string; index: number; }
+
+/** Persist Twilio media only after signature and configured owner-sender verification. */
+export async function storeTwilioMediaForCommunication(
+  prisma: PrismaClient,
+  providerMessageId: string,
+  media: readonly TwilioInboundMedia[],
+) {
+  if (!media.length || media.length > COMMS_ATTACHMENT_MAX_FILES) throw new Error('Twilio media count is outside the supported range.');
+  const ownerUserId = getOwnerInboundUserId();
+  if (!ownerUserId) throw new Error('RYANAI_OWNER_AUTH_USER_ID must identify the verified Supabase owner before inbound media can be stored.');
+  const message = await prisma.communicationMessage.findUnique({
+    where: { providerMessageId },
+    select: { id: true, conversationId: true },
+  });
+  if (!message) throw new Error('Inbound Twilio message was not persisted before media storage.');
+
+  const stored = [];
+  for (const item of media) {
+    const mediaId = new URL(item.url).pathname.match(/\/Media\/(ME[a-zA-Z0-9]+)\/?$/)?.[1];
+    if (!mediaId) throw new Error('Twilio media URL does not contain a valid media ID.');
+    const existing = await prisma.communicationAttachment.findFirst({
+      where: { providerMediaId: mediaId, ownerUserId, source: 'inbound_twilio' },
+      select: { id: true, communicationMessageId: true, fileName: true, mimeType: true, size: true },
+    });
+    if (existing) {
+      if (existing.communicationMessageId !== message.id) throw new Error('Twilio media ID is bound to another communication message.');
+      stored.push({ id: existing.id, name: existing.fileName, mimeType: existing.mimeType, size: Number(existing.size) });
+      continue;
+    }
+    const bytes = await downloadTwilioMedia(item.url, item.mimeType);
+    stored.push(await storeInboundCommsAttachment(prisma, {
+      ownerUserId,
+      messageId: message.id,
+      conversationId: message.conversationId,
+      fileName: `twilio-media-${item.index + 1}`,
+      mimeType: item.mimeType,
+      bytes,
+      source: 'inbound_twilio',
+      providerMediaId: mediaId,
+    }));
+  }
+  return stored;
+}
+
 export async function getCommsAttachmentScanStates(storage:SupabaseClient,attachments:readonly {id:string;objectName:string}[]):Promise<Record<string,string>> {
   if(!attachments.length)return {};
   const {data,error}=await storage.from('ryanai_attachment_scans').select('object_name,status').eq('bucket_id',COMMS_ATTACHMENT_BUCKET).in('object_name',attachments.map(a=>a.objectName));
   if(error)throw error;const map=new Map((data??[]).map((x:any)=>[x.object_name,x.status]));
-  return Object.fromEntries(attachments.map(a=>[a.id,map.get(a.objectName)||'pending']));
+  return Object.fromEntries(attachments.map(a=>[a.id,map.get(a.objectName)||'missing']));
 }
 export async function cleanCommsAttachmentUrls(prisma:PrismaClient,ownerUserId:string,ids:readonly string[],expiresIn=900):Promise<Map<string,string>> {
   const rows=await prisma.communicationAttachment.findMany({where:{id:{in:[...ids]},ownerUserId,bucketId:COMMS_ATTACHMENT_BUCKET},select:{id:true,objectName:true,message:{select:{conversation:{select:{ownerUserId:true}}}}}});
@@ -166,7 +221,7 @@ export async function getCommsAttachmentStatuses(prisma:PrismaClient,ownerUserId
   });
   if(rows.length!==unique.length||rows.some(row=>row.message.conversation.ownerUserId!==ownerUserId))throw new Error('One or more attachments were not found for this owner.');
   const states=await getCommsAttachmentScanStates(createCommsStorageAdmin(),rows);
-  return rows.map(row=>({id:row.id,name:row.fileName,mimeType:row.mimeType,size:Number(row.size),status:states[row.id]||'pending'}));
+  return rows.map(row=>({id:row.id,name:row.fileName,mimeType:row.mimeType,size:Number(row.size),status:states[row.id]||'missing'}));
 }
 export async function downloadCleanCommsAttachments(prisma:PrismaClient,ownerUserId:string,ids:readonly string[]) {
   const unique=[...new Set(ids)];
