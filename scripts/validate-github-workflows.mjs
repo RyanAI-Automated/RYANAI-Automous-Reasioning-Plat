@@ -54,7 +54,7 @@ for (const file of files) {
   if (!document?.on && !Object.prototype.hasOwnProperty.call(document || {}, 'on')) fail(file, 'missing workflow trigger');
   if (!document?.jobs || typeof document.jobs !== 'object') fail(file, 'missing jobs');
 
-  for (const match of text.matchAll(/uses:\s*([^\s#]+)/g)) {
+  for (const match of text.matchAll(/\buses:\s*([^\s#]+)/g)) {
     // YAML permits quoted action references. Strip the surrounding quotes before
     // validating either a semantic version tag or an immutable full SHA pin.
     const action = match[1].replace(/^['"]|['"]$/g, '');
@@ -177,11 +177,20 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
   }
 });
 
-assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
-  if (document.permissions?.contents !== 'read') {
-    fail(filePath, 'preview validation must use read-only repository permissions');
-  }
-});
+for (const providerWorkflow of ['deploy-render.yml', 'deploy-railway.yml']) {
+  assertPermissionsWorkflow(providerWorkflow, (filePath, _text, document) => {
+    if (document.permissions?.contents !== 'read' || document.permissions?.checks !== 'read') {
+      fail(filePath, 'staging deployment workflow must use read-only repository and check permissions');
+    }
+    if (!document.on?.workflow_dispatch) {
+      fail(filePath, 'staging deployment workflow must require manual dispatch');
+    }
+    const confirmation = document.on.workflow_dispatch.inputs?.confirmation;
+    if (confirmation?.default !== 'NO' || !confirmation?.options?.includes('STAGE')) {
+      fail(filePath, 'staging deployment workflow must default to NO and require explicit STAGE confirmation');
+    }
+  });
+}
 
 assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) => {
   if (document.permissions?.['security-events'] === 'write') {
