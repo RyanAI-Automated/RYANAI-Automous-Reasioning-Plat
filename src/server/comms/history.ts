@@ -11,6 +11,7 @@ export interface RecordCommunicationInput {
   providerMessageId?: string;
   status?: string;
   metadata?: Prisma.InputJsonObject;
+  ownerUserId?: string;
 }
 
 /** Persist every channel event in one durable, provider-neutral conversation history. */
@@ -28,8 +29,9 @@ export async function recordCommunication(
     create: {
       channel: input.channel,
       externalAddress: input.externalAddress,
+      ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}),
     },
-    update: { updatedAt: new Date() },
+    update: { updatedAt: new Date(), ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}) },
     select: { id: true },
   });
 
@@ -91,6 +93,7 @@ export interface BeginOutboundCommunicationInput {
   body: string;
   idempotencyKey: string;
   metadata?: Prisma.InputJsonObject;
+  ownerUserId?: string;
 }
 export interface BeginOutboundCommunicationResult {
   id: string;
@@ -105,8 +108,8 @@ export async function beginOutboundCommunication(
 ): Promise<BeginOutboundCommunicationResult> {
   const conversation = await prisma.communicationConversation.upsert({
     where: { channel_externalAddress: { channel: input.channel, externalAddress: input.externalAddress } },
-    create: { channel: input.channel, externalAddress: input.externalAddress },
-    update: { updatedAt: new Date() },
+    create: { channel: input.channel, externalAddress: input.externalAddress, ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}) },
+    update: { updatedAt: new Date(), ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}) },
     select: { id: true },
   });
   try {
@@ -134,9 +137,57 @@ export async function beginOutboundCommunication(
     if (existing.conversationId !== conversation.id || existing.direction !== 'outbound' || existing.body !== input.body) {
       throw new OutboundIdempotencyConflictError();
     }
+    if (existing.status === 'awaiting_attachments') {
+      const claimed = await prisma.communicationMessage.updateMany({
+        where: { id: existing.id, status: 'awaiting_attachments' },
+        data: { status: 'dispatching' },
+      });
+      if (claimed.count === 1) return { id: existing.id, status: 'dispatching', providerMessageId: existing.providerMessageId, replayed: false };
+    }
     return { id: existing.id, status: existing.status, providerMessageId: existing.providerMessageId, replayed: true };
   }
 }
+
+
+export interface PrepareOutboundCommunicationInput {
+  channel: CommunicationChannel;
+  externalAddress: string;
+  body: string;
+  idempotencyKey: string;
+  ownerUserId: string;
+  metadata?: Prisma.InputJsonObject;
+}
+
+/** Creates the owner-bound message reservation before any upload token is issued. */
+export async function prepareOutboundCommunication(prisma: PrismaClient, input: PrepareOutboundCommunicationInput) {
+  const conversation = await prisma.communicationConversation.upsert({
+    where: { channel_externalAddress: { channel: input.channel, externalAddress: input.externalAddress } },
+    create: { channel: input.channel, externalAddress: input.externalAddress, ownerUserId: input.ownerUserId },
+    update: { ownerUserId: input.ownerUserId, updatedAt: new Date() },
+    select: { id: true, ownerUserId: true },
+  });
+  if (conversation.ownerUserId && conversation.ownerUserId !== input.ownerUserId) throw new OutboundIdempotencyConflictError();
+  try {
+    const message = await prisma.communicationMessage.create({
+      data: { conversationId: conversation.id, direction: 'outbound', body: input.body,
+        idempotencyKey: input.idempotencyKey, status: 'awaiting_attachments',
+        ...(input.metadata ? { metadata: input.metadata } : {}) },
+      select: { id: true },
+    });
+    return { id: message.id, conversationId: conversation.id, replayed: false };
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
+    if (code !== 'P2002') throw error;
+    const existing = await prisma.communicationMessage.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      select: { id: true, conversationId: true, direction: true, body: true, status: true },
+    });
+    if (!existing || existing.conversationId !== conversation.id || existing.direction !== 'outbound'
+      || existing.body !== input.body || existing.status !== 'awaiting_attachments') throw new OutboundIdempotencyConflictError();
+    return { id: existing.id, conversationId: existing.conversationId, replayed: true };
+  }
+}
+
 /** Attach provider acceptance to the pre-existing outbound reservation. */
 export async function completeOutboundCommunication(
   prisma: PrismaClient,
@@ -187,8 +238,9 @@ export async function claimInboundCommunication(
     create: {
       channel: input.channel,
       externalAddress: input.externalAddress,
+      ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}),
     },
-    update: { updatedAt: new Date() },
+    update: { updatedAt: new Date(), ...(input.ownerUserId ? { ownerUserId: input.ownerUserId } : {}) },
     select: { id: true },
   });
 

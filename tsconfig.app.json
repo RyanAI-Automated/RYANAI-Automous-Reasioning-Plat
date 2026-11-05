@@ -99,7 +99,6 @@
     "src/test/**",
     "src/utils/nodeSupport.ts",
     "src/api/auth/signin.ts",
-    "src/lib/audiobookPrisma.ts",
     "src/lib/supabase/server.ts",
     "src/lib/supabase/middleware.ts"
   ]
