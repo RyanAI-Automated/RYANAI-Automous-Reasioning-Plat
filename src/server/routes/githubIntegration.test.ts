@@ -275,7 +275,7 @@ describe('GitHub App in-app authorization lifecycle', () => {
     expect(response.json()).toEqual({ disconnected: true, remoteRevocation: 'confirmed' });
     expect(store.connection.deleteMany).toHaveBeenCalledWith({ where: { userId } });
     const [target, options] = vi.mocked(fetch).mock.calls[0];
-    expect(String(target)).toBe('https://api.github.com/applications/Iv1.8a61f9b3a7aba766/token');
+    expect(String(target)).toBe('https://api.github.com/applications/Iv1.8a61f9b3a7aba766/grant');
     expect(options?.method).toBe('DELETE');
     expect(JSON.parse(String(options?.body))).toEqual({ access_token: rawAccessToken });
   });
