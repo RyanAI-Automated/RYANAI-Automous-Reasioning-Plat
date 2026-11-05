@@ -1,7 +1,8 @@
 # Six-gate evidence bundles
 
 This directory defines the evidence-recording contract only. It contains no
-model outputs, provider credentials, production data, or benchmark runner.
+model outputs, provider credentials, production data, held-out dataset contents,
+or benchmark runner.
 
 ## Current implementation boundary
 
@@ -21,18 +22,19 @@ model outputs, provider credentials, production data, or benchmark runner.
 
 Run:
 
-    node --test scripts/validate-benchmark-gate-evidence.node-test.mjs
-    node --test scripts/benchmark-evidence-contracts.node-test.mjs
-    node --test scripts/benchmark-genx-policy-contract.node-test.mjs
+    npm run test:benchmark:contracts
 
-The executable checks validate development dataset hashes, externally pinned
-Ed25519 custody attestations, provenance pins, deterministic scoring contracts,
-three-run repeatability, meter/tariff/amortization evidence, and ZAR arithmetic, and the current Gen-X policy function.
-Ed25519 custody attestations, signed provenance pins, deterministic scoring contracts,
-repeatability inputs, ZAR arithmetic, and the current Gen-X policy function.
-Signed custody assertions still require an independent runtime ACL probe. The
-checks do not prove provider-side revision claims, actual model performance,
-durable audit persistence, or production runner isolation.
+The mock-only contracts validate development dataset hashes, signed custody
+attestations, signed local provenance, deterministic scorer structure,
+measurement-evidence metadata, three-run repeatability, and the Gen-X approval
+and audit contract.
+
+The Gen-X approval test uses a signed synthetic approval service and a
+single-process fsync-backed file journal. It does not prove production Supabase
+transport authentication, a real external approval service, a transactional
+PostgreSQL audit append, cross-process nonce uniqueness, or independent audit
+retention. The live service boundary remains BLOCKED until those controls are
+independently verified.
 
 A structurally valid evidence bundle with BLOCKED gates remains blocked.
 Do not commit provider outputs, secrets, held-out data, private datasets, or
