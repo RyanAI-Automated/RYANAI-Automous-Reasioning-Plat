@@ -110,7 +110,7 @@ export function reconcileDailyBarsWithMinuteEvents(
     if (!local || local.minute < SESSION_OPEN_MINUTE || local.minute >= SESSION_CLOSE_MINUTE) continue;
     const bar = parseStreamBar(event);
     if (!bar) continue;
-    if (!/^\\d{1,19}$/.test(event.id)) continue;
+    if (!/^\d{1,19}$/.test(event.id)) continue;
     const prior = latestByTimestamp.get(iso);
     if (!prior || BigInt(event.id) > BigInt(prior.id)) latestByTimestamp.set(iso, { id: event.id, bar, local });
   }
