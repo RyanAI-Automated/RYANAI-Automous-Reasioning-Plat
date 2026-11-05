@@ -39,28 +39,30 @@ If user-authenticated E2E checks are also required, configure `TEST_USER_ACCESS_
 
 The live test calls `POST /api/agent/ops/brains/probe` and requires all three returned brain statuses to be `HEALTHY`. The route is rate-limited to one probe per five minutes and is restricted to authenticated admins. Run it deliberately; each probe makes billable provider calls.
 
-## 3. Correct the Render API service source before deploying
+## 3. Use the approved Render and Railway defaults
 
-The checked Render service previously associated with this project is not the intended production source: it points to the personal fork `rmnganyane-dev/RYANAI-Automous-Reasioning-Plat`, has auto-deploy disabled, and has no configured health-check path. Do not trigger a deployment from that stale service.
+- **Render** is the default frontend and web/API delivery provider.
+- **Railway** is the default Docker and persistent-workload provider.
+- The official repository is `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`.
 
-The repository's Render Blueprint defines a dedicated API service using `Dockerfile.api` and `/health`. In the Render dashboard, create or reconnect the API service to:
+Live Render read-back confirms the existing `ryanai-web` and `ryanai-api` services are connected to the official repository and `main`. The web service is a Static Site; the API uses `Dockerfile.api` and `/health`. Both currently report auto-deploy enabled for commits to `main`, while pull-request preview generation is disabled. The checked-in `render.yaml` currently declares auto-deploy off, so the Blueprint and live dashboard are not aligned. Do not sync the Blueprint or change these production settings without separate approval. Do not merge a change that could trigger a production deployment until the owner explicitly approves that rollout.
 
-- Repository: `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`
-- Branch: `main`
-- Runtime: Docker
-- Dockerfile: `Dockerfile.api`
-- Health check path: `/health`
-- Region: Frankfurt is the configured South Africa-nearby option in the current Blueprint.
+The existing Render production services are not staging. A separate `ryanai-staging` service must be created, connected to the official repository, configured with auto-deploy disabled, and verified as isolated before the Render staging workflow can run.
 
-Provision the required runtime dependencies before promoting the API: `DATABASE_URL`, `REDIS_URL`, and the server-side Supabase settings used by the selected auth configuration. Add the provider secrets in section 1. Apply the `render.yaml` Blueprint or mirror its non-secret settings in the service dashboard. Verify the service's connected repository and deployed commit before running the live probe.
+The authenticated Railway account is `ganyane.ntsiyeni@gmail.com`. Its currently visible RyanAI-related project contains only a production environment and a service linked to an unrelated repository that is offline. Do not repoint or redeploy that service. A separate RyanAI staging project, service, and environment linked to the official repository must be created and verified before the Railway staging workflow can run.
 
-Do not overwrite an existing service's environment with a partial list. Merge/update only the named variables, preserving database, Redis, Supabase, and other integration settings.
+## 4. Staging deployment gate
 
-## 4. Vercel deployment gate
+Both provider workflows are manual-only and staging-only. Each requires:
+1. An open pull request whose head SHA exactly matches the requested commit.
+2. All required CI and security checks completed successfully for that exact SHA.
+3. An explicit `STAGE` confirmation.
+4. A separately identified staging service/project/environment.
+5. A verified isolation confirmation flag after checking databases, storage, networking, and credentials are not shared with production.
 
-The Vercel project serves the Vite frontend; it does not supply the three-brain API runtime. The previously observed Vercel deployment was canceled, with a Hobby build-rate-limit/24-hour retry condition and a Verified Commits warning. The current `main` merge commit was verified by GitHub, so retain Verified Commits and retry after the provider's rate limit resets (or use an eligible plan). Do not disable commit verification or weaken repository protections to force a deployment.
+The Render workflow verifies that the service name begins with `ryanai-staging`, the official repository is connected, auto-deploy is disabled, and the target service ID is not the production API service. The Railway workflow refuses to use the currently known unrelated Railway project.
 
-After a successful Vercel deployment, verify the frontend URL and confirm its `VITE_API_BASE_URL` points to the verified API origin. Then verify `GET /health` on the API and run the authenticated three-brain probe.
+No production deployment or database migration is performed by these workflows. Production promotion and migrations require separate approvals.
 
 ## 5. Release evidence required
 
