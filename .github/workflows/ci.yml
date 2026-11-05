@@ -460,6 +460,14 @@ jobs:
           npx prisma migrate deploy
           npm run test:comms-callback:integration
           npm run test:comms-attachments:integration
+      - name: Verify PostgreSQL LISTEN/NOTIFY and reasoning worker recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          export RYANAI_NOTIFICATION_TEST_DATABASE_URL="$DB_URL"
+          export NODE_ENV=test
+          npm run test:agent-notifications
       - name: Stop isolated Supabase stack
         if: always() && steps.setup_supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
