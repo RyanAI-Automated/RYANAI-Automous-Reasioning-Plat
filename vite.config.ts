@@ -56,9 +56,7 @@ function validateVercelApiOrigin(
   };
 
   const frontendHosts = [
-    getDeploymentHostname(process.env.VERCEL_URL),
-    getDeploymentHostname(process.env.VERCEL_PROJECT_PRODUCTION_URL),
-  ].filter(Boolean);
+      ].filter(Boolean);
 
   if (frontendHosts.includes(parsed.hostname.toLowerCase())) {
     throw new Error(errorMessage);
@@ -95,7 +93,7 @@ export default defineConfig(({ command, mode }) => {
   const isVercelProductionBuild =
     command === 'build' &&
     mode === 'production' &&
-    process.env.VERCEL === '1';
+    false === '1';
 
   const validatedApiUrl = isVercelProductionBuild
     ? validateVercelApiOrigin(primaryApiUrl, legacyApiUrl)
