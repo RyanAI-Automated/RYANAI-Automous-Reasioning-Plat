@@ -114,6 +114,18 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
       icon: Cpu,
     },
     {
+      href: '#/memory',
+      title: 'Memory Vault',
+      description: 'Search, correct and manage the persistent account memories used by RyanAI.',
+      icon: BrainCircuit,
+    },
+    {
+      href: '#/inference',
+      title: 'Inference Console',
+      description: 'Review fresh provider health and model-evaluation governance status.',
+      icon: Cpu,
+    },
+    {
       href: '#/operator',
       title: 'Operator Console',
       description: 'Queue durable reasoning tasks and inspect persisted execution progress.',
