@@ -3,6 +3,7 @@ import { dispatchJarvisTask, listAgentRuns } from '../../agent/operations.js';
 import { authorizeJarvisCapability, getJarvisAgentRegistry, type JarvisCapability } from '../../agent/jarvisRegistry.js';
 import { prisma } from '../../lib/prisma.js';
 import { createJarvisIdentityProof, createPADelegation, getPADelegation, verifyPAHandshake } from '../../agent/paDelegationService.js';
+import type { PADelegationCapability } from '../../agent/paJarvisHandshake.js';
 
 interface CreateTaskBody { objective: string; }
 
@@ -57,7 +58,7 @@ export const internalJarvisRoutes: FastifyPluginAsync = async (fastify) => {
     return { agentId, capability, ...decision };
   });
 
-  fastify.post<{ Body: { identityProof: string; objective: string; capabilities: JarvisCapability[] } }>('/api/jarvis/internal/pa/handshake', {
+  fastify.post<{ Body: { identityProof: string; objective: string; capabilities: PADelegationCapability[] } }>('/api/jarvis/internal/pa/handshake', {
     schema: { body: { type: 'object', required: ['identityProof', 'objective', 'capabilities'], additionalProperties: false } },
   }, async (request, reply) => {
     try {

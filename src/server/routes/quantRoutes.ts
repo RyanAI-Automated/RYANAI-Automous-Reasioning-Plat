@@ -3,13 +3,35 @@ import type { Prisma } from '@prisma/client';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { requireUser } from './auth.js';
-import { fetchAlpacaDailyBars, MarketDataError } from '../quant/alpacaMarketData.js';
+import { fetchAlpacaDailyBars, MarketDataError, type QuantBar } from '../quant/alpacaMarketData.js';
 import { createSmaCrossoverSignal } from '../quant/strategySignal.js';
 import { assessPaperOrderRisk } from '../quant/paperRisk.js';
 import { analyzeQuantCore, assessRiskGuardian } from '../quant/quantCore.js';
 import { quantPaperProposalRoutes } from './quantPaperProposalRoutes.js';
 
 type Bar = { date: string; open: number; high: number; low: number; close: number; volume?: number };
+
+function parseImportedQuantBars(value: unknown): QuantBar[] | null {
+  if (!Array.isArray(value)) return null;
+  const bars: QuantBar[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const bar = item as Record<string, unknown>;
+    if (typeof bar.date !== 'string' ||
+        !['open', 'high', 'low', 'close', 'volume'].every((key) => typeof bar[key] === 'number' && Number.isFinite(bar[key]))) {
+      return null;
+    }
+    bars.push({
+      date: bar.date,
+      open: bar.open as number,
+      high: bar.high as number,
+      low: bar.low as number,
+      close: bar.close as number,
+      volume: bar.volume as number,
+    });
+  }
+  return bars;
+}
 type BacktestBody = {
   strategy?: 'sma_crossover';
   bars?: Bar[];
@@ -275,7 +297,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       symbol: string;
       last_bar_at: Date | string;
       is_stale: boolean;
-      bars: Bar[];
+      bars: unknown;
       provenance: Record<string, unknown>;
     }>>(
       `SELECT id, symbol, last_bar_at, is_stale, bars, provenance
@@ -291,13 +313,14 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     if (imported.is_stale || !Number.isFinite(lastBarAt) || Date.now() - lastBarAt > 5 * 24 * 60 * 60 * 1000) {
       return reply.code(409).send({ error: 'Market-data import is stale. Refresh it before generating a signal.' });
     }
-    if (!Array.isArray(imported.bars)) {
+    const bars = parseImportedQuantBars(imported.bars);
+    if (!bars) {
       return reply.code(422).send({ error: 'Stored market-data import has an invalid bar set.' });
     }
 
     let signal;
     try {
-      signal = createSmaCrossoverSignal(imported.bars, fastWindow, slowWindow);
+      signal = createSmaCrossoverSignal(bars, fastWindow, slowWindow);
     } catch (error) {
       return reply.code(422).send({ error: error instanceof Error ? error.message : 'Signal validation failed.' });
     }
@@ -356,7 +379,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     const userId = request.authUser!.id;
     const imports = await fastify.prisma.$queryRawUnsafe<Array<{
       id: string; symbol: string; last_bar_at: Date | string; is_stale: boolean;
-      bars: Array<{ date: string; open: number; high: number; low: number; close: number; volume?: number }>;
+      bars: unknown;
       provenance: Record<string, unknown>;
     }>>(
       'SELECT id, symbol, last_bar_at, is_stale, bars, provenance FROM quant_market_data_imports WHERE id = $1 AND user_id = $2 LIMIT 1',
@@ -368,8 +391,9 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     if (imported.is_stale || !Number.isFinite(lastBarAt) || Date.now() - lastBarAt > 5 * 24 * 60 * 60 * 1000) {
       return reply.code(409).send({ error: 'Market-data import is stale. Refresh it before running QuantCore analysis.' });
     }
-    if (!Array.isArray(imported.bars) || imported.bars.length < 35) {
-      return reply.code(422).send({ error: 'QuantCore requires at least 35 completed bars.' });
+    const bars = parseImportedQuantBars(imported.bars);
+    if (!bars || bars.length < 35) {
+      return reply.code(422).send({ error: 'QuantCore requires at least 35 completed bars with valid OHLCV values.' });
     }
 
     const [accountRows, positionRows, riskRows] = await Promise.all([
@@ -391,7 +415,7 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
     let analysis;
     try {
       analysis = analyzeQuantCore({
-        bars: imported.bars,
+        bars,
         portfolio: {
           cash: Number(accountRows[0]?.cash_balance ?? 0),
           positions: positionRows.map((position) => ({ symbol: position.symbol, marketValue: Number(position.market_value) })),

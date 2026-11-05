@@ -137,12 +137,12 @@ async function revokeGitHubGrant(config: GitHubAppConfig, accessToken: string): 
 async function claimOAuthState(fastify: FastifyInstance, state: string) {
   const stateHash = githubOAuthStateHash(state);
   const now = new Date();
-  const pending = await fastify.prisma.githubOAuthState.findUnique({ where: { stateHash } });
+  const pending = await fastify.prisma.gitHubOAuthState.findUnique({ where: { stateHash } });
   if (!pending || pending.expiresAt.getTime() <= now.getTime()) {
-    if (pending) await fastify.prisma.githubOAuthState.deleteMany({ where: { stateHash } });
+    if (pending) await fastify.prisma.gitHubOAuthState.deleteMany({ where: { stateHash } });
     return null;
   }
-  const claimed = await fastify.prisma.githubOAuthState.deleteMany({
+  const claimed = await fastify.prisma.gitHubOAuthState.deleteMany({
     where: { stateHash, expiresAt: { gt: now } },
   });
   return claimed.count === 1 ? pending : null;
@@ -170,7 +170,7 @@ async function getUsableAccessToken(
     if (!refreshed.access_token || !refreshed.refresh_token ||
         !tokenTimes.accessTokenExpiresAt || !tokenTimes.refreshTokenExpiresAt) return null;
 
-    const updated = await fastify.prisma.githubAppConnection.updateMany({
+    const updated = await fastify.prisma.gitHubAppConnection.updateMany({
       where: { userId: connection.userId, encryptedRefreshToken: connection.encryptedRefreshToken },
       data: {
         encryptedAccessToken: encryptGitHubSecret(refreshed.access_token, config.encryptionKey),
@@ -184,7 +184,7 @@ async function getUsableAccessToken(
 
     // A concurrent status request may already have rotated the single-use
     // refresh token. Read the winner's replacement instead of reusing the old one.
-    const latest = await fastify.prisma.githubAppConnection.findUnique({
+    const latest = await fastify.prisma.gitHubAppConnection.findUnique({
       where: { userId: connection.userId },
     });
     if (!latest || (latest.accessTokenExpiresAt && latest.accessTokenExpiresAt.getTime() <= Date.now())) return null;
@@ -193,7 +193,7 @@ async function getUsableAccessToken(
     // If another request rotated the one-use refresh token first, prefer its
     // newer encrypted row rather than falsely forcing this user to reconnect.
     try {
-      const latest = await fastify.prisma.githubAppConnection.findUnique({
+      const latest = await fastify.prisma.gitHubAppConnection.findUnique({
         where: { userId: connection.userId },
       });
       if (latest && latest.updatedAt.getTime() > connection.updatedAt.getTime() &&
@@ -214,7 +214,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
     const config = readGitHubAppConfig();
     if (!config) return { status: 'not_configured', connected: false };
 
-    const connection = await fastify.prisma.githubAppConnection.findUnique({ where: { userId } });
+    const connection = await fastify.prisma.gitHubAppConnection.findUnique({ where: { userId } });
     if (!connection) return { status: 'not_connected', connected: false, configured: true };
 
     const accessToken = await getUsableAccessToken(fastify, config, connection as StoredConnection);
@@ -271,8 +271,8 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
 
     const oauth = createGitHubOAuthState();
     const now = new Date();
-    await fastify.prisma.githubOAuthState.deleteMany({ where: { expiresAt: { lte: now } } });
-    await fastify.prisma.githubOAuthState.create({
+    await fastify.prisma.gitHubOAuthState.deleteMany({ where: { expiresAt: { lte: now } } });
+    await fastify.prisma.gitHubOAuthState.create({
       data: {
         stateHash: oauth.stateHash,
         userId,
@@ -327,7 +327,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
           throw new GitHubOAuthError('github_repository_access_not_verified');
         }
 
-        await fastify.prisma.githubAppConnection.upsert({
+        await fastify.prisma.gitHubAppConnection.upsert({
           where: { userId: pending.userId },
           create: {
             userId: pending.userId,
@@ -369,7 +369,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/api/github/disconnect', { preHandler: requireUser }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in before disconnecting GitHub.' });
-    const connection = await fastify.prisma.githubAppConnection.findUnique({ where: { userId } });
+    const connection = await fastify.prisma.gitHubAppConnection.findUnique({ where: { userId } });
     if (!connection) return { disconnected: true, remoteRevocation: 'not_needed' };
 
     let remoteRevoked = false;
@@ -382,7 +382,7 @@ export const githubIntegrationRoutes: FastifyPluginAsync = async (fastify) => {
         remoteRevoked = false;
       }
     }
-    await fastify.prisma.githubAppConnection.deleteMany({ where: { userId } });
+    await fastify.prisma.gitHubAppConnection.deleteMany({ where: { userId } });
     return {
       disconnected: true,
       remoteRevocation: remoteRevoked ? 'confirmed' : 'unconfirmed',
