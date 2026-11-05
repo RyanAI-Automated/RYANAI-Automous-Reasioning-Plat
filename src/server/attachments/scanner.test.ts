@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { quarantinePurgeCutoff, scanWithClamAv } from './scanner';
+import { purgeExpiredQuarantinedAttachments, quarantinePurgeCutoff, scanWithClamAv } from './scanner';
 
 const originalHost = process.env.CLAMAV_HOST;
 const originalPort = process.env.CLAMAV_PORT;
@@ -95,5 +95,94 @@ describe('quarantine retention policy', () => {
       'ATTACHMENT_QUARANTINE_RETENTION_DAYS must be an integer between 1 and 3650.',
     );
     expect(() => quarantinePurgeCutoff(new Date('invalid'), 30)).toThrow('A valid current date is required.');
+  });
+});
+
+
+describe('quarantine purge execution', () => {
+  const originalRetention = process.env.ATTACHMENT_QUARANTINE_RETENTION_DAYS;
+
+  afterEach(() => {
+    if (originalRetention === undefined) delete process.env.ATTACHMENT_QUARANTINE_RETENTION_DAYS;
+    else process.env.ATTACHMENT_QUARANTINE_RETENTION_DAYS = originalRetention;
+  });
+
+  function makeStorageStub(options: { removeError?: { message: string } } = {}) {
+    const removed: Array<{ bucket: string; paths: string[] }> = [];
+    return {
+      removed,
+      storage: {
+        from(bucket: string) {
+          return {
+            async remove(paths: string[]) {
+              removed.push({ bucket, paths });
+              return { error: options.removeError ?? null };
+            },
+          };
+        },
+      },
+    };
+  }
+
+  function makeQueryStub(candidates: Array<{ bucket_id: string; object_name: string }>, updateError: { message: string } | null = null) {
+    const updates: Array<Record<string, unknown>> = [];
+    const client = {
+      from(_table: string) {
+        let operation: 'select' | 'update' = 'select';
+        const query: any = {
+          select() { operation = 'select'; return query; },
+          update(values: Record<string, unknown>) { operation = 'update'; updates.push(values); return query; },
+          in() { return query; },
+          eq() { return query; },
+          is() { return query; },
+          lt() { return query; },
+          order() { return query; },
+          limit() { return query; },
+          then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+            return Promise.resolve(operation === 'select'
+              ? { data: candidates, error: null }
+              : { data: null, error: updateError }).then(resolve, reject);
+          },
+        };
+        return query;
+      },
+    };
+    return { client, updates };
+  }
+
+  it('removes only expired infected objects through Storage and persists the purge audit marker', async () => {
+    process.env.ATTACHMENT_QUARANTINE_RETENTION_DAYS = '30';
+    const candidates = [
+      { bucket_id: 'ryanai-comms-attachments', object_name: 'user/conversation/message/file-a' },
+      { bucket_id: 'ryanai-comms-attachments', object_name: 'user/conversation/message/file-b' },
+    ];
+    const query = makeQueryStub(candidates);
+    const storage = makeStorageStub();
+    const client = Object.assign({}, query.client, { storage: storage.storage }) as never;
+
+    await expect(purgeExpiredQuarantinedAttachments(client, new Date('2026-11-05T12:00:00.000Z'))).resolves.toBe(2);
+    expect(storage.removed).toEqual([{ bucket: 'ryanai-comms-attachments', paths: candidates.map((item) => item.object_name) }]);
+    expect(query.updates).toEqual([{ purged_at: '2026-11-05T12:00:00.000Z' }]);
+  });
+
+  it('does not mark objects purged when Storage removal fails', async () => {
+    const query = makeQueryStub([{ bucket_id: 'ryanai-attachments', object_name: 'owner/conversation/file' }]);
+    const storage = makeStorageStub({ removeError: { message: 'storage unavailable' } });
+    const client = Object.assign({}, query.client, { storage: storage.storage }) as never;
+
+    await expect(purgeExpiredQuarantinedAttachments(client, new Date('2026-11-05T12:00:00.000Z'))).resolves.toBe(0);
+    expect(storage.removed).toHaveLength(1);
+    expect(query.updates).toHaveLength(0);
+  });
+
+  it('rejects invalid retention configuration before querying storage', async () => {
+    process.env.ATTACHMENT_QUARANTINE_RETENTION_DAYS = '0';
+    const query = makeQueryStub([]);
+    const storage = makeStorageStub();
+    const client = Object.assign({}, query.client, { storage: storage.storage }) as never;
+
+    await expect(purgeExpiredQuarantinedAttachments(client, new Date('2026-11-05T12:00:00.000Z')))
+      .rejects.toThrow('ATTACHMENT_QUARANTINE_RETENTION_DAYS must be an integer between 1 and 3650.');
+    expect(storage.removed).toHaveLength(0);
   });
 });
