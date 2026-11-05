@@ -1,14 +1,21 @@
 name: Deploy API to Railway
 
 on:
-  workflow_run:
-    workflows: ["CI - Build, Test, and Integrate"]
-    branches: [main]
-    types: [completed]
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Select DEPLOY only after reviewing the exact-main CI/security evidence and production change.
+        type: choice
+        required: true
+        default: "NO"
+        options:
+          - "NO"
+          - "DEPLOY"
 
 permissions:
   contents: read
+  checks: read
+  deployments: read
 
 concurrency:
   group: railway-production
@@ -16,20 +23,63 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy reviewed main commit to Railway
     if: >-
-      ${{ vars.RAILWAY_DEPLOY_ENABLED == 'true' &&
-        (github.event_name == 'workflow_dispatch' ||
-        (github.event.workflow_run.conclusion == 'success' &&
-         github.event.workflow_run.event == 'push' &&
-         github.event.workflow_run.head_branch == 'main')) }}
+      ${{
+        github.ref == 'refs/heads/main' &&
+        inputs.confirmation == 'DEPLOY' &&
+        vars.RAILWAY_DEPLOY_ENABLED == 'true' &&
+        vars.RAILWAY_DEPLOY_APPROVED == 'true'
+      }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 20
+    env:
+      TARGET_SHA: ${{ github.sha }}
     steps:
-      - name: Check out validated main commit
+      - name: Check out exact validated main commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
+
+      - name: Verify this is the current main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$TARGET_SHA" == "$MAIN_SHA" ]] || { echo "::error::Refusing to deploy a stale main commit"; exit 1; }
+
+      - name: Require exact-head CI and security checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          required=(
+            "Validate (typecheck, lint, test, build)"
+            "MCP server and workflow worker"
+            "Issue 435 migrations and attachment security"
+            "Test agent API contracts"
+            "Dependency audit"
+            "Trivy filesystem scan"
+            "Analyze (javascript-typescript)"
+            "Analyze (python)"
+            "TruffleHog secret audit"
+            "Codacy Security Scan"
+          )
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${TARGET_SHA}/check-runs?per_page=100" > check-pages.json
+          jq -s '[.[].check_runs[]]' check-pages.json > checks.json
+          for name in "${required[@]}"; do
+            jq -e --arg name "$name" '
+              [.[] | select(.name == $name)] as $matches
+              | ($matches | length) > 0
+                and all($matches[]; .status == "completed" and .conclusion == "success")
+            ' checks.json >/dev/null || {
+              echo "::error::Required check is missing, queued, skipped, cancelled, or failed: $name"
+              exit 1
+            }
+          done
+
       - name: Validate Railway deployment configuration
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -42,9 +92,11 @@ jobs:
           test -n "$RAILWAY_PROJECT_ID" || { echo "::error::Missing RAILWAY_PROJECT_ID variable"; exit 1; }
           test -n "$RAILWAY_SERVICE_ID" || { echo "::error::Missing RAILWAY_SERVICE_ID variable"; exit 1; }
           test -n "$RAILWAY_ENVIRONMENT_ID" || { echo "::error::Missing RAILWAY_ENVIRONMENT_ID variable"; exit 1; }
+
       - name: Install Railway CLI
         run: npm install --global @railway/cli
-      - name: Deploy validated API source
+
+      - name: Deploy exact reviewed source to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
