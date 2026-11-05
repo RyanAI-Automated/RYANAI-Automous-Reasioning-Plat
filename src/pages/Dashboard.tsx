@@ -11,6 +11,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  Code2,
   Database,
   RefreshCw,
   Settings,
@@ -124,6 +125,12 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
       title: 'Inference Console',
       description: 'Review fresh provider health and model-evaluation governance status.',
       icon: Cpu,
+    },
+    {
+      href: '#/github',
+      title: 'GitHub Integration',
+      description: 'Verify the linked GitHub identity and official repository access.',
+      icon: Code2,
     },
     {
       href: '#/operator',
