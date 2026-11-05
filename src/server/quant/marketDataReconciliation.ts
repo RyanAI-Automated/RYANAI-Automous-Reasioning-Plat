@@ -110,6 +110,7 @@ export function reconcileDailyBarsWithMinuteEvents(
     if (!local || local.minute < SESSION_OPEN_MINUTE || local.minute >= SESSION_CLOSE_MINUTE) continue;
     const bar = parseStreamBar(event);
     if (!bar) continue;
+    if (!/^\\d{1,19}$/.test(event.id)) continue;
     const prior = latestByTimestamp.get(iso);
     if (!prior || BigInt(event.id) > BigInt(prior.id)) latestByTimestamp.set(iso, { id: event.id, bar, local });
   }
@@ -135,8 +136,8 @@ export function reconcileDailyBarsWithMinuteEvents(
     const aggregate: ReconciliationBar = {
       date: daily.date,
       open: first.bar.open,
-      high: Math.max(...minutes.map((item) => item.bar.high)),
-      low: Math.min(...minutes.map((item) => item.bar.low)),
+      high: minutes.reduce((value, item) => Math.max(value, item.bar.high), Number.NEGATIVE_INFINITY),
+      low: minutes.reduce((value, item) => Math.min(value, item.bar.low), Number.POSITIVE_INFINITY),
       close: last.bar.close,
       volume: minutes.reduce((sum, item) => sum + item.bar.volume, 0),
     };
