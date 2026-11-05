@@ -72,7 +72,7 @@ function relativeDifference(actual: number, expected: number): number {
 }
 
 function matches(historical: ReconciliationBar, streamed: ReconciliationBar): boolean {
-  const priceKeys: Array<keyof ReconciliationBar> = ['open', 'high', 'low', 'close'];
+  const priceKeys: Array<'open' | 'high' | 'low' | 'close'> = ['open', 'high', 'low', 'close'];
   const pricesMatch = priceKeys.every((key) => {
     const expected = historical[key], actual = streamed[key];
     return Math.abs(actual - expected) <= Math.max(0.000001, Math.abs(expected) * 0.000001);
@@ -103,7 +103,7 @@ export function reconcileDailyBarsWithMinuteEvents(
   // all versions, while reconciliation uses the latest persisted version.
   const latestByTimestamp = new Map<string, { id: string; bar: ReconciliationBar; local: { date: string; minute: number } }>();
   for (const event of events) {
-    const timestamp = new Date(event.eventTimestamp);
+    const timestamp = new Date(event.eventTimestamp instanceof Date ? event.eventTimestamp.getTime() : event.eventTimestamp);
     if (!Number.isFinite(timestamp.getTime())) continue;
     const iso = timestamp.toISOString();
     const local = localSessionMinute(timestamp);
@@ -122,7 +122,7 @@ export function reconcileDailyBarsWithMinuteEvents(
     grouped.set(item.local.date, group);
   }
 
-  return [...historical.values()].sort((a, b) => a.date.localeCompare(b.date)).map((daily) => {
+  return [...historical.values()].sort((a, b) => a.date.localeCompare(b.date)).map<DailyReconciliation>((daily) => {
     const minutes = (grouped.get(daily.date) ?? []).sort((a, b) => a.minute - b.minute);
     if (!minutes.length) {
       return {
