@@ -190,6 +190,19 @@ async function getUsableAccessToken(
     if (!latest || (latest.accessTokenExpiresAt && latest.accessTokenExpiresAt.getTime() <= Date.now())) return null;
     return decryptGitHubSecret(latest.encryptedAccessToken, config.encryptionKey);
   } catch {
+    // If another request rotated the one-use refresh token first, prefer its
+    // newer encrypted row rather than falsely forcing this user to reconnect.
+    try {
+      const latest = await fastify.prisma.githubAppConnection.findUnique({
+        where: { userId: connection.userId },
+      });
+      if (latest && latest.updatedAt.getTime() > connection.updatedAt.getTime() &&
+          (!latest.accessTokenExpiresAt || latest.accessTokenExpiresAt.getTime() > Date.now() + REFRESH_SKEW_MS)) {
+        return decryptGitHubSecret(latest.encryptedAccessToken, config.encryptionKey);
+      }
+    } catch {
+      // Provider, database or decryption failure remains fail-closed.
+    }
     return null;
   }
 }
