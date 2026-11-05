@@ -73,6 +73,32 @@ describe('Supabase Session Pooler URL resolution', () => {
     expect(url.searchParams.get('sslmode')).toBe('verify-full');
   });
 
+  it('pins the Supabase root CA for Prisma and node-postgres with strict certificate validation', () => {
+    const rootCertPath = '/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt';
+    const existing = `postgresql://postgres.${projectRef}:secret@${poolerHost}:5432/postgres?application_name=ryanai`;
+    const result = resolveSupabaseSessionPoolerUrl(existing, projectUrl, poolerHost, rootCertPath);
+
+    expect(result.changed).toBe(true);
+    const url = new URL(result.databaseUrl!);
+    expect(url.hostname).toBe(poolerHost);
+    expect(url.username).toBe(`postgres.${projectRef}`);
+    expect(url.password).toBe('secret');
+    expect(url.searchParams.get('sslmode')).toBe('verify-full');
+    expect(url.searchParams.get('sslrootcert')).toBe(rootCertPath);
+    expect(url.searchParams.get('sslaccept')).toBe('strict');
+    expect(url.searchParams.get('application_name')).toBe('ryanai');
+  });
+
+  it('repairs an existing pooled URL with an obsolete CA path', () => {
+    const rootCertPath = '/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt';
+    const existing = `postgresql://postgres.${projectRef}:secret@${poolerHost}:5432/postgres?sslmode=verify-full&sslrootcert=/tmp/old-ca.crt`;
+    const result = resolveSupabaseSessionPoolerUrl(existing, projectUrl, poolerHost, rootCertPath);
+
+    const url = new URL(result.databaseUrl!);
+    expect(url.searchParams.get('sslrootcert')).toBe(rootCertPath);
+    expect(url.searchParams.get('sslaccept')).toBe('strict');
+  });
+
   it('does not rewrite a connection that is already using the verified pooler configuration', () => {
     const existing = `postgresql://postgres.${projectRef}:secret@${poolerHost}:5432/postgres?sslmode=verify-full`;
     const result = resolveSupabaseSessionPoolerUrl(existing, projectUrl, poolerHost);

@@ -26,6 +26,7 @@ export function resolveSupabaseSessionPoolerUrl(
   databaseUrl: string | undefined,
   supabaseUrl: string | undefined,
   poolerHost: string | undefined,
+  sslRootCertPath?: string,
 ): SupabasePoolerResolution {
   const original = databaseUrl?.trim();
   if (!original || !supabaseUrl?.trim() || !poolerHost?.trim()) {
@@ -93,6 +94,13 @@ export function resolveSupabaseSessionPoolerUrl(
   // Require full certificate/hostname verification for both newly-routed and
   // previously-pooled URLs; do not retain require, disable, or verify-ca.
   database.searchParams.set('sslmode', 'verify-full');
+  const configuredRootCert = sslRootCertPath?.trim() || database.searchParams.get('sslrootcert');
+  if (configuredRootCert) {
+    // Prisma 6 defaults sslaccept to accepting invalid certificates. The
+    // Supabase CA path is also consumed by node-postgres (pg-connection-string).
+    database.searchParams.set('sslrootcert', configuredRootCert);
+    database.searchParams.set('sslaccept', 'strict');
+  }
 
   const normalized = database.toString();
   const changed = normalized !== original;
