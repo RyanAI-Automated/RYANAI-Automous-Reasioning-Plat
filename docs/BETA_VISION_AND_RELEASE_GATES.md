@@ -1,7 +1,7 @@
 # RyanAI Beta Vision and Release Gates
 
 **Status:** beta candidate plan; not a production certification  
-**Last reviewed:** 2026-10-29
+**Last reviewed:** 2026-11-05
 
 RyanAI should feel like an operator-grade autonomous reasoning platform: a calm, premium control room where people can understand system health, start work, inspect execution, and know when a result needs human review. Preserve the existing dark navy surface, cyan accents, clear typography, and compact cards. Prefer trustworthy operational signals over decorative metrics.
 
@@ -47,8 +47,9 @@ A beta build should not be called production-ready until all applicable checks p
 
 ## Current known external blockers
 
-- Vercel has previously returned a provisioning timeout, and a separate production deployment attempt was skipped. Re-check the provider's current deployment state before publishing.
-- Vercel Hobby deployment quotas can prevent another deploy even when repository CI is green. Avoid repeated retries; wait for quota reset or use an authorized plan change.
+- The former Vercel project was deleted on 2026-11-05 and is not a supported deployment target or integration.
+- Render is the default frontend/web/API delivery provider and Railway is the default Docker/persistent-workload provider. Isolated staging targets are not yet provisioned/verified; do not use existing production or unrelated services as staging.
+- The current Render production services auto-deploy from `main`. Do not merge a change that may trigger production deployment without separate explicit approval.
 - Render workflow success is not equivalent to a successful live API smoke test.
 - External AI-provider, Supabase, MCP, Jarvis, Datadog, and other integrations require correctly configured credentials and live verification.
 

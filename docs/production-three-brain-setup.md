@@ -41,13 +41,15 @@ The live test calls `POST /api/agent/ops/brains/probe` and requires all three re
 
 ## 3. Use the approved Render and Railway defaults
 
-- **Render** delivers the web frontend and the configured web/API services.
+- **Render** is the default frontend and web/API delivery provider.
 - **Railway** is the default Docker and persistent-workload provider.
 - The official repository is `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`.
 
-The checked Render API and web services are connected to the official repository, but pull-request preview generation is currently disabled. Do not treat the existing production services as staging. A separate Render staging service must be created and verified before the staging workflow can run.
+Live Render read-back confirms the existing `ryanai-web` and `ryanai-api` services are connected to the official repository and `main`. The web service is a Static Site; the API uses `Dockerfile.api` and `/health`. Both currently report auto-deploy enabled for commits to `main`, while pull-request preview generation is disabled. The checked-in `render.yaml` currently declares auto-deploy off, so the Blueprint and live dashboard are not aligned. Do not sync the Blueprint or change these production settings without separate approval. Do not merge a change that could trigger a production deployment until the owner explicitly approves that rollout.
 
-The authenticated Railway account must be `ganyane.ntsiyeni@gmail.com`. Its currently visible RyanAI-related project contains only a production environment and a service linked to an unrelated repository. Do not repoint or redeploy that service. Create a separate RyanAI staging project/environment and service linked to the official repository before enabling the Railway staging workflow.
+The existing Render production services are not staging. A separate `ryanai-staging` service must be created, connected to the official repository, configured with auto-deploy disabled, and verified as isolated before the Render staging workflow can run.
+
+The authenticated Railway account is `ganyane.ntsiyeni@gmail.com`. Its currently visible RyanAI-related project contains only a production environment and a service linked to an unrelated repository that is offline. Do not repoint or redeploy that service. A separate RyanAI staging project, service, and environment linked to the official repository must be created and verified before the Railway staging workflow can run.
 
 ## 4. Staging deployment gate
 
@@ -58,7 +60,7 @@ Both provider workflows are manual-only and staging-only. Each requires:
 4. A separately identified staging service/project/environment.
 5. A verified isolation confirmation flag after checking databases, storage, networking, and credentials are not shared with production.
 
-The Render workflow also verifies that the service name begins with `ryanai-staging`, the official repository is connected, auto-deploy is disabled, and the target service ID is not the production API service. The Railway workflow refuses to use the currently known unrelated Railway project.
+The Render workflow verifies that the service name begins with `ryanai-staging`, the official repository is connected, auto-deploy is disabled, and the target service ID is not the production API service. The Railway workflow refuses to use the currently known unrelated Railway project.
 
 No production deployment or database migration is performed by these workflows. Production promotion and migrations require separate approvals.
 

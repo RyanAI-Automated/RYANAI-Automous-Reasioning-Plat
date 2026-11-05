@@ -1,6 +1,6 @@
 # RyanAI Deep Audit Findings and Release Gates
 
-**Audit date:** 2026-10-29  
+**Audit date:** 2026-10-29 (deployment disposition updated 2026-11-05)  
 **Repository:** `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat`  
 **Scope:** Structural review plus targeted inspection of the primary Fastify launcher, alternate server entry points, reasoning clients, agent tools, Jarvis bridge, GitHub Actions and Render and Railway deployment evidence.
 
@@ -22,15 +22,15 @@
 - The repository's Render blueprint documents `https://ryanai-api.onrender.com` as the API origin. The Render frontend build uses `VITE_API_BASE_URL` with the documented API origin.
 - The failed deployments were already in progress when the environment variable was created. A later production deployment for main commit `82d29e4dca0fdc4e17ed2976eb70b5c68545b262` was observed in `BUILDING` state; the build and live API still require confirmation.
 - The API host's live health endpoint was not verified from the audit execution environment. Do not assume the Render API is healthy simply because the URL is present in configuration.
-- Do not launch repeated production deployments to test the change. Inspect the current build first and respect Vercel's daily deployment quota.
+- The former Vercel project was deleted on 2026-11-05. Render and Railway are the approved hosted defaults; validate only explicitly isolated staging targets and do not trigger production deployments as a test.
 
 ## High-priority remaining checks
 
 ### P0 — release safety
 
-1. **Verify the current Vercel build and API target.** Confirm the build reaches `READY`, the production alias points at that deployment, the frontend loads, and the configured API `/health` responds successfully. Then run an authenticated reasoning round trip with a valid provider configuration.
+1. **Verify isolated Render/Railway staging.** Confirm staging services are connected to the official repository, deploy the exact reviewed PR SHA only after all required CI/security checks pass, verify `/health`, and run an authenticated reasoning round trip with a valid provider configuration.
 2. **Protect `main`.** The repository branch API reported `protected: false` and no required status checks. Configure branch protection/rulesets to require the core CI, integration, security, and deployment-validation checks before merge.
-3. **Review Vercel environment hygiene.** The project has multiple legacy Neon/Postgres variables; Vercel metadata flags several connection variables with `readable-secret` security issues. Review visibility, remove unused duplicates, and rotate credentials if there is evidence they were exposed. No secret values are recorded in this audit.
+3. **Review provider environment hygiene.** Keep database and model-provider credentials only in approved server-side Render/Railway runtime secret stores. Do not recreate or migrate former Vercel environment variables; review each required value and scope independently without printing secrets.
 4. **Run real integration checks.** The latest CI has successful validation and container/security jobs on earlier commits, but a passing preview build is not proof that the deployed API, model provider, authentication, or Jarvis remote endpoint works live.
 
 ### P1 — API, agent, and integration behavior
@@ -47,12 +47,12 @@
 2. `src/api/reasoningRoute.ts` contains a simulated reasoning response and SSE progress loop. Repository search found its registration function but no active caller. Confirm its reachability/ownership; remove it or clearly deprecate it if no supported entry point uses it.
 3. `.github/workflows/google.yml` still contains sample project/cluster/region values marked TODO. Keep it disabled until real deployment identifiers, secrets, and target infrastructure are configured and validated.
 4. Datadog Synthetic checks were skipped in the observed runs. Configure the required synthetic test credentials/endpoints or clearly mark that live monitoring is not enabled.
-5. The Vercel build logs include an npm `cache-dir` configuration warning and deprecated transitive packages. Clean up the npm config warning and schedule dependency maintenance after the release blocker is resolved.
+5. Historical Vercel build logs included an npm `cache-dir` configuration warning and deprecated transitive packages. The former project is deleted; address any still-relevant npm warning through the repository's current CI/build configuration.
 
 ## Release acceptance checklist
 
 - [ ] Current `main` commit SHA recorded and all required GitHub Actions checks green.
-- [ ] Production Vercel deployment `READY`; production alias and commit SHA verified.
+- [ ] Isolated Render/Railway staging deployment is live at the exact reviewed SHA; no production promotion occurs without separate approval.
 - [ ] Frontend and API health endpoints verified over HTTPS.
 - [ ] Authenticated reasoning JSON and SSE round trips succeed with a real configured provider.
 - [ ] Unauthenticated and non-admin access tests pass for protected routes.

@@ -38,6 +38,8 @@ For main commit `fcee4fa008188f444cabb91deb3fe71291a3a761`, GitHub returned 19 c
 
 The combined commit status is **failure** because the `Vercel` context reports `Deployment rate limited — retry in 24 hours.` The absence of completed failures among check runs does not make this green: required jobs remain queued or skipped.
 
+**Disposition update — 2026-11-05:** The owner subsequently confirmed deletion of the former Vercel project. The `Vercel` failure above is historical evidence for the pinned commit only, not an active deployment target. Render is the default frontend/web/API provider and Railway is the default Docker/persistent-workload provider. Live Render read-back shows the existing production web and API services auto-deploy from `main`; this PR does not change those settings or authorize a production rollout. Isolated Render and Railway staging targets remain unverified.
+
 Live ruleset read-back for ruleset `26360956` (`main-protectiona`) shows:
 
 - enforcement is marked active;
