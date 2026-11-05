@@ -9,8 +9,6 @@ const comms = vi.hoisted(() => ({
   getCommsConversations: vi.fn(),
   sendCommsMessage: vi.fn(),
   prepareCommsAttachments: vi.fn(),
-  getCommsAttachmentStatuses: vi.fn(),
-  uploadCommsAttachment: vi.fn(),
   uploadCommsAttachment: vi.fn(),
   getCommsAttachmentStatuses: vi.fn(),
   getCommsAttachmentDownloadUrl: vi.fn(),
@@ -21,8 +19,6 @@ vi.mock('@/lib/commsApi', () => ({
   getCommsConversations: comms.getCommsConversations,
   sendCommsMessage: comms.sendCommsMessage,
   prepareCommsAttachments: comms.prepareCommsAttachments,
-  getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,
-  uploadCommsAttachment: comms.uploadCommsAttachment,
   uploadCommsAttachment: comms.uploadCommsAttachment,
   getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,
   getCommsAttachmentDownloadUrl: comms.getCommsAttachmentDownloadUrl,
@@ -136,11 +132,6 @@ describe('RyanAI Comms inbox controls', () => {
     expect(list?.textContent).not.toContain('+27110000001');
   });
 
-  it('keeps secure attachment uploads unavailable until private storage and scanning are enabled', async () => {
-    await render();
-    expect(container.textContent).toContain('Secure attachments are currently unavailable.');
-    expect(container.textContent).toContain('Disabled · scanner required');
-    expect(container.querySelector('input[type="file"]')).toBeNull();
   it('exposes private file selection and clean-scan gated sharing', async () => {
     await render();
     expect(container.textContent).toContain('Private Comms attachments');
