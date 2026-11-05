@@ -1,6 +1,14 @@
 import { authenticatedFetch } from './authenticatedFetch';
+import { supabase } from './supabase';
 
 export type CommsChannel = 'whatsapp' | 'sms' | 'voice' | 'email';
+export interface CommsAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  status: string;
+}
 export interface CommsMessage {
   id: string;
   direction: 'inbound' | 'outbound';
@@ -9,6 +17,7 @@ export interface CommsMessage {
   providerMessageId: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+  attachments?: CommsAttachment[];
 }
 export interface CommsConversation {
   id: string;
@@ -22,6 +31,14 @@ export interface CommsStatus {
   channels: Record<string, boolean>;
   ai?: { openai?: { status: 'configured_unverified' | 'missing_credentials' } };
   note: string;
+}
+export interface CommsUploadIntent {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploadPath: string;
+  uploadToken: string;
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -45,12 +62,52 @@ export async function getCommsConversations(limit = 50): Promise<CommsConversati
   return Array.isArray(body.conversations) ? body.conversations : [];
 }
 
+export async function prepareCommsAttachments(input: {
+  channel: Exclude<CommsChannel, 'voice'>;
+  recipient?: string;
+  message: string;
+  subject?: string;
+  idempotencyKey: string;
+  files: Array<{ name: string; mimeType: string; size: number }>;
+}): Promise<{ success: boolean; messageId: string; replayed: boolean; attachments: CommsUploadIntent[] }> {
+  const response = await authenticatedFetch('/api/comms/attachments/prepare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return readJson(response);
+}
+
+export async function uploadCommsAttachment(intent: CommsUploadIntent, file: File): Promise<void> {
+  if (!supabase) throw new Error('Secure attachment storage is unavailable because Supabase is not configured.');
+  const { error } = await supabase.storage
+    .from('ryanai-comms-attachments')
+    .uploadToSignedUrl(intent.uploadPath, intent.uploadToken, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error(error.message || 'Attachment upload failed.');
+}
+
+export async function getCommsAttachmentStatuses(ids: string[]): Promise<CommsAttachment[]> {
+  if (!ids.length || ids.length > 8) throw new Error('Choose between 1 and 8 attachments.');
+  const query = new URLSearchParams({ ids: ids.join(',') });
+  const response = await authenticatedFetch(`/api/comms/attachments/status?${query.toString()}`);
+  const body = await readJson<{ attachments: CommsAttachment[] }>(response);
+  return Array.isArray(body.attachments) ? body.attachments : [];
+}
+
+export async function getCommsAttachmentDownloadUrl(id: string): Promise<string> {
+  const response = await authenticatedFetch(`/api/comms/attachments/${encodeURIComponent(id)}/download`);
+  const body = await readJson<{ url?: string }>(response);
+  if (!body.url) throw new Error('The clean attachment download is not available.');
+  return body.url;
+}
+
 export async function sendCommsMessage(input: {
   channel: CommsChannel;
   recipient?: string;
   message: string;
   subject?: string;
   idempotencyKey: string;
+  attachmentIds?: string[];
 }): Promise<{ success: boolean; channel: CommsChannel; providerId: string | null; status: string; replayed?: boolean }> {
   const response = await authenticatedFetch('/api/comms/send', {
     method: 'POST',
