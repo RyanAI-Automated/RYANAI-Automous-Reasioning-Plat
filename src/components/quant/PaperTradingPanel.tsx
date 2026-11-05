@@ -86,6 +86,7 @@ export default function PaperTradingPanel() {
   const [strategySignals, setStrategySignals] = useState<StrategySignal[]>([]);
   const [selectedSignalId, setSelectedSignalId] = useState('');
   const [paperProposals, setPaperProposals] = useState<PaperOrderProposal[]>([]);
+  const [proposalLoadError, setProposalLoadError] = useState('');
   const [proposalNotional, setProposalNotional] = useState('1000');
   const [proposalCreating, setProposalCreating] = useState(false);
   const [proposalActionId, setProposalActionId] = useState<string | null>(null);
@@ -118,13 +119,20 @@ export default function PaperTradingPanel() {
       if (!riskResponse.ok) throw new Error(riskData.error || 'Paper risk policy is unavailable.');
       if (!signalResponse.ok) throw new Error(signalData.error || 'Strategy signal history is unavailable.');
       if (!riskStateResponse.ok) throw new Error(riskStateData.error || 'Paper risk state is unavailable.');
-      if (!proposalResponse.ok) throw new Error(proposalData.error || 'Paper order proposals are unavailable.');
       setSnapshot(data);
       setRiskPolicy(riskData);
       setRiskState(riskStateData);
       const signals = signalData.signals ?? [];
       setStrategySignals(signals);
-      setPaperProposals(proposalData.proposals ?? []);
+      if (proposalResponse.ok) {
+        setPaperProposals(proposalData.proposals ?? []);
+        setProposalLoadError('');
+      } else {
+        setPaperProposals([]);
+        setProposalLoadError(
+          proposalData.error || 'The proposal workflow is unavailable until its database migration is installed.',
+        );
+      }
       setSelectedSignalId((current) => current || signals[0]?.id || '');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load paper trading.');
@@ -254,6 +262,10 @@ export default function PaperTradingPanel() {
   };
 
   const createPaperProposal = async () => {
+    if (proposalLoadError) {
+      setProposalMessage('Paper proposal workflow is unavailable until its database migration is installed.');
+      return;
+    }
     if (!selectedSignal) {
       setProposalMessage('Select a saved strategy signal first.');
       return;
@@ -448,8 +460,9 @@ export default function PaperTradingPanel() {
           <label className="block text-xs text-slate-400">Target notional
             <input type="number" min="100" max="10000" step="100" value={proposalNotional} onChange={(event) => setProposalNotional(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white" />
           </label>
-          <button type="button" onClick={() => void createPaperProposal()} disabled={proposalCreating || loading || !selectedSignal || selectedSignal.action === 'hold' || riskState.emergencyStop || !riskPolicy.tradingEnabled} className="self-end rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-50">{proposalCreating ? 'Creating…' : 'Create paper order proposal'}</button>
+          <button type="button" onClick={() => void createPaperProposal()} disabled={proposalCreating || loading || Boolean(proposalLoadError) || !selectedSignal || selectedSignal.action === 'hold' || riskState.emergencyStop || !riskPolicy.tradingEnabled} className="self-end rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-50">{proposalCreating ? 'Creating…' : 'Create paper order proposal'}</button>
         </div>
+        {proposalLoadError && <p role="status" className="rounded-lg border border-amber-300/20 p-3 text-xs text-amber-100">Proposal workflow unavailable: {proposalLoadError} Existing paper account and position data remain available. Apply the approved proposal migrations before enabling this section.</p>}
         {proposalMessage && <p role="status" className="rounded-lg border border-white/10 p-3 text-xs text-slate-200">{proposalMessage}</p>}
         {paperProposals.length === 0 ? (
           <p className="text-sm text-slate-500">No paper order proposals yet. Generate a buy or sell signal in Quant Lab, then create a proposal here.</p>
@@ -469,7 +482,7 @@ export default function PaperTradingPanel() {
                 </div>
                 {proposal.status === 'pending' && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => void confirmPaperProposal(proposal)} disabled={proposalActionId !== null || loading || riskState.emergencyStop || !riskPolicy.tradingEnabled} className="rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{proposalActionId === proposal.id ? 'Confirming…' : 'Confirm & simulate paper order'}</button>
+                    <button type="button" onClick={() => void confirmPaperProposal(proposal)} disabled={proposalActionId !== null || loading || Boolean(proposalLoadError) || riskState.emergencyStop || !riskPolicy.tradingEnabled} className="rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">{proposalActionId === proposal.id ? 'Confirming…' : 'Confirm & simulate paper order'}</button>
                     <button type="button" onClick={() => void rejectPaperProposal(proposal)} disabled={proposalActionId !== null || loading} className="rounded-lg border border-white/15 px-3 py-2 text-xs text-slate-300 disabled:opacity-50">Reject proposal</button>
                   </div>
                 )}
