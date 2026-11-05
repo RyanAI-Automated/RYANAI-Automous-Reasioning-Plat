@@ -128,6 +128,10 @@ export default function CommunicationsCenter() {
       setError('Choose no more than 8 attachments.');
       return;
     }
+    if (new Set(next.map(file => file.name.normalize('NFKC').toLowerCase())).size !== next.length) {
+      setError('Attachment file names must be unique within one message.');
+      return;
+    }
     if (next.some(file => !ACCEPTED_FILES.split(',').includes(file.type) || file.size <= 0 || file.size > 20 * 1024 * 1024)) {
       setError('Each file must be a supported type and no larger than 20 MiB.');
       return;
