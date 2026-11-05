@@ -149,7 +149,7 @@ jobs:
               '',
               '| Component | State | Evidence |',
               '|---|---|---|',
-              statusLine('PR #936', levels.pr, '[Open PR](https://github.com/' + owner + '/' + repo + '/pull/936), head `' + headSha.slice(0, 12) + '`'),
+              statusLine('PR #936', levels.pr, '[Pull request](https://github.com/' + owner + '/' + repo + '/pull/936), head `' + headSha.slice(0, 12) + '`'),
               statusLine('GitHub CI', levels.ci, ci.counts.total + ' checks; ' + ci.counts.passed + ' passed, ' + ci.counts.failed + ' failed, ' + ci.counts.queued + ' queued, ' + ci.counts.inProgress + ' running; combined status: ' + ci.combinedState),
               statusLine('Render API', levels.api, api.status === null ? (api.error || 'no HTTP response') : 'HTTP ' + api.status + ' in ' + api.durationMs + ' ms'),
               statusLine('Render frontend', levels.frontend, frontend.status === null ? (frontend.error || 'no HTTP response') : 'HTTP ' + frontend.status + ' in ' + frontend.durationMs + ' ms'),
@@ -185,7 +185,7 @@ jobs:
                 '- API: ' + (api.status === null ? api.level + ' (' + (api.error || 'no HTTP response') + ')' : api.level + ' (HTTP ' + api.status + ')'),
                 '- Frontend: ' + (frontend.status === null ? frontend.level + ' (' + (frontend.error || 'no HTTP response') + ')' : frontend.level + ' (HTTP ' + frontend.status + ')'),
                 '',
-                '[View monitor run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId) + ' · [Monitor issue](https://github.com/' + owner + '/' + repo + '/issues/' + issue_number),
+                '[View monitor run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ') · [Monitor issue](https://github.com/' + owner + '/' + repo + '/issues/' + issue_number + ')',
               ].join('\n');
               await github.rest.issues.createComment({ owner, repo, issue_number, body: comment });
             } else if (!previous) {
