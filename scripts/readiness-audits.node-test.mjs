@@ -149,16 +149,24 @@ test('provider verification supports one brain or all three isolated brains in p
 });
 
 
-test('deployment configuration points at the official Render API and aligned three-platform stack', async () => {
+test('Render repair is CI-gated, idempotent, and never calls the deploy endpoint', async () => {
   const { readFile } = await import('node:fs/promises');
   const workflow = await readFile(new URL('../.github/workflows/guarded-render-api-source-repair.yml', import.meta.url), 'utf8');
   const blueprint = await readFile(new URL('../render.yaml', import.meta.url), 'utf8');
+  assert.ok(workflow.includes('workflow_run:'));
+  assert.ok(workflow.includes('CI - Build, Test, and Integrate'));
+  assert.ok(workflow.includes("github.event.workflow_run.conclusion == 'success'"));
+  assert.ok(workflow.includes("github.event.workflow_run.event == 'push'"));
+  assert.ok(workflow.includes('github.event.workflow_run.head_sha'));
+  assert.ok(workflow.includes('inputs.confirmation == \'REPAIR-ONLY\''));
   assert.ok(workflow.includes('srv-dbk4giu7bikc7394a4r0'));
-  assert.ok(workflow.includes('https://ryanai-api.onrender.com/health'));
+  assert.ok(workflow.includes('https://api.render.com/v1/services/srv-dbk4giu7bikc7394a4r0'));
   assert.ok(workflow.includes('"dockerfilePath":"./Dockerfile.api"'));
-  assert.ok(workflow.includes('"healthCheckPath":"/health"'));
-  assert.ok(!workflow.includes('srv-dafvs4ht0dsc7380mapg'));
   assert.ok(workflow.includes('"dockerCommand":""'));
+  assert.ok(workflow.includes('"autoDeployTrigger":"off"'));
+  assert.ok(workflow.includes('serviceDetails.envSpecificDetails.dockerCommand'));
+  assert.ok(!workflow.includes('/deploys'));
+  assert.ok(!workflow.includes('srv-dafvs4ht0dsc7380mapg'));
   assert.ok(blueprint.includes('name: ryanai-api'));
   assert.ok(blueprint.includes('repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat'));
   assert.ok(blueprint.includes('branch: main'));
