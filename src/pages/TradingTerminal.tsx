@@ -7,9 +7,7 @@ import {
   ArrowUpFromLine,
   BarChart3,
   BookOpen,
-  CircleDollarSign,
   ShieldCheck,
-  Wallet,
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
