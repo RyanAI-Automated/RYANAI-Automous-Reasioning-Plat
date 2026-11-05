@@ -560,7 +560,11 @@ async function start() {
     console.log(`    - Signin: http://${config.host}:${config.port}/signin`);
     console.log(`\n${startupSummary(serviceStatus)}\n`);
     stopBrainMonitor = startBrainHealthMonitor();
-    if (serviceStatus.database) stopAgentWorker = startAgentTaskWorker();
+    if (serviceStatus.database) {
+      stopAgentWorker = startAgentTaskWorker();
+    } else {
+      fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
+    }
 
     // PA is a read-only observer: it reports real API/PostgreSQL/Redis probes
     // and has no task dispatch, messaging, file-edit or privileged capabilities.
@@ -584,7 +588,6 @@ async function start() {
     await paObserver.start();
     setAgentPAObserver(paObserver);
     stopAgentPA = () => { void paObserver.stop().finally(() => setAgentPAObserver(null)); };
-    else fastify.log.warn('Durable agent task worker disabled because PostgreSQL is unavailable.');
 
     if (process.env.ATTACHMENT_SCANNER_ENABLED === 'true') {
       stopAttachmentScanner = startAttachmentScanner();
