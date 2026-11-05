@@ -164,3 +164,25 @@ describe('Twilio delivery status callbacks', () => {
     });
   });
 });
+
+describe('outbound Comms request validation', () => {
+  it('requires an idempotency key before reserving or sending a provider request', async () => {
+    const app = Fastify();
+    apps.push(app);
+    app.decorateRequest('authUser', null);
+    app.addHook('preHandler', async (request) => {
+      request.authUser = { id: 'owner-test', role: 'user', isOwner: true };
+    });
+    app.decorate('prisma', prismaMock as never);
+    await app.register(commsPlugin);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/comms/send',
+      payload: { channel: 'whatsapp', recipient: '+15555550123', message: 'Hello Sir' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(prismaMock.communicationConversation.upsert).not.toHaveBeenCalled();
+  });
+});
