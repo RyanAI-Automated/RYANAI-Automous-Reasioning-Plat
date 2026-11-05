@@ -51,7 +51,7 @@ export const quantPortfolioOptimizationRoutes: FastifyPluginAsync = async (fasti
     },
   }, async (request, reply) => {
     const importIdPlaceholders = request.body.market_data_import_ids
-      .map((_, index) => '
+      .map((_, index) => String.fromCharCode(36) + String(index + 2))
       .join(', ');
     const imports = await fastify.prisma.$queryRawUnsafe<Array<{
       id: string;
