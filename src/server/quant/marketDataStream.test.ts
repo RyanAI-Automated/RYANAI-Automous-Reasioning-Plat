@@ -61,3 +61,34 @@ describe('Alpaca streaming market-data adapter', () => {
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/duplicate or out-of-order/) }));
   });
 });
+
+
+  it('rejects future-dated bars', async () => {
+    const socket = new FakeSocket(), onError = vi.fn(), onBar = vi.fn();
+    const stream = createAlpacaStockStream({
+      apiKey: 'k', apiSecret: 's', symbols: ['AAPL'], socketFactory: () => socket,
+      onBar, onError, now: () => new Date('2026-11-05T14:31:00Z'),
+    });
+    const connected = stream.connect(); socket.open();
+    socket.message([{ T: 'success', msg: 'authenticated' }]);
+    socket.message([{ T: 'subscription', bars: ['AAPL'] }]); await connected;
+    socket.message([bar({ t: '2026-11-05T14:32:00Z' })]);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/future-dated/) }));
+    expect(onBar).not.toHaveBeenCalled();
+    expect(socket.closed).toBe(true);
+  });
+
+  it('rejects bars for symbols outside the requested subscription', async () => {
+    const socket = new FakeSocket(), onError = vi.fn(), onBar = vi.fn();
+    const stream = createAlpacaStockStream({
+      apiKey: 'k', apiSecret: 's', symbols: ['AAPL'], socketFactory: () => socket,
+      onBar, onError, now: () => new Date('2026-11-05T14:31:00Z'),
+    });
+    const connected = stream.connect(); socket.open();
+    socket.message([{ T: 'success', msg: 'authenticated' }]);
+    socket.message([{ T: 'subscription', bars: ['AAPL'] }]); await connected;
+    socket.message([bar({ S: 'MSFT' })]);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/unsubscribed symbol/) }));
+    expect(onBar).not.toHaveBeenCalled();
+    expect(socket.closed).toBe(true);
+  });
