@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from quant_engine import run_backtest, validate
+from quant_engine import run_backtest, run_walk_forward, validate
 
 
 def bars(count=80):
@@ -38,6 +38,90 @@ class QuantEngineTests(unittest.TestCase):
         first_buy = next(trade for trade in result["trades"] if trade["side"] == "buy")
         self.assertEqual(first_buy["date"], sample[23]["date"])
         self.assertAlmostEqual(first_buy["price"], sample[23]["open"] * 1.0005, places=7)
+
+
+    def test_walk_forward_is_deterministic_and_trades_only_in_out_of_sample_windows(self):
+        sample = bars(80)
+        payload = {
+            "bars": sample,
+            "train_window": 30,
+            "test_window": 10,
+            "step_window": 10,
+            "max_folds": 4,
+            "parameter_grid": [
+                {"fast_window": 3, "slow_window": 8},
+                {"fast_window": 5, "slow_window": 12},
+            ],
+            "fee_bps": 5,
+            "slippage_bps": 5,
+        }
+        first = run_walk_forward(payload)
+        second = run_walk_forward(payload)
+        self.assertEqual(first, second)
+        self.assertEqual(first["metrics"]["fold_count"], 4)
+        self.assertFalse(first["look_ahead_leakage"])
+        for fold in first["folds"]:
+            self.assertGreater(fold["test_period"]["start"], fold["training_period"]["end"])
+            for trade in fold["out_of_sample_trades"]:
+                self.assertGreaterEqual(trade["date"], fold["test_period"]["start"])
+
+    def test_walk_forward_parameter_selection_cannot_see_test_bars(self):
+        sample = bars(80)
+        payload = {
+            "bars": sample,
+            "train_window": 30,
+            "test_window": 10,
+            "step_window": 10,
+            "max_folds": 1,
+            "parameter_grid": [
+                {"fast_window": 3, "slow_window": 8},
+                {"fast_window": 5, "slow_window": 12},
+            ],
+        }
+        baseline = run_walk_forward(payload)
+        changed = [dict(item) for item in sample]
+        for index in range(30, 40):
+            close = 220.0 + index
+            changed[index].update({
+                "open": close - 0.2, "high": close + 0.5,
+                "low": close - 0.5, "close": close,
+            })
+        altered = run_walk_forward({**payload, "bars": changed})
+        self.assertEqual(
+            baseline["folds"][0]["selected_parameters"],
+            altered["folds"][0]["selected_parameters"],
+        )
+        self.assertNotEqual(
+            baseline["folds"][0]["out_of_sample_metrics"],
+            altered["folds"][0]["out_of_sample_metrics"],
+        )
+
+    def test_walk_forward_rejects_overlapping_folds_and_invalid_grids(self):
+        payload = {
+            "bars": bars(80),
+            "train_window": 30,
+            "test_window": 10,
+            "step_window": 5,
+            "parameter_grid": [{"fast_window": 3, "slow_window": 8}],
+        }
+        with self.assertRaisesRegex(ValueError, "must be at least test_window"):
+            run_walk_forward(payload)
+        with self.assertRaisesRegex(ValueError, "duplicate candidates"):
+            run_walk_forward({
+                **payload,
+                "step_window": 10,
+                "parameter_grid": [
+                    {"fast_window": 3, "slow_window": 8},
+                    {"fast_window": 3, "slow_window": 8},
+                ],
+            })
+
+    def test_backtest_warmup_does_not_execute_training_period_trades(self):
+        sample = bars(80)
+        result = run_backtest({"bars": sample, "fast_window": 3, "slow_window": 8}, start_index=30)
+        self.assertTrue(all(trade["date"] >= sample[30]["date"] for trade in result["trades"]))
+        self.assertEqual(result["period"]["start"], sample[30]["date"])
+        self.assertEqual(result["period"]["bars"], 50)
 
     def test_rejects_non_monotonic_dates(self):
         sample = bars()
