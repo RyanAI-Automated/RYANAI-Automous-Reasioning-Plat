@@ -164,7 +164,8 @@ test('Render API repair runs inside core CI, waits for security, and never deplo
   assert.ok(ci.includes('Analyze (python)'));
   assert.ok(ci.includes('TruffleHog secret audit'));
   assert.ok(ci.includes('Codacy Security Scan'));
-  assert.ok(ci.includes('Validate configuration files'));
+  assert.ok(ci.includes('npm run validate'));
+  assert.ok(!ci.includes('Validate configuration files'));
   assert.ok(ci.includes('srv-dbk4giu7bikc7394a4r0'));
   assert.ok(ci.includes('"dockerfilePath":"./Dockerfile.api"'));
   assert.ok(ci.includes('"dockerCommand":""'));
