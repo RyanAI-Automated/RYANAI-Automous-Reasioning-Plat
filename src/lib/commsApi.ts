@@ -40,6 +40,14 @@ export interface CommsStatus {
   ai?: { openai?: { status: 'configured_unverified' | 'missing_credentials' } };
   note: string;
 }
+export interface CommsUploadIntent {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploadPath: string;
+  uploadToken: string;
+}
 
 async function readJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => ({}));
@@ -69,6 +77,7 @@ export async function prepareCommsAttachments(input: {
   subject?: string;
   idempotencyKey: string;
   files: Array<{ name: string; mimeType: string; size: number }>;
+}): Promise<{ success: boolean; messageId: string; replayed: boolean; attachments: CommsUploadIntent[] }> {
 }): Promise<{ success: boolean; messageId: string; replayed: boolean; attachments: CommsAttachmentUploadIntent[] }> {
   const response = await authenticatedFetch('/api/comms/attachments/prepare', {
     method: 'POST',
@@ -78,6 +87,18 @@ export async function prepareCommsAttachments(input: {
   return readJson(response);
 }
 
+export async function uploadCommsAttachment(intent: CommsUploadIntent, file: File): Promise<void> {
+  if (!supabase) throw new Error('Secure attachment storage is unavailable because Supabase is not configured.');
+  const { error } = await supabase.storage
+    .from('ryanai-comms-attachments')
+    .uploadToSignedUrl(intent.uploadPath, intent.uploadToken, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error(error.message || 'Attachment upload failed.');
+}
+
+export async function getCommsAttachmentStatuses(ids: string[]): Promise<CommsAttachment[]> {
+  if (!ids.length || ids.length > 8) throw new Error('Choose between 1 and 8 attachments.');
+  const query = new URLSearchParams({ ids: ids.join(',') });
+  const response = await authenticatedFetch(`/api/comms/attachments/status?${query.toString()}`);
 export async function uploadCommsAttachment(intent: CommsAttachmentUploadIntent, file: File): Promise<void> {
   if (!supabase) throw new Error('Secure file upload is unavailable because Supabase client configuration is missing.');
   const { error } = await supabase.storage
@@ -98,6 +119,9 @@ export async function getCommsAttachmentStatuses(ids: readonly string[]): Promis
 }
 
 export async function getCommsAttachmentDownloadUrl(id: string): Promise<string> {
+  const response = await authenticatedFetch(`/api/comms/attachments/${encodeURIComponent(id)}/download`);
+  const body = await readJson<{ url?: string }>(response);
+  if (!body.url) throw new Error('The clean attachment download is not available.');
   const response = await authenticatedFetch('/api/comms/attachments/' + encodeURIComponent(id) + '/download');
   const body = await readJson<{ url?: string }>(response);
   if (typeof body.url !== 'string' || !body.url.startsWith('https://')) throw new Error('The clean attachment download URL was not returned.');
