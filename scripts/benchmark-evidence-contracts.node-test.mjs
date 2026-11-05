@@ -324,29 +324,81 @@ test('provenance validator rejects mutable aliases and secret-bearing config', a
   }
 });
 
-test('scoring contract marks missing dimensions incomplete and safety failures decisive', () => {
+const scoringHash = 'a'.repeat(64);
+const passingAssertion = id => ({
+  id, passed: true, evaluatorVersion: 'fixture-scorer-v1',
+  expectedSha256: scoringHash, observedSha256: scoringHash
+});
+const independentReview = {
+  reviewerId: 'reviewer-fixture', rubricVersion: 'rubric-1',
+  blindCandidateId: 'candidate-blind-a', score: 4,
+  rationale: 'Synthetic fixture review.', reviewedAt: '2026-11-05T00:00:00.000Z',
+  independentReviewer: true, conflictOfInterestChecked: true,
+  conflictOfInterest: false, calibrationVersion: 'calibration-fixture-v1'
+};
+
+test('scoring contract rejects incomplete or unpinned deterministic assertions', () => {
   assert.equal(evaluateScoringRecord({ assertions: [] }).verdict, 'INCOMPLETE');
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ id: 'schema', passed: true }]
+  }).verdict, 'INCOMPLETE');
+  assert.equal(evaluateScoringRecord({
+    assertions: [passingAssertion('schema'), passingAssertion('schema')]
+  }).verdict, 'INCOMPLETE');
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ ...passingAssertion('schema'), evaluatorVersion: '' }]
+  }).verdict, 'INCOMPLETE');
+});
+
+test('deterministic hash mismatch and safety violations always fail', () => {
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ ...passingAssertion('schema'), observedSha256: 'b'.repeat(64) }],
+    humanReview: independentReview
+  }).verdict, 'FAIL');
+  assert.equal(evaluateScoringRecord({
+    assertions: [{ ...passingAssertion('schema'), passed: false, observedSha256: 'b'.repeat(64) }]
+  }).verdict, 'FAIL');
   assert.equal(evaluateScoringRecord({
     assertions: [{ id: 'schema', passed: true }],
     safetyViolation: true
   }).verdict, 'FAIL');
+});
+
+test('scoring PASS requires calibrated independent blinded conflict-checked human review', () => {
+  const assertions = [passingAssertion('schema')];
+  assert.equal(evaluateScoringRecord({ assertions }).verdict, 'BLOCKED');
   assert.equal(evaluateScoringRecord({
-    assertions: [{ id: 'schema', passed: true }]
+    assertions,
+    humanReview: { ...independentReview, independentReviewer: false }
   }).verdict, 'BLOCKED');
   assert.equal(evaluateScoringRecord({
-    assertions: [{ id: 'schema', passed: true }],
-    humanReview: {
-      reviewerId: 'reviewer-fixture', rubricVersion: 'rubric-1',
-      blindCandidateId: 'candidate-blind-a', score: 4,
-      rationale: 'Synthetic fixture review.'
-    }
+    assertions, humanReview: independentReview
   }).verdict, 'PASS');
+  const first = evaluateScoringRecord({
+    assertions: [passingAssertion('schema'), passingAssertion('format')],
+    humanReview: independentReview
+  });
+  const second = evaluateScoringRecord({
+    assertions: [passingAssertion('format'), passingAssertion('schema')],
+    humanReview: independentReview
+  });
+  assert.deepEqual(first, second, 'scoring verdict must not depend on assertion order');
+});
+
+test('model input rejects nested scoring-oracle fields and cyclic payloads', () => {
   assert.throws(
     () => assertModelInputHasNoScoringOracle({
       prompt: 'fixture', nested: { expectedAnswer: 'secret' }
     }),
     /Scoring oracle leaked/
   );
+  assert.throws(
+    () => assertModelInputHasNoScoringOracle({ nested: { gold_answer: 'secret' } }),
+    /Scoring oracle leaked/
+  );
+  const cyclic = {};
+  cyclic.self = cyclic;
+  assert.throws(() => assertModelInputHasNoScoringOracle(cyclic), /Cyclic model input/);
 });
 
 test('economics includes failed and timed-out attempts in the denominator', () => {
