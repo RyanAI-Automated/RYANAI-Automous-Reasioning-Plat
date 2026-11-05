@@ -25,6 +25,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 reqwest = { version = "0.11", features = ["json", "multipart"] }
+sysinfo = "0.30.13"
 tokio = { version = "1.0", features = ["full"] }
 
 [profile.dev]
