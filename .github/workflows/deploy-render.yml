@@ -2,7 +2,7 @@ name: Deploy API to Render
 
 on:
   workflow_run:
-    workflows: ["CI - Build, Test, and Integrate"]
+    workflows: ["Production database migrations"]
     branches: [main]
     types: [completed]
 
@@ -20,7 +20,8 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.event == 'workflow_dispatch' &&
+        github.event.workflow_run.name == 'Production database migrations' &&
         github.event.workflow_run.head_branch == 'main' &&
         vars.RENDER_DEPLOY_ENABLED == 'true' &&
         vars.RENDER_DEPLOY_APPROVED == 'true'
@@ -33,7 +34,7 @@ jobs:
       RENDER_SERVICE_ID: srv-dbk4giu7bikc7394a4r0
       RENDER_WORKSPACE_ID: tea-d5ogqtcoud1c73b266f0
       RENDER_REDIS_NAME: ryanai-redis
-      RENDER_API_URL: https://ryanai-automous-reasioning-plat.onrender.com
+      RENDER_API_URL: https://ryanai-api.onrender.com
 
     steps:
       - name: Validate exact main commit
@@ -129,7 +130,7 @@ jobs:
             --header "accept: application/json" \
             --output render-redis-list.json
           jq -e --arg name "$RENDER_REDIS_NAME" '[.[] | .keyValue | select(.name == $name and .status == "available" and .region == "oregon")] | length == 1' render-redis-list.json || {
-            echo "::error::Virginia Redis is not available. The API deploy remains blocked until the approved replacement resource exists and is available."
+            echo "::error::Oregon Redis is not available. The API deploy remains blocked until the approved replacement resource exists and is available."
             jq '[.[] | .keyValue | {name,status,region,plan}]' render-redis-list.json
             exit 1
           }
