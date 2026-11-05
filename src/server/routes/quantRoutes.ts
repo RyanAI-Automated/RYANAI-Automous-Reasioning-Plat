@@ -176,7 +176,11 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
       'INSERT INTO quant_paper_accounts (user_id, cash_balance, created_at, updated_at) VALUES ($1, 100000, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
       userId,
     );
-    const [accounts, positions, trades] = await Promise.all([
+    await prisma.$executeRawUnsafe(
+      'INSERT INTO quant_paper_risk_policies (user_id, created_at, updated_at) VALUES ($1, NOW(), NOW()) ON CONFLICT (user_id) DO NOTHING',
+      userId,
+    );
+    const [accounts, positions, trades, policies] = await Promise.all([
       prisma.$queryRawUnsafe<Array<{ cash_balance: string }>>(
         'SELECT cash_balance::text FROM quant_paper_accounts WHERE user_id = $1', userId,
       ),
@@ -188,13 +192,22 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
         'SELECT id, symbol, side, quantity::text, price::text, fee::text, realized_pnl::text, created_at FROM quant_paper_trades WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
         userId,
       ),
+      prisma.$queryRawUnsafe<Array<{ max_order_notional: string; fee_bps: number; trading_enabled: boolean }>>(
+        'SELECT max_order_notional::text, 5::integer AS fee_bps, trading_enabled FROM quant_paper_risk_policies WHERE user_id = $1',
+        userId,
+      ),
     ]);
     const cash = Number(accounts[0]?.cash_balance ?? 0);
     const marketValue = positions.reduce((sum, row) => sum + Number(row.market_value), 0);
     return {
       mode: 'paper_simulation_only',
       brokerConnected: false,
-      risk: { maxOrderNotional: 10000, feeBps: 5, shortSelling: false },
+      risk: {
+        maxOrderNotional: Number(policies[0]?.max_order_notional ?? 10000),
+        feeBps: policies[0]?.fee_bps ?? 5,
+        tradingEnabled: policies[0]?.trading_enabled ?? true,
+        shortSelling: false,
+      },
       account: { startingCash: 100000, cash, marketValue, equity: cash + marketValue },
       positions,
       trades,
@@ -253,13 +266,13 @@ export const quantRoutes: FastifyPluginAsync = async (fastify) => {
             max_order_notional: '10000', max_position_notional: '25000',
             max_gross_exposure: '75000', trading_enabled: true,
           };
-          if (!policy.trading_enabled) throw new Error('PAPER_TRADING_DISABLED');
-          if (notional > Number(policy.max_order_notional)) throw new Error('PAPER_ORDER_RISK_LIMIT');
           const prior = await tx.$queryRawUnsafe<Array<{ id: string; status: string }>>(
             'SELECT id, status FROM quant_paper_orders WHERE user_id = $1 AND client_order_id = $2',
             userId, request.body.client_order_id,
           );
           if (prior.length) return { duplicate: true, orderId: prior[0].id, status: prior[0].status };
+          if (!policy.trading_enabled) throw new Error('PAPER_TRADING_DISABLED');
+          if (notional > Number(policy.max_order_notional)) throw new Error('PAPER_ORDER_RISK_LIMIT');
           const cash = Number(accounts[0]?.cash_balance ?? 0);
           const positions = await tx.$queryRawUnsafe<Array<{
             quantity: string; average_entry_price: string; last_price: string;
