@@ -19,7 +19,7 @@ Before enabling any Render deployment:
 5. Keep automatic deployment disabled until exact-head CI/security checks and staging smoke tests pass.
 6. Do not apply a Blueprint diff that creates or modifies production resources without separate approval.
 
-The production Render workflow is manual, requires the explicit `DEPLOY` confirmation, exact-main CI/security evidence, configured approval gates, and a healthy Redis dependency. A workflow definition is not proof of a successful deployment.
+The Render pull-request workflow is staging-only. It requires an explicit `STAGE` confirmation, an open PR whose head is the exact commit, all required CI/security checks completed successfully, a separately named `ryanai-staging` service, and an explicit isolation confirmation. It never updates or deploys the production Render services.
 
 ## Railway
 
@@ -31,9 +31,9 @@ Before Railway can deploy:
 3. Configure the API service to build from `Dockerfile.api` and use `/health`.
 4. Keep staging data, variables, storage, and networking isolated from production.
 5. Run exact-commit CI/security checks and staging health/smoke tests.
-6. Keep production deploy disabled until separately approved.
+6. Do not configure a production deployment target in the PR staging workflow.
 
-The Railway production workflow is manual-only. It requires `DEPLOY`, exact current-main identity, all named CI/security checks completed successfully, the `RAILWAY_DEPLOY_ENABLED` and `RAILWAY_DEPLOY_APPROVED` gates, and the protected GitHub production environment. Queued, skipped, cancelled, missing, or failed checks are not passes.
+The Railway pull-request workflow is staging-only. It requires an explicit `STAGE` confirmation, an open PR whose head is the exact commit, all named CI/security checks completed successfully, and a separate Railway staging project, service, and environment with an explicit isolation confirmation. It explicitly refuses to use the existing unrelated Railway project. Queued, skipped, cancelled, missing, or failed checks are not passes.
 
 ## Approval and safety
 
