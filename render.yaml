@@ -1,12 +1,13 @@
 # RyanAI production Render Blueprint.
-# Keep the existing static frontend resource; Render does not support changing
-# an existing static site's runtime to Docker in-place.
+# Preserve the current static frontend while adding a Docker/Nginx canary.
+# Promote the Docker service only after its end-to-end checks pass.
 version: "1"
 
 previews:
   generation: off
 
 services:
+  # Existing static frontend retained as rollback during Docker canary validation.
   - type: web
     name: ryanai-web
     runtime: static
@@ -32,6 +33,43 @@ services:
         source: /*
         destination: /index.html
 
+  # Docker/Nginx canary uses the root Dockerfile's final "web" stage.
+  # VITE_API_BASE_URL is intentionally unset: apiBaseUrl.ts falls back to
+  # window.location.origin, and nginx proxies /api/* and /ws to the private API.
+  - type: web
+    name: ryanai-web-docker-canary
+    runtime: docker
+    repo: https://github.com/RyanAI-Automated/RYANAI-Automous-Reasioning-Plat
+    branch: main
+    rootDir: .
+    region: oregon
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    dockerCommand: ""
+    autoDeployTrigger: off
+    healthCheckPath: /health
+    envVars:
+      - key: API_HOST
+        fromService:
+          name: ryanai-api
+          type: web
+          property: host
+      - key: API_PORT
+        fromService:
+          name: ryanai-api
+          type: web
+          property: port
+      - key: VITE_SUPABASE_URL
+        value: https://narsvpwymvlrhurqbthu.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        fromService:
+          name: ryanai-web
+          type: web
+          envVarKey: VITE_SUPABASE_PUBLISHABLE_KEY
+      - key: VITE_APP_ENV
+        value: production
+
   - type: web
     name: ryanai-api
     runtime: docker
@@ -43,7 +81,7 @@ services:
     dockerContext: .
     dockerfilePath: ./Dockerfile.api
     # The runtime image intentionally removes npm/npx and prunes dev dependencies.
-    # Do not add "npx prisma migrate deploy" as a preDeployCommand to this image.
+    # Do not run npx prisma migrate deploy from this image.
     dockerCommand: ""
     autoDeployTrigger: off
     healthCheckPath: /health
@@ -53,7 +91,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: CORS_ORIGINS
-        value: https://ryanai-web.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
+        value: https://ryanai-web.onrender.com,https://ryanai-web-docker-canary.onrender.com,https://ryanai-automous-reasoning-plat-uss1632.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_URL
