@@ -1,10 +1,11 @@
 # Standalone API image for Render and other Dockerfile-based platforms.
-# Keep this build contract aligned with the "api" target in ./Dockerfile.
+# Keep this build and runtime contract aligned with the "api" target in ./Dockerfile.
 FROM node:24-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache libc6-compat \
-    && apk upgrade --no-cache
+    && apk upgrade --no-cache \
+    && apk add --no-cache 'libexpat>=2.10.0-r0'
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
 
@@ -20,6 +21,8 @@ RUN npm run db:generate \
     && npm run build:server \
     && npm prune --omit=dev --legacy-peer-deps
 
+# Minimal runtime; npm is deliberately removed after the production dependencies
+# are copied. pg_dump supports the optional, non-blocking startup backup.
 FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -28,6 +31,7 @@ ENV NODE_ENV=production \
     PUPPETEER_SKIP_DOWNLOAD=true
 RUN apk add --no-cache dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
     && apk upgrade --no-cache \
+    && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /app/logs \
@@ -44,7 +48,7 @@ USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-# Render dockerCommand must remain empty: npm is removed from this runtime image.
-# Startup is owned by this Dockerfile ENTRYPOINT/CMD pair.
+# Render dockerCommand must remain empty: npm is not installed in this runtime image.
+# This gated backup script skips cleanly unless BACKUP_ON_STARTUP=true.
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["sh", "-c", "node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js"]
