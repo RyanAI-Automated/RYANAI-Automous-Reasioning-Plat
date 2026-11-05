@@ -49,6 +49,7 @@ describe('System Dashboard workspace launcher', () => {
       ['#/cockpit', 'Command Cockpit'],
       ['#/operator', 'Operator Console'],
       ['#/operations', 'Operations Center'],
+      ['#/settings', 'Profile & Settings'],
       ['#/quant', 'Quant Lab'],
       ['#/workspace', 'Reasoning Workspace'],
       ['#/audiobook', 'Audiobook Studio'],
