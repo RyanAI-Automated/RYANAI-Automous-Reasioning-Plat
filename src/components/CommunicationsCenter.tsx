@@ -94,6 +94,12 @@ export default function CommunicationsCenter() {
     });
   }, [conversations, conversationSearch, channelFilter]);
 
+  const messageCount = conversations.reduce((total, item) => total + item.messages.length, 0);
+  const inboundCount = active?.messages.filter(item => item.direction === 'inbound').length ?? 0;
+  const outboundCount = active?.messages.filter(item => item.direction === 'outbound').length ?? 0;
+  const configuredChannelCount = [status?.channels?.whatsapp, status?.channels?.sms, status?.channels?.voice, status?.channels?.email]
+    .filter(value => value === true).length;
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!message.trim() || sending) return;
@@ -229,6 +235,29 @@ export default function CommunicationsCenter() {
         })}
       </div>
 
+      <section aria-label="Communication overview" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Conversations</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{conversations.length}</p>
+          <p className="mt-1 text-[11px] text-slate-500">{visibleConversations.length} match current filters</p>
+        </article>
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Messages loaded</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{messageCount}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Persisted conversation history</p>
+        </article>
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Configured channels</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{configuredChannelCount}<span className="text-sm font-normal text-slate-500"> / 4</span></p>
+          <p className="mt-1 text-[11px] text-slate-500">Configuration only, not connectivity</p>
+        </article>
+        <article className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Attachments</p>
+          <p className="mt-2 text-lg font-semibold ${attachmentsEnabled ? 'text-amber-200' : 'text-slate-300'}">{attachmentsEnabled ? 'Scan-gated' : 'Disabled'}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Only clean scans can be shared</p>
+        </article>
+      </section>
+
       <div role="note" aria-label="Attachment security" className="flex items-start gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.04] p-4 text-sm text-cyan-100">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" />
         <div><p className="font-semibold">Private Comms attachments</p><p className="mt-1 text-xs leading-5 text-cyan-100/70">{attachmentsEnabled ? 'The API reports private storage and scanner controls as configured. Sending and downloading remain blocked until each file has a clean scan. RyanAI does not yet interpret uploaded images, audio, video or documents.' : 'Uploads are disabled until owner-bound private storage and malware scanning are configured. Text-only Comms remains available; no attachment is sent or exposed while this gate is off.'}</p></div>
@@ -236,7 +265,7 @@ export default function CommunicationsCenter() {
       {error && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-950/30 p-3 text-sm text-rose-200">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-3 text-sm text-cyan-100">{notice}</p>}
 
-      <div className="grid min-h-[560px] gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,2fr)]">
+      <div className="grid min-h-[560px] gap-4 xl:grid-cols-[minmax(230px,0.72fr)_minmax(0,1.7fr)_minmax(220px,0.7fr)]">
         <aside className="overflow-hidden rounded-xl border border-white/10 bg-slate-900/60">
           <div className="space-y-3 border-b border-white/10 p-4">
             <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold text-white">Conversations</h2><span className="text-xs text-slate-500">{visibleConversations.length} / {conversations.length}</span></div>
@@ -326,6 +355,39 @@ export default function CommunicationsCenter() {
             </div>
           </form>
         </div>
+
+        <aside aria-label="Conversation details" className="space-y-4 rounded-xl border border-white/10 bg-slate-900/60 p-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Context panel</p>
+            <h2 className="mt-2 text-sm font-semibold text-white">Conversation details</h2>
+            <p className="mt-1 text-xs text-slate-500">Verified details from the selected persisted thread.</p>
+          </div>
+          {active ? <>
+            <section className="rounded-lg border border-white/10 bg-slate-950/40 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Channel identity</p>
+              <p className="mt-2 break-all text-sm font-medium text-slate-100">{active.externalAddress}</p>
+              <p className="mt-1 text-xs capitalize text-cyan-200">{active.channel}</p>
+            </section>
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold text-slate-200">Conversation activity</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Messages</p><p className="mt-1 text-xl text-white">{active.messages.length}</p></div>
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Inbound</p><p className="mt-1 text-xl text-white">{inboundCount}</p></div>
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Outbound</p><p className="mt-1 text-xl text-white">{outboundCount}</p></div>
+                <div className="rounded-lg bg-slate-950/50 p-3"><p className="text-[10px] text-slate-500">Latest event</p><p className="mt-1 text-xs text-slate-200">{dateLabel(active.updatedAt)}</p></div>
+              </div>
+            </section>
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-200">Latest message status</h3>
+              <p className="rounded-lg border border-white/10 bg-slate-950/40 p-3 text-xs text-slate-300">{active.messages.at(-1)?.status ?? 'No message status available'}</p>
+              <p className="text-[11px] leading-5 text-slate-500">Provider acceptance is not a delivery receipt. Final delivery state depends on a verified provider callback.</p>
+            </section>
+          </> : <p className="rounded-lg border border-dashed border-white/10 p-4 text-xs leading-5 text-slate-500">Select a conversation to inspect its channel identity, message counts and latest recorded status.</p>}
+          <section className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-cyan-100"><ShieldCheck className="h-4 w-4" /> Privacy boundary</div>
+            <p className="mt-2 text-[11px] leading-5 text-slate-400">This panel displays only the owner-authorised thread returned by the Comms API. Cross-channel identity linking, AI memory retrieval and agent handover are not enabled by this view.</p>
+          </section>
+        </aside>
       </div>
     </section>
   );
