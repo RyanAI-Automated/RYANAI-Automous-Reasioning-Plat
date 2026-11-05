@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, Cpu, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
