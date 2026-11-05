@@ -12,7 +12,9 @@ import {
 } from './benchmark-scoring-contract.mjs';
 import {
   calculateLocalCostZar,
+  calculateMeasuredResourceCostZar,
   compareRepeatability,
+  evaluateRepeatability,
   summarizeBenchmarkRun
 } from './benchmark-economics-contract.mjs';
 
@@ -435,6 +437,112 @@ test('economics blocks invented costs and repeatability mismatches', () => {
   };
   assert.equal(compareRepeatability(first, { ...first }).verdict, 'CONFIGURATION_MATCH');
   assert.equal(compareRepeatability(first, { ...first, seed: 8 }).verdict, 'NOT_COMPARABLE');
+});
+
+
+function syntheticResourceMeasurement() {
+  return {
+    schemaVersion: '1.0.0',
+    measurementOwner: 'synthetic-meter-reviewer',
+    hardwareIdentity: 'synthetic-cpu-fixture-v1',
+    meter: {
+      source: 'synthetic-power-meter',
+      deviceId: 'fixture-meter-001',
+      calibrationEvidenceSha256: 'a'.repeat(64),
+      rawEvidenceSha256: 'b'.repeat(64),
+      startKwh: 10,
+      endKwh: 10.5,
+      startedAt: '2026-11-05T00:00:00.000Z',
+      endedAt: '2026-11-05T01:00:00.000Z'
+    },
+    idleBaselineKwh: 0.1,
+    tariff: {
+      rateZarPerKwh: 3.5,
+      source: 'synthetic-tariff-document',
+      evidenceSha256: 'c'.repeat(64),
+      effectiveAt: '2026-11-01T00:00:00.000Z'
+    },
+    hardwareAmortization: {
+      costZar: 2,
+      allocationMethod: 'synthetic-runtime-share',
+      evidenceSha256: 'd'.repeat(64)
+    }
+  };
+}
+
+test('resource cost requires auditable meter, calibration, tariff and amortization evidence', () => {
+  const measurement = syntheticResourceMeasurement();
+  const result = calculateMeasuredResourceCostZar({
+    measurement, attemptedTasks: 3, acceptedTasks: 1
+  });
+  assert.equal(result.status, 'MEASURED_INPUTS_VALIDATED_EXTERNAL_CONFIRMATION_REQUIRED');
+  assert.equal(result.gateVerdict, 'BLOCKED');
+  assert.equal(result.netEnergyKwh, 0.4);
+  assert.equal(result.energyCostZar, 1.4);
+  assert.equal(result.totalCostZar, 3.4);
+  assert.equal(result.costPerAttemptZar, 3.4 / 3);
+  assert.equal(result.costPerAcceptedTaskZar, 3.4);
+  assert.equal(calculateMeasuredResourceCostZar({
+    measurement: { ...measurement, meter: { ...measurement.meter, calibrationEvidenceSha256: '' } },
+    attemptedTasks: 3, acceptedTasks: 1
+  }).status, 'BLOCKED');
+  assert.equal(calculateMeasuredResourceCostZar({
+    measurement, attemptedTasks: 0, acceptedTasks: 0
+  }).status, 'BLOCKED');
+});
+
+const repeatabilityConfig = {
+  datasetSha256: 'a'.repeat(64),
+  promptConfigSha256: 'b'.repeat(64),
+  candidateIdentity: 'fixture-model@sha256:' + 'c'.repeat(64),
+  runtimeIdentity: 'fixture-runtime-v1',
+  hardwareIdentity: 'fixture-hardware-v1',
+  seed: 7,
+  concurrency: 1
+};
+const repeatabilityRuns = () => [
+  {
+    runId: 'trial-1', configuration: repeatabilityConfig,
+    outputSha256: 'd'.repeat(64), scorerRecordSha256: 'e'.repeat(64),
+    measurementEvidenceSha256: 'f'.repeat(64),
+    p95LatencyMs: 100, costPerAcceptedTaskZar: 1
+  },
+  {
+    runId: 'trial-2', configuration: repeatabilityConfig,
+    outputSha256: 'd'.repeat(64), scorerRecordSha256: 'e'.repeat(64),
+    measurementEvidenceSha256: '1'.repeat(64),
+    p95LatencyMs: 104, costPerAcceptedTaskZar: 1.02
+  },
+  {
+    runId: 'trial-3', configuration: repeatabilityConfig,
+    outputSha256: 'd'.repeat(64), scorerRecordSha256: 'e'.repeat(64),
+    measurementEvidenceSha256: '2'.repeat(64),
+    p95LatencyMs: 108, costPerAcceptedTaskZar: 1.04
+  }
+];
+
+test('repeatability requires three comparable runs with stable outputs and bounded metric spread', () => {
+  const runs = repeatabilityRuns();
+  const result = evaluateRepeatability(runs, { maxSpreadPct: 10 });
+  assert.equal(result.verdict, 'REPEATABLE');
+  assert.equal(result.gateVerdict, 'BLOCKED');
+  assert.equal(result.repetitionCount, 3);
+  assert.ok(result.latencySpreadPct < 10);
+  assert.ok(result.costSpreadPct < 10);
+  assert.equal(evaluateRepeatability(runs.slice(0, 2)).verdict, 'BLOCKED');
+  assert.equal(evaluateRepeatability([
+    ...runs.slice(0, 2), { ...runs[2], outputSha256: '3'.repeat(64) }
+  ]).verdict, 'NOT_REPEATABLE');
+  assert.equal(evaluateRepeatability([
+    ...runs.slice(0, 2), {
+      ...runs[2], p95LatencyMs: 300
+    }
+  ]).verdict, 'NOT_REPEATABLE');
+  assert.equal(evaluateRepeatability([
+    ...runs.slice(0, 2), {
+      ...runs[2], configuration: { ...repeatabilityConfig, seed: 8 }
+    }
+  ]).verdict, 'NOT_COMPARABLE');
 });
 
 test('provenance validator rejects secret-bearing non-secret config', async () => {
