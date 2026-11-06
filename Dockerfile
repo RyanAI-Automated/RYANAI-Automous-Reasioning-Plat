@@ -53,6 +53,7 @@ RUN npm run db:generate \
 # pg_dump is required by the optional, non-blocking startup backup.
 # The npm CLI is deliberately absent; Render must use this image's default CMD.
 FROM node:24-alpine AS api
+LABEL org.opencontainers.image.description="RyanAI API runtime image"
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
