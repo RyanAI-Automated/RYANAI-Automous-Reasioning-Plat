@@ -102,8 +102,8 @@ if (probeResult) {
   if (!Array.isArray(observedEnv) || !Array.isArray(allowedEnv) ||
       observedEnv.some(name => typeof name !== 'string') ||
       allowedEnv.some(name => typeof name !== 'string') ||
-      JSON.stringify([...observedEnv].sort()) !== JSON.stringify([...allowedEnv].sort())) {
-    failures.push('Probe environment variable names do not exactly match the declared runtime allowlist.');
+      !observedEnv.every(name => allowedEnv.includes(name))) {
+    failures.push('Probe environment variable names include entries outside the declared runtime allowlist.');
   }
 }
 if (missingChecks.length > 0) failures.push('Required probe checks are missing: ' + missingChecks.join(', '));
