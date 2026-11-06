@@ -6,6 +6,29 @@ ON CONFLICT(id) DO UPDATE SET public=false,file_size_limit=EXCLUDED.file_size_li
 -- Keep the Supabase migration chain independently replayable. The Prisma migration
 -- later applies the same objects with IF NOT EXISTS, but must not be a prerequisite
 -- for Storage triggers referencing Comms attachment metadata.
+-- This migration is independently replayable through Supabase CLI as well as Prisma.
+-- Create the Comms parent tables before adding owner-bound attachment metadata.
+CREATE TABLE IF NOT EXISTS public.communication_conversations (
+  id TEXT NOT NULL, channel TEXT NOT NULL, external_address TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT communication_conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT communication_conversations_channel_address_key UNIQUE (channel, external_address)
+);
+CREATE TABLE IF NOT EXISTS public.communication_messages (
+  id TEXT NOT NULL, conversation_id TEXT NOT NULL, direction TEXT NOT NULL,
+  body TEXT NOT NULL, provider_message_id TEXT,
+  status TEXT NOT NULL DEFAULT 'received', metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT communication_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT communication_messages_provider_message_id_key UNIQUE (provider_message_id),
+  CONSTRAINT communication_messages_conversation_id_fkey FOREIGN KEY (conversation_id)
+    REFERENCES public.communication_conversations(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX IF NOT EXISTS communication_messages_conversation_created_idx ON public.communication_messages (conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS communication_messages_status_created_idx ON public.communication_messages (status, created_at);
+CREATE INDEX IF NOT EXISTS communication_conversations_channel_updated_idx ON public.communication_conversations (channel, updated_at);
+
 ALTER TABLE public.communication_conversations
   ADD COLUMN IF NOT EXISTS owner_user_id UUID;
 CREATE INDEX IF NOT EXISTS communication_conversations_owner_updated_idx
