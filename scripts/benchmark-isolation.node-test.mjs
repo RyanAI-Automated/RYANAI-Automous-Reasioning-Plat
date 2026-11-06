@@ -67,7 +67,7 @@ test('isolation probe exercises positive loopback and negative public/private eg
 
 test('workflow writes a clean evidence document and uploads it even after probe failure', async () => {
   const workflow = await readFile('.github/workflows/benchmark-contracts.yml', 'utf8');
-  assert.match(workflow, /run: bash scripts\\/benchmark-isolation-container\\.sh/);
-  assert.match(workflow, /if: always\\(\\)[\\s\\S]*uses: actions\\/upload-artifact@v4/);
-  assert.doesNotMatch(workflow, /npm run benchmark:isolation:container \\| tee/);
+  assert.match(workflow, /run: bash scripts\/benchmark-isolation-container\.sh/);
+  assert.match(workflow, /if: always\(\)[\s\S]*uses: actions\/upload-artifact@v4/);
+  assert.doesNotMatch(workflow, /npm run benchmark:isolation:container \| tee/);
 });
