@@ -763,7 +763,6 @@ test('provenance validator rejects nested symlink escape', async () => {
 });
 
 
-const scoringHash = 'a'.repeat(64);
 const passingAssertion = id => ({
   id, passed: true, evaluatorVersion: 'fixture-scorer-v1',
   expectedSha256: scoringHash, observedSha256: scoringHash
