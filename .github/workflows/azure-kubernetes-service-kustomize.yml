@@ -1,9 +1,12 @@
 name: Optional Azure Kubernetes Service deployment
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY-AKS only after reviewing the production change.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -22,7 +25,7 @@ env:
 jobs:
   buildImage:
     name: Build image for AKS
-    if: ${{ vars.AZURE_AKS_DEPLOY_ENABLED == 'true' }}
+    if: ${{ inputs.confirmation == 'DEPLOY-AKS' && vars.AZURE_AKS_DEPLOY_ENABLED == 'true' }}
     permissions:
       contents: read
       id-token: write
@@ -64,7 +67,7 @@ jobs:
 
   deploy:
     name: Deploy to AKS
-    if: ${{ vars.AZURE_AKS_DEPLOY_ENABLED == 'true' }}
+    if: ${{ inputs.confirmation == 'DEPLOY-AKS' && vars.AZURE_AKS_DEPLOY_ENABLED == 'true' }}
     permissions:
       actions: read
       contents: read
