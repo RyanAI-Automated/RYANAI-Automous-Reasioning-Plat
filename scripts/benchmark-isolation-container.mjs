@@ -96,8 +96,17 @@ async function expectTcpBlocked(host, port) {
       reject(new Error(`Unexpected network connection to ${host}:${port}`));
     });
     socket.once('error', error => {
-      if (DENIED_NETWORK_CODES.has(error.code)) resolve(error.code);
-      else reject(new Error(`Connection to ${host}:${port} failed with ${error.code}; this is not proof of egress denial.`));
+      if (DENIED_NETWORK_CODES.has(error.code)) {
+        resolve(error.code);
+        return;
+      }
+      // ECONNREFUSED is not proof by itself. Accept it only after the
+      // network=none container has independently exposed loopback only.
+      if (error.code === 'ECONNREFUSED' && interfaces.length === 1 && interfaces[0] === 'lo') {
+        resolve('ECONNREFUSED_LOOPBACK_ONLY');
+        return;
+      }
+      reject(new Error(`Connection to ${host}:${port} failed with ${error.code}; this is not proof of egress denial.`));
     });
     socket.once('timeout', () => {
       socket.destroy();
