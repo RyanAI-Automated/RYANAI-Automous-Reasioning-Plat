@@ -91,6 +91,13 @@ describe('Supabase API authentication', () => {
 
     const response = await app.inject({ method: 'POST', url: '/protected' });
     expect(response.statusCode).toBe(401);
+
+    const invalidBearer = await app.inject({
+      method: 'POST',
+      url: '/protected',
+      headers: { authorization: 'Bearer invalid-token' },
+    });
+    expect(invalidBearer.statusCode).toBe(401);
   });
 
   it.each([undefined, 'Basic password', 'Bearer', 'Bearer token extra'])(
