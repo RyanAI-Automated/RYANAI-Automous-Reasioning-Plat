@@ -7,8 +7,7 @@ import CommunicationsCenter from './CommunicationsCenter';
 const comms = vi.hoisted(() => ({
   getCommsStatus: vi.fn(),
   getCommsConversations: vi.fn(),
-  sendCommsMessage: vi.fn(),
-  assistCommsConversation: vi.fn(),
+  sendCommsMessage: vi.fn(),\n  assistCommsConversation: vi.fn(),
   prepareCommsAttachments: vi.fn(),
   uploadCommsAttachment: vi.fn(),
   getCommsAttachmentStatuses: vi.fn(),
@@ -75,8 +74,7 @@ beforeEach(() => {
   comms.uploadCommsAttachment.mockResolvedValue(undefined);
   comms.getCommsAttachmentStatuses.mockResolvedValue([]);
   comms.getCommsAttachmentDownloadUrl.mockResolvedValue('https://storage.example.test/download');
-  comms.assistCommsConversation.mockResolvedValue({ operation: 'summarize', output: 'Summary: delivery window remains open.', sourceMessageCount: 1 });
-  comms.sendCommsMessage.mockResolvedValue({
+  comms.assistCommsConversation.mockResolvedValue({ operation: 'summarize', output: 'Summary: delivery window remains open.', sourceMessageCount: 1 });\n  comms.sendCommsMessage.mockResolvedValue({
     success: true,
     channel: 'whatsapp',
     providerId: 'provider-message',
