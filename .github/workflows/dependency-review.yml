@@ -15,7 +15,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +23,9 @@ concurrency:
 jobs:
   review:
     name: Review dependency changes
+    permissions:
+      contents: read
+      pull-requests: write
     # The dependency-review API only supports pull_request events.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
