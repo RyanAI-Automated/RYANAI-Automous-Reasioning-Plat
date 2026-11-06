@@ -1,3 +1,4 @@
+/* jshint esversion: 11 */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -34,7 +35,11 @@ test('container runner passes no host environment and mounts only three allowlis
   assert.match(runner, /benchmark-endpoint-policy\.mjs,readonly/);
   assert.match(runner, /local-isolation-policy\.json,readonly/);
   assert.doesNotMatch(runner, /src=\$\(pwd\)|--env-file|docker\.sock/);
-  const dockerArgs = runner.match(/DOCKER_RUN_ARGS=\(([\s\S]*?)\n    \)/)?.[1] ?? '';
+  const argsDeclarationStart = runner.indexOf('DOCKER_RUN_ARGS=(');
+  const argsDeclarationEnd = runner.indexOf('\n    )', argsDeclarationStart);
+  const dockerArgs = argsDeclarationStart >= 0 && argsDeclarationEnd > argsDeclarationStart
+    ? runner.slice(argsDeclarationStart + 'DOCKER_RUN_ARGS=('.length, argsDeclarationEnd)
+    : '';
   assert.ok(dockerArgs, 'Docker invocation must remain an explicit argument array');
   assert.doesNotMatch(dockerArgs, /(?:^|\s)--env(?:=|\s)|(?:^|\s)-e(?:\s|$)/);
 });
