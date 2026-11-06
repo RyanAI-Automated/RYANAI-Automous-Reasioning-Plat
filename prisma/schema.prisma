@@ -817,7 +817,7 @@ model SecurityScan {
   @@index([createdAt(sort: Desc)])
   @@index([commitSha, createdAt(sort: Desc)])
   @@index([environment, status, createdAt(sort: Desc)])
-  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([ownerUserId, createdAt(sort: Desc)], map: "security_scans_owner_created_idx")
   @@map("security_scans")
 }
 
