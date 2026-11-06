@@ -9,6 +9,7 @@ CREATE TABLE "pa_identity_nonces" (
 CREATE UNIQUE INDEX "pa_identity_nonces_nonce_key" ON "pa_identity_nonces"("nonce");
 CREATE INDEX "pa_identity_nonces_expires_at_idx" ON "pa_identity_nonces"("expires_at");
 
+-- agent_runs.id is TEXT in the authoritative schema; keep this optional FK text-compatible.
 CREATE TABLE "pa_delegations" (
   "id" UUID NOT NULL,
   "owner_user_id" TEXT NOT NULL,
@@ -16,7 +17,7 @@ CREATE TABLE "pa_delegations" (
   "requested_capabilities" JSONB NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'queued',
   "trace_id" TEXT NOT NULL,
-  "agent_run_id" UUID,
+  "agent_run_id" TEXT,
   "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMPTZ(3) NOT NULL,
   CONSTRAINT "pa_delegations_pkey" PRIMARY KEY ("id")
@@ -30,7 +31,7 @@ ALTER TABLE "pa_delegations" ADD CONSTRAINT "pa_delegations_agent_run_id_fkey"
 CREATE TABLE "pa_execution_receipts" (
   "id" UUID NOT NULL,
   "delegation_id" UUID NOT NULL,
-  "agent_run_id" UUID NOT NULL,
+  "agent_run_id" TEXT NOT NULL,
   "status" TEXT NOT NULL,
   "trace_id" TEXT NOT NULL,
   "attempt" INTEGER NOT NULL,
