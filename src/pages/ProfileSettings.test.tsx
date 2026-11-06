@@ -90,6 +90,20 @@ describe('RyanAI Settings', () => {
     const language = container.querySelector('select') as HTMLSelectElement;
     const voice = container.querySelector('input[data-testid="voice-enabled"]') as HTMLInputElement;
     const calculator = container.querySelector('input[data-ui-id="calculator"]') as HTMLInputElement;
+    auth.updateUser.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: 'user-a',
+          user_metadata: {
+            full_name: 'Ntsiyeni Ganyane',
+            ryanai_language: 've-ZA',
+            ryanai_voice_enabled: true,
+            ryanai_dashboard_ui: ['pa', 'cockpit', 'operator', 'operations', 'quant', 'trading', 'workspace', 'audiobook'],
+          },
+        },
+      },
+      error: null,
+    });
 
     await changeValue(name, 'Ntsiyeni Ganyane');
     await changeValue(language, 've-ZA');
