@@ -133,6 +133,7 @@ interface StreamAssistantResponseOptions {
   mountedRef: MutableRefObject<boolean>;
   requestStartRef: MutableRefObject<number | null>;
   setSending: Dispatch<SetStateAction<boolean>>;
+  setLiveModel: Dispatch<SetStateAction<ModelId>>;
   setConversations: Dispatch<SetStateAction<Conversation[]>>;
   setLiveText: Dispatch<SetStateAction<string>>;
   setLiveSteps: Dispatch<SetStateAction<ToolStep[]>>;
@@ -147,6 +148,7 @@ async function streamAssistantResponse({
   mountedRef,
   requestStartRef,
   setSending,
+  setLiveModel,
   setConversations,
   setLiveText,
   setLiveSteps,
@@ -155,6 +157,7 @@ async function streamAssistantResponse({
   setSending(true);
   requestStartRef.current = performance.now();
   setLiveText('');
+  setLiveModel(model);
   setLiveSteps([]);
 
   let accumulatedText = '';
@@ -980,6 +983,7 @@ export default function CommandCenter({
         mountedRef,
         requestStartRef,
         setSending,
+        setLiveModel,
         setConversations,
         setLiveText,
         setLiveSteps,
