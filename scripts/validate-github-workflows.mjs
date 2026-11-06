@@ -54,7 +54,7 @@ for (const file of files) {
   if (!document?.on && !Object.prototype.hasOwnProperty.call(document || {}, 'on')) fail(file, 'missing workflow trigger');
   if (!document?.jobs || typeof document.jobs !== 'object') fail(file, 'missing jobs');
 
-  for (const match of text.matchAll(/uses:\s*([^\s#]+)/g)) {
+  for (const match of text.matchAll(/^[ \t]*uses:[ \t]*([^\s#]+)/gm)) {
     // YAML permits quoted action references. Strip the surrounding quotes before
     // validating either a semantic version tag or an immutable full SHA pin.
     const action = match[1].replace(/^['"]|['"]$/g, '');
@@ -177,9 +177,16 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
   }
 });
 
-assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
+// preview.yml was intentionally removed; validate the supported staging/deployment
+// contracts instead of requiring a deleted workflow.
+assertPermissionsWorkflow('render-blueprint-validation.yml', (filePath, _text, document) => {
   if (document.permissions?.contents !== 'read') {
-    fail(filePath, 'preview validation must use read-only repository permissions');
+    fail(filePath, 'Render Blueprint validation must use read-only repository permissions');
+  }
+});
+assertPermissionsWorkflow('deploy-railway.yml', (filePath, _text, document) => {
+  if (document.permissions?.contents !== 'read' || document.permissions?.checks !== 'read') {
+    fail(filePath, 'Railway staging validation must use read-only repository/check permissions');
   }
 });
 
