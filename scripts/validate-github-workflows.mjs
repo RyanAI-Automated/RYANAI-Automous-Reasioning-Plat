@@ -54,36 +54,24 @@ for (const file of files) {
   if (!document?.on && !Object.prototype.hasOwnProperty.call(document || {}, 'on')) fail(file, 'missing workflow trigger');
   if (!document?.jobs || typeof document.jobs !== 'object') fail(file, 'missing jobs');
 
-  function collectActionReferences(node, references = []) {
-  if (Array.isArray(node)) {
-    for (const item of node) collectActionReferences(item, references);
-  } else if (node && typeof node === 'object') {
-    if (typeof node.uses === 'string') references.push(node.uses);
-    for (const [key, value] of Object.entries(node)) {
-      if (key !== 'uses') collectActionReferences(value, references);
+  for (const match of text.matchAll(/uses:\s*([^\s#]+)/g)) {
+    // YAML permits quoted action references. Strip the surrounding quotes before
+    // validating either a semantic version tag or an immutable full SHA pin.
+    const action = match[1].replace(/^['"]|['"]$/g, '');
+    const shaMatch = action.match(/^([^@]+)@([a-f0-9]{40})$/i);
+    if (shaMatch) continue;
+
+    const actionMatch = action.match(/^([^@]+)@v(\d+)(?:\.\d+(?:\.\d+)?)?$/);
+    if (!actionMatch) {
+      if (!action.startsWith('./') && !action.startsWith('aquasecurity/trivy-action@') && !action.startsWith('dtolnay/rust-toolchain@') && !action.startsWith('snyk/actions/node@')) fail(file, `unpinned or malformed action: ${action}`);
+      continue;
+    }
+    if (actionMatch[1].startsWith('aquasecurity/trivy-action') || actionMatch[1].startsWith('dtolnay/rust-toolchain') || actionMatch[1].startsWith('snyk/actions/node')) continue;
+    const expected = allowedActionMajors.get(actionMatch[1]);
+    if (expected && !expected.includes(Number(actionMatch[2]))) {
+      fail(file, `${actionMatch[1]} must use one of ${expected.map((major) => `v${major}`).join(", ")}, found v${actionMatch[2]}`);
     }
   }
-  return references;
-}
-
-for (const actionReference of collectActionReferences(document)) {
-  const action = actionReference.trim().replace(/^['"]|['"]$/g, '');
-  const shaMatch = action.match(/^([^@]+)@([a-f0-9]{40})$/i);
-  if (shaMatch) continue;
-
-  const actionMatch = action.match(/^([^@]+)@v(\d+)(?:\.\d+(?:\.\d+)?)?$/);
-  if (!actionMatch) {
-    if (!action.startsWith('./') && !action.startsWith('aquasecurity/trivy-action@') && !action.startsWith('dtolnay/rust-toolchain@') && !action.startsWith('snyk/actions/node@')) {
-      fail(file, `unpinned or malformed action: ${action}`);
-    }
-    continue;
-  }
-  if (actionMatch[1].startsWith('aquasecurity/trivy-action') || actionMatch[1].startsWith('dtolnay/rust-toolchain') || actionMatch[1].startsWith('snyk/actions/node')) continue;
-  const expected = allowedActionMajors.get(actionMatch[1]);
-  if (expected && !expected.includes(Number(actionMatch[2]))) {
-    fail(file, `${actionMatch[1]} must use one of ${expected.map((major) => `v${major}`).join(", ")}, found v${actionMatch[2]}`);
-  }
-}
 
   for (const match of text.matchAll(/(?:dockerfile|configuration-path|path|schema(?:-file)?):\s*['"]?([^'"\s${}]+)['"]?/gi)) {
     const candidate = match[1];
@@ -189,13 +177,11 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
   }
 });
 
-if (statSafe(join(workflowDir, 'preview.yml'))) {
-  assertPermissionsWorkflow('preview.yml', (filePath, _text, document) => {
-    if (document.permissions?.contents !== 'read') {
-      fail(filePath, 'preview validation must use read-only repository permissions');
-    }
-  });
-}
+assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
+  if (document.permissions?.contents !== 'read') {
+    fail(filePath, 'preview validation must use read-only repository permissions');
+  }
+});
 
 assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) => {
   if (document.permissions?.['security-events'] === 'write') {
