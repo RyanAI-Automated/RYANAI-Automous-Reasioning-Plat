@@ -23,7 +23,7 @@ const allRegularUiIds = [
   'audiobook',
 ];
 
-async function mount() {
+async function mount({ isOwner = false, isAdmin = false }: { isOwner?: boolean; isAdmin?: boolean } = {}) {
   await act(async () => root.render(
     <ProfileSettings
       userId="user-a"
@@ -32,6 +32,8 @@ async function mount() {
       initialLanguage="en-ZA"
       initialVoiceEnabled={false}
       initialDashboardUiIds={allRegularUiIds}
+      isOwner={isOwner}
+      isAdmin={isAdmin}
     />,
   ));
 }
@@ -82,6 +84,30 @@ describe('RyanAI Settings', () => {
     expect(container.querySelector('input[data-ui-id="calculator"]')).not.toBeNull();
     const language = container.querySelector('select') as HTMLSelectElement;
     expect([...language.options].some((option) => option.value === 've-ZA')).toBe(true);
+  });
+
+  it('does not expose owner or admin workspaces to an ordinary account', async () => {
+    await mount();
+
+    expect(container.querySelector('input[data-ui-id="comms"]')).toBeNull();
+    expect(container.querySelector('input[data-ui-id="admin"]')).toBeNull();
+    expect(container.querySelector('input[data-ui-id="studio"]')).toBeNull();
+  });
+
+  it('exposes only the owner workspace when the trusted owner claim is present', async () => {
+    await mount({ isOwner: true });
+
+    expect(container.querySelector('input[data-ui-id="comms"]')).not.toBeNull();
+    expect(container.querySelector('input[data-ui-id="admin"]')).toBeNull();
+    expect(container.querySelector('input[data-ui-id="studio"]')).toBeNull();
+  });
+
+  it('exposes admin workspaces without granting the owner-only Comms workspace', async () => {
+    await mount({ isAdmin: true });
+
+    expect(container.querySelector('input[data-ui-id="admin"]')).not.toBeNull();
+    expect(container.querySelector('input[data-ui-id="studio"]')).not.toBeNull();
+    expect(container.querySelector('input[data-ui-id="comms"]')).toBeNull();
   });
 
   it('persists profile, language, voice and selected dashboard UIs through Supabase Auth', async () => {
