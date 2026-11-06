@@ -132,10 +132,11 @@ describe('RyanAI Settings', () => {
   it('updates a password only after validating length and confirmation', async () => {
     await mount();
     const passwordInputs = [...container.querySelectorAll('input[type="password"]')] as HTMLInputElement[];
-    await changeValue(passwordInputs[0], 'correct-horse-battery');
+    await changeValue(passwordInputs[0], 'old-password-value');
     await changeValue(passwordInputs[1], 'correct-horse-battery');
+    await changeValue(passwordInputs[2], 'correct-horse-battery');
     await click(buttonContaining('Update password'));
-    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'correct-horse-battery' }));
+    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'correct-horse-battery', current_password: 'old-password-value' }));
     expect(container.textContent).toContain('Password update confirmed');
   });
 
