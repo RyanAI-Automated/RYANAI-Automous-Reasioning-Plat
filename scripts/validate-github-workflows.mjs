@@ -177,9 +177,16 @@ assertPermissionsWorkflow('docker-publish.yml', (filePath, text, document) => {
   }
 });
 
-assertPermissionsWorkflow('preview.yml', (filePath, text, document) => {
+// preview.yml was intentionally removed; validate the supported staging/deployment
+// contracts instead of requiring a deleted workflow.
+assertPermissionsWorkflow('render-blueprint-validation.yml', (filePath, _text, document) => {
   if (document.permissions?.contents !== 'read') {
-    fail(filePath, 'preview validation must use read-only repository permissions');
+    fail(filePath, 'Render Blueprint validation must use read-only repository permissions');
+  }
+});
+assertPermissionsWorkflow('deploy-railway.yml', (filePath, _text, document) => {
+  if (document.permissions?.contents !== 'read' || document.permissions?.checks !== 'read') {
+    fail(filePath, 'Railway staging validation must use read-only repository/check permissions');
   }
 });
 
