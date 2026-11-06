@@ -103,6 +103,7 @@ async function expectRejected(label, operation, expectedText) {
   }
   assert.ok(caught, `${label} must be rejected by PostgreSQL`);
   assert.match(String(caught.message ?? caught), expectedText);
+  return true;
 }
 
 try {
@@ -164,7 +165,7 @@ try {
     /unknown order/i,
   );
 
-  await expectRejected(
+  const crossAccountDuplicateRejected = await expectRejected(
     'cross-account fill cannot reuse another account existing client fill id',
     () => prisma.$executeRawUnsafe(`
       INSERT INTO quant_paper_trades
@@ -175,6 +176,8 @@ try {
     `, USER_B),
     /unknown order/i,
   );
+  assert.equal(crossAccountDuplicateRejected, true,
+    'cross-account duplicate fill identifiers must be rejected');
 
   const afterFirstRun = {
     historicalFull: reconcilePaperOrder(await snapshot('quant-recon-legacy-full')),
