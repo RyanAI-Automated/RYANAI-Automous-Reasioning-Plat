@@ -117,6 +117,18 @@ export default function ProfileSettings({
       if (!data.user || data.user.id !== userId) {
         throw new Error('The identity provider did not confirm this profile update.');
       }
+      const savedMetadata = data.user.user_metadata ?? {};
+      const savedUiIds = savedMetadata.ryanai_dashboard_ui;
+      if (
+        savedMetadata.full_name !== (nextName || null)
+        || savedMetadata.ryanai_language !== language
+        || savedMetadata.ryanai_voice_enabled !== voiceEnabled
+        || !Array.isArray(savedUiIds)
+        || savedUiIds.length !== nextDashboardUiIds.length
+        || savedUiIds.some((id, index) => id !== nextDashboardUiIds[index])
+      ) {
+        throw new Error('Supabase Auth did not confirm all requested profile and dashboard settings.');
+      }
 
       try {
         window.localStorage.setItem(`ryanai:language:${userId}`, language);
