@@ -63,19 +63,25 @@ if (!desktopRunner.includes("MCP_PORT: '8767'")) {
   fail('Desktop MCP service must use port 8767');
 }
 
-// The CLI exposes a second Fastify entry point; keep its browser boundary secure.
+// The legacy CLI entry point is intentionally quarantined. The supported
+// Fastify launcher must own the API listener and enforce the exact CORS allowlist.
 const legacyServer = readText('src/server/index.ts');
-if (!legacyServer.includes("import fastifyCors from '@fastify/cors'")) {
-  fail('Legacy CLI server must use the Fastify CORS plugin');
+if (
+  !legacyServer.includes('Unsupported legacy API entrypoint') ||
+  !legacyServer.includes('throw new Error(') ||
+  legacyServer.includes('Fastify(') ||
+  legacyServer.includes('.listen(')
+) {
+  fail('Legacy CLI server must remain quarantined; only the supported launcher may listen');
 }
-if (!legacyServer.includes('process.env.CORS_ORIGINS')) {
-  fail('Legacy CLI server must read the configured CORS origin allowlist');
-}
-if (!legacyServer.includes('allowedCorsOrigins.has(origin)')) {
-  fail('Legacy CLI server must reject origins outside the explicit allowlist');
-}
-if (legacyServer.includes("reply.header('Access-Control-Allow-Origin', '*')")) {
-  fail('Legacy CLI server must not allow every browser origin');
+const primaryLauncher = readText('src/server/launcher.ts');
+if (
+  !primaryLauncher.includes("import fastifyCors from '@fastify/cors'") ||
+  !primaryLauncher.includes('process.env.CORS_ORIGINS') ||
+  !primaryLauncher.includes('allowedCorsOrigins.has(origin)') ||
+  primaryLauncher.includes("reply.header('Access-Control-Allow-Origin', '*')")
+) {
+  fail('Supported API launcher must enforce the explicit CORS origin allowlist');
 }
 
 // HTML entry-point metadata and script safety are checked by scripts/check-index-html.mjs.
