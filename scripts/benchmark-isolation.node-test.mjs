@@ -33,7 +33,10 @@ test('container runner passes no host environment and mounts only three allowlis
   assert.match(runner, /benchmark-endpoint-policy\.mjs,readonly/);
   assert.match(runner, /benchmark-endpoint-policy\.mjs,readonly/);
   assert.match(runner, /local-isolation-policy\.json,readonly/);
-  assert.doesNotMatch(runner, /src=\$\(pwd\)|--env-file|--env\s| -e\s|docker\.sock/);
+  assert.doesNotMatch(runner, /src=\$\(pwd\)|--env-file|docker\.sock/);
+  const dockerArgs = runner.match(/DOCKER_RUN_ARGS=\(([\s\S]*?)\n    \)/)?.[1] ?? '';
+  assert.ok(dockerArgs, 'Docker invocation must remain an explicit argument array');
+  assert.doesNotMatch(dockerArgs, /(?:^|\s)--env(?:=|\s)|(?:^|\s)-e(?:\s|$)/);
 });
 
 test('isolation probes reject connection-refused as evidence of a blocked route', async () => {
