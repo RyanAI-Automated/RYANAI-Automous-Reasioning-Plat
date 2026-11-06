@@ -4,12 +4,24 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ProfileSettings from './ProfileSettings';
 
-const auth = vi.hoisted(() => ({ updateUser: vi.fn() }));
+const auth = vi.hoisted(() => ({ updateUser: vi.fn(), signOut: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let container: HTMLDivElement;
 let root: Root;
+
+const allRegularUiIds = [
+  'pa',
+  'cockpit',
+  'operator',
+  'operations',
+  'calculator',
+  'quant',
+  'trading',
+  'workspace',
+  'audiobook',
+];
 
 async function mount() {
   await act(async () => root.render(
@@ -19,6 +31,7 @@ async function mount() {
       initialDisplayName="Alex Morgan"
       initialLanguage="en-ZA"
       initialVoiceEnabled={false}
+      initialDashboardUiIds={allRegularUiIds}
     />,
   ));
 }
@@ -39,9 +52,14 @@ async function click(element: Element | null) {
   await act(async () => element.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 }
 
+function buttonContaining(label: string) {
+  return [...container.querySelectorAll('button')].find((button) => button.textContent?.includes(label)) ?? null;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   auth.updateUser.mockResolvedValue({ data: { user: { id: 'user-a' } }, error: null });
+  auth.signOut.mockResolvedValue({ error: null });
   window.localStorage.clear();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -54,38 +72,78 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe('Profile & Settings', () => {
-  it('shows the verified account identity and supported language preferences', async () => {
+describe('RyanAI Settings', () => {
+  it('shows profile identity, dashboard controls and supported language preferences', async () => {
     await mount();
     expect(container.textContent).toContain('person@example.test');
     expect(container.textContent).toContain('Provider and integration security');
+    expect(container.textContent).toContain('Dashboard UI options');
+    expect(container.textContent).toContain('Account security');
+    expect(container.querySelector('input[data-ui-id="calculator"]')).not.toBeNull();
     const language = container.querySelector('select') as HTMLSelectElement;
     expect([...language.options].some((option) => option.value === 've-ZA')).toBe(true);
   });
 
-  it('persists profile, language and voice preferences through Supabase Auth', async () => {
+  it('persists profile, language, voice and selected dashboard UIs through Supabase Auth', async () => {
     await mount();
     const name = container.querySelector('input[autocomplete="name"]') as HTMLInputElement;
     const language = container.querySelector('select') as HTMLSelectElement;
-    const voice = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const voice = container.querySelector('input[data-testid="voice-enabled"]') as HTMLInputElement;
+    const calculator = container.querySelector('input[data-ui-id="calculator"]') as HTMLInputElement;
 
     await changeValue(name, 'Ntsiyeni Ganyane');
     await changeValue(language, 've-ZA');
     await act(async () => {
       voice.click();
+      calculator.click();
     });
-    await click(container.querySelector('button[type="submit"]'));
+    await click(buttonContaining('Save profile & dashboard settings'));
 
     await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({
       data: {
         full_name: 'Ntsiyeni Ganyane',
         ryanai_language: 've-ZA',
         ryanai_voice_enabled: true,
+        ryanai_dashboard_ui: [
+          'pa',
+          'cockpit',
+          'operator',
+          'operations',
+          'quant',
+          'trading',
+          'workspace',
+          'audiobook',
+        ],
       },
     }));
     expect(window.localStorage.getItem('ryanai:language:user-a')).toBe('ve-ZA');
     expect(window.localStorage.getItem('ryanai:voice-enabled')).toBe('true');
-    expect(container.textContent).toContain('Profile and preferences saved');
+    expect(container.textContent).toContain('Profile, dashboard visibility and preferences saved');
+  });
+
+  it('requests email changes through the authenticated Supabase user flow', async () => {
+    await mount();
+    await changeValue(container.querySelector('input[type="email"]') as HTMLInputElement, 'new@example.test');
+    await click(buttonContaining('Request email change'));
+    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ email: 'new@example.test' }));
+    expect(container.textContent).toContain('Complete the verification steps');
+  });
+
+  it('updates a password only after validating length and confirmation', async () => {
+    await mount();
+    const passwordInputs = [...container.querySelectorAll('input[type="password"]')] as HTMLInputElement[];
+    await changeValue(passwordInputs[0], 'correct-horse-battery');
+    await changeValue(passwordInputs[1], 'correct-horse-battery');
+    await click(buttonContaining('Update password'));
+    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'correct-horse-battery' }));
+    expect(container.textContent).toContain('Password update confirmed');
+  });
+
+  it('invalidates other device sessions without signing out the current device', async () => {
+    await mount();
+    await click(buttonContaining('Sign out other devices'));
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'others' });
+    await vi.waitFor(() => expect(container.textContent).toContain('This device remains signed in'));
   });
 
   it('shows provider errors and does not claim the profile was saved', async () => {
@@ -94,15 +152,15 @@ describe('Profile & Settings', () => {
       error: { message: 'Profile update temporarily unavailable.' },
     });
     await mount();
-    await click(container.querySelector('button[type="submit"]'));
+    await click(buttonContaining('Save profile & dashboard settings'));
     await vi.waitFor(() => expect(container.textContent).toContain('Profile update temporarily unavailable.'));
-    expect(container.textContent).not.toContain('Profile and preferences saved');
+    expect(container.textContent).not.toContain('Profile, dashboard visibility and preferences saved');
   });
 
   it('does not save when the identity provider returns an unverified account', async () => {
     auth.updateUser.mockResolvedValueOnce({ data: { user: { id: 'another-user' } }, error: null });
     await mount();
-    await click(container.querySelector('button[type="submit"]'));
+    await click(buttonContaining('Save profile & dashboard settings'));
     await vi.waitFor(() => expect(container.textContent).toContain('did not confirm this profile update'));
   });
 });
