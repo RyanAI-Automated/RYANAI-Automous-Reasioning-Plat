@@ -586,7 +586,7 @@ test('resource cost requires auditable meter, calibration, tariff and amortizati
   assert.equal(result.status, 'MEASURED_INPUTS_VALIDATED_EXTERNAL_CONFIRMATION_REQUIRED');
   assert.equal(result.gateVerdict, 'BLOCKED');
   assert.equal(result.netEnergyKwh, 0.4);
-  assert.equal(result.energyCostZar, 1.4);
+  assert.ok(Math.abs(result.energyCostZar - 1.4) < 1e-9, 'energy cost should be 1.40 ZAR within floating-point tolerance');
   assert.equal(result.totalCostZar, 3.4);
   assert.equal(result.costPerAttemptZar, 3.4 / 3);
   assert.equal(result.costPerAcceptedTaskZar, 3.4);
