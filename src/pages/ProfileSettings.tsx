@@ -204,7 +204,7 @@ export default function ProfileSettings({
     setError('');
     setNotice('');
     try {
-      const { data, error: updateError } = await supabase.auth.updateUser({ password: newPassword, current_password: currentPassword });
+      const { data, error: updateError } = await supabase.auth.updateUser({ password: newPassword, currentPassword });
       if (updateError) throw updateError;
       if (!data.user || data.user.id !== userId) {
         throw new Error('The identity provider did not confirm this password update.');
