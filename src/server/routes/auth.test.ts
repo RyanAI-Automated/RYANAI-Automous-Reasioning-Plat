@@ -81,6 +81,18 @@ afterEach(async () => {
 });
 
 describe('Supabase API authentication', () => {
+  it('preserves a predeclared authUser decorator without skipping authentication hooks', async () => {
+    const app = Fastify();
+    applications.push(app);
+    app.decorateRequest('authUser', null);
+    expect(() => installAuthentication(app)).not.toThrow();
+    app.post('/protected', async () => ({ allowed: true }));
+    await app.ready();
+
+    const response = await app.inject({ method: 'POST', url: '/protected' });
+    expect(response.statusCode).toBe(401);
+  });
+
   it.each([undefined, 'Basic password', 'Bearer', 'Bearer token extra'])(
     'rejects missing or malformed bearer credentials: %s',
     async (authorization) => {
