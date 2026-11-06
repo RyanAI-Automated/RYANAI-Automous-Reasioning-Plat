@@ -123,8 +123,13 @@ for (const id of ['dashboard', 'operator', 'admin', 'quant', 'cockpit', 'workspa
     fail(`app/routes.json is missing the ${id} route`);
   }
 }
-if (!app.includes("{route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}")) {
-  fail('Dashboard route must render the focused DashboardPage with verified role context');
+const dashboardRouteProps = app.match(/\{route === 'dashboard' && <DashboardPage\b([^>]*)\/>\}/)?.[1] ?? '';
+if (
+  !dashboardRouteProps.includes('isOwner={isOwner}')
+  || !dashboardRouteProps.includes('isAdmin={isAdmin}')
+  || !dashboardRouteProps.includes('enabledUiIds={enabledUiIds}')
+) {
+  fail('Dashboard route must render the focused DashboardPage with verified role context and saved UI preferences');
 }
 if (!app.includes("lazy(() => import('@/pages/OperatorConsole'))") || !app.includes("{route === 'operator' && <OperatorConsole />}")) {
   fail('Operator route must lazy-load and render the durable OperatorConsole');
