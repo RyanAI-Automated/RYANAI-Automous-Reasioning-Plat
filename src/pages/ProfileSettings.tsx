@@ -58,6 +58,7 @@ export default function ProfileSettings({
     () => new Set(initialDashboardUiIds),
   );
   const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -174,6 +175,10 @@ export default function ProfileSettings({
       setError('Password updates are unavailable because Supabase authentication is not configured.');
       return;
     }
+    if (!currentPassword) {
+      setError('Enter your current password to confirm this change.');
+      return;
+    }
     if (newPassword.length < 12) {
       setError('Use a password with at least 12 characters.');
       return;
@@ -187,11 +192,12 @@ export default function ProfileSettings({
     setError('');
     setNotice('');
     try {
-      const { data, error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      const { data, error: updateError } = await supabase.auth.updateUser({ password: newPassword, current_password: currentPassword });
       if (updateError) throw updateError;
       if (!data.user || data.user.id !== userId) {
         throw new Error('The identity provider did not confirm this password update.');
       }
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setNotice('Password update confirmed by Supabase Auth.');
@@ -384,6 +390,17 @@ export default function ProfileSettings({
 
         <form onSubmit={changePassword} className="grid gap-3 pt-5 sm:grid-cols-2">
           <label className="block text-sm text-slate-300">
+            Current password
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+              required
+              className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none"
+            />
+          </label>
+          <label className="block text-sm text-slate-300">
             New password
             <input
               type="password"
@@ -409,7 +426,7 @@ export default function ProfileSettings({
           </label>
           <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Use at least 12 characters. Your identity provider may require recent authentication before a password change.</p>
           <div className="sm:col-span-2">
-            <button type="submit" disabled={savingPassword || newPassword.length < 12 || !confirmPassword} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:opacity-50">
+            <button type="submit" disabled={savingPassword || !currentPassword || newPassword.length < 12 || !confirmPassword} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:opacity-50">
               <LockKeyhole className="h-4 w-4" /> {savingPassword ? 'Updating…' : 'Update password'}
             </button>
           </div>
