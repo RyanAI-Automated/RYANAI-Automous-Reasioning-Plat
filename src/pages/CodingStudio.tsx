@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { useAuth } from '@/hooks/useAuth';
+import { canApproveJob, diffFiles, languageFromPath } from './codingStudioUtils';
+
 import {
   Activity,
   Check,
@@ -55,8 +57,6 @@ const DEFAULT_PLAN = JSON.stringify({
     'No autonomous merge',
   ],
 }, null, 2);
-
-import { canApproveJob, diffFiles, languageFromPath } from './codingStudioUtils';
 
 export default function CodingStudio() {
   const { session } = useAuth();
