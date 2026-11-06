@@ -1,3 +1,4 @@
+/* jshint esversion: 11 */
 const percentile = (values, fraction) => {
   const sorted = [...values].sort((a, b) => a - b);
   if (!sorted.length) return null;
@@ -18,7 +19,7 @@ export function summarizeBenchmarkRun(run) {
     if (!task.taskId || ids.has(task.taskId)) throw new Error('Task IDs must be present and unique.');
     ids.add(task.taskId);
     if (!['completed', 'failed', 'timeout', 'refused'].includes(task.status)) {
-      throw new Error('Unknown task status: ' + task.status);
+      throw new Error(`Unknown task status: ${task.status}`);
     }
     if (!Number.isFinite(task.latencyMs) || task.latencyMs < 0) {
       throw new Error('Every attempt requires measured latency in milliseconds.');
