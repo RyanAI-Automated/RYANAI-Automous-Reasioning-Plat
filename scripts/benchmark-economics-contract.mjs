@@ -4,6 +4,8 @@ const percentile = (values, fraction) => {
   return sorted[Math.max(0, Math.ceil(fraction * sorted.length) - 1)];
 };
 
+const roundZar = value => Math.round((value + Number.EPSILON) * 100) / 100;
+
 export function summarizeBenchmarkRun(run) {
   if (!run || run.modelInvocation !== false || run.providerCalls !== 0) {
     throw new Error('This contract accepts mock-only, zero-provider-call records.');
@@ -154,11 +156,11 @@ export function calculateMeasuredResourceCostZar(input) {
     grossEnergyKwh: validation.grossEnergyKwh,
     idleBaselineKwh: input.measurement.idleBaselineKwh,
     netEnergyKwh: validation.netEnergyKwh,
-    energyCostZar: energyCost,
-    hardwareAmortizationZar: amortizationCost,
-    totalCostZar: totalCost,
-    costPerAttemptZar: totalCost / input.attemptedTasks,
-    costPerAcceptedTaskZar: input.acceptedTasks > 0 ? totalCost / input.acceptedTasks : null,
+    energyCostZar: roundZar(energyCost),
+    hardwareAmortizationZar: roundZar(amortizationCost),
+    totalCostZar: roundZar(totalCost),
+    costPerAttemptZar: roundZar(totalCost / input.attemptedTasks),
+    costPerAcceptedTaskZar: input.acceptedTasks > 0 ? roundZar(totalCost / input.acceptedTasks) : null,
     attemptedTasks: input.attemptedTasks,
     acceptedTasks: input.acceptedTasks,
     hardwareIdentity: input.measurement.hardwareIdentity,
