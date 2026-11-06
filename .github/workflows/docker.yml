@@ -26,6 +26,9 @@ on:
       - 'store/**'
       - 'stacks/**'
       - 'scripts/copy-server-assets.mjs'
+      - '.github/workflows/ci.yml'
+      - 'scripts/check-platform-wiring.mjs'
+      - 'scripts/validate-github-workflows.mjs'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
     inputs:
@@ -83,7 +86,7 @@ jobs:
   build-pr:
     name: Build ${{ matrix.image }}
     if: github.event_name == 'pull_request' || github.event_name == 'push'
-    needs: validate
+    # Build-only PR validation is independent of lint/tests; publishing remains gated by validate.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
