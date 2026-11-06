@@ -116,7 +116,7 @@ ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
     VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
     VITE_API_BASE_URL=$VITE_API_BASE_URL
-RUN npm run build
+RUN npm run build:web
 
 # nginx serves the SPA and proxies API/WebSocket requests to the API service.
 FROM nginx:alpine AS web
