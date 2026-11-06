@@ -59,7 +59,7 @@ describe('Profile & Settings', () => {
   it('shows the verified account identity and supported language preferences', async () => {
     await mount();
     expect(container.textContent).toContain('person@example.test');
-    expect(container.textContent).toContain('Provider and integration security');
+    expect(container.textContent).toContain('Credential and permission safety');
     const language = container.querySelector('select') as HTMLSelectElement;
     expect([...language.options].some((option) => option.value === 've-ZA')).toBe(true);
   });
@@ -87,7 +87,7 @@ describe('Profile & Settings', () => {
     });
     expect(window.localStorage.getItem('ryanai:language:user-a')).toBe('ve-ZA');
     expect(window.localStorage.getItem('ryanai:voice-enabled')).toBe('true');
-    expect(container.textContent).toContain('Profile and preferences saved');
+    expect(container.textContent).toContain('RyanAI Settings were saved');
   });
 
   it('shows provider errors and does not claim the profile was saved', async () => {
@@ -98,14 +98,14 @@ describe('Profile & Settings', () => {
     await mount();
     await click(container.querySelector('button[type="submit"]'));
     await vi.waitFor(() => expect(container.textContent).toContain('Profile update temporarily unavailable.'));
-    expect(container.textContent).not.toContain('Profile and preferences saved');
+    expect(container.textContent).not.toContain('RyanAI Settings were saved');
   });
 
   it('does not save when the identity provider returns an unverified account', async () => {
     auth.updateUser.mockResolvedValueOnce({ data: { user: { id: 'another-user' } }, error: null });
     await mount();
     await click(container.querySelector('button[type="submit"]'));
-    await vi.waitFor(() => expect(container.textContent).toContain('did not confirm this profile update'));
+    await vi.waitFor(() => expect(container.textContent).toContain('did not confirm this Settings update'));
   });
   it('persists module switches and audiobook/inference defaults without exposing role editing', async () => {
     await mount();

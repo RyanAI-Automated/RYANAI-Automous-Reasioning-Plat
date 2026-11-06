@@ -119,7 +119,7 @@ export default function AudiobookStudio({ userId, defaultVoice = 'coral', defaul
           if (!create.ok || !created.project?.id) throw new Error(created.error || 'Could not create your private audiobook project.');
           if (!active) return;
           setSavedProjects([created.project]);
-          const nextProject = fromSavedProject(created.project, initialProject);
+          const nextProject = fromSavedProject(created.project, initialProject, defaultVoice, defaultSpeed);
           setProject(nextProject);
           setActiveId(nextProject.chapters[0].id);
           setServerProjectId(created.project.id);
