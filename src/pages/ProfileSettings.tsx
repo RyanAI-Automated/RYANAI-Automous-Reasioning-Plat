@@ -25,7 +25,11 @@ export default function ProfileSettings({ userId, email, initialDisplayName, ini
   const [githubOpen, setGithubOpen] = useState(false);
   const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const roleLabel = isOwner ? 'Owner' : isAdmin ? 'Administrator' : 'Standard user';
-  const canManage = (id: DashboardUiId) => { const item = DASHBOARD_UI_OPTIONS.find(option => option.id === id); return !item?.access || (item.access === 'admin' ? isAdmin : isOwner); };
+  const canManage = (id: DashboardUiId) => {
+    const item = DASHBOARD_UI_OPTIONS.find(option => option.id === id);
+    if (!item || !('access' in item)) return true;
+    return item.access === 'admin' ? isAdmin : isOwner;
+  };
   const changeModule = (id: DashboardUiId, enabled: boolean) => setDashboardUi(current => ({ ...current, [id]: enabled }));
 
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
@@ -69,9 +73,9 @@ export default function ProfileSettings({ userId, email, initialDisplayName, ini
     <form onSubmit={saveSettings} className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="dashboard-ui-title">
         <div className="mb-5 flex items-center gap-3"><LayoutDashboard className="h-5 w-5 text-cyan-300" /><div><h2 id="dashboard-ui-title" className="font-semibold text-white">Dashboard UI options</h2><p className="mt-1 text-xs text-slate-400">Choose which workspaces appear in navigation and dashboard shortcuts. Settings always stays available.</p></div></div>
-        <div className="grid gap-3 sm:grid-cols-2">{dashboardOptions.map(option => { const permitted = canManage(option.id); return <label key={option.id} className={`flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-3 ${permitted ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+        <div className="grid gap-3 sm:grid-cols-2">{dashboardOptions.map(option => { const access = 'access' in option ? option.access : undefined; const permitted = canManage(option.id); return <label key={option.id} className={`flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-3 ${permitted ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
           <input type="checkbox" data-testid={`ui-toggle-${option.id}`} checked={dashboardUi[option.id]} disabled={!permitted || saving} onChange={event => changeModule(option.id, event.target.checked)} className="mt-0.5 h-4 w-4 accent-cyan-400" />
-          <span><span className="block text-sm font-medium text-slate-200">{option.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{option.description}</span>{!permitted && <span className="mt-1 block text-[11px] text-amber-300">Requires {option.access} access; preferences cannot grant access.</span>}</span>
+          <span><span className="block text-sm font-medium text-slate-200">{option.label}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{option.description}</span>{!permitted && <span className="mt-1 block text-[11px] text-amber-300">Requires {access} access; preferences cannot grant access.</span>}</span>
         </label>; })}</div>
       </section>
       <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="profile-management-title">
