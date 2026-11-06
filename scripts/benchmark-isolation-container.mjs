@@ -24,7 +24,8 @@ const suspiciousValues = Object.entries(process.env)
      /(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["']?\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{12,}/i.test(value ?? '')))
   .map(([name]) => name);
 const allowedContainerEnvNames = new Set([
-  'PATH', 'HOME', 'HOSTNAME', 'NODE_VERSION', 'YARN_VERSION', 'PWD', 'TERM'
+  // SHLVL is injected by the container shell runtime; no host credentials are passed.
+  'PATH', 'HOME', 'HOSTNAME', 'NODE_VERSION', 'YARN_VERSION', 'PWD', 'TERM', 'SHLVL'
 ]);
 const unexpectedEnvNames = Object.keys(process.env)
   .filter(name => !allowedContainerEnvNames.has(name))
