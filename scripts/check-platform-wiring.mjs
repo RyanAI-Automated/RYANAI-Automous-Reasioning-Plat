@@ -63,19 +63,14 @@ if (!desktopRunner.includes("MCP_PORT: '8767'")) {
   fail('Desktop MCP service must use port 8767');
 }
 
-// The CLI exposes a second Fastify entry point; keep its browser boundary secure.
+// The legacy CLI entrypoint is intentionally quarantined and must not be treated
+// as a supported runtime or an independently validated API server.
 const legacyServer = readText('src/server/index.ts');
-if (!legacyServer.includes("import fastifyCors from '@fastify/cors'")) {
-  fail('Legacy CLI server must use the Fastify CORS plugin');
+if (!legacyServer.includes('Unsupported legacy API entrypoint')) {
+  fail('Legacy CLI server must remain explicitly quarantined');
 }
-if (!legacyServer.includes('process.env.CORS_ORIGINS')) {
-  fail('Legacy CLI server must read the configured CORS origin allowlist');
-}
-if (!legacyServer.includes('allowedCorsOrigins.has(origin)')) {
-  fail('Legacy CLI server must reject origins outside the explicit allowlist');
-}
-if (legacyServer.includes("reply.header('Access-Control-Allow-Origin', '*')")) {
-  fail('Legacy CLI server must not allow every browser origin');
+if (!legacyServer.includes('src/server/launcher.ts')) {
+  fail('Legacy CLI server quarantine must direct callers to src/server/launcher.ts');
 }
 
 // HTML entry-point metadata and script safety are checked by scripts/check-index-html.mjs.
