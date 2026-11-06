@@ -170,7 +170,6 @@ test('forged, unauthenticated, wrong-service, expired and requester-self-approve
     { wrongService: true },
     { expired: true },
     { mismatchRequest: true },
-    { sameApprover: true }
     { sameApprover: true },
     { missingSignerPin: true }
   ]) {
