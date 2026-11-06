@@ -2,7 +2,7 @@ export const DASHBOARD_UI_OPTIONS = [
  { id:'dashboard',label:'Dashboard',description:'Show the system dashboard and workspace shortcuts.' },
  { id:'pa',label:'Personal Assistant',description:'Show the Personal Assistant workspace.' },
  { id:'operator',label:'Operator Console',description:'Show durable task execution and progress.' },
- { id:'operations',label:'Operations Center',description:'Show operations and review tools.',access:'admin' },
+ { id:'operations',label:'Operations Center',description:'Show operations and review tools.' },
  { id:'admin',label:'Admin Console',description:'Show administrative controls.',access:'admin' },
  { id:'quant',label:'Quant Lab',description:'Show isolated research and paper-trading tools.' },
  { id:'trading',label:'Trading Terminal',description:'Show the trading workspace.' },
