@@ -176,7 +176,7 @@ describe('RyanAI Settings', () => {
     await changeValue(passwordInputs[1], 'correct-horse-battery');
     await changeValue(passwordInputs[2], 'correct-horse-battery');
     await click(buttonContaining('Update password'));
-    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'correct-horse-battery', current_password: 'old-password-value' }));
+    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({ password: 'correct-horse-battery', currentPassword: 'old-password-value' }));
     expect(container.textContent).toContain('Password update confirmed');
   });
 
