@@ -241,7 +241,7 @@ export default function App() {
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} defaultVoice={audiobookSettings.defaultVoice} defaultSpeed={audiobookSettings.narrationSpeed} />}
                 {route === 'studio' && (isAdmin ? <CodingStudio /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open RyanAI Studio.</p>)}
                 {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
-                {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email!} userFullName={displayName} showInferenceConsole={dashboardUiPreferences.inferenceConsole} defaultInferenceModel={inferenceSettings.preferredModel as ModelId} /></div>}
+                {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email ?? ''} userFullName={displayName} showInferenceConsole={dashboardUiPreferences.inferenceConsole} defaultInferenceModel={inferenceSettings.preferredModel as ModelId} /></div>}
               </>}
           </main>
         </Suspense>

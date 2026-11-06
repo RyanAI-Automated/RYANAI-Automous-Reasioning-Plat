@@ -6,6 +6,12 @@ import ProfileSettings from './ProfileSettings';
 
 const auth = vi.hoisted(() => ({ updateUser: vi.fn(), getUser: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
+
+function getFirstUpdateData(): Record<string, unknown> {
+  const updateCall = auth.updateUser.mock.calls[0];
+  if (updateCall === undefined) throw new Error('Expected a Supabase Auth updateUser call.');
+  return (updateCall[0] as { data: Record<string, unknown> }).data;
+}
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let container: HTMLDivElement;
@@ -78,7 +84,7 @@ describe('Profile & Settings', () => {
     await click(container.querySelector('button[type="submit"]'));
 
     await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalled());
-    const data = (auth.updateUser.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    const data = getFirstUpdateData();
     expect(data).toMatchObject({
       full_name: 'Ntsiyeni Ganyane', ryanai_language: 've-ZA', ryanai_voice_enabled: true,
       ryanai_dashboard_ui_preferences: { calculator: true, audiobook: true, inferenceConsole: true, workspace: true },
@@ -117,7 +123,7 @@ describe('Profile & Settings', () => {
     await changeValue(inferenceModel, 'gpt-4o-mini');
     await click(container.querySelector('button[type="submit"]'));
     await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalled());
-    const data = (auth.updateUser.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    const data = getFirstUpdateData();
     expect(data.ryanai_dashboard_ui_preferences).toMatchObject({ calculator: false });
     expect(data.ryanai_audiobook_settings).toMatchObject({ defaultVoice: 'nova', narrationSpeed: 1 });
     expect(data.ryanai_inference_settings).toMatchObject({ preferredModel: 'gpt-4o-mini' });
