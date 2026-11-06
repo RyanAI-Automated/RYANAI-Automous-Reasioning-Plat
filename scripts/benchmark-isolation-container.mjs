@@ -121,6 +121,11 @@ async function expectPublicDnsBlocked(hostname) {
   } catch (error) {
     if (error.message.startsWith('Unexpected public DNS resolution')) throw error;
     if (DENIED_NETWORK_CODES.has(error.code)) return error.code;
+    // ECONNREFUSED alone is not an egress proof. Accept it only after the
+    // earlier network-interface gate has established a loopback-only namespace.
+    if (error.code === 'ECONNREFUSED' && interfaces.length === 1 && interfaces[0] === 'lo') {
+      return 'ECONNREFUSED_LOOPBACK_ONLY';
+    }
     throw new Error(`Public DNS probe for ${hostname} failed with ${error.code ?? error.message}; egress denial was not established.`);
   }
 }
