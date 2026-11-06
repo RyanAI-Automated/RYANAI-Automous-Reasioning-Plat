@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 concurrency:
   # Keep one active run and only the latest pending run per workflow/ref.
@@ -25,6 +24,9 @@ concurrency:
 jobs:
   trivy:
     name: Trivy filesystem scan
+    permissions:
+      contents: read
+      security-events: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
