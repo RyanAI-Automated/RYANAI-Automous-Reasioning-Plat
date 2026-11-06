@@ -47,6 +47,14 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Run Settings enhancement regression tests
+        run: >-
+          npx vitest run
+          src/shared/dashboardUis.test.ts
+          src/pages/Dashboard.test.tsx
+          src/pages/ProfileSettings.test.tsx
+          src/App.test.tsx
+
       - name: Validate application
         run: npm run validate
 
