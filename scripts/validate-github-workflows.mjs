@@ -70,7 +70,7 @@ for (const file of files) {
     const shaMatch = action.match(/^([^@]+)@([a-f0-9]{40})$/i);
     if (shaMatch) continue;
 
-    const actionMatch = action.match(/^([^@]+)@v(\\d+)(?:\\.\\d+(?:\\.\\d+)?)?$/);
+    const actionMatch = action.match(/^([^@]+)@v(\d+)(?:\.\d+(?:\.\d+)?)?$/);
     if (!actionMatch) {
       if (!action.startsWith('./') && !action.startsWith('aquasecurity/trivy-action@') && !action.startsWith('dtolnay/rust-toolchain@') && !action.startsWith('snyk/actions/node@')) fail(file, `unpinned or malformed action: ${action}`);
       continue;
