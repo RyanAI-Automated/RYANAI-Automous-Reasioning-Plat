@@ -114,7 +114,6 @@ export default function CodingStudio() {
   const changedFiles = useMemo(() => diffFiles(proposedDiff), [proposedDiff]);
 
   const loadJobs = useCallback(async () => {
-    setError(null);
     try {
       const response = await authenticatedFetch('/api/engineering/jobs');
       const payload = await response.json() as { jobs?: Job[]; error?: string };
