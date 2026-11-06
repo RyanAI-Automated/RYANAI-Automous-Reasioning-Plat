@@ -34,9 +34,9 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function renderDashboard(isOwner = false, isAdmin = false) {
+async function renderDashboard(isOwner = false, isAdmin = false, enabledUiIds?: string[]) {
   await act(async () => {
-    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} />);
+    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledUiIds={enabledUiIds} />);
   });
 }
 
@@ -49,8 +49,10 @@ describe('System Dashboard workspace launcher', () => {
       ['#/cockpit', 'Command Cockpit'],
       ['#/operator', 'Operator Console'],
       ['#/operations', 'Operations Center'],
-      ['#/settings', 'Profile & Settings'],
+      ['#/settings', 'Settings'],
+      ['#/calculator', 'Calculator'],
       ['#/quant', 'Quant Lab'],
+      ['#/trading', 'Trading Terminal'],
       ['#/workspace', 'Reasoning Workspace'],
       ['#/audiobook', 'Audiobook Studio'],
     ]) {
@@ -59,6 +61,16 @@ describe('System Dashboard workspace launcher', () => {
     }
     expect(container.querySelector('a[href="#/comms"]')).toBeNull();
     expect(container.querySelector('a[href="#/admin"]')).toBeNull();
+  });
+
+  it('keeps Settings visible while filtering disabled workspace cards', async () => {
+    await renderDashboard(false, false, ['pa', 'workspace']);
+
+    expect(container.querySelector('a[href="#/pa"]')).not.toBeNull();
+    expect(container.querySelector('a[href="#/workspace"]')).not.toBeNull();
+    expect(container.querySelector('a[href="#/settings"]')?.textContent).toContain('Settings');
+    expect(container.querySelector('a[href="#/cockpit"]')).toBeNull();
+    expect(container.querySelector('a[href="#/calculator"]')).toBeNull();
   });
 
   it('adds the Admin Console only for an administrator session', async () => {
