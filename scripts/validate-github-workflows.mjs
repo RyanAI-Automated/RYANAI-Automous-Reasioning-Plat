@@ -54,14 +54,23 @@ for (const file of files) {
   if (!document?.on && !Object.prototype.hasOwnProperty.call(document || {}, 'on')) fail(file, 'missing workflow trigger');
   if (!document?.jobs || typeof document.jobs !== 'object') fail(file, 'missing jobs');
 
-  for (const match of text.matchAll(/uses:\s*([^\s#]+)/g)) {
-    // YAML permits quoted action references. Strip the surrounding quotes before
-    // validating either a semantic version tag or an immutable full SHA pin.
-    const action = match[1].replace(/^['"]|['"]$/g, '');
+  // Read action references from parsed workflow structure only. Searching raw
+  // YAML text also matches examples inside run/script block scalars and creates
+  // false positives (for example, the word "uses" in embedded JavaScript).
+  const actionReferences = [];
+  for (const job of Object.values(document.jobs ?? {})) {
+    if (typeof job?.uses === 'string') actionReferences.push(job.uses);
+    for (const step of Array.isArray(job?.steps) ? job.steps : []) {
+      if (typeof step?.uses === 'string') actionReferences.push(step.uses);
+    }
+  }
+
+  for (const action of actionReferences) {
+    // YAML parsing already removes quotes around scalar action references.
     const shaMatch = action.match(/^([^@]+)@([a-f0-9]{40})$/i);
     if (shaMatch) continue;
 
-    const actionMatch = action.match(/^([^@]+)@v(\d+)(?:\.\d+(?:\.\d+)?)?$/);
+    const actionMatch = action.match(/^([^@]+)@v(\\d+)(?:\\.\\d+(?:\\.\\d+)?)?$/);
     if (!actionMatch) {
       if (!action.startsWith('./') && !action.startsWith('aquasecurity/trivy-action@') && !action.startsWith('dtolnay/rust-toolchain@') && !action.startsWith('snyk/actions/node@')) fail(file, `unpinned or malformed action: ${action}`);
       continue;
