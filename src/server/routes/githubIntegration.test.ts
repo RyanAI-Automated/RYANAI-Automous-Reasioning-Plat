@@ -50,7 +50,7 @@ async function createApp() {
   app.decorateRequest('authUser', null);
   app.decorate('prisma', {
     gitHubOAuthState: store.state,
-    githubAppConnection: store.connection,
+    gitHubAppConnection: store.connection,
   } as unknown as PrismaClient);
   app.addHook('onRequest', async (request) => {
     if (request.headers.authorization === 'Bearer test-user') {
