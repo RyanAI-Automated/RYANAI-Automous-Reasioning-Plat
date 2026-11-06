@@ -60,7 +60,7 @@ async function persistProfilePreferences({
   }
 
   try {
-    window.localStorage.setItem('ryanai:language:' + userId, language);
+    window.localStorage.setItem(`ryanai:language:${userId}`, language);
     window.localStorage.setItem('ryanai:language', language);
     window.localStorage.setItem('ryanai:voice-enabled', String(voiceEnabled));
     window.localStorage.setItem('ryanai:voice-greetings-enabled', String(voiceEnabled));
