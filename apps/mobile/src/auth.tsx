@@ -1,8 +1,7 @@
-import React,{createContext,useContext,useEffect,useMemo,useState} from "react";
+import React,{useEffect,useMemo,useState} from "react";
 import type {Session} from "@supabase/supabase-js";
 import {supabase} from "./lib/supabase";
-type AuthValue={session:Session|null;loading:boolean;signIn:(email:string,password:string)=>Promise<void>;signOut:()=>Promise<void>};
-const AuthContext=createContext<AuthValue|null>(null);
+import { AuthContext, type AuthValue } from "./authContext";
 export function AuthProvider({children}:React.PropsWithChildren){
  const [session,setSession]=useState<Session|null>(null);const [loading,setLoading]=useState(true);
  useEffect(()=>{let active=true;supabase.auth.getSession().then(({data,error})=>{if(active){setSession(error?null:data.session);setLoading(false);}}).catch(()=>{if(active){setSession(null);setLoading(false);}});
@@ -14,4 +13,3 @@ export function AuthProvider({children}:React.PropsWithChildren){
  }),[session,loading]);
  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-export function useAuth(){const value=useContext(AuthContext);if(!value)throw new Error("useAuth must be used within AuthProvider.");return value;}
