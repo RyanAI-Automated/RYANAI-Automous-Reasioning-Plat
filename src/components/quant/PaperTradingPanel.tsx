@@ -101,7 +101,6 @@ export default function PaperTradingPanel() {
   const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     try {
       const [response, riskResponse, signalResponse, riskStateResponse, proposalResponse] = await Promise.all([
         authenticatedFetch('/api/quant/paper'),
