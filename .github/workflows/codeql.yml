@@ -11,8 +11,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 concurrency:
   # Keep one active run and only the latest pending run per workflow/ref.
@@ -24,6 +22,10 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
