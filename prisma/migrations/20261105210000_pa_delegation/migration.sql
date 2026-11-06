@@ -9,6 +9,7 @@ CREATE TABLE "pa_identity_nonces" (
 CREATE UNIQUE INDEX "pa_identity_nonces_nonce_key" ON "pa_identity_nonces"("nonce");
 CREATE INDEX "pa_identity_nonces_expires_at_idx" ON "pa_identity_nonces"("expires_at");
 
+-- agent_runs.id is TEXT in the authoritative schema; keep this optional FK text-compatible.
 CREATE TABLE "pa_delegations" (
   "id" UUID NOT NULL,
   "owner_user_id" TEXT NOT NULL,
