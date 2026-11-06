@@ -17,16 +17,16 @@ interface SavedProject {
   updatedAt?: string;
   chapters: Array<{ id: string; title: string; content: string; narrationSettings?: unknown }>;
 }
-function fromSavedProject(saved: SavedProject, fallback: Project): Project {
+function fromSavedProject(saved: SavedProject, fallback: Project, defaultVoice: typeof VOICES[number], defaultSpeed: number): Project {
   const chapters = saved.chapters.map(item => {
     const settings = item.narrationSettings && typeof item.narrationSettings === 'object' ? item.narrationSettings as Record<string, unknown> : {};
     return {
       id: item.id,
       title: item.title,
       text: item.content,
-      voice: VOICES.includes(settings.voice as typeof VOICES[number]) ? String(settings.voice) : 'coral',
+      voice: VOICES.includes(settings.voice as typeof VOICES[number]) ? String(settings.voice) : defaultVoice,
       style: typeof settings.style === 'string' ? settings.style : '',
-      speed: typeof settings.speed === 'number' && settings.speed >= .8 && settings.speed <= 1.2 ? settings.speed : 1,
+      speed: typeof settings.speed === 'number' && settings.speed >= .8 && settings.speed <= 1.2 ? settings.speed : defaultSpeed,
     };
   });
   return {
@@ -35,17 +35,17 @@ function fromSavedProject(saved: SavedProject, fallback: Project): Project {
     chapters: chapters.length ? chapters : fallback.chapters,
   };
 }
-const newChapter = (n: number): Chapter => ({ id: crypto.randomUUID(), title: `Chapter ${n}`, text: '', voice: 'coral', style: 'Expressive, warm audiobook narration. Use natural pauses and clear pronunciation.', speed: 1 });
-function loadProject(userId: string): Project {
-  const fallback = { title: 'My RyanAI Audiobook', language: DEFAULT_LANGUAGE, chapters: [newChapter(1)] };
+const newChapter = (n: number, defaultVoice: typeof VOICES[number] = 'coral', defaultSpeed = 1): Chapter => ({ id: crypto.randomUUID(), title: `Chapter ${n}`, text: '', voice: defaultVoice, style: 'Expressive, warm audiobook narration. Use natural pauses and clear pronunciation.', speed: defaultSpeed });
+function loadProject(userId: string, defaultVoice: typeof VOICES[number], defaultSpeed: number): Project {
+  const fallback = { title: 'My RyanAI Audiobook', language: DEFAULT_LANGUAGE, chapters: [newChapter(1, defaultVoice, defaultSpeed)] };
   try {
     const parsed = JSON.parse(localStorage.getItem(KEY + userId) || 'null') as Partial<Project> | null;
     if (!parsed || !Array.isArray(parsed.chapters)) return fallback;
     const chapters = parsed.chapters.filter((c): c is Chapter => Boolean(c && typeof c.id === 'string' && typeof c.title === 'string' && typeof c.text === 'string')).map(c => ({
       id: c.id, title: c.title.slice(0, 120), text: c.text.slice(0, 100000),
-      voice: VOICES.includes(c.voice as typeof VOICES[number]) ? c.voice : 'coral',
+      voice: VOICES.includes(c.voice as typeof VOICES[number]) ? c.voice : defaultVoice,
       style: typeof c.style === 'string' ? c.style.slice(0, 500) : '',
-      speed: typeof c.speed === 'number' && c.speed >= .8 && c.speed <= 1.2 ? c.speed : 1,
+      speed: typeof c.speed === 'number' && c.speed >= .8 && c.speed <= 1.2 ? c.speed : defaultSpeed,
     }));
     return { title: typeof parsed.title === 'string' ? parsed.title.slice(0, 120) : fallback.title, language: typeof parsed.language === 'string' && isRyanLanguage(parsed.language) ? parsed.language : DEFAULT_LANGUAGE, chapters: chapters.length ? chapters : fallback.chapters };
   } catch { return fallback; }
@@ -70,8 +70,8 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-export default function AudiobookStudio({ userId }: { userId: string }) {
-  const [initialProject] = useState(() => loadProject(userId));
+export default function AudiobookStudio({ userId, defaultVoice = 'coral', defaultSpeed = 1 }: { userId: string; defaultVoice?: typeof VOICES[number]; defaultSpeed?: number }) {
+  const [initialProject] = useState(() => loadProject(userId, defaultVoice, defaultSpeed));
   const [serverProjectId, setServerProjectId] = useState<string | null>(null);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [projectActionBusy, setProjectActionBusy] = useState(false);
@@ -108,7 +108,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
         setSavedProjects(projects);
         const saved = projects[0];
         if (saved) {
-          const nextProject = fromSavedProject(saved, initialProject);
+          const nextProject = fromSavedProject(saved, initialProject, defaultVoice, defaultSpeed);
           setProject(nextProject);
           setActiveId(nextProject.chapters[0].id);
           setServerProjectId(saved.id);
@@ -179,7 +179,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
       const response = await authenticatedFetch('/api/v1/audiobooks/' + encodeURIComponent(projectId));
       const result = await response.json() as { project?: SavedProject; error?: string };
       if (!response.ok || !result.project) throw new Error(result.error || 'Could not open that audiobook project.');
-      const nextProject = fromSavedProject(result.project, initialProject);
+      const nextProject = fromSavedProject(result.project, initialProject, defaultVoice, defaultSpeed);
       setProject(nextProject);
       setActiveId(nextProject.chapters[0].id);
       setSavedProjects(current => current.map(item => item.id === result.project!.id ? result.project! : item));
@@ -196,14 +196,14 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     setProjectActionBusy(true); setError(''); setStatus('');
     try {
       await saveCurrentProject();
-      const draft: Project = { title: 'New RyanAI Audiobook', language: project.language, chapters: [newChapter(1)] };
+      const draft: Project = { title: 'New RyanAI Audiobook', language: project.language, chapters: [newChapter(1, defaultVoice, defaultSpeed)] };
       const response = await authenticatedFetch('/api/v1/audiobooks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: draft.title, language: draft.language, chapters: draft.chapters }),
       });
       const result = await response.json() as { project?: SavedProject; error?: string };
       if (!response.ok || !result.project?.id) throw new Error(result.error || 'Could not create a new audiobook project.');
-      const nextProject = fromSavedProject(result.project, draft);
+      const nextProject = fromSavedProject(result.project, draft, defaultVoice, defaultSpeed);
       setSavedProjects(current => [result.project!, ...current.filter(item => item.id !== result.project!.id)].slice(0, 50));
       setProject(nextProject); setActiveId(nextProject.chapters[0].id); setServerProjectId(result.project.id);
       setAudioUrl(null); setRenderedFiles({});
@@ -321,7 +321,7 @@ export default function AudiobookStudio({ userId }: { userId: string }) {
     } finally { setCancelingRender(false); }
   };
 
-  const addChapter = () => { const next = newChapter(project.chapters.length + 1); setProject(p => ({ ...p, chapters: [...p.chapters, next] })); setActiveId(next.id); setAudioUrl(null); };
+  const addChapter = () => { const next = newChapter(project.chapters.length + 1, defaultVoice, defaultSpeed); setProject(p => ({ ...p, chapters: [...p.chapters, next] })); setActiveId(next.id); setAudioUrl(null); };
   const deleteChapter = () => {
     if (!chapter || project.chapters.length < 2) return;
     const rest = project.chapters.filter(c => c.id !== chapter.id);

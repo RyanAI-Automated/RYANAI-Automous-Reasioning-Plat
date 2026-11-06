@@ -13,6 +13,7 @@ interface SidebarProps {
   onMemory: () => void;
   onConsole: () => void;
   onGithub: () => void;
+  showInferenceConsole?: boolean;
 }
 
 /** Render account-scoped conversation history and workspace actions. */
@@ -26,6 +27,7 @@ export default function Sidebar({
   onMemory,
   onConsole,
   onGithub,
+  showInferenceConsole = true,
 }: SidebarProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -129,9 +131,11 @@ export default function Sidebar({
         <button type="button" onClick={onAbout} className="w-full rounded-lg px-3 py-2 text-left text-xs text-slate-400 transition-colors hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
           <span aria-hidden="true">ℹ️ </span>About
         </button>
+{showInferenceConsole && (
         <button type="button" onClick={onConsole} className="w-full rounded-lg px-3 py-2 text-left text-xs text-slate-400 transition-colors hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
           <span aria-hidden="true">&gt; </span>Inference console
         </button>
+        )}
         <button type="button" onClick={onGithub} className="w-full rounded-lg px-3 py-2 text-left text-xs text-slate-400 transition-colors hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
           <span aria-hidden="true">⚙️ </span>GitHub setup
         </button>

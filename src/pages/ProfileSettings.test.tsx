@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ProfileSettings from './ProfileSettings';
 
-const auth = vi.hoisted(() => ({ updateUser: vi.fn() }));
+const auth = vi.hoisted(() => ({ updateUser: vi.fn(), getUser: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -42,6 +42,7 @@ async function click(element: Element | null) {
 beforeEach(() => {
   vi.clearAllMocks();
   auth.updateUser.mockResolvedValue({ data: { user: { id: 'user-a' } }, error: null });
+  auth.getUser.mockResolvedValue({ data: { user: { id: 'user-a', user_metadata: {} } }, error: null });
   window.localStorage.clear();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -67,7 +68,7 @@ describe('Profile & Settings', () => {
     await mount();
     const name = container.querySelector('input[autocomplete="name"]') as HTMLInputElement;
     const language = container.querySelector('select') as HTMLSelectElement;
-    const voice = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const voice = container.querySelector('[data-testid="voice-enabled-toggle"]') as HTMLInputElement;
 
     await changeValue(name, 'Ntsiyeni Ganyane');
     await changeValue(language, 've-ZA');
@@ -76,13 +77,14 @@ describe('Profile & Settings', () => {
     });
     await click(container.querySelector('button[type="submit"]'));
 
-    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledWith({
-      data: {
-        full_name: 'Ntsiyeni Ganyane',
-        ryanai_language: 've-ZA',
-        ryanai_voice_enabled: true,
-      },
-    }));
+    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalled());
+    const data = (auth.updateUser.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data).toMatchObject({
+      full_name: 'Ntsiyeni Ganyane', ryanai_language: 've-ZA', ryanai_voice_enabled: true,
+      ryanai_dashboard_ui_preferences: { calculator: true, audiobook: true, inferenceConsole: true, workspace: true },
+      ryanai_audiobook_settings: { defaultVoice: 'coral', narrationSpeed: 1 },
+      ryanai_inference_settings: { preferredModel: expect.any(String) },
+    });
     expect(window.localStorage.getItem('ryanai:language:user-a')).toBe('ve-ZA');
     expect(window.localStorage.getItem('ryanai:voice-enabled')).toBe('true');
     expect(container.textContent).toContain('Profile and preferences saved');
@@ -105,4 +107,23 @@ describe('Profile & Settings', () => {
     await click(container.querySelector('button[type="submit"]'));
     await vi.waitFor(() => expect(container.textContent).toContain('did not confirm this profile update'));
   });
+  it('persists module switches and audiobook/inference defaults without exposing role editing', async () => {
+    await mount();
+    const calculator = container.querySelector('[data-testid="calculator-enabled-toggle"]') as HTMLInputElement;
+    const audiobookVoice = container.querySelector('[data-testid="audiobook-default-voice"]') as HTMLSelectElement;
+    const inferenceModel = container.querySelector('[data-testid="inference-default-model"]') as HTMLSelectElement;
+    await act(async () => calculator.click());
+    await changeValue(audiobookVoice, 'nova');
+    await changeValue(inferenceModel, 'gpt-4o-mini');
+    await click(container.querySelector('button[type="submit"]'));
+    await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalled());
+    const data = (auth.updateUser.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.ryanai_dashboard_ui_preferences).toMatchObject({ calculator: false });
+    expect(data.ryanai_audiobook_settings).toMatchObject({ defaultVoice: 'nova', narrationSpeed: 1 });
+    expect(data.ryanai_inference_settings).toMatchObject({ preferredModel: 'gpt-4o-mini' });
+    expect(container.textContent).toContain('Standard user');
+    expect(container.textContent).toContain('Role and owner claims cannot be edited');
+    expect(container.querySelector('[data-testid="role-select"]')).toBeNull();
+  });
+
 });
