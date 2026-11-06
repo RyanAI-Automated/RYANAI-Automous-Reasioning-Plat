@@ -207,7 +207,7 @@ export async function streamAssistantResponse({
     console.error('Reasoning error:', message);
     const errorMessage = createMessage(
       'assistant',
-      'Reasoning request failed: ' + message,
+      `Reasoning request failed: ${message}`,
       model,
       accumulatedSteps,
     );
@@ -326,7 +326,7 @@ function parseConversationArchiveManifest(archiveEntries: ConversationArchiveEnt
     typeof rawConversation.model === 'string'
       ? (rawConversation.model as ModelId)
       : DEFAULT_MODEL;
-  const model = Object.prototype.hasOwnProperty.call(MODELS, requestedModel)
+  const model = Object.hasOwn(MODELS, requestedModel)
     ? requestedModel
     : DEFAULT_MODEL;
 
@@ -394,19 +394,19 @@ function prepareArchiveMessage(
   referencedPaths: Set<string>,
 ): PreparedArchiveMessage {
   if (!rawMessage || typeof rawMessage !== 'object' || Array.isArray(rawMessage)) {
-    throw new Error('Message ' + (index + 1) + ' is invalid.');
+    throw new Error(`Message ${index + 1} is invalid.`);
   }
   const message = rawMessage as Record<string, unknown>;
   if (message.role !== 'user' && message.role !== 'assistant') {
-    throw new Error('Message ' + (index + 1) + ' has an unsupported role.');
+    throw new Error(`Message ${index + 1} has an unsupported role.`);
   }
   if (typeof message.content !== 'string' || message.content.length > 2_000_000) {
-    throw new Error('Message ' + (index + 1) + ' has invalid or oversized content.');
+    throw new Error(`Message ${index + 1} has invalid or oversized content.`);
   }
 
   const attachments = message.attachments === undefined ? [] : message.attachments;
   if (!Array.isArray(attachments) || attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-    throw new Error('Message ' + (index + 1) + ' exceeds the attachment count limit.');
+    throw new Error(`Message ${index + 1} exceeds the attachment count limit.`);
   }
   const files = attachments.map((attachment) =>
     prepareArchiveAttachment(attachment, entriesByPath, referencedPaths),
@@ -423,7 +423,7 @@ function prepareArchiveMessage(
       ? message.timestamp
       : Date.now();
   const requestedModel = typeof message.model === 'string' ? message.model : '';
-  const model = Object.prototype.hasOwnProperty.call(MODELS, requestedModel)
+  const model = Object.hasOwn(MODELS, requestedModel)
     ? (requestedModel as ModelId)
     : undefined;
 
@@ -444,7 +444,7 @@ function validateConversationArchiveEntries(
   const allowedArchivePaths = new Set(['manifest.json', 'conversation.md']);
   for (const entry of archiveEntries) {
     if (!allowedArchivePaths.has(entry.path) && !entry.path.startsWith('attachments/')) {
-      throw new Error('The archive contains an unsupported extra file: ' + entry.path);
+      throw new Error(`The archive contains an unsupported extra file: ${entry.path}`);
     }
     if (entry.path.startsWith('attachments/') && !referencedPaths.has(entry.path)) {
       throw new Error('The archive contains unreferenced attachment files.');
