@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import {
   CheckCircle2,
-  Eye,
   Globe2,
   LayoutDashboard,
   LockKeyhole,
