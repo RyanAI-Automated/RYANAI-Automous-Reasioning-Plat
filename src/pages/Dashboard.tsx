@@ -4,6 +4,8 @@ import {
   Activity,
   BrainCircuit,
   BookAudio,
+  Calculator as CalculatorIcon,
+  Code2,
   Cpu,
   MessageSquareText,
   ListChecks,
@@ -16,6 +18,7 @@ import {
   Settings,
   Server,
   Wifi,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { usePlatformHealth } from '@/hooks/usePlatformHealth';
@@ -34,7 +37,7 @@ type PAStatus = {
   health: { api: boolean; database: boolean; redis: boolean };
 };
 
-export default function DashboardPage({ isOwner = false, isAdmin = false }: { isOwner?: boolean; isAdmin?: boolean }) {
+export default function DashboardPage({ isOwner = false, isAdmin = false, enabledUiIds }: { isOwner?: boolean; isAdmin?: boolean; enabledUiIds?: string[] }) {
   const { health, error, checking, refresh } = usePlatformHealth();
   const [now, setNow] = useState(() => Date.now());
   const [paStatus, setPaStatus] = useState<PAStatus | null>(null);
@@ -102,66 +105,102 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
   const paStateLabel = !paStatus ? 'Not reporting' : paHeartbeatStale ? 'Heartbeat stale' : paHeartbeatUnverified ? 'Heartbeat unverified' : paStatus.workState;
   const workspaces = [
     {
+      id: 'pa',
       href: '#/pa',
       title: 'Personal Assistant',
       description: 'Review PA runtime health, personal task continuity and authorised agent coordination.',
       icon: BrainCircuit,
     },
     {
+      id: 'cockpit',
       href: '#/cockpit',
       title: 'Command Cockpit',
       description: 'Inspect provider readiness, three-brain health and live reasoning activity.',
       icon: Cpu,
     },
     {
+      id: 'operator',
       href: '#/operator',
       title: 'Operator Console',
       description: 'Queue durable reasoning tasks and inspect persisted execution progress.',
       icon: Activity,
     },
     {
+      id: 'operations',
       href: '#/operations',
       title: 'Operations Center',
       description: 'Queue durable agent tasks and inspect execution progress; administrators can review pending actions.',
       icon: ListChecks,
     },
     {
+      id: 'settings',
       href: '#/settings',
-      title: 'Profile & Settings',
-      description: 'Update your display name, preferred language and voice greeting preferences.',
+      title: 'Settings',
+      description: 'Choose enabled workspaces and manage your profile, sign-in details and preferences.',
       icon: Settings,
     },
-    ...(isAdmin ? [{
-      href: '#/admin',
-      title: 'Admin Console',
-      description: 'Review protected approvals, runtime diagnostics and engineering evidence.',
-      icon: Database,
-    }] : []),
     {
+      id: 'calculator',
+      href: '#/calculator',
+      title: 'Calculator',
+      description: 'Open the calculation and analysis workspace.',
+      icon: CalculatorIcon,
+    },
+    {
+      id: 'quant',
       href: '#/quant',
       title: 'Quant Lab',
       description: 'Run historical strategy experiments and review risk analytics.',
       icon: TrendingUp,
     },
     {
+      id: 'trading',
+      href: '#/trading',
+      title: 'Trading Terminal',
+      description: 'Review isolated virtual paper-trading workflows.',
+      icon: Wallet,
+    },
+    {
+      id: 'workspace',
       href: '#/workspace',
       title: 'Reasoning Workspace',
       description: 'Continue conversations, use voice and manage your project memory.',
       icon: MessageSquareText,
     },
     {
+      id: 'audiobook',
       href: '#/audiobook',
       title: 'Audiobook Studio',
       description: 'Prepare chapters, transcribe audio and generate narration.',
       icon: BookAudio,
     },
+    ...(isAdmin ? [
+      {
+        id: 'studio',
+        href: '#/studio',
+        title: 'RyanAI Studio',
+        description: 'Open the protected engineering and coding workspace.',
+        icon: Code2,
+      },
+      {
+        id: 'admin',
+        href: '#/admin',
+        title: 'Admin Console',
+        description: 'Review protected approvals, runtime diagnostics and engineering evidence.',
+        icon: Database,
+      },
+    ] : []),
     ...(isOwner ? [{
+      id: 'comms',
       href: '#/comms',
       title: 'RyanAI Comms',
       description: 'Manage owner-authorised WhatsApp, SMS, voice and email conversations.',
       icon: Activity,
     }] : []),
   ];
+  const visibleWorkspaces = workspaces.filter(({ id }) => (
+    id === 'settings' || !enabledUiIds || enabledUiIds.includes(id)
+  ));
 
   return (
     <section className="mx-auto max-w-7xl px-5 py-8 sm:px-10">
@@ -228,9 +267,9 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {workspaces.map(({ href, title, description, icon: Icon }) => (
+          {visibleWorkspaces.map(({ id, href, title, description, icon: Icon }) => (
             <a
-              key={href}
+              key={id}
               href={href}
               className="group rounded-xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-cyan-300/30 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
             >
