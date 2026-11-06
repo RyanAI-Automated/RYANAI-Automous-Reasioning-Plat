@@ -1,9 +1,12 @@
 name: Optional AWS ECS deployment
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY-AWS only after reviewing the production change.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -24,7 +27,7 @@ jobs:
   deploy:
     name: Deploy to Amazon ECS
     # This optional target must be explicitly enabled after its vars/secrets exist.
-    if: ${{ vars.AWS_ECS_DEPLOY_ENABLED == 'true' }}
+    if: ${{ inputs.confirmation == 'DEPLOY-AWS' && vars.AWS_ECS_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     environment: production
     steps:
