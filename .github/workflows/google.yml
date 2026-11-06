@@ -34,9 +34,12 @@
 name: 'Build and Deploy to GKE'
 
 on:
-  push:
-    branches:
-      - '"main"'
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY-GKE only after reviewing the production change.
+        required: true
+        type: string
 
 env:
   PROJECT_ID: 'my-project' # TODO: update to your Google Cloud project ID
@@ -53,6 +56,7 @@ jobs:
     name: 'Setup, Build, Publish, and Deploy'
     runs-on: 'ubuntu-latest'
     environment: 'production'
+    if: ${{ inputs.confirmation == 'DEPLOY-GKE' }}
 
     permissions:
       contents: 'read'
@@ -61,6 +65,20 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: 'actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332' # actions/checkout@v4
+
+      - name: Validate GKE deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PROJECT_ID GKE_CLUSTER GKE_ZONE DEPLOYMENT_NAME REPOSITORY WORKLOAD_IDENTITY_PROVIDER; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || { echo "::error::Missing GKE deployment setting: $name"; exit 1; }
+          done
+          [[ "$PROJECT_ID" != "my-project" ]] || { echo "::error::Replace the placeholder Google Cloud project ID before deployment."; exit 1; }
+          [[ "$GKE_CLUSTER" != "cluster-1" ]] || { echo "::error::Replace the placeholder GKE cluster before deployment."; exit 1; }
+          [[ "$DEPLOYMENT_NAME" != "gke-test" ]] || { echo "::error::Replace the placeholder Kubernetes deployment name before deployment."; exit 1; }
+          [[ "$REPOSITORY" != "samples" ]] || { echo "::error::Replace the placeholder Artifact Registry repository before deployment."; exit 1; }
+          [[ "$WORKLOAD_IDENTITY_PROVIDER" == projects/*/locations/global/workloadIdentityPools/*/providers/* ]] || { echo "::error::Configure a real Workload Identity Provider before deployment."; exit 1; }
 
       # Configure Workload Identity Federation and generate an access token.
       #
