@@ -164,6 +164,18 @@ try {
     /unknown order/i,
   );
 
+  await expectRejected(
+    'cross-account fill cannot reuse another account existing client fill id',
+    () => prisma.$executeRawUnsafe(`
+      INSERT INTO quant_paper_trades
+        (id, order_id, user_id, symbol, side, quantity, price, fee, client_fill_id, created_at)
+      VALUES
+        ('quant-recon-cross-user-duplicate-fill', 'quant-recon-partial', $1, 'NVDA', 'buy',
+         1, 101, 0.01, 'duplicate-client-fill', NOW())
+    `, USER_B),
+    /unknown order/i,
+  );
+
   const afterFirstRun = {
     historicalFull: reconcilePaperOrder(await snapshot('quant-recon-legacy-full')),
     historicalMissingTrade: reconcilePaperOrder(await snapshot('quant-recon-legacy-no-trade')),
@@ -191,6 +203,7 @@ try {
     },
     duplicateClientFillRejected: true,
     crossAccountFillRejected: true,
+    crossAccountDuplicateClientFillRejected: true,
     repeatedScanDeterministic: true,
     database: 'disposable PostgreSQL only',
   }, null, 2));
