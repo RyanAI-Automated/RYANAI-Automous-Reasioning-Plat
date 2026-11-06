@@ -92,7 +92,7 @@ async function createProvenanceAttestation(temp, artifactRoot, manifest, files, 
 async function createHeldoutBundle(temp, options = {}) {
   const evidenceRoot = path.join(temp, 'evidence');
   await mkdir(evidenceRoot, { recursive: true });
-  const datasetVersion = options.datasetVersion ?? 'synthetic-heldout-v1';
+  const datasetVersion = options.datasetVersion ?? 'synthetic-1';
   const datasetSha256 = options.datasetSha256 ?? hash('synthetic-heldout-content-v1');
   const storageRef = 'external://synthetic-evaluator-vault/heldout-v1';
   const issuedAt = new Date(Date.now() - 60_000).toISOString();
@@ -732,7 +732,6 @@ test('provenance validator rejects nested symlink escape', async () => {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-symlink-'));
   const outside = await mkdtemp(path.join(os.tmpdir(), 'ryanai-provenance-outside-'));
   try {
-    await mkdir(path.join(temp, 'linked'));
     await writeFile(path.join(outside, 'prompt.txt'), 'prompt');
     await writeFile(path.join(temp, 'package-lock.json'), 'lock');
     await writeFile(path.join(temp, 'dataset-manifest.json'), 'dataset');
