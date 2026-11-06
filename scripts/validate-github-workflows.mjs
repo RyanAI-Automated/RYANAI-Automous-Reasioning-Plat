@@ -54,7 +54,7 @@ for (const file of files) {
   if (!document?.on && !Object.prototype.hasOwnProperty.call(document || {}, 'on')) fail(file, 'missing workflow trigger');
   if (!document?.jobs || typeof document.jobs !== 'object') fail(file, 'missing jobs');
 
-  for (const match of text.matchAll(/uses:\s*([^\s#]+)/g)) {
+  for (const match of text.matchAll(/^[ \t]*uses:[ \t]*([^\s#]+)/gm)) {
     // YAML permits quoted action references. Strip the surrounding quotes before
     // validating either a semantic version tag or an immutable full SHA pin.
     const action = match[1].replace(/^['"]|['"]$/g, '');
