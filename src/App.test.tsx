@@ -180,6 +180,34 @@ describe('application authentication boundary', () => {
     expect(container.querySelector('nav[aria-label="Main navigation"] a[href="#/admin"]')).toBeNull();
   });
 
+  it('hides disabled workspaces and blocks direct links using account dashboard preferences', async () => {
+    const limitedSession = {
+      ...session,
+      user: {
+        ...session.user,
+        user_metadata: { ryanai_dashboard_ui: ['pa', 'workspace'] },
+      },
+    } as Session;
+    auth.getSession.mockResolvedValue({ data: { session: limitedSession }, error: null });
+    await mount('/dashboard');
+    await expectContent('Private dashboard');
+
+    for (const navigation of ['Main navigation', 'Mobile navigation']) {
+      expect(container.querySelector(`nav[aria-label="${navigation}"] a[href="#/pa"]`)).not.toBeNull();
+      expect(container.querySelector(`nav[aria-label="${navigation}"] a[href="#/workspace"]`)).not.toBeNull();
+      expect(container.querySelector(`nav[aria-label="${navigation}"] a[href="#/cockpit"]`)).toBeNull();
+      expect(container.querySelector(`nav[aria-label="${navigation}"] a[href="#/settings"]`)).not.toBeNull();
+    }
+
+    await act(async () => {
+      window.location.hash = '/cockpit';
+      window.dispatchEvent(new Event('hashchange'));
+    });
+    await expectContent('Workspace disabled');
+    expect(container.textContent).not.toContain('Private cockpit');
+    expect(container.querySelector('a[href="#/settings"]')).not.toBeNull();
+  });
+
   it('opens Profile & Settings for an authenticated account', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/settings');
