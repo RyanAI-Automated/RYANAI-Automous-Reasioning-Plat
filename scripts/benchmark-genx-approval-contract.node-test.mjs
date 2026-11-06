@@ -1,3 +1,4 @@
+/* jshint esversion: 11 */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
