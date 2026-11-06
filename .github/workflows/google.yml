@@ -1,6 +1,6 @@
-# This workflow will build a docker container, publish it to Google Container
-# Registry, and deploy it to GKE when there is a push to the "main"
-# branch.
+# This optional GKE workflow runs only through an explicit manual dispatch.
+# It requires the DEPLOY-GKE confirmation, real project configuration, and
+# the protected production environment before it can publish or deploy.
 #
 # To configure this workflow:
 #
