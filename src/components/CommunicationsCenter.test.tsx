@@ -71,7 +71,7 @@ beforeEach(() => {
     channels: { whatsapp: true, sms: false, voice: false, email: true, attachments: true },
     note: 'Configuration only.',
   });
-  comms.getCommsConversations.mockResolvedValue(conversations);
+  comms.getCommsConversations.mockResolvedValue({ conversations });
   comms.prepareCommsAttachments.mockResolvedValue({ success: true, messageId: 'message-1', replayed: false, attachments: [] });
   comms.uploadCommsAttachment.mockResolvedValue(undefined);
   comms.getCommsAttachmentStatuses.mockResolvedValue([]);
