@@ -42,4 +42,34 @@ describe('Gen-X deterministic security enforcement', () => {
     expect(evaluateGenXSecurityEvent({ ...procurement, action: 'CREDENTIAL_ACCESS' }).decision).toBe('DENY');
     expect(evaluateGenXSecurityEvent({ ...procurement, target: 'https://ocds-api.etenders.gov.za/vault' }).decision).toBe('DENY');
   });
+  it('allows verified human actions only on their own Memory Vault records', () => {
+    for (const action of ['READ', 'CREATE', 'UPDATE', 'DELETE'] as const) {
+      expect(evaluateGenXSecurityEvent({
+        ...base, agentId: 'ryanai-api', toolName: 'api_user_memory',
+        principal: 'verified-user-id', target: 'self', action, actorType: 'human',
+      })).toMatchObject({ decision: 'ALLOW', ruleId: 'GX-HUMAN-MEMORY-001' });
+    }
+    expect(evaluateGenXSecurityEvent({
+      ...base, agentId: 'agent', toolName: 'api_user_memory',
+      principal: 'verified-user-id', target: 'self', action: 'DELETE', actorType: 'agent',
+    }).decision).toBe('REQUIRE_APPROVAL');
+    expect(evaluateGenXSecurityEvent({
+      ...base, agentId: 'ryanai-api', toolName: 'api_user_memory',
+      principal: 'verified-user-id', target: 'another-user', action: 'READ', actorType: 'human',
+    }).decision).toBe('REQUIRE_APPROVAL');
+  });
+
+  it('allows only the explicitly user-initiated configured reasoning network action', () => {
+    expect(evaluateGenXSecurityEvent({
+      ...base, agentId: 'ryanai-api', toolName: 'api_reasoning_request',
+      principal: 'verified-user-id', target: 'configured-approved-provider',
+      action: 'NETWORK', actorType: 'human',
+    })).toMatchObject({ decision: 'ALLOW', ruleId: 'GX-HUMAN-REASONING-001' });
+    expect(evaluateGenXSecurityEvent({
+      ...base, agentId: 'ryanai-api', toolName: 'api_reasoning_request',
+      principal: 'verified-user-id', target: 'https://arbitrary.example.test',
+      action: 'NETWORK', actorType: 'human',
+    }).decision).toBe('REQUIRE_APPROVAL');
+  });
+
 });

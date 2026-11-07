@@ -23,7 +23,7 @@ const brains = {
   secondary: { ...resolveBrainProviderConfig('secondary'), client: secondaryBrain },
   logic: { ...resolveBrainProviderConfig('logic'), client: logicBrain },
 } satisfies Record<BrainId, ReturnType<typeof resolveBrainProviderConfig> & { client: typeof primaryBrain }>;
-const localRuntime = (endpoint: string) => /localhost|127\.0\.0\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL;
+const localRuntime = (endpoint: string) => /localhost|127\.0\.0\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL || endpoint === process.env.OLLAMA_BASE_URL;
 const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? '') ?? '';
 
 async function updateRunHandoffs(
@@ -63,7 +63,7 @@ async function invokeWithRecovery(
   run?: Pick<ClaimedAgentRun, 'id' | 'worker_id' | 'attempts'>,
 ): Promise<BrainOutput> {
   const config = brains[brain];
-  if (!config.credential && !localRuntime(config.endpoint)) throw new Error(brain + ' brain credential is not configured');
+  if (!config.credential && config.adapter !== 'ollama' && !localRuntime(config.endpoint)) throw new Error(brain + ' brain credential is not configured');
   try {
     return await invokeWithCancellationRetry(async () => {
     if (run) await updateRunHandoffs(run, brain, 'running');
@@ -126,7 +126,7 @@ export async function probeAllBrains() {
     let lastError: string | null = null;
     let lastSuccessAt: Date | null = null;
     try {
-      if (!config.credential && !localRuntime(config.endpoint)) throw new Error('Credential missing; no network request made');
+      if (!config.credential && config.adapter !== 'ollama' && !localRuntime(config.endpoint)) throw new Error('Credential missing; no network request made');
       const probe = await invokeWithRecovery(brain, 'Connectivity test. Reply exactly: ' + BRAIN_PROBE_CHALLENGE);
       assertBrainProbeResponse(probe.output);
       status = 'HEALTHY';

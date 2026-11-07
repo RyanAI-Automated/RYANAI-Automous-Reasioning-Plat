@@ -60,7 +60,7 @@ See [the architecture reference](docs/ARCHITECTURE.md) and [the specialist model
 
 ## Current implementation status
 
-**Documentation baseline: 7 November 2026 · official repository · `main` at `e49a943adc25fdd1e08e7139137ffdf350863178` (PR #1141).** This is a source and architecture baseline, not a production-readiness certificate. The current mainline includes Studio access/approval work (#1136–#1139), governed plugin registry and provider OAuth lifecycle work (#1132–#1135), Render build-blocker repairs (#1140), and dashboard route/preference validation alignment (#1141). Merged code and completed pull requests do not establish that hosted services, providers, workers, migrations, or every end-to-end user journey are healthy.
+**Documentation baseline: 7 November 2026 · official repository · `main` at `4e7568ce349fe0bd93c30cffd5ca0f8168a77410` (PR #1154).** This is a source and architecture baseline, not a production-readiness certificate. The current mainline includes Studio access/approval work (#1136–#1139), governed plugin registry and provider OAuth lifecycle work (#1132–#1135), Render build-blocker repairs (#1140), and dashboard route/preference validation alignment (#1141). Merged code and completed pull requests do not establish that hosted services, providers, workers, migrations, or every end-to-end user journey are healthy.
 
 ### Implemented foundations represented in the current source
 
@@ -81,6 +81,10 @@ See [the architecture reference](docs/ARCHITECTURE.md) and [the specialist model
 - **PR #1136–#1139 — RyanAI Studio:** made Studio discoverable to authenticated standard users and aligned its API and coding-worker authorization with strict per-user workspace ownership. Approval is an authenticated owner action bound to the exact persisted plan hash, base commit SHA, and proposed diff hash; changing the plan invalidates the prior approval. This does not bypass sandboxing, tests, review of resulting repository changes, CI, or deployment controls.
 - **PR #1140 — Render build blockers:** repaired identified API/web build and Studio/settings integration blockers without production changes. This is a source/build repair, not evidence of a successful production deployment or healthy live service.
 - **PR #1141 — dashboard validation:** aligned dashboard route/preference validation with the current workspace behavior. Passing a focused dashboard test does not certify all application journeys.
+
+- **PR #1154 — canonical topology baseline:** documented Render web/API delivery, Vercel stateless execution only after compatibility proof, Railway persistent workloads subject to project verification, and Supabase PostgreSQL/pgvector as authoritative memory. The document is an architecture contract, not proof of deployed services.
+- **PR B (draft, proposed) — API control plane:** centralises account-scoped Memory Vault persistence, applies Gen-X to user-initiated memory and reasoning requests, defines short-lived API-issued MCP identity delegation, and standardises NVIDIA/Qwen/Logic role-to-provider configuration with Ollama as an explicit local adapter. It disables the legacy service-token-only model gateway by default pending delegated identity integration. These changes are not merged or runtime-certified.
+- **Hosting clarification:** Render is the intended common platform for web, API and MCP HTTP services, with API and MCP remaining separate services and security boundaries. MCP runtime registration, Render port binding and API↔MCP delegated identity remain gated on PR C and a later deployment-contract review.
 
 ### RyanAI Studio: capability and limits
 

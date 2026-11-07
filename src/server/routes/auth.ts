@@ -122,7 +122,7 @@ export function installAuthentication(fastify: FastifyInstance) {
     const path = request.url.split('?')[0];
     if (request.method === 'OPTIONS') return;
     // Machine-to-machine routes authenticate their own dedicated bearer tokens.
-    if (request.method === 'POST' && path === '/api/internal/openai/chat') return;
+    if (request.method === 'POST' && ['/api/internal/openai/chat', '/api/internal/mcp/delegation'].includes(path)) return;
     // Comms browser routes require a verified session and an owner/admin identity.
     // The Comms plugin narrows outbound sends and history to the configured owner.
     if (path.startsWith('/api/comms/')) {

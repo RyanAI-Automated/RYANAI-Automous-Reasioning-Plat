@@ -100,3 +100,40 @@ describe('isolated provider probe credential resolution', () => {
   });
 });
 
+
+describe('canonical API brain roles and explicit Ollama adapter', () => {
+  it('maps primary, secondary and logic to canonical reasoning roles', () => {
+    expect(resolveBrainProviderConfig('primary', {}).role).toBe('nvidia');
+    expect(resolveBrainProviderConfig('secondary', {}).role).toBe('qwen');
+    expect(resolveBrainProviderConfig('logic', {}).role).toBe('logic');
+  });
+
+  it('selects Ollama only when explicitly requested and never silently falls back to cloud', () => {
+    expect(resolveBrainProviderConfig('primary', {
+      PRIMARY_REASONING_PROVIDER: 'ollama',
+      OLLAMA_MODEL: 'qwen2.5:7b',
+    })).toMatchObject({
+      role: 'nvidia', adapter: 'ollama', model: 'qwen2.5:7b',
+      endpoint: 'http://127.0.0.1:11434/v1', credential: false,
+    });
+  });
+
+  it('requires a model identifier when Ollama is selected', () => {
+    expect(resolveBrainProviderConfig('primary', { NVIDIA_PROVIDER: 'ollama' }).model).toBe('');
+  });
+
+  it('rejects unknown provider selectors instead of silently routing elsewhere', () => {
+    expect(() => resolveBrainProviderConfig('primary', { PRIMARY_REASONING_PROVIDER: 'deepseek' })).toThrow(/Unsupported provider selection/);
+  });
+
+  it('rejects insecure remote endpoints and embedded credentials', () => {
+    expect(() => resolveBrainProviderConfig('primary', { NVIDIA_API_ENDPOINT: 'http://models.example.test/v1' })).toThrow(/must use HTTPS/);
+    expect(() => resolveBrainProviderConfig('secondary', { QWEN_API_ENDPOINT: 'https://user:pass@models.example.test/v1' })).toThrow(/must use HTTPS/);
+  });
+
+  it('keeps Ollama as an adapter, not a replacement reasoning role', () => {
+    expect(resolveBrainProviderConfig('secondary', {
+      QWEN_PROVIDER: 'ollama', OLLAMA_URL: 'http://127.0.0.1:11434/v1', OLLAMA_MODEL: 'qwen3:8b',
+    })).toMatchObject({ role: 'qwen', adapter: 'ollama', model: 'qwen3:8b' });
+  });
+});
