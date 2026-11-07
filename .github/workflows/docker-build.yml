@@ -28,6 +28,11 @@ on:
       - 'stacks/**'
       - 'prisma/**'
       - 'scripts/copy-server-assets.mjs'
+      - 'quant-engine/**'
+      - 'certs/**'
+      - 'scripts/backup-on-startup.mjs'
+      - 'scripts/verify-node-ca.sh'
+      - 'tsconfig*.json'
       - 'mcp-server/**'
       - 'tests/mcpjungle/**'
       - 'scripts/docker-init/**'
@@ -97,8 +102,8 @@ jobs:
           target: ${{ matrix.target }}
           push: false
           tags: ryanai-${{ matrix.image }}:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
   mcpjungle-runtime-auth:
     name: MCPJungle Enterprise runtime authentication
