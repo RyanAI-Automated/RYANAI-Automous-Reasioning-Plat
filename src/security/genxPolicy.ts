@@ -30,6 +30,7 @@ const SAFE_READ_ONLY_TOOLS = new Set([
   'system_diagnostics', 'read_workspace_file', 'query_stackoverflow_agents',
   'security_status', 'trivy_scan', 'clamav_scan', 'dependency_audit',
   'za_public_procurement_data',
+  'mcp_tool_registry', 'mcp_repository_status', 'mcp_platform_health', 'mcp_stack_manifest',
 ]);
 
 const SENSITIVE_TARGET = /(secret|credential|token|private.?key|password|\.env|vault)/i;
