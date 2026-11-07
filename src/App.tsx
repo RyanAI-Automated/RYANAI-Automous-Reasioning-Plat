@@ -49,7 +49,8 @@ import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { DEFAULT_LANGUAGE, OWNER_DEFAULT_LANGUAGE } from '@/shared/languages';
 import { getEnabledDashboardUiIds } from '@/shared/dashboardUis';
-import { DEFAULT_MODEL, MODEL_LIST, type ModelId } from '@/lib/models';
+import { DEFAULT_MODEL, MODEL_LIST } from '@/lib/models';
+import type { ModelId } from '@/lib/types';
 import { normalizeAudiobookSettings, normalizeDashboardUiPreferences, normalizeInferenceSettings, type DashboardUiId } from '@/lib/settingsPreferences';
 
 type Route = (typeof appManifest.routes)[number]['id'];
