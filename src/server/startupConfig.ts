@@ -1,3 +1,5 @@
+import { resolveSupabaseSessionPoolerUrl } from './supabasePooler.js';
+
 export interface ConnectionUrls {
   databaseUrl: string;
   redisUrl: string;
@@ -10,17 +12,52 @@ function localDevelopmentDatabaseUrl(): string {
   return url.toString();
 }
 
+function isSupabaseDatabaseUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return /^db\.[a-z0-9]{20}\.supabase\.co$/.test(hostname)
+      || hostname.endsWith('.pooler.supabase.com');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolve required service URLs without silently selecting local services in production.
+ * Supabase production URLs are normalized to the explicitly configured Session Pooler
+ * endpoint before either Prisma or node-postgres receives the connection string.
  * Local defaults remain available only for development and test environments.
  */
 export function resolveConnectionUrls(
   nodeEnv: string,
   databaseUrl?: string,
   redisUrl?: string,
+  supabaseUrl?: string,
+  sessionPoolerHost?: string,
+  sslRootCertPath?: string,
 ): ConnectionUrls {
-  const database = databaseUrl?.trim();
+  let database = databaseUrl?.trim();
   const redis = redisUrl?.trim();
+
+  if (database && isSupabaseDatabaseUrl(database)) {
+    const pooler = resolveSupabaseSessionPoolerUrl(
+      database,
+      supabaseUrl,
+      sessionPoolerHost,
+      sslRootCertPath,
+    );
+
+    if (
+      pooler.reason !== 'rewritten'
+      && pooler.reason !== 'already-pooled'
+    ) {
+      throw new Error(
+        `Invalid Supabase Session Pooler configuration (${pooler.reason}). Set SUPABASE_URL and the exact SUPABASE_SESSION_POOLER_HOST copied from Supabase Connect; ensure DATABASE_URL contains the database password. Credentials are not logged.`,
+      );
+    }
+
+    database = pooler.databaseUrl;
+  }
 
   if (nodeEnv === 'production') {
     const missing = [
