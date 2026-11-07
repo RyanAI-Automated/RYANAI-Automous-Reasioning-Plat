@@ -1,3 +1,4 @@
+/* jshint esversion: 11 */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
@@ -111,39 +112,57 @@ test('authenticated approval is request-bound, one-time and durably audited befo
   }
 });
 
-test('approval request signature binds exact command content and execution environment without logging raw command', async () => {
-  const first = await fixture({ requestId: 'synthetic-command-binding-request' });
-  const second = await fixture({ requestId: 'synthetic-command-binding-request' });
-  const firstCommand = 'write-config key=alpha';
-  const secondCommand = 'write-config key=beta';
+test('approval request signature binds exact target and environment without logging raw target', async () => {
+  const first = await fixture({ requestId: 'synthetic-target-binding-request' });
+  const second = await fixture({ requestId: 'synthetic-target-binding-request' });
+  const firstTarget = 'synthetic/workspace/alpha';
+  const secondTarget = 'synthetic/workspace/beta';
   try {
     const firstResult = await evaluateGenXApprovalBoundary({
-      ...event, environment: 'staging', command: firstCommand
+      ...event, target: firstTarget, environment: 'staging'
     }, first.deps);
     const secondResult = await evaluateGenXApprovalBoundary({
-      ...event, environment: 'production', command: secondCommand
+      ...event, target: secondTarget, environment: 'production'
     }, second.deps);
     assert.equal(firstResult.decision, 'ALLOW');
     assert.equal(secondResult.decision, 'ALLOW');
     const firstRequest = first.approvalRequests[0];
     const secondRequest = second.approvalRequests[0];
-    assert.equal(firstRequest.commandSha256, hash(firstCommand));
-    assert.equal(secondRequest.commandSha256, hash(secondCommand));
-    assert.notEqual(firstRequest.commandSha256, secondRequest.commandSha256);
+    assert.equal(firstRequest.targetSha256, hash(firstTarget));
+    assert.equal(secondRequest.targetSha256, hash(secondTarget));
+    assert.notEqual(firstRequest.targetSha256, secondRequest.targetSha256);
     assert.equal(firstRequest.environment, 'staging');
     assert.equal(secondRequest.environment, 'production');
     assert.notEqual(firstRequest.requestSha256, secondRequest.requestSha256);
-    assert.equal(JSON.stringify(firstRequest).includes(firstCommand), false);
-    assert.equal(JSON.stringify(secondRequest).includes(secondCommand), false);
+    assert.equal(JSON.stringify(firstRequest).includes(firstTarget), false);
+    assert.equal(JSON.stringify(secondRequest).includes(secondTarget), false);
     const firstJournal = await first.auditStore.verify();
     const firstAudit = firstJournal.entries.find(item => item.type === 'authorization.audit');
-    assert.equal(firstAudit.commandPresent, true);
+    assert.equal(firstAudit.commandPresent, false);
     assert.equal(firstAudit.environment, 'staging');
-    assert.equal(firstAudit.commandSha256, hash(firstCommand));
-    assert.equal(JSON.stringify(firstAudit).includes(firstCommand), false, 'audit record must not retain raw command text');
+    assert.equal(firstAudit.targetSha256, hash(firstTarget));
+    assert.equal(firstAudit.target, undefined, 'audit record must not retain raw target text');
   } finally {
     await rm(first.temp, { recursive: true, force: true });
     await rm(second.temp, { recursive: true, force: true });
+  }
+});
+
+test('command-bearing events remain denied and only a command hash is audited', async () => {
+  const f = await fixture();
+  const rawCommand = 'write-config key=alpha';
+  try {
+    const result = await evaluateGenXApprovalBoundary({ ...event, command: rawCommand }, f.deps);
+    assert.equal(result.decision, 'DENY');
+    assert.equal(result.approvalStatus, 'NOT_REQUIRED');
+    assert.equal(f.approvalRequests.length, 0);
+    const journal = await f.auditStore.verify();
+    const audit = journal.entries.find(item => item.type === 'authorization.audit');
+    assert.equal(audit.commandPresent, true);
+    assert.equal(audit.commandSha256, hash(rawCommand));
+    assert.equal(JSON.stringify(audit).includes(rawCommand), false);
+  } finally {
+    await rm(f.temp, { recursive: true, force: true });
   }
 });
 
@@ -170,7 +189,6 @@ test('forged, unauthenticated, wrong-service, expired and requester-self-approve
     { wrongService: true },
     { expired: true },
     { mismatchRequest: true },
-    { sameApprover: true }
     { sameApprover: true },
     { missingSignerPin: true }
   ]) {

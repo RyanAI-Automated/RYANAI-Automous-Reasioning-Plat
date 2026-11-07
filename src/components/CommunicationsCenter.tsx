@@ -45,7 +45,6 @@ export default function CommunicationsCenter() {
   const [reviewing, setReviewing] = useState(false);
   const [assistBusy, setAssistBusy] = useState(false);
   const [assistOutput, setAssistOutput] = useState('');
-  const [assistOperation, setAssistOperation] = useState<'summarize' | 'draft' | 'translate' | 'extract_tasks' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [conversationSearch, setConversationSearch] = useState('');
@@ -107,7 +106,6 @@ export default function CommunicationsCenter() {
   async function runConversationAssist(operation: 'summarize' | 'draft' | 'translate' | 'extract_tasks') {
     if (!active?.id || assistBusy) return;
     setAssistBusy(true);
-    setAssistOperation(operation);
     setAssistOutput('');
     setError('');
     try {
@@ -119,7 +117,6 @@ export default function CommunicationsCenter() {
       setAssistOutput(result.output);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Communications intelligence is unavailable.');
-      setAssistOperation(null);
     } finally {
       setAssistBusy(false);
     }

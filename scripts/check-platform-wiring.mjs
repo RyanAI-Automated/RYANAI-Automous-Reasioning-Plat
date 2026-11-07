@@ -128,7 +128,17 @@ for (const id of ['dashboard', 'operator', 'admin', 'quant', 'cockpit', 'workspa
     fail(`app/routes.json is missing the ${id} route`);
   }
 }
-if (!app.includes("{route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}")) {
+const dashboardRouteStart = app.indexOf("{route === 'dashboard' && <DashboardPage");
+const dashboardRouteEnd = dashboardRouteStart >= 0
+  ? app.indexOf("/>}", dashboardRouteStart)
+  : -1;
+const dashboardRoute = dashboardRouteEnd > dashboardRouteStart
+  ? app.slice(dashboardRouteStart, dashboardRouteEnd + 3)
+  : '';
+if (
+  !dashboardRoute.includes('isOwner={isOwner}')
+  || !dashboardRoute.includes('isAdmin={isAdmin}')
+) {
   fail('Dashboard route must render the focused DashboardPage with verified role context');
 }
 if (!app.includes("lazy(() => import('@/pages/OperatorConsole'))") || !app.includes("{route === 'operator' && <OperatorConsole />}")) {
