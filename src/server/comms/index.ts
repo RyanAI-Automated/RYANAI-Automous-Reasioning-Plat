@@ -227,7 +227,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Body: CommsBody }>('/api/comms/approve', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required to approve outbound communications.' });
-    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [], approvalId } = request.body ?? {};
+    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [] } = request.body ?? {};
     if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
     if (!Array.isArray(attachmentIds) || attachmentIds.length > 8 || new Set(attachmentIds).size !== attachmentIds.length) return reply.code(400).send({ success: false, error: 'At most 8 unique attachment IDs are supported.' });
     if (attachmentIds.length && !areCommunicationAttachmentsEnabled()) return reply.code(503).send({ success: false, error: 'Communication attachments are disabled.' });
@@ -246,7 +246,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     if (!target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
     if (channel === 'email') {
       if (!messageBody) return reply.code(400).send({ success: false, error: 'An email message body is required.' });
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid email address.' });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid email address.' });
       if (typeof subject === 'string' && subject.trim().length > 180) return reply.code(400).send({ success: false, error: 'Email subject must be no longer than 180 characters.' });
     } else if (!E164.test(target)) {
       return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
@@ -286,7 +286,7 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
-    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [] } = request.body ?? {};
+    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [], approvalId } = request.body ?? {};
     if (attachmentIds.length && !areCommunicationAttachmentsEnabled()) return reply.code(503).send({ success: false, error: 'Communication attachments are disabled.' });
     if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
     if (!Array.isArray(attachmentIds) || attachmentIds.length > 8 || new Set(attachmentIds).size !== attachmentIds.length) return reply.code(400).send({ success: false, error: 'At most 8 unique attachment IDs are supported.' });
