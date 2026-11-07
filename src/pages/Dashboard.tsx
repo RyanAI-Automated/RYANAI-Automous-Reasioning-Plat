@@ -208,9 +208,9 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">RyanAI Platform</p>
-          <h1 className="mt-2 text-3xl font-bold text-white">System dashboard</h1>
+          <h1 className="mt-2 text-3xl font-bold text-white">Commander Dashboard</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-400">
-            Live service health and operator shortcuts. Unknown or stale signals are never presented as healthy.
+            Central command view for platform health, agent activity and every authorised workspace. Unknown or stale signals are never presented as healthy.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${isStale ? 'border-amber-300/30 bg-amber-300/5 text-amber-200' : healthFresh ? 'border-emerald-300/20 text-emerald-200' : 'border-slate-500/30 text-slate-300'}`}>
