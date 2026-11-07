@@ -8,6 +8,7 @@ const mock = vi.hoisted(() => ({
   configured: true,
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
+  signInWithOAuth: vi.fn(),
 }));
 vi.mock('@/lib/supabase', () => ({
   get supabase() {
@@ -20,6 +21,7 @@ let root: Root;
 beforeEach(() => {
   vi.resetAllMocks();
   mock.configured = true;
+  mock.signInWithOAuth.mockResolvedValue({ data: { url: null }, error: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -45,6 +47,33 @@ async function submit() {
       .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
 }
+async function continueWithGoogle() {
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>('button[type=button]')!.click();
+  });
+}
+it.each(['signin', 'signup'] as const)(
+  'starts Google OAuth from the %s screen and returns to the sign-in route',
+  async (mode) => {
+    await act(async () => root.render(<AuthPage mode={mode} />));
+    await continueWithGoogle();
+    expect(mock.signInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/#/signin` },
+    });
+  },
+);
+it('shows Google OAuth provider errors without granting access', async () => {
+  mock.signInWithOAuth.mockResolvedValue({
+    data: { url: null },
+    error: new Error('Google provider is not enabled'),
+  });
+  await act(async () => root.render(<AuthPage />));
+  await continueWithGoogle();
+  expect(container.querySelector('[role=alert]')?.textContent).toContain(
+    'Google provider is not enabled',
+  );
+});
 it('authenticates with normalized email and password', async () => {
   mock.signInWithPassword.mockResolvedValue({
     data: { session: {} },
