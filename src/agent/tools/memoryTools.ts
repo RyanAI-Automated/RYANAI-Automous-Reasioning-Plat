@@ -2,32 +2,23 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { requireUserId } from './toolContext.js';
 
-/**
- * Load the Prisma client on first use. The shared client is created when its
- * module loads, and the engine imports this file, so a static import would
- * create a database client in every test and script that loads the engine.
- */
-async function getPrisma() {
-  const { prisma } = await import('../../lib/prisma.js');
-  return prisma;
+async function getMemoryService() {
+  const [{ prisma }, service] = await Promise.all([
+    import('../../lib/prisma.js'),
+    import('../../server/memory/memoryService.js'),
+  ]);
+  return { memory: prisma.memoryEntry, service };
 }
 
 export const rememberFactTool = tool(
   async ({ key, value, category }, config) => {
     const userId = requireUserId(config);
-    const prisma = await getPrisma();
-    // One row for each (userId, key). The unique index makes the upsert atomic.
-    const entry = await prisma.memoryEntry.upsert({
-      where: { userId_key: { userId, key } },
-      create: { userId, key, value, category },
-      update: { value, category },
-    });
-    return JSON.stringify({ saved: true, key: entry.key });
+    const { memory, service } = await getMemoryService();
+    return JSON.stringify(await service.rememberUserFact(memory, userId, key, value, category));
   },
   {
     name: 'remember_fact',
-    description:
-      'Saves a fact or preference about the user for later conversations. Saving an existing key replaces its value.',
+    description: 'Saves a fact or preference through the API-owned, account-scoped memory service. Saving an existing key replaces its value.',
     schema: z.object({
       key: z.string().min(1).max(100).describe('Short label, for example "preferred_language"'),
       value: z.string().min(1).max(2000).describe('The fact to remember'),
@@ -39,24 +30,12 @@ export const rememberFactTool = tool(
 export const recallMemoryTool = tool(
   async ({ query }, config) => {
     const userId = requireUserId(config);
-    const prisma = await getPrisma();
-    const entries = await prisma.memoryEntry.findMany({
-      where: {
-        userId,
-        OR: [
-          { key: { contains: query, mode: 'insensitive' } },
-          { value: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { key: true, value: true, category: true },
-    });
-    return JSON.stringify({ query, count: entries.length, entries });
+    const { memory, service } = await getMemoryService();
+    return JSON.stringify(await service.recallUserFacts(memory, userId, query));
   },
   {
     name: 'recall_memory',
-    description: 'Searches the facts and preferences that were saved for the user. Returns up to 10 matches.',
+    description: 'Searches the facts and preferences that were saved for the authenticated user through the API-owned memory service.',
     schema: z.object({
       query: z.string().min(1).max(200).describe('Text to find in saved keys and values'),
     }),
@@ -66,13 +45,12 @@ export const recallMemoryTool = tool(
 export const forgetMemoryTool = tool(
   async ({ key }, config) => {
     const userId = requireUserId(config);
-    const prisma = await getPrisma();
-    const { count } = await prisma.memoryEntry.deleteMany({ where: { userId, key } });
-    return JSON.stringify({ deleted: count });
+    const { memory, service } = await getMemoryService();
+    return JSON.stringify(await service.forgetUserFact(memory, userId, key));
   },
   {
     name: 'forget_memory',
-    description: 'Deletes one saved fact by its exact key.',
+    description: 'Deletes one saved fact by its exact key through the API-owned, account-scoped memory service.',
     schema: z.object({
       key: z.string().min(1).max(100).describe('Exact key of the fact to delete'),
     }),
