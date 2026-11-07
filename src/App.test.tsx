@@ -23,6 +23,9 @@ vi.mock('@/lib/authenticatedFetch', () => ({
 vi.mock('@/components/Greeting', () => ({
   default: () => <div data-testid="primary-multilingual-greeting">Primary multilingual greeting</div>,
 }));
+vi.mock('@/components/RyanVoiceStream', () => ({
+  RyanVoiceStream: ({ language }: { language: string }) => <div data-testid="global-ryanai-voice">Live voice {language}</div>,
+}));
 vi.mock('@/pages/LandingPage', () => ({
   default: () => <div>Public landing</div>,
 }));
@@ -169,6 +172,21 @@ describe('application authentication boundary', () => {
     expect(container.querySelector('nav a[href="#/admin"]')).toBeNull();
     expect(container.querySelector('a.skip-link[href="#main-content"]')).not.toBeNull();
   });
+  it('keeps the authenticated live voice control mounted while navigating between modules', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/dashboard');
+    await expectContent('Live voice en-ZA');
+    const voiceControl = container.querySelector('[data-testid="global-ryanai-voice"]');
+    expect(voiceControl).not.toBeNull();
+
+    await act(async () => {
+      window.location.hash = '/operator';
+      window.dispatchEvent(new Event('hashchange'));
+    });
+    await expectContent('Private operator console');
+    expect(container.querySelector('[data-testid="global-ryanai-voice"]')).toBe(voiceControl);
+  });
+
   it('renders one personalized multilingual greeting for an authenticated account', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/dashboard');
