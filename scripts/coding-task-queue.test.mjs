@@ -9,10 +9,10 @@ function approvedFixture() {
     id: 'workbench-1', userId: 'author-1', status: 'queued', approvalStatus: 'approved',
     planHash: HASH, baseCommitSha: COMMIT, proposedDiffHash: HASH,
     approvedPlanHash: HASH, approvedCommitSha: COMMIT, approvedDiffHash: HASH,
-    approvedBy: 'reviewer-2',
+    approvedBy: 'author-1',
   };
   const evidence = {
-    id: 'approval-evidence-1', actorId: 'reviewer-2', eventType: 'plan.approved',
+    id: 'approval-evidence-1', actorId: 'author-1', eventType: 'plan.approved',
     payload: { planHash: HASH, baseCommitSha: COMMIT, proposedDiffHash: HASH },
   };
   return { run, evidence };
@@ -25,7 +25,7 @@ function input() {
   };
 }
 
-test('enqueue requires the exact persisted independent workbench approval', async () => {
+test('enqueue requires the exact persisted authenticated owner approval', async () => {
   const { run, evidence } = approvedFixture();
   let created;
   const prisma = {
@@ -40,11 +40,11 @@ test('enqueue requires the exact persisted independent workbench approval', asyn
   assert.equal(result.workbenchRunId, run.id);
   assert.equal(result.approvalId, evidence.id);
   assert.equal(created.userId, run.userId);
-  await assert.rejects(() => enqueueApprovedCodingTask(prisma, { ...input(), proposedDiffHash: 'c'.repeat(64) }), /No current independent workbench approval/);
+  await assert.rejects(() => enqueueApprovedCodingTask(prisma, { ...input(), proposedDiffHash: 'c'.repeat(64) }), /No current authenticated owner approval/);
   await assert.rejects(() => enqueueApprovedCodingTask(prisma, { ...input(), workspaceKey: '../outside' }), /safe server-resolved workspace identifier/);
 });
 
-test('execution authorizer rechecks approval evidence and rejects stale or self-approved plans', async () => {
+test('execution authorizer rechecks owner approval evidence and rejects stale or mismatched approvers', async () => {
   const { run, evidence } = approvedFixture();
   const prisma = {
     agentRun: { findUnique: async () => run },
@@ -54,8 +54,9 @@ test('execution authorizer rechecks approval evidence and rejects stale or self-
   const binding = { taskId: run.id, approvalId: evidence.id, planHash: HASH, baseCommitSha: COMMIT, proposedDiffHash: HASH };
   const result = await authorize(binding);
   assert.equal(result.approved, true);
-  assert.equal(result.approverId, 'reviewer-2');
-  run.approvedBy = run.userId;
+  assert.equal(result.approverId, 'author-1');
+  run.approvedBy = 'different-user';
+  evidence.actorId = 'different-user';
   assert.equal(await authorize(binding), null);
 });
 

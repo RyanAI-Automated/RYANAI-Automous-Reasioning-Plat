@@ -36,7 +36,7 @@ function approvalMatches(run, evidence, input) {
     run.approvedCommitSha?.toLowerCase() === input.baseCommitSha.toLowerCase() &&
     run.approvedDiffHash === input.proposedDiffHash &&
     typeof run.approvedBy === 'string' &&
-    run.approvedBy !== run.userId &&
+    run.approvedBy === run.userId &&
     evidence.id === input.approvalId &&
     evidence.actorId === run.approvedBy &&
     payload.planHash === input.planHash &&
@@ -54,7 +54,7 @@ export async function enqueueApprovedCodingTask(prisma, input) {
       orderBy: { sequence: 'desc' },
     });
     if (!approvalMatches(run, approval, input)) {
-      throw new Error('No current independent workbench approval matches this exact coding task.');
+      throw new Error('No current authenticated owner approval matches this exact coding task.');
     }
     return tx.codingTask.create({
       data: {
