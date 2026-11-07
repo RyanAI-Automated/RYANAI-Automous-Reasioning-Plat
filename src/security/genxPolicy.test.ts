@@ -24,6 +24,20 @@ describe('Gen-X deterministic security enforcement', () => {
   it('blocks autonomous production deletion', () => {
     expect(evaluateGenXSecurityEvent({ ...base, action: 'DELETE', environment: 'production' }).decision).toBe('DENY');
   });
+
+  it('allows verified human deletion of the user's own Memory Vault record in production only', () => {
+    expect(evaluateGenXSecurityEvent({
+      ...base, agentId: 'ryanai-api', toolName: 'api_user_memory',
+      principal: 'verified-user-id', target: 'self', action: 'DELETE',
+      environment: 'production', actorType: 'human',
+    })).toMatchObject({ decision: 'ALLOW', ruleId: 'GX-HUMAN-MEMORY-001' });
+
+    expect(evaluateGenXSecurityEvent({
+      ...base, toolName: 'agent_memory_delete', action: 'DELETE',
+      environment: 'production', actorType: 'agent',
+    })).toMatchObject({ decision: 'DENY', ruleId: 'GX-PROD-DELETE-001' });
+  });
+
   it('denies unknown tools by default', () => {
     expect(evaluateGenXSecurityEvent({ ...base, toolName: 'unknown_future_tool' }).decision).toBe('REQUIRE_APPROVAL');
   });
