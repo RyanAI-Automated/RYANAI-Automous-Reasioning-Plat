@@ -1,6 +1,6 @@
 # RyanAI architecture and governance reference
 
-**Status:** Architecture and acceptance standard, updated 4 November 2026. This document distinguishes merged code foundations from target requirements and outstanding verification. It is not a production-readiness certificate.
+**Status:** Architecture and acceptance standard, reconciled to the official repository's 7 November 2026 mainline (`382f4ad2e44524cf6f9d362e6debd45f4234f0f1`, PR #1140). This is a source and design baseline—not a production-readiness certificate. Implemented foundations, target requirements, and outstanding runtime evidence are deliberately distinguished.
 
 ## 1. Governing principle
 
@@ -94,7 +94,7 @@ No candidate becomes a runtime dependency simply by appearing in this list.
 
 ## 5. RyanAI Comms: transcription, extraction, and speech
 
-PR #864 merged the fail-closed local inference adapter. PR #865 merged Python orchestration interfaces and authenticated communications MCP contracts for reading channel policy and preparing drafts. These interfaces are deliberately narrower than provider dispatch: they do not grant permission to send messages, place calls, or initiate external communications.
+PR #864 merged the fail-closed local inference adapter. PR #865 merged Python orchestration interfaces and authenticated communications MCP contracts for reading channel policy and preparing drafts. PR #1078 added a separate human-review checkpoint before outbound dispatch. These foundations do not grant permission to send messages, place calls, or initiate external communications; provider callback and destination verification plus explicit action authorization remain required.
 
 The Comms roadmap is to evaluate each task independently:
 
@@ -227,7 +227,7 @@ The engineering sequence is:
 7. Pilot one specialist at a time behind explicit configuration/feature gates.
 8. Review security, operational reversibility, and ZAR economics before promotion.
 
-PR #863 records a point-in-time review of the database, CI/security, and branch-protection gates. PRs #864 and #865 add local inference and communications contracts; PR #866 adds specialist-model fit and adoption policy. Their merged status must not be treated as proof of live runtime health or successful current-head checks. Re-read current GitHub evidence before declaring a gate complete.
+PR #863 is a point-in-time review of database, CI/security, and branch-protection evidence. PRs #864–#866 established local inference, communications contracts, and specialist adoption policy. The 7 November mainline additionally includes PRs #1132–#1135 for governed plugin registry and Google/Microsoft OAuth lifecycle foundations; PRs #1136–#1139 for standard-user Studio access and owner-scoped approval/execution; and PR #1140 for Render build-blocker repairs. Merged status does not prove provider connectivity, migration application, hosted health, worker execution, branch-protection enforcement, or successful exact-head CI. Re-read current evidence before declaring a gate complete.
 
 No production activation, deployment, paid infrastructure upgrade, secret change, or database migration is authorised by this architecture document.
 
@@ -255,3 +255,85 @@ Every reasoning provider, local inference adapter, and specialist must be regist
 RIIP makes the governing boundary machine-checkable: model outputs are untrusted; models cannot authorize actions, alter their own permissions, approve their own changes, merge, deploy, or promote themselves. Gen-X remains the independent authorization enforcement point, and consequential actions remain subject to human approval. The policy validator and regression tests are included in the repository validation pipeline.
 
 This policy baseline does not itself implement runtime routing, enable specialist models, download weights, alter production configuration, or certify live provider health.
+
+
+## 14. Current implementation and integration state — 7 November 2026
+
+The current mainline baseline is `382f4ad2e44524cf6f9d362e6debd45f4234f0f1` (PR #1140). The following records describe source-level foundations and their limits; they do not certify hosted operation.
+
+### 14.1 Studio and controlled engineering execution
+
+RyanAI Studio is available to authenticated standard users. Studio job data and operations are scoped to the authenticated owner; administrator status does not provide cross-user workspace access. A user may review and approve their own exact persisted workbench snapshot. Approval is bound to the plan hash, base commit SHA, and proposed diff hash. Steering or changing the proposed plan/diff invalidates the previous approval and requires review of the new snapshot.
+
+The coding worker must revalidate owner identity and all approval digests at execution time. Execution must occur in a disposable, resource-bounded workspace with workspace-only filesystem access, deny-by-default network policy, no host/home-directory mounts, and no inherited production credentials. Direct host execution is prohibited. A persisted job, approval event, queue row, or worker profile does not prove that execution started or completed.
+
+The current Studio availability change does not, by itself, certify a complete cloud IDE or interactive terminal. Full terminal acceptance requires real persistent sessions, interactive input, streamed stdout/stderr, exit codes, resize and cancellation/interrupt, reconnect behavior, resource limits, and reproducible TypeScript/Python build/test runs. Until these are demonstrated on a real isolated runtime, describe the terminal as unverified/incomplete rather than live.
+
+### 14.2 Governed plugins and provider OAuth
+
+The server-side plugin registry is a validated metadata catalogue. Provider entries marked `adapter_required` are not connected, executable, or authorized merely because they appear in Settings or the registry endpoint.
+
+The current source includes the foundations for Google and Microsoft calendar OAuth: authorization-code flow with PKCE, short-lived single-use state, owner/provider binding, encrypted server-side token/verifier storage, HTTPS token endpoints, required-scope and granted-scope validation, safe connection projections, refresh handling, and disconnect lifecycle. Callback and refresh failures are handled without exposing token material. Microsoft remote revocation must not be claimed where the provider flow only confirms local ciphertext removal and leaves remote revocation pending.
+
+Provider connection status must be based on a verified owner-authorized connection and safe provider evidence. Do not expose tokens/ciphertext in API responses, logs, prompts, or browser state. No provider is to be described as connected without actual consent and a successful verification path. Registry/OAuth foundations do not automatically enable workflow dispatch, PA Agent execution, or outbound communications.
+
+### 14.3 Communications and consequential actions
+
+RyanAI Comms separates policy/context reading and draft preparation from outbound dispatch. A human-review checkpoint is required before an outbound action. Models, Jarvis, plugins, and workers cannot approve or send on their own authority. For live WhatsApp, SMS, voice, or email delivery, require the provider callback, verified ownership of the destination, and explicit authorization for that particular test or action. A draft, queued status, provider configuration, or local mocked test is not proof of delivery.
+
+### 14.4 Persistence and identity
+
+PostgreSQL and pgvector remain the authoritative durable application/memory foundation. Redis is coordination/cache infrastructure, not long-term memory authority. Supabase remains the primary identity/authentication and storage relationship; preserve the existing identity bridge. Optional audiobook-specific Neon persistence is isolated from the core application database and must not silently replace Supabase identity or primary storage.
+
+Schema files and migration records are source artifacts, not proof of production migration execution. All schema changes require disposable/staging validation, backup/restore evidence, review, and separate approval before production execution.
+
+### 14.5 Hosting topology and operational truth
+
+- **Render:** designated hosted platform for RyanAI web/API delivery. PR #1140 repaired identified source/build blockers without production changes. It does not prove that a deployment completed or that web/API/database/Redis health checks passed.
+- **Railway:** isolated staging/backup evaluation only until service identity, environment isolation, database/storage separation, health, persistence, and recovery are independently demonstrated. Staging is not production and does not establish failover readiness.
+- **Vercel:** not an approved RyanAI runtime/deployment target. Do not add Vercel deployment, secrets, or infrastructure dependencies.
+- **Docker Compose:** reproducible local development/integration stack, not a production security or availability guarantee.
+
+Keep database migrations separate from application startup. Do not disable TLS verification or use insecure certificate bypasses. Use the system trust store and correctly configured CA certificates. Never guess provider-assigned database pooler hostnames.
+
+### 14.6 CI, governance, and release evidence
+
+Every acceptance claim must bind to the exact candidate commit SHA. Record individual check states as passed, failed, queued, skipped, cancelled, missing, or provider-blocked. Only a completed successful result on the exact SHA is a pass. A successful build does not imply security scans, migration readiness, branch protection, deployment health, or end-to-end functionality.
+
+Do not certify `main` as protected until GitHub evidence shows an active ruleset/branch protection with required PR review and status checks, force-push/deletion restrictions, and no inappropriate bypass actors. A ruleset object with no effective rules, an API permission error, or a configured workflow is not enforcement evidence.
+
+The Beta Readiness programme prioritizes proving the existing product as one integrated system: (1) reconcile hosting and database connectivity; (2) complete exact-head CI/security and enforce branch protection; (3) verify existing modules and owner isolation; (4) verify real worker lifecycle and isolated execution; (5) verify Comms and plugin lifecycle boundaries; and (6) run end-to-end Beta acceptance. New model adoption remains behind separate offline evaluation gates. Do not activate candidate models or change production routing as a documentation task.
+
+## 15. Approval and change-control matrix
+
+| Action | Default authority |
+| --- | --- |
+| Read-only repository, CI, and deployment inspection | Permitted within the connected read-only scope |
+| Documentation or code proposal on a dedicated branch | Permitted when requested; must be reviewable |
+| Open/update a pull request | Permitted when requested; no auto-merge |
+| Merge a pull request | Human approval after exact-head CI/security evidence and review |
+| Production deployment or promotion | Separate explicit approval |
+| Production database migration or data mutation | Separate explicit approval after migration review and backup plan |
+| Secret creation, modification, exposure, or rotation | Not authorized by ordinary engineering/documentation work |
+| Paid plan/resource upgrade or production infrastructure change | Separate explicit approval |
+| Live outbound message, SMS, voice call, or email | Provider callback + verified owner destination + explicit action authorization |
+| Model download, production activation, or routing change | Separate evaluation evidence and explicit approval |
+
+No model, agent, coding worker, plugin, or orchestration layer may grant itself permissions, approve its own privileged action, merge its own PR, deploy, or override human authority.
+
+## 16. Beta acceptance: evidence required, not assumed
+
+RyanAI Beta is accepted only when a named candidate commit has reproducible evidence for all applicable gates:
+
+1. **Data:** disposable/staging PostgreSQL and pgvector migration, owner scoping, backup, and restore validation.
+2. **Build and CI:** API/web typecheck, tests, builds, Docker build, and required security scans completed successfully on the exact candidate SHA.
+3. **Governance:** enforceable main-branch protection, required reviews/checks, and no inappropriate bypass.
+4. **Hosting:** Render web/API deployment revision, health, authenticated smoke tests, logs, and independent database/Redis checks; isolated Railway staging evidence where used.
+5. **Identity and privacy:** authentication, owner/tenant isolation, attachment authorization, retention/deletion propagation, and secret-safe logs.
+6. **Agents and Studio:** durable claim/lease/heartbeat, retry, cancellation, recovery, owner approval binding, isolated execution, and real command/test output.
+7. **Comms and plugins:** OAuth consent/state/scope/token lifecycle, safe disconnect, human review before dispatch, and provider-confirmed delivery only when explicitly authorized.
+8. **Intelligence:** real inference probes, offline held-out benchmarks, licence and provenance review, ZAR cost per successful task, fallback, and rollback.
+
+For each gate publish the evidence source, commit/run identifier, timestamp, status, failure or blocker, and reviewer. Missing evidence remains missing; it must never be silently converted into a pass.
+
+**Governing rule:** architecture documents describe intended controls; code demonstrates implementation; completed tests demonstrate specific behavior; independent runtime evidence demonstrates operation. These are distinct proof levels.
