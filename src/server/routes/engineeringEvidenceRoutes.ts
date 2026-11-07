@@ -43,7 +43,7 @@ const containsSecretMaterial = (value: string) =>
 export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
 
-  fastify.get('/api/engineering/jobs', async () => {
+  fastify.get('/api/engineering/jobs', async (request) => {
     const jobs = await prisma.agentRun.findMany({
       where: request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id },
       orderBy: { createdAt: 'desc' },
