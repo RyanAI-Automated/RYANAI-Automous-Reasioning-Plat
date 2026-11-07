@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { providerAuthorizationRoutes } from './providerAuthorizationRoutes.js';
+import { encryptProviderCredential } from './providerAuthorization.js';
 
 const owner = { id: 'owner-user-1', role: 'user' as const, isOwner: true };
 const key = '5a'.repeat(32);
@@ -142,6 +143,62 @@ describe('provider authorization HTTP lifecycle', () => {
       url: `/api/plugins/oauth/google-calendar/callback?code=synthetic-code&state=${encodeURIComponent(state)}`,
     });
     expect(replay.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('refreshes only the signed-in owner connection and persists rotated encrypted tokens', async () => {
+    vi.stubEnv('RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY', key);
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_ID', 'synthetic-client');
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_SECRET', 'synthetic-secret');
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_REDIRECT_URI', 'https://api.example.test/api/plugins/oauth/google-calendar/callback');
+    const { app, prisma, connectionRows, events } = await createApp();
+    const refreshCipher = encryptProviderCredential(
+      'synthetic-refresh-token', Buffer.from(key, 'hex'),
+      'plugin-token:google-calendar:owner-user-1:refresh',
+    );
+    connectionRows.set(`${owner.id}:google-calendar`, {
+      id: 'connection-1', ownerUserId: owner.id, providerId: 'google-calendar',
+      status: 'connected', encryptedRefreshToken: refreshCipher,
+      refreshTokenExpiresAt: new Date(Date.now() + 86_400_000),
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      access_token: 'rotated-access-token',
+      refresh_token: 'rotated-refresh-token',
+      expires_in: 3600,
+      scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    }), { status: 200, headers: { 'content-type': 'application/json' } })));
+    const response = await app.inject({ method: 'POST', url: '/api/plugins/google-calendar/refresh' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ refreshed: true, provider: 'google-calendar' });
+    expect(prisma.pluginProviderConnection.updateMany).toHaveBeenCalledOnce();
+    const updateArgs = (prisma.pluginProviderConnection.updateMany as ReturnType<typeof vi.fn>).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(updateArgs.data.encryptedAccessToken).not.toContain('rotated-access-token');
+    expect(updateArgs.data.encryptedRefreshToken).not.toContain('rotated-refresh-token');
+    expect(events.some((event) => event.eventType === 'token_refreshed')).toBe(true);
+    await app.close();
+  });
+
+  it('purges local Microsoft tokens and reports remote revocation as pending when unsupported', async () => {
+    vi.stubEnv('RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY', key);
+    vi.stubEnv('RYANAI_PLUGIN_MICROSOFT_365_CLIENT_ID', 'synthetic-ms-client');
+    vi.stubEnv('RYANAI_PLUGIN_MICROSOFT_365_CLIENT_SECRET', 'synthetic-ms-secret');
+    vi.stubEnv('RYANAI_PLUGIN_MICROSOFT_365_REDIRECT_URI', 'https://api.example.test/api/plugins/oauth/microsoft-365-calendar/callback');
+    const { app, prisma, connectionRows, events } = await createApp();
+    connectionRows.set(`${owner.id}:microsoft-365-calendar`, {
+      id: 'connection-2', ownerUserId: owner.id, providerId: 'microsoft-365-calendar',
+      status: 'connected', encryptedAccessToken: 'ciphertext', encryptedRefreshToken: 'ciphertext',
+    });
+    const response = await app.inject({ method: 'POST', url: '/api/plugins/microsoft-365-calendar/disconnect' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      disconnected: true, localCredentialsPurged: true, remoteRevocation: 'pending',
+    });
+    expect(prisma.pluginProviderConnection.update).toHaveBeenCalledOnce();
+    const updateArgs = (prisma.pluginProviderConnection.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(updateArgs.data.encryptedAccessToken).toBeNull();
+    expect(updateArgs.data.encryptedRefreshToken).toBeNull();
+    expect(updateArgs.data.status).toBe('revocation_pending');
+    expect(events.some((event) => event.eventType === 'revocation_pending')).toBe(true);
     await app.close();
   });
 
