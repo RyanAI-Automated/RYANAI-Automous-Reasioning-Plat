@@ -75,12 +75,9 @@ export default function CommunicationsCenter() {
   }, []);
 
   useEffect(() => {
-    const initial = window.setTimeout(() => void refresh(), 0);
+    void refresh();
     const interval = window.setInterval(() => void refresh(), 15000);
-    return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(interval);
-    };
+    return () => window.clearInterval(interval);
   }, [refresh]);
 
   const active = useMemo(
