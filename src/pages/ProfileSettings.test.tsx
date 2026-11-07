@@ -72,7 +72,7 @@ describe('RyanAI Settings', () => {
     expect(container.textContent).toContain('Profile management & access control');
     expect(container.textContent).toContain('Account security');
     expect(container.textContent).toContain('Provider and integration security');
-    expect(container.querySelector('[data-ui-id="calculator"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="calculator-enabled-toggle"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="voice-enabled-toggle"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="audiobook-default-voice"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="inference-default-model"]')).not.toBeNull();
@@ -100,7 +100,7 @@ describe('RyanAI Settings', () => {
       (container.querySelector('[data-testid="voice-enabled-toggle"]') as HTMLInputElement).click();
       (container.querySelector('[data-testid="calculator-enabled-toggle"]') as HTMLInputElement).click();
     });
-    await click(buttonContaining('Save profile & dashboard settings'));
+    await click(buttonContaining('Save all Settings'));
     await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalled());
     expect(auth.getUser).toHaveBeenCalled();
     const payload = auth.updateUser.mock.calls[0]?.[0] as { data: Record<string, unknown> };
