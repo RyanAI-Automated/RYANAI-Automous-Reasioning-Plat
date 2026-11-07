@@ -1,5 +1,5 @@
 import { databaseFailureDiagnostic } from '../server/startupDiagnostics.js';
-import { readRecentUserMemory } from '../server/memory/memoryService.js';
+import { readRecentUserMemoryForPrincipal } from '../server/memory/memoryService.js';
 
 /** Every memory message starts with this text, so callers can find and remove it. */
 export const MEMORY_CONTEXT_PREFIX = 'Saved notes about the user';
@@ -14,8 +14,7 @@ const MAX_TOTAL_CHARS = 4000;
 export async function buildMemoryContext(userId?: string): Promise<string | null> {
   if (!userId) return null;
   try {
-    const { prisma } = await import('../lib/prisma.js');
-    const entries = await readRecentUserMemory(prisma.memoryEntry, userId);
+    const entries = await readRecentUserMemoryForPrincipal(userId);
     if (entries.length === 0) return null;
 
     let body = '';
