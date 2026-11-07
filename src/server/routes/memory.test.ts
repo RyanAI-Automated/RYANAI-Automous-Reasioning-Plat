@@ -73,7 +73,7 @@ describe('account-scoped Postgres Memory Vault API', () => {
     expect(store.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: 'user-a' },
       orderBy: [{ createdAt: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
-      take: 101,
+      take: 51,
     }));
   });
 
