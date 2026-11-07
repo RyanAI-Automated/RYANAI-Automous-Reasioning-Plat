@@ -1,11 +1,11 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
 import { evaluateGenXSecurityEvent, type GenXAction } from '../../security/genxPolicy.js';
 import { createUserMemory, deleteUserMemory, listUserMemory, updateUserMemory } from '../memory/memoryService.js';
 
 
 function authorizeHumanMemoryAction(
-  fastify: Parameters<FastifyPluginAsync>[0],
+  fastify: FastifyInstance,
   principal: string,
   action: GenXAction,
 ): boolean {
