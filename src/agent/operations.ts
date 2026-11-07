@@ -23,7 +23,7 @@ const brains = {
   secondary: { ...resolveBrainProviderConfig('secondary'), client: secondaryBrain },
   logic: { ...resolveBrainProviderConfig('logic'), client: logicBrain },
 } satisfies Record<BrainId, ReturnType<typeof resolveBrainProviderConfig> & { client: typeof primaryBrain }>;
-const localRuntime = (endpoint: string) => /localhost|127\.0\.0\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL;
+const localRuntime = (endpoint: string) => /localhost|127\.0\.0\.1/.test(endpoint) || endpoint === process.env.LM_STUDIO_URL || endpoint === process.env.OLLAMA_URL || endpoint === process.env.OLLAMA_BASE_URL;
 const asText = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value ?? '') ?? '';
 
 async function updateRunHandoffs(
