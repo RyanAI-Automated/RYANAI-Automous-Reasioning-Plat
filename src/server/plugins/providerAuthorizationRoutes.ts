@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { createHash } from 'node:crypto';
 import { requireUser } from '../routes/auth.js';
 import {
   buildProviderAuthorizationUrl,
@@ -241,11 +242,11 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
       const config = providerConfig(request.params.provider);
       if (!config) return reply.code(503).send({ error: 'Provider OAuth is not configured.' });
       const { code, state, error } = request.query;
-      if (!state || state.length > 200 || !code || code.length > 4000 || error) {
-        return reply.code(400).send({ error: 'Provider authorization was denied or the callback was invalid.' });
+      if (!state || state.length > 200 || (!error && (!code || code.length > 4000))) {
+        return reply.code(400).send({ error: 'Provider authorization callback was invalid.' });
       }
 
-      const stateHash = (await import('node:crypto')).createHash('sha256').update(state).digest('hex');
+      const stateHash = createHash('sha256').update(state).digest('hex');
       const pending = await fastify.prisma.pluginOAuthState.findUnique({ where: { stateHash } });
       if (!pending || pending.providerId !== config.id || pending.expiresAt.getTime() <= Date.now()) {
         if (pending) await fastify.prisma.pluginOAuthState.deleteMany({ where: { stateHash } });
@@ -255,13 +256,19 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
         where: { stateHash, providerId: config.id, expiresAt: { gt: new Date() } },
       });
       if (claimed.count !== 1) return reply.code(400).send({ error: 'Provider authorization state was already used.' });
+      if (error) return reply.code(400).send({ error: 'Provider authorization was denied.' });
+      if (pending.redirectUri !== config.policy.redirectUri) {
+        return reply.code(400).send({ error: 'Provider callback configuration changed. Start authorization again.' });
+      }
 
+      let exchangedAccessToken: string | null = null;
       try {
         const key = encryptionKey();
         const verifier = decryptProviderCredential(
           pending.encryptedCodeVerifier, key, `oauth-verifier:${config.id}`,
         );
-        const tokens = await exchangeAuthorizationCode(config, code, verifier);
+        const tokens = await exchangeAuthorizationCode(config, code!, verifier);
+        exchangedAccessToken = tokens.accessToken;
         const encrypted = encryptProviderTokenSet(
           tokens, key, config.id, pending.ownerUserId, pending.requestedScopes, config.policy,
         );
@@ -313,11 +320,9 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
           return reply.redirect(destination.toString());
         }
         return { connected: true, provider: config.id, grantedScopes: encrypted.grantedScopes };
-      } catch (cause) {
-        request.log.warn({
-          providerId: config.id,
-          reason: cause instanceof Error ? cause.message.replace(/token|secret|code|state/gi, 'credential') : 'provider_authorization_failed',
-        }, 'Provider OAuth callback did not complete');
+      } catch {
+        if (exchangedAccessToken) await revokeRemoteGrant(config, exchangedAccessToken);
+        request.log.warn({ providerId: config.id }, 'Provider OAuth callback did not complete');
         await fastify.prisma.pluginAuthorizationEvent.create({
           data: {
             ownerUserId: pending.ownerUserId,
