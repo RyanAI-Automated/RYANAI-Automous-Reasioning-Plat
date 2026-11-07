@@ -264,7 +264,7 @@ describe('application authentication boundary', () => {
   it('blocks the Admin Console for authenticated non-admin users', async () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/admin');
-    await expectContent('Administrator access is required');
+    await expectContent('Your account does not have permission to open this RyanAI workspace.');
     expect(container.textContent).not.toContain('Private admin console');
     expect(container.querySelector('nav a[href="#/admin"]')).toBeNull();
   });
