@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   addMemoryEntry,
   createConversation,
+  createMessage,
+  uid,
   deleteMemoryEntry,
   loadConversations,
   loadMemory,
@@ -85,4 +87,17 @@ it('handles unavailable account storage and quota failures without throwing', ()
   expect(() => saveMemory([], 'alice')).not.toThrow();
   expect(() => saveConversations([], 'alice')).not.toThrow();
   expect(log).toHaveBeenCalledTimes(2);
+});
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+it('generates cryptographic UUIDs for local record and message identifiers', () => {
+  const first = uid();
+  const second = uid();
+  const message = createMessage('user', 'Secure identifier test');
+
+  expect(first).toMatch(UUID_PATTERN);
+  expect(second).toMatch(UUID_PATTERN);
+  expect(second).not.toBe(first);
+  expect(message.id).toMatch(UUID_PATTERN);
 });

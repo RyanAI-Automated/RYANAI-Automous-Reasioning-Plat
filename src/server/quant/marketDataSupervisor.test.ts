@@ -77,6 +77,6 @@ describe('market-data stream supervisor', () => {
     expect(() => createMarketDataStreamSupervisor({
       createStream: () => ({ provider: 'alpaca', feed: 'iex', connect: async () => {}, close: () => {} }),
       onBar: vi.fn(), baseDelayMs: 0,
-    })).toThrow(/retry policy/);
+    })).toThrow(/reconnect policy/);
   });
 });

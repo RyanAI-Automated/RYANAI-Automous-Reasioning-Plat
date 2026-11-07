@@ -6,7 +6,6 @@ import type {
   ModelId,
   ToolStep,
   SystemStatus,
-  Message,
   MessageAttachment,
 } from '@/lib/types';
 import { DEFAULT_MODEL, modelMeta, MODELS } from '@/lib/models';
@@ -18,12 +17,11 @@ import {
   loadConversations as loadLocalConversations,
   saveConversations,
 } from '@/lib/storage';
-import { streamReasoning } from '@/lib/reasoning';
 import { useVoiceRecognition, VOICE_COMMANDS } from '@/lib/useVoiceRecognition';
 import { supabase } from '@/lib/supabase';
-import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_MESSAGE, MAX_MESSAGE_ATTACHMENT_BYTES, removeConversationAttachments, safeAttachmentName, signConversationAttachment, uploadConversationAttachments } from '@/lib/attachments';
+import { removeConversationAttachments, safeAttachmentName, signConversationAttachment } from '@/lib/attachments';
 import type { AttachmentUploadOptions } from '@/lib/attachments';
-import { createTarArchive, MAX_CONVERSATION_ARCHIVE_BYTES, readTarArchive } from '@/lib/conversationArchive';
+import { createTarArchive } from '@/lib/conversationArchive';
 import Sidebar from '@/components/Sidebar';
 import ChatPanel from '@/components/ChatPanel';
 import TelemetryPanel from '@/components/TelemetryPanel';
@@ -34,6 +32,14 @@ import CodeRain from '@/components/CodeRain';
 import ChatInterface from '@/components/ChatInterface';
 import Modal from '@/components/Modal';
 import { RyanVoiceStream } from '@/components/RyanVoiceStream';
+import {
+  persistOutgoingUserMessage,
+  streamAssistantResponse,
+  prepareConversationArchive,
+  persistImportedConversationMessages,
+  rollbackImportedConversation,
+} from './commandCenterOperations';
+
 
 interface CommandCenterProps {
   onSignOut: () => void;
@@ -404,225 +410,76 @@ export default function CommandCenter({
   );
 
   /**
-   * Append the user's message, creating a conversation if needed, and stream a reply.
-   * Update live text, tool steps, and latency; stream errors become assistant messages.
-   * Errors thrown by awaited persistence before streaming propagate.
+   * Persist the user's message and stream the assistant response for the active thread.
+   * Persistence and stream lifecycle details live in focused helpers above.
    */
   const sendMessage = useCallback(
     async (text: string, files: File[] = [], uploadOptions: AttachmentUploadOptions = {}) => {
       const prompt = text.trim();
       if (!prompt) throw new Error('Add a message before sending attachments.');
-      let convId = activeId;
-      if (!convId) {
-        convId = await newConversation();
-        if (!convId) return;
-      }
 
+      let conversationId = activeId;
+      if (!conversationId) {
+        conversationId = await newConversation();
+        if (!conversationId) return;
+      }
       if (!mountedRef.current) return;
-      const userMsg = createMessage('user', prompt);
-      // Cloud message IDs are also the third UUID segment in private Storage paths.
-      if (supabase) userMsg.id = crypto.randomUUID();
-      let attachments: MessageAttachment[] = [];
-      let persistedMessage = false;
-      try {
-        if (supabase) {
-          // Persist the exact client-generated UUID before uploading: Storage paths
-          // are guarded by a database trigger that requires this message to exist.
-          const { error } = await supabase.from('messages').insert({
-            id: userMsg.id,
-            conversation_id: convId,
-            role: 'user',
-            content: prompt,
-            metadata: null,
-          });
-          if (error) throw new Error(error.message || 'Unable to save your message.');
-          persistedMessage = true;
-        }
-        if (files.length) {
-          if (!supabase) throw new Error('Private cloud storage is not configured for this account.');
-          attachments = await uploadConversationAttachments(supabase, userId, convId, userMsg.id, files, uploadOptions);
-          const { error } = await supabase.from('messages')
-            .update({ metadata: { attachments } })
-            .eq('id', userMsg.id)
-            .eq('conversation_id', convId);
-          if (error) throw new Error(error.message || 'Unable to attach uploaded files to your message.');
-        }
-      } catch (error) {
-        if (supabase && attachments.length) {
-          try { await removeConversationAttachments(supabase, attachments); } catch { /* cleanup can be retried by storage retention tooling */ }
-        }
-        if (supabase && persistedMessage) {
-          const { error: rollbackError } = await supabase.from('messages')
-            .delete()
-            .eq('id', userMsg.id)
-            .eq('conversation_id', convId);
-          if (rollbackError) console.error('Unable to roll back failed attachment message:', rollbackError.message);
-        }
-        throw error;
-      }
 
-      const displayAttachments = await Promise.all(attachments.map(async (attachment) => {
-        if (!supabase) return attachment;
-        try {
-          return await signConversationAttachment(supabase, userId, convId, attachment);
-        } catch (error) {
-          console.warn('Attachment uploaded but preview URL could not be created:', error);
-          return attachment;
-        }
-      }));
-      const storedUserMessage = { ...userMsg, attachments: displayAttachments };
-      setConversations((prev) => {
-        const next = prev.map((c) =>
-          c.id === convId
+      const userMessage = createMessage('user', prompt);
+      const storedUserMessage = await persistOutgoingUserMessage({
+        userId,
+        conversationId,
+        message: userMessage,
+        prompt,
+        files,
+        uploadOptions,
+      });
+
+      setConversations((previous) => {
+        const next = previous.map((conversation) =>
+          conversation.id === conversationId
             ? {
-                ...c,
-                messages: [...c.messages, storedUserMessage],
+                ...conversation,
+                messages: [...conversation.messages, storedUserMessage],
                 updatedAt: Date.now(),
-                title: c.messages.length === 0 ? generateTitle(prompt) : c.title,
+                title:
+                  conversation.messages.length === 0
+                    ? generateTitle(prompt)
+                    : conversation.title,
               }
-            : c,
+            : conversation,
         );
         if (!supabase) saveConversations(next, userId);
         return next;
       });
 
       if (!mountedRef.current) return;
-      // Update conversation title if first message
-      const conv = conversations.find((c) => c.id === convId);
-      if (conv && conv.messages.length === 0) {
+      const conversation = conversations.find((item) => item.id === conversationId);
+      if (conversation && conversation.messages.length === 0) {
         const title = generateTitle(text);
         if (supabase) {
           await supabase
             .from('conversations')
             .update({ title, updated_at: new Date().toISOString() })
-            .eq('id', convId);
+            .eq('id', conversationId);
         }
       }
 
       if (!mountedRef.current) return;
-      setSending(true);
-      requestStartRef.current = performance.now();
-      setLiveText('');
-      setLiveSteps([]);
-      setLiveModel(model);
-
-      let accText = '';
-      const accSteps: ToolStep[] = [];
-
-      try {
-        await streamReasoning(text, model, {
-          onToken: (t) => {
-            if (!mountedRef.current) return;
-            accText += t;
-            setLiveText(accText);
-          },
-          onStep: (step) => {
-            if (!mountedRef.current) return;
-            accSteps.push(step);
-            setLiveSteps([...accSteps]);
-          },
-          onTitle: (title) => {
-            if (!mountedRef.current) return;
-            setConversations((prev) => {
-              const next = prev.map((c) =>
-                c.id === convId ? { ...c, title } : c,
-              );
-              if (!supabase) saveConversations(next, userId);
-              return next;
-            });
-            if (supabase) {
-              supabase
-                .from('conversations')
-                .update({ title, updated_at: new Date().toISOString() })
-                .eq('id', convId);
-            }
-          },
-          onDone: () => {
-            if (!mountedRef.current) return;
-            const assistantMsg = createMessage(
-              'assistant',
-              accText,
-              model,
-              accSteps,
-            );
-            setConversations((prev) => {
-              const next = prev.map((c) =>
-                c.id === convId
-                  ? {
-                      ...c,
-                      messages: [...c.messages, assistantMsg],
-                      updatedAt: Date.now(),
-                    }
-                  : c,
-              );
-              if (!supabase) saveConversations(next, userId);
-              return next;
-            });
-            setLiveText('');
-            setLiveSteps([]);
-
-            if (supabase) {
-              supabase.from('messages').insert({
-                conversation_id: convId,
-                role: 'assistant',
-                content: accText,
-                model,
-                steps: accSteps.length > 0 ? accSteps : null,
-              });
-            }
-
-            setStatus((prev) => ({
-              ...prev,
-              latency:
-                requestStartRef.current === null
-                  ? prev.latency
-                  : Math.round(performance.now() - requestStartRef.current),
-              tokensIn: prev.tokensIn + Math.floor(text.length / 4),
-              tokensOut: prev.tokensOut + Math.floor(accText.length / 4),
-              state: 'idle',
-            }));
-            requestStartRef.current = null;
-          },
-          onError: (msg) => {
-            if (!mountedRef.current) return;
-            console.error('Reasoning error:', msg);
-            const errorMessage = createMessage(
-              'assistant',
-              `Reasoning request failed: ${msg}`,
-              model,
-              accSteps,
-            );
-            setConversations((prev) => {
-              const next = prev.map((c) =>
-                c.id === convId
-                  ? {
-                      ...c,
-                      messages: [...c.messages, errorMessage],
-                      updatedAt: Date.now(),
-                    }
-                  : c,
-              );
-              if (!supabase) saveConversations(next, userId);
-              return next;
-            });
-            setLiveText('');
-            setLiveSteps([]);
-            setStatus((prev) => ({
-              ...prev,
-              latency:
-                requestStartRef.current === null
-                  ? prev.latency
-                  : Math.round(performance.now() - requestStartRef.current),
-              state: 'error',
-            }));
-            requestStartRef.current = null;
-          },
-        });
-      } catch {
-        console.error('Stream failed');
-      } finally {
-        setSending(false);
-      }
+      await streamAssistantResponse({
+        text,
+        model,
+        conversationId,
+        userId,
+        mountedRef,
+        requestStartRef,
+        setSending,
+        setLiveModel,
+        setConversations,
+        setLiveText,
+        setLiveSteps,
+        setStatus,
+      });
     },
     [activeId, model, newConversation, conversations, userId],
   );
@@ -732,195 +589,58 @@ export default function CommandCenter({
   /** Validate and import a RyanAI TAR bundle into a new, account-owned conversation. */
   const importThread = useCallback(async (file: File) => {
     const client = supabase;
-    if (!client) throw new Error('Private cloud storage must be configured before importing conversations.');
-    if (file.size <= 0 || file.size > MAX_CONVERSATION_ARCHIVE_BYTES) {
-      throw new Error('Choose a non-empty TAR archive no larger than 250 MB.');
-    }
-    if (!file.name.toLowerCase().endsWith('.tar')) throw new Error('Choose a RyanAI .tar conversation archive.');
-
-    const archiveEntries = await readTarArchive(file);
-    const entriesByPath = new Map(archiveEntries.map((entry) => [entry.path, entry]));
-    const manifestEntry = entriesByPath.get('manifest.json');
-    if (!manifestEntry) throw new Error('This archive is missing manifest.json.');
-    let manifest: unknown;
-    try {
-      manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestEntry.data));
-    } catch {
-      throw new Error('The conversation manifest is not valid UTF-8 JSON.');
-    }
-    if (!manifest || typeof manifest !== 'object') throw new Error('The conversation manifest is invalid.');
-    const data = manifest as Record<string, unknown>;
-    if (data.format !== 'ryanai-conversation-archive' || data.version !== 1) {
-      throw new Error('This RyanAI archive format or version is not supported.');
-    }
-    const conversationData = data.conversation;
-    if (!conversationData || typeof conversationData !== 'object') throw new Error('The archive has no conversation metadata.');
-    const rawConversation = conversationData as Record<string, unknown>;
-    const title = typeof rawConversation.title === 'string' && rawConversation.title.trim()
-      ? rawConversation.title.trim().slice(0, 80)
-      : 'Imported RyanAI conversation';
-    const requestedModel = typeof rawConversation.model === 'string' ? rawConversation.model as ModelId : DEFAULT_MODEL;
-    const importedModel = Object.prototype.hasOwnProperty.call(MODELS, requestedModel) ? requestedModel : DEFAULT_MODEL;
-    if (!Array.isArray(data.messages) || data.messages.length === 0 || data.messages.length > 5000) {
-      throw new Error('The archive must contain between 1 and 5,000 messages.');
+    if (!client) {
+      throw new Error('Private cloud storage must be configured before importing conversations.');
     }
 
-    const referencedPaths = new Set<string>();
-    const preparedMessages = data.messages.map((rawMessage, index) => {
-      if (!rawMessage || typeof rawMessage !== 'object') throw new Error('Message ' + (index + 1) + ' is invalid.');
-      const message = rawMessage as Record<string, unknown>;
-      if (message.role !== 'user' && message.role !== 'assistant') throw new Error('Message ' + (index + 1) + ' has an unsupported role.');
-      if (typeof message.content !== 'string' || message.content.length > 2_000_000) {
-        throw new Error('Message ' + (index + 1) + ' has invalid or oversized content.');
-      }
-      const attachments = message.attachments === undefined ? [] : message.attachments;
-      if (!Array.isArray(attachments) || attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-        throw new Error('Message ' + (index + 1) + ' exceeds the attachment count limit.');
-      }
-      let totalBytes = 0;
-      const files = attachments.map((rawAttachment) => {
-        if (!rawAttachment || typeof rawAttachment !== 'object') throw new Error('An attachment manifest entry is invalid.');
-        const attachment = rawAttachment as Record<string, unknown>;
-        if (
-          typeof attachment.archivePath !== 'string' ||
-          !attachment.archivePath.startsWith('attachments/') ||
-          typeof attachment.name !== 'string' ||
-          typeof attachment.mimeType !== 'string' ||
-          !Number.isSafeInteger(attachment.size) ||
-          (attachment.size as number) <= 0 ||
-          (attachment.size as number) > MAX_ATTACHMENT_BYTES
-        ) {
-          throw new Error('An attachment has invalid metadata or an unsupported size.');
-        }
-        if (referencedPaths.has(attachment.archivePath)) throw new Error('An archive attachment is referenced more than once.');
-        referencedPaths.add(attachment.archivePath);
-        const entry = entriesByPath.get(attachment.archivePath);
-        if (!entry || entry.data.byteLength !== attachment.size) {
-          throw new Error('An attachment is missing or its byte count does not match the manifest.');
-        }
-        totalBytes += entry.data.byteLength;
-        return new File([entry.data.slice().buffer as ArrayBuffer], safeAttachmentName(attachment.name), { type: attachment.mimeType });
-      });
-      if (totalBytes > MAX_MESSAGE_ATTACHMENT_BYTES) {
-        throw new Error('A message exceeds the combined 40 MB attachment limit.');
-      }
-      const timestamp = typeof message.timestamp === 'number' &&
-        Number.isFinite(message.timestamp) &&
-        Math.abs(message.timestamp) <= 8.64e15
-        ? message.timestamp
-        : Date.now();
-      const messageModel = typeof message.model === 'string' && Object.prototype.hasOwnProperty.call(MODELS, message.model)
-        ? message.model as ModelId
-        : undefined;
-      const steps = Array.isArray(message.steps)
-        ? message.steps.slice(0, 500).flatMap((rawStep): ToolStep[] => {
-            if (!rawStep || typeof rawStep !== 'object') return [];
-            const step = rawStep as Record<string, unknown>;
-            if (typeof step.type !== 'string' || typeof step.name !== 'string') return [];
-            return [{
-              type: step.type.slice(0, 100),
-              name: step.name.slice(0, 200),
-              result: typeof step.result === 'string' ? step.result.slice(0, 20_000) : undefined,
-              args: step.args && typeof step.args === 'object' && !Array.isArray(step.args)
-                ? step.args as Record<string, unknown>
-                : undefined,
-            }];
-          })
-        : [];
-      return {
-        role: message.role as 'user' | 'assistant',
-        content: message.content,
-        timestamp,
-        model: messageModel,
-        steps,
-        files,
-      };
-    });
-    const allowedArchivePaths = new Set(['manifest.json', 'conversation.md']);
-    archiveEntries.forEach((entry) => {
-      if (!allowedArchivePaths.has(entry.path) && !entry.path.startsWith('attachments/')) {
-        throw new Error('The archive contains an unsupported extra file: ' + entry.path);
-      }
-    });
-    const archiveAttachmentPaths = archiveEntries.filter((entry) => entry.path.startsWith('attachments/'));
-    if (archiveAttachmentPaths.some((entry) => !referencedPaths.has(entry.path))) {
-      throw new Error('The archive contains unreferenced attachment files.');
-    }
-
+    const archive = await prepareConversationArchive(file);
     const { data: created, error: createError } = await client
       .from('conversations')
-      .insert({ title, model: importedModel, user_id: userId })
+      .insert({ title: archive.title, model: archive.model, user_id: userId })
       .select()
       .single();
-    if (createError || !created) throw new Error(createError?.message || 'Unable to create the imported conversation.');
+    if (createError || !created) {
+      throw new Error(createError?.message || 'Unable to create the imported conversation.');
+    }
 
     const uploaded: MessageAttachment[] = [];
-    const importedMessages: Message[] = [];
     try {
-      for (const item of preparedMessages) {
-        const messageId = crypto.randomUUID();
-        const attachments = item.files.length
-          ? await uploadConversationAttachments(client, userId, created.id, messageId, item.files)
-          : [];
-        uploaded.push(...attachments);
-        const { error: messageError } = await client.from('messages').insert({
-          id: messageId,
-          conversation_id: created.id,
-          role: item.role,
-          content: item.content,
-          model: item.model ?? null,
-          steps: item.steps.length ? item.steps : null,
-          metadata: attachments.length ? { attachments } : null,
-          created_at: new Date(item.timestamp).toISOString(),
-        });
-        if (messageError) throw new Error(messageError.message || 'Unable to save an imported message.');
-        const displayAttachments = await Promise.all(attachments.map((attachment) =>
-          signConversationAttachment(client, userId, created.id, attachment),
-        ));
-        importedMessages.push({
-          id: messageId,
-          role: item.role,
-          content: item.content,
-          model: item.model,
-          steps: item.steps,
-          attachments: displayAttachments,
-          timestamp: item.timestamp,
-        });
-      }
-
-      const updatedAt = Math.max(Date.now(), ...importedMessages.map((message) => message.timestamp));
+      const importedMessages = await persistImportedConversationMessages(
+        client,
+        userId,
+        created.id,
+        archive.messages,
+        uploaded,
+      );
+      const updatedAt = Math.max(
+        Date.now(),
+        ...importedMessages.map((message) => message.timestamp),
+      );
       const { error: updateError } = await client
         .from('conversations')
         .update({ updated_at: new Date(updatedAt).toISOString() })
         .eq('id', created.id)
         .eq('user_id', userId);
-      if (updateError) throw new Error(updateError.message || 'Unable to finalize the imported conversation.');
+      if (updateError) {
+        throw new Error(updateError.message || 'Unable to finalize the imported conversation.');
+      }
 
       const importedConversation: Conversation = {
         id: created.id,
-        title,
-        model: importedModel,
+        title: archive.title,
+        model: archive.model,
         messages: importedMessages,
         createdAt: new Date(created.created_at).getTime(),
         updatedAt,
       };
       setConversations((previous) => [importedConversation, ...previous]);
       setActiveId(created.id);
-      setModel(importedModel);
+      setModel(archive.model);
       setLiveText('');
       setLiveSteps([]);
       setLeftOpen(false);
     } catch (error) {
-      if (uploaded.length) {
-        try { await removeConversationAttachments(client, uploaded); } catch (cleanupError) {
-          console.error('Imported attachment cleanup needs retry:', cleanupError);
-        }
-      }
-      try {
-        await client.from('conversations').delete().eq('id', created.id).eq('user_id', userId);
-      } catch (cleanupError) {
-        console.error('Failed to roll back the incomplete imported conversation:', cleanupError);
-      }
+      await rollbackImportedConversation(client, userId, created.id, uploaded);
       throw error;
     }
   }, [userId]);

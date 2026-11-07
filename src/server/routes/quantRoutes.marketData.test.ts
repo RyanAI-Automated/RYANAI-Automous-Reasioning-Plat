@@ -26,6 +26,7 @@ vi.mock('../quant/alpacaMarketData.js', () => ({
 }));
 
 import { quantRoutes } from './quantRoutes.js';
+import { prisma } from '../../lib/prisma.js';
 import { MarketDataError } from '../quant/alpacaMarketData.js';
 import type { QuantBar } from '../quant/alpacaMarketData.js';
 
@@ -64,6 +65,7 @@ function importRow(overrides: Record<string, unknown> = {}) {
 
 async function appForUser() {
   const app = Fastify();
+  app.decorate('prisma', prisma as never);
   app.decorateRequest('authUser', null);
   app.addHook('preHandler', async (request) => {
     request.authUser = { id: userId, role: 'user', isOwner: false };

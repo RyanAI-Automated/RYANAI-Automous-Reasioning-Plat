@@ -25,10 +25,12 @@ describe('communications history API', () => {
   const apps: ReturnType<typeof Fastify>[] = [];
   afterEach(async () => {
     await Promise.all(apps.splice(0).map((app) => app.close()));
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
   async function createApp(isOwner: boolean) {
+    vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
     const app = Fastify();
     apps.push(app);
     app.decorateRequest('authUser', null);

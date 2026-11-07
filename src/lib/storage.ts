@@ -13,7 +13,7 @@ const STORAGE_KEY = 'ryanai_conversations';
 const MEMORY_KEY = 'ryanai_memory';
 
 export function uid(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return crypto.randomUUID();
 }
 
 /** Create an unsaved message with a generated ID and a timestamp in epoch milliseconds. */

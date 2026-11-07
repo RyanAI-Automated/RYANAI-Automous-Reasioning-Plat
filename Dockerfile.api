@@ -30,6 +30,7 @@ RUN npm run db:generate \
 # Minimal runtime; npm is deliberately removed after production dependencies
 # are copied. pg_dump supports the optional, non-blocking startup backup.
 FROM node:24-alpine AS api
+LABEL org.opencontainers.image.description="RyanAI API runtime image"
 WORKDIR /app
 
 ENV NODE_ENV=production \

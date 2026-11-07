@@ -112,7 +112,11 @@ export async function requireAdmin(
  * Install authentication before routes, including WebSocket upgrades.
  */
 export function installAuthentication(fastify: FastifyInstance) {
-  fastify.decorateRequest('authUser', null);
+  // Test harnesses and composed Fastify applications may predeclare this request
+  // decorator. Preserve the existing decorator rather than throwing during boot.
+  if (!fastify.hasRequestDecorator('authUser')) {
+    fastify.decorateRequest('authUser', null);
+  }
 
   fastify.addHook('preValidation', async (request, reply) => {
     const path = request.url.split('?')[0];
