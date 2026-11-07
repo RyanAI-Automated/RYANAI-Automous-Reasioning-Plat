@@ -92,5 +92,3 @@ export default function PluginIntegrationsSettings({ userId, initialPreferences,
     {error && <p role="alert" className="mt-3 text-sm text-rose-200">{error}</p>}{notice && <p role="status" className="mt-3 text-sm text-emerald-200">{notice}</p>}
   </section>;
 }
-
-export { CATALOG as RYANAI_PLUGIN_CATALOG, normalizePreferences as normalizePluginPreferences };
