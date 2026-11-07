@@ -6,6 +6,10 @@ import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import MemoryVault from './MemoryVault';
 
 vi.mock('@/lib/authenticatedFetch', () => ({ authenticatedFetch: vi.fn() }));
+// Memory Vault behavior is under test here; modal transition animation is covered separately.
+vi.mock('./Modal', () => ({
+  default: ({ open, children }: { open: boolean; children: any }) => open ? <div role="dialog">{children}</div> : null,
+}));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const api = vi.mocked(authenticatedFetch);
