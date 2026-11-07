@@ -76,10 +76,10 @@ describe('server plugin registry', () => {
   it('does not expose executable adapter instances through catalogue APIs', () => {
     const registry = createPluginRegistry([manifest]);
     registry.registerAdapter(adapter());
-    const listed = registry.get('github') as Record<string, unknown>;
-    expect(listed).not.toHaveProperty('execute');
-    expect(listed).not.toHaveProperty('credentials');
-    expect(listed).not.toHaveProperty('accessToken');
+    const listed = registry.get('github')!;
+    expect('execute' in listed).toBe(false);
+    expect('credentials' in listed).toBe(false);
+    expect('accessToken' in listed).toBe(false);
   });
 
   it('rejects malformed manifests and invalid identifiers', () => {
