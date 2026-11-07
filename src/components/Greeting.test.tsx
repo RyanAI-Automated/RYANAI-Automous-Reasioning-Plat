@@ -57,7 +57,7 @@ describe('RyanAI multilingual welcome settings', () => {
     });
 
     await act(async () => root.render(
-      <Greeting userId="owner-legacy" displayName="Ntsiyeni Ganyane" isOwner />,
+      <Greeting userId="owner-legacy" displayName="Ntsiyeni Ganyane" isOwner preferredLanguage="en-ZA" />,
     ));
 
     expect((container.querySelector('#ryanai-title') as HTMLSelectElement).value).toBe('Sir');
