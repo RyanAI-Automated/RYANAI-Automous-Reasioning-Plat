@@ -287,9 +287,9 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
     const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [], approvalId } = request.body ?? {};
-    if (attachmentIds.length && !areCommunicationAttachmentsEnabled()) return reply.code(503).send({ success: false, error: 'Communication attachments are disabled.' });
     if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
     if (!Array.isArray(attachmentIds) || attachmentIds.length > 8 || new Set(attachmentIds).size !== attachmentIds.length) return reply.code(400).send({ success: false, error: 'At most 8 unique attachment IDs are supported.' });
+    if (attachmentIds.length && !areCommunicationAttachmentsEnabled()) return reply.code(503).send({ success: false, error: 'Communication attachments are disabled.' });
     if (attachmentIds.length && (channel === 'voice' || (channel === 'whatsapp' && Boolean(contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim())))) return reply.code(400).send({ success: false, error: 'Voice and approved WhatsApp template sends cannot include attachments.' });
     const targetValue = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
     const target = typeof targetValue === 'string' ? targetValue.trim() : '';
@@ -310,15 +310,6 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     } else if (!E164.test(target)) {
       return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
     }
-    const smtp = channel === 'email' ? smtpTransport() : null;
-    if (channel === 'email' && !smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
-    const client = channel !== 'email' ? twilioClient() : null;
-    if (channel !== 'email' && !client) return reply.code(503).send({ success: false, error: 'Twilio is not configured.' });
-    let from = '';
-    if (channel === 'whatsapp') from = process.env.TWILIO_WHATSAPP_NUMBER?.trim() || '';
-    else if (channel === 'sms' || channel === 'voice') from = process.env.TWILIO_PHONE_NUMBER?.trim() || '';
-    if (channel !== 'email' && !from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
-    if (channel === 'voice' && !process.env.TWILIO_VOICE_ACTION_URL?.trim()) return reply.code(503).send({ success: false, error: 'Twilio voice action URL is not configured.' });
     if (typeof approvalId !== 'string' || !approvalId.trim()) return reply.code(403).send({ success: false, error: 'A current owner approval is required before outbound dispatch.' });
     const requestHash = createCommsDispatchApprovalDigest({
       ownerUserId: request.authUser.id,
@@ -331,6 +322,15 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
       idempotencyKey: key,
       attachmentIds,
     });
+    const smtp = channel === 'email' ? smtpTransport() : null;
+    if (channel === 'email' && !smtp) return reply.code(503).send({ success: false, error: 'SMTP is not configured.' });
+    const client = channel !== 'email' ? twilioClient() : null;
+    if (channel !== 'email' && !client) return reply.code(503).send({ success: false, error: 'Twilio is not configured.' });
+    let from = '';
+    if (channel === 'whatsapp') from = process.env.TWILIO_WHATSAPP_NUMBER?.trim() || '';
+    else if (channel === 'sms' || channel === 'voice') from = process.env.TWILIO_PHONE_NUMBER?.trim() || '';
+    if (channel !== 'email' && !from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
+    if (channel === 'voice' && !process.env.TWILIO_VOICE_ACTION_URL?.trim()) return reply.code(503).send({ success: false, error: 'Twilio voice action URL is not configured.' });
     const outboundBody = deliveryBody || '[WhatsApp approved template]';
     let attachmentUrls: string[] = [];
     let emailAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
