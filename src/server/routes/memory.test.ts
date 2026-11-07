@@ -143,6 +143,21 @@ describe('account-scoped Postgres Memory Vault API', () => {
     });
   });
 
+
+  it('accepts uppercase hexadecimal UUIDs on the delete route', async () => {
+    const app = await createApp();
+    const uppercaseId = memoryId.toUpperCase();
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/user/memory/' + uppercaseId,
+      headers: { 'x-test-user': 'user-a' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(store.deleteMany).toHaveBeenCalledWith({
+      where: { id: uppercaseId, userId: 'user-a' },
+    });
+  });
+
   it('rejects malformed IDs and empty memory content', async () => {
     const app = await createApp();
     const invalidId = await app.inject({
