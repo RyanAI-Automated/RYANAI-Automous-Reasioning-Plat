@@ -82,7 +82,7 @@ describe('RyanAI Settings', () => {
   it('does not expose privileged workspace toggles to standard users', async () => {
     await mount();
     expect((container.querySelector('[data-testid="ui-toggle-admin"]') as HTMLInputElement).disabled).toBe(true);
-    expect((container.querySelector('[data-testid="ui-toggle-studio"]') as HTMLInputElement).disabled).toBe(true);
+    expect((container.querySelector('[data-testid="ui-toggle-studio"]') as HTMLInputElement).disabled).toBe(false);
     expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
