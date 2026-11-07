@@ -27,7 +27,7 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
     'approved_commit_sha', 'approved_diff_hash', 'approved_by',
     'approved_at', 'steering_notes', 'cancel_requested_at',
   ];
-  const requiredTables = ['agent_run_evidence', 'jarvis_audit_events'];
+  const requiredTables = ['agent_run_evidence', 'jarvis_audit_events', 'comms_dispatch_approvals'];
   const requiredVector = ['reasoning_cache', 'agent_memory'];
   const missingColumns = requiredColumns.filter((name) => !columns.has(name));
   const missingTables = requiredTables.filter((name) => !tables.has(name));
@@ -36,7 +36,7 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
   const requiredCacheColumns = ['id', 'prompt', 'response', 'embedding', 'created_at'];
   const missingMemoryColumns = requiredMemoryColumns.filter((name) => !memoryColumns.has(name));
   const missingCacheColumns = requiredCacheColumns.filter((name) => !cacheColumns.has(name));
-  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session'];
+  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session', 'comms_dispatch_approvals_owner_status_expiry_idx'];
   const missingIndexes = requiredIndexes.filter((name) => !indexes.has(name));
   return {
     missingColumns,
