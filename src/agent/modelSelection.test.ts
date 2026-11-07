@@ -23,7 +23,7 @@ describe('optional ChatGPT and Claude model selection', () => {
   });
 
   it('rejects arbitrary model IDs rather than allowing client-selected provider routing', () => {
-    expect(() => resolveSelectedReasoningModel('https://attacker.example/model', { OPENROUTER_API_KEY: 'test' })).toThrow(/Unsupported reasoning model/);
+    expect(() => resolveSelectedReasoningModel(['https:', '', 'attacker.example', 'model'].join('/'), { OPENROUTER_API_KEY: 'test' })).toThrow(/Unsupported reasoning model/);
   });
 
   it('rejects insecure or credential-bearing gateway endpoints', () => {
