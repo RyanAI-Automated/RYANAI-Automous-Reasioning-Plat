@@ -26,6 +26,7 @@ import appManifest from '../app/routes.json';
 import { UI_CONFIG } from '@/config/core';
 const RyanAICockpit = lazy(() => import('@/components/dashboard/RyanAICockpit'));
 const AgentControlPanel = lazy(() => import('@/components/AgentControlPanel').then((module) => ({ default: module.AgentControlPanel })));
+const RyanVoiceStream = lazy(() => import('@/components/RyanVoiceStream').then((module) => ({ default: module.RyanVoiceStream })));
 const BrainKnowledgePanel = lazy(() => import('@/components/BrainKnowledgePanel'));
 const SelfPatchPanel = lazy(() => import('@/components/SelfPatchPanel'));
 const CommandCenter = lazy(() => import('@/pages/CommandCenter.tsx'));
@@ -259,6 +260,11 @@ export default function App() {
           </main>
         </Suspense>
       </div>
+      {user && verifiedIdentity?.userId === user.id && !isOAuthConsentRoute && user.user_metadata?.ryanai_voice_enabled !== false && (
+        <Suspense fallback={null}>
+          <RyanVoiceStream language={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : DEFAULT_LANGUAGE} />
+        </Suspense>
+      )}
     </div>
   );
 }
