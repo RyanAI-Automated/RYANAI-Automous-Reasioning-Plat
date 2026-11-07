@@ -556,7 +556,7 @@ async function registerPlugins() {
   await fastify.register(pendingActionsRoutes);
   await fastify.register(jarvisRoutes);
   await fastify.register(internalJarvisRoutes);
-  await fastify.register(internalOpenAiGatewayRoutes);
+  await fastify.register(mcpDelegationRoutes);
   await fastify.register(registerPatchRoutes);
 }
 
