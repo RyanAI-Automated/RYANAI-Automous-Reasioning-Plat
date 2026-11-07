@@ -138,7 +138,7 @@ const dashboardRoute = dashboardRouteEnd > dashboardRouteStart
 if (
   !dashboardRoute.includes('isOwner={isOwner}')
   || !dashboardRoute.includes('isAdmin={isAdmin}')
-  || !dashboardRoute.includes('enabledUiIds={enabledUiIds}')
+  || !dashboardRoute.includes('enabledModules={dashboardUiPreferences}')
 ) {
   fail('Dashboard route must render the focused DashboardPage with verified role context and saved UI preferences');
 }

@@ -199,7 +199,7 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
   ];
   const visibleWorkspaces = workspaces.filter((workspace) => {
     const routeId = workspace.href.replace(/^#\//, '') as DashboardUiId;
-    return routeId === 'settings' || enabledModules?.[routeId] !== false;
+    return enabledModules?.[routeId] !== false;
   });
 
   return (
