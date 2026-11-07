@@ -88,8 +88,8 @@ describe('RyanAI Settings', () => {
 
   it('exposes only the privileged workspaces allowed by the trusted role', async () => {
     await mount({ isAdmin: true });
-    expect(container.querySelector('[data-ui-id="admin"]')).not.toBeNull();
-    expect(container.querySelector('[data-ui-id="studio"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="ui-toggle-admin"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="ui-toggle-studio"]')).not.toBeNull();
     expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
