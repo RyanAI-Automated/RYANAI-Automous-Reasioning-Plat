@@ -15,12 +15,28 @@ type ProviderEnvironment = Record<string, string | undefined>;
 
 const OLLAMA_DEFAULT_ENDPOINT = 'http://127.0.0.1:11434/v1';
 
-function useOllama(brain: BrainId, env: ProviderEnvironment): boolean {
-  const selector = brain === 'primary' ? env.PRIMARY_REASONING_PROVIDER || env.NVIDIA_PROVIDER
+function selectedAdapter(brain: BrainId, env: ProviderEnvironment): InferenceAdapter {
+  const selector = (brain === 'primary' ? env.PRIMARY_REASONING_PROVIDER || env.NVIDIA_PROVIDER
     : brain === 'secondary' ? env.SECONDARY_REASONING_PROVIDER || env.QWEN_PROVIDER
-      : env.LOGIC_REASONING_PROVIDER || env.LOGIC_PROVIDER;
-  return selector?.trim().toLowerCase() === 'ollama' ||
-    (brain === 'primary' && env.OLLAMA_PRIMARY_ENABLED === 'true');
+      : env.LOGIC_REASONING_PROVIDER || env.LOGIC_PROVIDER)?.trim().toLowerCase();
+  const accepted = brain === 'primary' ? ['nvidia', 'ollama']
+    : brain === 'secondary' ? ['qwen', 'ollama']
+      : ['logic', 'openai', 'openai-compatible', 'ollama'];
+  if (selector && !accepted.includes(selector)) {
+    throw new Error('Unsupported provider selection for the ' + brain + ' brain.');
+  }
+  if (selector === 'ollama' || (!selector && brain === 'primary' && env.OLLAMA_PRIMARY_ENABLED === 'true')) return 'ollama';
+  return 'openai-compatible';
+}
+
+function validateEndpoint(endpoint: string, role: CanonicalBrainRole): string {
+  let parsed: URL;
+  try { parsed = new URL(endpoint); } catch { throw new Error('Invalid endpoint for the ' + role + ' brain.'); }
+  const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(parsed.hostname.toLowerCase());
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.protocol !== 'https:' && !loopback)) {
+    throw new Error('The ' + role + ' brain endpoint must use HTTPS unless it is loopback, without embedded credentials or query strings.');
+  }
+  return endpoint;
 }
 
 /**
@@ -33,14 +49,14 @@ export function resolveBrainProviderConfig(
   env: ProviderEnvironment = process.env,
 ): BrainProviderConfig {
   const role: CanonicalBrainRole = brain === 'primary' ? 'nvidia' : brain === 'secondary' ? 'qwen' : 'logic';
-  if (useOllama(brain, env)) {
+  if (selectedAdapter(brain, env) === 'ollama') {
     const roleModel = brain === 'primary' ? env.PRIMARY_REASONING_MODEL
       : brain === 'secondary' ? env.SECONDARY_REASONING_MODEL : env.LOGIC_REASONING_MODEL;
     return {
       role,
       adapter: 'ollama',
       model: env.OLLAMA_MODEL || roleModel || '',
-      endpoint: env.OLLAMA_BASE_URL || env.OLLAMA_URL || OLLAMA_DEFAULT_ENDPOINT,
+      endpoint: validateEndpoint(env.OLLAMA_BASE_URL || env.OLLAMA_URL || OLLAMA_DEFAULT_ENDPOINT, role),
       credential: false,
     };
   }
@@ -51,7 +67,7 @@ export function resolveBrainProviderConfig(
       role,
       adapter: 'openai-compatible',
       model: env.PRIMARY_REASONING_MODEL || env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b',
-      endpoint,
+      endpoint: validateEndpoint(endpoint, role),
       credential: Boolean(env.NVIDIA_API_KEY),
     };
   }
@@ -62,7 +78,7 @@ export function resolveBrainProviderConfig(
       role,
       adapter: 'openai-compatible',
       model: env.SECONDARY_REASONING_MODEL || env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
-      endpoint,
+      endpoint: validateEndpoint(endpoint, role),
       credential: Boolean(env.QWEN_API_KEY),
     };
   }
@@ -72,7 +88,7 @@ export function resolveBrainProviderConfig(
     role,
     adapter: 'openai-compatible',
     model: env.LOGIC_REASONING_MODEL || env.LM_STUDIO_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini',
-    endpoint,
+    endpoint: validateEndpoint(endpoint, role),
     credential: Boolean(env.LOGIC_API_KEY || env.OPENAI_API_KEY),
   };
 }
