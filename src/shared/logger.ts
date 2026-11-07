@@ -3,10 +3,12 @@ import pino from 'pino';
 import { getConfig } from './config.js';
 
 const config = getConfig();
+const isDevelopment = config.nodeEnv === 'development';
 
-const transport = config.nodeEnv === 'production' 
-  ? undefined
-  : {
+// Pretty transport is intentionally limited to local development. Staging and
+// production images omit devDependencies, and should emit structured JSON logs.
+const transport = isDevelopment
+  ? {
       target: 'pino-pretty',
       options: {
         colorize: true,
@@ -14,14 +16,13 @@ const transport = config.nodeEnv === 'production'
         translateTime: 'SYS:standard',
         ignore: 'pid,hostname',
       },
-    };
+    }
+  : undefined;
 
-export const logger = pino(
-  {
-    level: process.env.LOG_LEVEL || (config.nodeEnv === 'production' ? 'info' : 'debug'),
-    ...(transport && { transport }),
-  }
-);
+export const logger = pino({
+  level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+  ...(transport && { transport }),
+});
 
 export const createLogger = (module: string) => {
   return logger.child({ module });
