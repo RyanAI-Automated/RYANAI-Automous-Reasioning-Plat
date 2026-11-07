@@ -10,7 +10,7 @@ import PluginIntegrationsSettings from '@/components/PluginIntegrationsSettings'
 interface Props {
   userId: string; email: string; initialDisplayName: string; initialLanguage: string;
   initialVoiceEnabled?: boolean; initialDashboardUiIds?: string[]; initialDashboardUiPreferences?: unknown; initialAudiobookSettings?: unknown;
-  initialInferenceSettings?: unknown; isAdmin?: boolean; isOwner?: boolean; onSignOut?: () => void; signingOut?: boolean;
+  initialInferenceSettings?: unknown; initialPluginPreferences?: unknown; isAdmin?: boolean; isOwner?: boolean; onSignOut?: () => void; signingOut?: boolean;
 }
 export default function ProfileSettings({
   userId,
@@ -22,6 +22,7 @@ export default function ProfileSettings({
   initialDashboardUiPreferences,
   initialAudiobookSettings,
   initialInferenceSettings,
+  initialPluginPreferences,
   isOwner = false,
   isAdmin = false,
   onSignOut,
@@ -198,7 +199,7 @@ export default function ProfileSettings({
     <header><p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">RyanAI / Account</p><h1 id="profile-settings-title" className="mt-2 text-3xl font-bold text-white">Settings</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Manage dashboard visibility, your RyanAI profile, module preferences, GitHub authorization and inference defaults. Privileged access remains server-enforced.</p></header>
     {error && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/5 p-3 text-sm text-rose-200">{error}</p>}
     {notice && <p role="status" className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm text-emerald-200"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{notice}</p>}
-    <PluginIntegrationsSettings userId={userId} initialPreferences={undefined} isAdmin={isAdmin} isOwner={isOwner} />
+    <PluginIntegrationsSettings userId={userId} initialPreferences={initialPluginPreferences} isAdmin={isAdmin} isOwner={isOwner} />
     <form onSubmit={saveSettings} className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="dashboard-ui-title">
         <div className="mb-5 flex items-center gap-3"><LayoutDashboard className="h-5 w-5 text-cyan-300" /><div><h2 id="dashboard-ui-title" className="font-semibold text-white">Dashboard UI options</h2><p className="mt-1 text-xs text-slate-400">Choose which workspaces appear in navigation and dashboard shortcuts. Settings always stays available.</p></div></div>
