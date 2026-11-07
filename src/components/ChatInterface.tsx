@@ -5,8 +5,11 @@ import type { ModelId } from '@/lib/types';
 import { streamReasoning } from '@/lib/reasoning';
 
 /** Authenticated interactive console backed by the same reasoning API as chat. */
-export default function ChatInterface() {
-  const [model, setModel] = useState<ModelId>(DEFAULT_MODEL);
+interface ChatInterfaceProps { initialModel?: ModelId; }
+export default function ChatInterface({ initialModel = DEFAULT_MODEL }: ChatInterfaceProps) {
+  const [model, setModel] = useState<ModelId>(() => (
+    getAvailableModels().some((item) => item.id === initialModel) ? initialModel : DEFAULT_MODEL
+  ));
   const [prompt, setPrompt] = useState('');
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');

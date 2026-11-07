@@ -49,6 +49,8 @@ import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { DEFAULT_LANGUAGE, OWNER_DEFAULT_LANGUAGE } from '@/shared/languages';
 import { getEnabledDashboardUiIds } from '@/shared/dashboardUis';
+import { DEFAULT_MODEL, MODEL_LIST, type ModelId } from '@/lib/models';
+import { normalizeAudiobookSettings, normalizeDashboardUiPreferences, normalizeInferenceSettings, type DashboardUiId } from '@/lib/settingsPreferences';
 
 type Route = (typeof appManifest.routes)[number]['id'];
 
@@ -94,6 +96,11 @@ const destinations = appManifest.routes.map((route) => ({
   ...route,
   icon: routeIcons[route.id],
 }));
+const routeUiOptions: Partial<Record<Route, DashboardUiId>> = {
+  dashboard: 'dashboard', pa: 'pa', calculator: 'calculator', operator: 'operator',
+  operations: 'operations', admin: 'admin', quant: 'quant', trading: 'trading',
+  cockpit: 'cockpit', studio: 'studio', comms: 'comms', audiobook: 'audiobook', workspace: 'workspace',
+};
 
 export default function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
@@ -117,6 +124,11 @@ export default function App() {
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
       : user?.email?.split('@')[0];
+  const dashboardUiPreferences = normalizeDashboardUiPreferences(user?.user_metadata?.ryanai_dashboard_ui_preferences);
+  const audiobookSettings = normalizeAudiobookSettings(user?.user_metadata?.ryanai_audiobook_settings);
+  const inferenceSettings = normalizeInferenceSettings(user?.user_metadata?.ryanai_inference_settings, MODEL_LIST, DEFAULT_MODEL);
+  const activeUiOption = routeUiOptions[route];
+  const isDisabledUiRoute = Boolean(user && activeUiOption && !dashboardUiPreferences[activeUiOption]);
 
   const handleSignOut = async () => {
     if (await signOut()) window.location.hash = '/signin';
@@ -168,6 +180,8 @@ export default function App() {
         && (id !== 'admin' || isAdmin)
         && (id !== 'studio' || isAdmin)
         && (id === 'landing' || id === 'dashboard' || id === 'settings' || enabledUiIds.some((enabledId) => enabledId === id))
+        && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin) && (id !== 'studio' || isAdmin)
+        && (!routeUiOptions[id] || dashboardUiPreferences[routeUiOptions[id] as DashboardUiId])
       : id === 'landing' || id === 'signin' || id === 'signup',
   );
   const currentTitle = destinations.find(({ id }) => id === route)?.label ?? 'Workspace';
@@ -226,6 +240,16 @@ export default function App() {
                 {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledUiIds={enabledUiIds} />}
                 {route === 'pa' && <PAAgentPage />}
                 {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} initialDashboardUiIds={enabledUiIds} isOwner={isOwner} isAdmin={isAdmin} />}
+              : isDisabledUiRoute ? (
+                <section className="mx-auto max-w-2xl px-5 py-12 text-slate-100">
+                  <h1 className="text-2xl font-bold text-white">Workspace disabled</h1>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">This workspace is disabled in your RyanAI account Settings. Re-enable it there to open this page.</p>
+                  <a href="#/settings" className="mt-5 inline-flex rounded-lg bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">Open Settings</a>
+                </section>
+              ) : <>
+                {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledModules={dashboardUiPreferences} />}
+                {route === 'pa' && <PAAgentPage />}
+                {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} initialDashboardUiPreferences={dashboardUiPreferences} initialAudiobookSettings={audiobookSettings} initialInferenceSettings={inferenceSettings} isAdmin={isAdmin} isOwner={isOwner} onSignOut={() => void handleSignOut()} signingOut={signingOut} />}
                 {route === 'operator' && <OperatorConsole />}
                 {route === 'operations' && <OperationsCenter isAdmin={isAdmin} />}
                 {route === 'admin' && (isAdmin ? <AdminConsole key={user.id} userId={user.id} /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the RyanAI Admin Console.</p>)}
@@ -233,10 +257,10 @@ export default function App() {
                 {route === 'trading' && <TradingTerminalPage />}
                 {route === 'calculator' && <CalculatorPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
-                {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} />}
+                {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} defaultVoice={audiobookSettings.defaultVoice} defaultSpeed={audiobookSettings.narrationSpeed} />}
                 {route === 'studio' && (isAdmin ? <CodingStudio /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open RyanAI Studio.</p>)}
                 {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
-                {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email!} userFullName={displayName} /></div>}
+                {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email ?? ''} userFullName={displayName} showInferenceConsole={dashboardUiPreferences.inferenceConsole} defaultInferenceModel={inferenceSettings.preferredModel as ModelId} /></div>}
               </>}
           </main>
         </Suspense>
