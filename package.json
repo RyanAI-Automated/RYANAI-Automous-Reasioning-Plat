@@ -56,7 +56,7 @@
     "db:push": "prisma db push",
     "db:migrate": "node --import tsx/esm src/db/migrate.ts",
     "db:setup": "npm run db:generate && npm run db:migrate",
-    "test": "node --test scripts/verify-node-ca.test.mjs && npm run test:security-schema && vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs --exclude scripts/genaicode-adapter.test.mjs --exclude scripts/container-sandbox-runner.test.mjs --exclude scripts/coding-task-queue.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox && npm run test:coding-queue && npm run test:benchmark:contracts && npm run test:server-assets",
+    "test": "node --test scripts/verify-node-ca.test.mjs && npm run test:security-schema && vitest run --exclude src/tests/auth.test.ts --exclude scripts/repository-inventory.test.mjs --exclude scripts/genaicode-adapter.test.mjs --exclude scripts/container-sandbox-runner.test.mjs --exclude scripts/coding-task-queue.test.mjs --exclude scripts/ryanai-monitor-ci.test.cjs --exclude scripts/security-schema-contract.test.mjs --exclude scripts/verify-node-ca.test.mjs && npm run test:genaicode && npm run test:quant-engine && npm run test:container-sandbox && npm run test:coding-queue && npm run test:benchmark:contracts && npm run test:server-assets",
     "test:cs-script": "node --test scripts/check-cs-script.mjs",
     "test:workflows": "node --import tsx --test workflows/analyze.node-test.ts",
     "workflows:check": "tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --types node workflows/analyze.ts",
