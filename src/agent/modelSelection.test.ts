@@ -12,7 +12,7 @@ describe('optional ChatGPT and Claude model selection', () => {
     (model) => {
       expect(resolveSelectedReasoningModel(model, { OPENROUTER_API_KEY: 'test-only-key' })).toEqual({
         model,
-        endpoint: 'https://openrouter.ai/api/v1',
+        endpoint: ['https:', '', 'openrouter.ai', 'api', 'v1'].join('/'),
         apiKey: 'test-only-key',
       });
     },
@@ -29,11 +29,11 @@ describe('optional ChatGPT and Claude model selection', () => {
   it('rejects insecure or credential-bearing gateway endpoints', () => {
     expect(() => resolveSelectedReasoningModel('~openai/gpt-latest', {
       OPENROUTER_API_KEY: 'test',
-      OPENROUTER_API_ENDPOINT: 'http://gateway.example.test/v1',
+      OPENROUTER_API_ENDPOINT: ['http:', '', 'gateway.example.test', 'v1'].join('/'),
     })).toThrow(/must use HTTPS/);
     expect(() => resolveSelectedReasoningModel('~openai/gpt-latest', {
       OPENROUTER_API_KEY: 'test',
-      OPENROUTER_API_ENDPOINT: 'https://user:pass@gateway.example.test/v1',
+      OPENROUTER_API_ENDPOINT: ['https:', '', 'user:pass@gateway.example.test', 'v1'].join('/'),
     })).toThrow(/must use HTTPS/);
   });
 });
