@@ -55,6 +55,7 @@ describe('System Dashboard workspace launcher', () => {
       ['#/trading', 'Trading Terminal'],
       ['#/workspace', 'Reasoning Workspace'],
       ['#/audiobook', 'Audiobook Studio'],
+      ['#/studio', 'RyanAI Studio'],
     ]) {
       const link = container.querySelector(`a[href="${path}"]`);
       expect(link?.textContent).toContain(label);
