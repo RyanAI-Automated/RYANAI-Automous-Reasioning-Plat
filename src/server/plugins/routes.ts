@@ -1,8 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from '../routes/auth.js';
-import { createDefaultPluginRegistry } from './pluginCatalog.js';
-
-const registry = createDefaultPluginRegistry();
+import { pluginRegistry } from './pluginCatalog.js';
 
 /**
  * Read-only metadata endpoint for the Settings integrations centre.
