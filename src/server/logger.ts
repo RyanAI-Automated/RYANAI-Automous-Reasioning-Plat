@@ -1,8 +1,9 @@
 import { FastifyServerOptions } from 'fastify';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-export const loggerConfig: FastifyServerOptions['logger'] = isProduction
+// Staging and production use the same structured, redacting logger configuration.
+export const loggerConfig: FastifyServerOptions['logger'] = !isDevelopment
   ? {
       level: process.env.LOG_LEVEL || 'info',
       // Redact sensitive headers or fields from logs automatically
