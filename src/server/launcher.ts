@@ -20,6 +20,7 @@ import { startupSummary } from './startupDiagnostics.js';
 import { inspectReadiness } from './readiness.js';
 
 import { API_ROUTES } from '../config/core.js';
+import { evaluateGenXSecurityEvent } from '../security/genxPolicy.js';
 
 import { invokeReasoningAgent } from '../agent/invoke.js';
 import { startScheduler } from '../scheduler/runner.js';
@@ -252,6 +253,24 @@ function registerCoreRoutes() {
     return JSON.stringify(content) ?? String(content);
   }
 
+  function authorizeUserReasoning(principal: string) {
+    const environment = config.nodeEnv === 'production' ? 'production'
+      : config.nodeEnv === 'staging' ? 'staging' : 'development';
+    const policy = evaluateGenXSecurityEvent({
+      agentId: 'ryanai-api',
+      principal,
+      toolName: 'api_reasoning_request',
+      action: 'NETWORK',
+      target: 'configured-approved-provider',
+      environment,
+      actorType: 'human',
+    });
+    if (policy.decision !== 'ALLOW') {
+      fastify.log.warn({ ruleId: policy.ruleId, principal }, 'Gen-X denied user reasoning request');
+    }
+    return policy;
+  }
+
   async function runReasoning(
     prompt: string,
     model?: string,
@@ -308,6 +327,9 @@ function registerCoreRoutes() {
         .code(400)
         .send({ success: false, error: 'A non-empty prompt is required' });
     }
+    if (authorizeUserReasoning(request.authUser.id).decision !== 'ALLOW') {
+      return reply.code(403).send({ success: false, error: 'Gen-X denied this reasoning request.' });
+    }
 
     try {
       return await runReasoning(prompt, request.body?.model, request.authUser, request.body?.language);
@@ -350,6 +372,9 @@ function registerCoreRoutes() {
       return reply
         .code(400)
         .send({ success: false, error: 'A non-empty prompt is required' });
+    }
+    if (authorizeUserReasoning(request.authUser.id).decision !== 'ALLOW') {
+      return reply.code(403).send({ success: false, error: 'Gen-X denied this reasoning request.' });
     }
 
     reply.hijack();
