@@ -115,7 +115,6 @@ export default function App() {
   const enabledUiIds = getEnabledDashboardUiIds(user?.user_metadata?.ryanai_dashboard_ui, isOwner, isAdmin);
   const roleAccessDenied = Boolean(user && (
     (route === 'admin' && !isAdmin)
-    || (route === 'studio' && !isAdmin)
     || (route === 'comms' && !isOwner)
   ));
   const routeRequiresToggle = !['landing', 'dashboard', 'settings', 'signin', 'signup'].includes(route);
@@ -178,9 +177,8 @@ export default function App() {
       ? id !== 'signin' && id !== 'signup'
         && (id !== 'comms' || isOwner)
         && (id !== 'admin' || isAdmin)
-        && (id !== 'studio' || isAdmin)
         && (id === 'landing' || id === 'dashboard' || id === 'settings' || enabledUiIds.some((enabledId) => enabledId === id))
-        && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin) && (id !== 'studio' || isAdmin)
+        && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin)
         && (!routeUiOptions[id] || dashboardUiPreferences[routeUiOptions[id] as DashboardUiId])
       : id === 'landing' || id === 'signin' || id === 'signup',
   );
@@ -253,7 +251,7 @@ export default function App() {
                 {route === 'calculator' && <CalculatorPage />}
                 {route === 'comms' && (isOwner ? <CommunicationsCenter /> : <p role="alert" className="p-8 text-sm text-rose-200">Owner access is required to open RyanAI Comms.</p>)}
                 {route === 'audiobook' && <AudiobookStudio key={user.id} userId={user.id} defaultVoice={audiobookSettings.defaultVoice} defaultSpeed={audiobookSettings.narrationSpeed} />}
-                {route === 'studio' && (isAdmin ? <CodingStudio /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open RyanAI Studio.</p>)}
+                {route === 'studio' && <CodingStudio />}
                 {route === 'cockpit' && <><RyanAICockpit />{isAdmin && <><BrainKnowledgePanel /><SelfPatchPanel /></>}{isTauri() && <AgentControlPanel />}</>}
                 {(route === 'workspace' || isAuthRoute) && <div className="min-h-0"><CommandCenter onSignOut={() => void handleSignOut()} userId={user.id} userEmail={user.email ?? ''} userFullName={displayName} showInferenceConsole={dashboardUiPreferences.inferenceConsole} defaultInferenceModel={inferenceSettings.preferredModel as ModelId} /></div>}
               </>}

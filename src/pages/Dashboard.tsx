@@ -175,22 +175,20 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
       description: 'Prepare chapters, transcribe audio and generate narration.',
       icon: BookAudio,
     },
-    ...(isAdmin ? [
-      {
-        id: 'studio',
-        href: '#/studio',
-        title: 'RyanAI Studio',
-        description: 'Open the protected engineering and coding workspace.',
-        icon: Code2,
-      },
-      {
-        id: 'admin',
-        href: '#/admin',
-        title: 'Admin Console',
-        description: 'Review protected approvals, runtime diagnostics and engineering evidence.',
-        icon: Database,
-      },
-    ] : []),
+    {
+      id: 'studio',
+      href: '#/studio',
+      title: 'RyanAI Studio',
+      description: 'Create and review coding plans, inspect evidence and use approved engineering tools.',
+      icon: Code2,
+    },
+    ...(isAdmin ? [{
+      id: 'admin',
+      href: '#/admin',
+      title: 'Admin Console',
+      description: 'Review protected approvals, runtime diagnostics and engineering evidence.',
+      icon: Database,
+    }] : []),
     ...(isOwner ? [{
       id: 'comms',
       href: '#/comms',

@@ -61,6 +61,7 @@ const DEFAULT_PLAN = JSON.stringify({
 export default function CodingStudio() {
   const { session } = useAuth();
   const currentUserId = session?.user.id;
+  const isAdmin = session?.user.app_metadata?.role === 'admin';
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
   const [objective, setObjective] = useState('');
@@ -321,8 +322,8 @@ export default function CodingStudio() {
                 <p className="mt-2 text-[10px] text-slate-500">Evidence chain: {selectedJob.evidenceIntegrity?.valid === true ? 'valid' : 'unverified'}</p>
               </section>
 
-              {selectedJob.job.approvalStatus === 'pending' && canApproveJob(selectedJob.job.userId, currentUserId) && <button type="button" onClick={() => void approveJob()} disabled={busy} className="w-full rounded-lg border border-emerald-300/20 bg-emerald-300/5 px-3 py-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-300/10 disabled:opacity-50"><ShieldCheck className="mr-2 inline h-4 w-4" />Approve exact plan</button>}
-              {selectedJob.job.approvalStatus === 'pending' && !canApproveJob(selectedJob.job.userId, currentUserId) && <p role="note" className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] p-3 text-[11px] leading-5 text-amber-100/80">Independent approval required. The plan creator cannot approve their own work, so this action is unavailable in the creator’s session.</p>}
+              {selectedJob.job.approvalStatus === 'pending' && canApproveJob(selectedJob.job.userId, currentUserId, isAdmin) && <button type="button" onClick={() => void approveJob()} disabled={busy} className="w-full rounded-lg border border-emerald-300/20 bg-emerald-300/5 px-3 py-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-300/10 disabled:opacity-50"><ShieldCheck className="mr-2 inline h-4 w-4" />Approve exact plan</button>}
+              {selectedJob.job.approvalStatus === 'pending' && !canApproveJob(selectedJob.job.userId, currentUserId, isAdmin) && <p role="note" className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] p-3 text-[11px] leading-5 text-amber-100/80">{isAdmin ? 'The plan creator cannot approve their own work. An independent reviewer must approve this exact plan.' : 'This plan is ready for independent administrator review. You can continue inspecting its evidence while approval is pending.'}</p>}
 
               {selectedJob.job.approvalStatus === 'approved' && (
                 <section className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.03] p-3">

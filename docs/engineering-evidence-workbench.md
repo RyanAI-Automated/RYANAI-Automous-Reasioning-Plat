@@ -4,9 +4,10 @@ This workbench adds governed plan review and an append-only evidence trail to th
 
 ## Safety model
 
-- RyanAI's authenticated admin/control plane is the only API authority for creating engineering jobs and steering, approving, rejecting or cancelling them.
+- Every Studio API request requires a verified Supabase user session. Standard users can create and manage their own workbench jobs; administrators retain cross-user review access.
+- Job listing, detail, steering, rejection, cancellation, task queueing and evidence-bundle downloads are scoped to the authenticated job owner (or an administrator). A user cannot read or mutate another user's workbench job through these routes.
 - A workbench job is created with `approval_status=pending`; the queue worker SQL explicitly excludes it.
-- Approval requires a different authenticated admin from the job author and must match the exact `plan_hash`, `base_commit_sha` and `proposed_diff_hash` stored on the job.
+- Approval requires a different authenticated administrator from the job author and must match the exact `plan_hash`, `base_commit_sha` and `proposed_diff_hash` stored on the job. Standard users can prepare and inspect plans without administrator privileges, but cannot approve or execute a pending plan themselves.
 - Steering stores the revised plan and diff, updates their hashes, and leaves the job pending. The previous approval is cleared.
 - The worker claim query only selects approved jobs whose approved plan, commit and diff bindings still match the persisted values.
 - Running cancellation sets a durable cancellation request. The worker lease heartbeat notices it, aborts provider work and persists a cancelled terminal state.
@@ -22,7 +23,7 @@ The evidence bundle contains the job snapshot, handoffs, ordered evidence, chain
 
 ## API
 
-All endpoints are protected by `requireAdmin`:
+All endpoints require a verified Supabase user session. Job-owner endpoints are scoped to the authenticated user; administrator cross-user access is retained where required. Independent plan approval additionally requires `requireAdmin`:
 
 - `GET /api/engineering/jobs` — recent job list.
 - `POST /api/engineering/jobs` — submit objective, plan, base commit SHA and proposed diff; returns pending approval.

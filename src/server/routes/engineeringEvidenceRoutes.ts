@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
-import { requireAdmin } from './auth.js';
+import { requireAdmin, requireUser } from './auth.js';
 import { enqueueApprovedCodingTask } from '../../engineering/codingTaskQueue.mjs';
 import { appendRunEvidence, buildEvidenceBundle, sha256, verifyEvidenceChain } from '../../agent/engineeringEvidence.js';
 
@@ -41,10 +41,11 @@ const containsSecretMaterial = (value: string) =>
   || /^\+\s*(?:export\s+)?(?:DATABASE_URL|SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|OPENAI_API_KEY|NVIDIA_API_KEY|QWEN_API_KEY|LOGIC_API_KEY|REDIS_URL)\s*=\s*\S+/im.test(value);
 
 export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook('preHandler', requireAdmin);
+  fastify.addHook('preHandler', requireUser);
 
-  fastify.get('/api/engineering/jobs', async () => {
+  fastify.get('/api/engineering/jobs', async (request) => {
     const jobs = await prisma.agentRun.findMany({
+      where: request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id },
       orderBy: { createdAt: 'desc' },
       take: 100,
       select: {
@@ -118,8 +119,11 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
   });
 
   fastify.get<{ Params: { jobId: string } }>('/api/engineering/jobs/:jobId', async (request, reply) => {
-    const job = await prisma.agentRun.findUnique({
-      where: { id: request.params.jobId },
+    const job = await prisma.agentRun.findFirst({
+      where: {
+        id: request.params.jobId,
+        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+      },
       include: { handoffs: { orderBy: { startedAt: 'asc' } }, evidence: { orderBy: { sequence: 'asc' } } },
     });
     if (!job) return reply.code(404).send({ error: 'Engineering job not found.' });
@@ -133,6 +137,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
   });
 
   fastify.post<{ Params: { jobId: string }; Body: ApprovalBody }>('/api/engineering/jobs/:jobId/approve', {
+    preHandler: requireAdmin,
     schema: { body: {
       type: 'object',
       required: ['planHash', 'baseCommitSha', 'proposedDiffHash'],
@@ -200,7 +205,12 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       },
     } },
   }, async (request, reply) => {
-    const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId } });
+    const job = await prisma.agentRun.findFirst({
+      where: {
+        id: request.params.jobId,
+        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+      },
+    });
     if (!job) return reply.code(404).send({ error: 'Workbench job not found.' });
     if (job.queueType !== 'coding') return reply.code(409).send({ error: 'Workbench job is not assigned to the coding queue.' });
     const approval = await prisma.agentRunEvidence.findFirst({ where: { runId: job.id, eventType: 'plan.approved' }, orderBy: { sequence: 'desc' } });
@@ -251,7 +261,12 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const proposedDiffHash = sha256(request.body.proposedDiff);
     const planSnapshot = JSON.parse(JSON.stringify(request.body.plan)) as Prisma.InputJsonValue;
     const result = await prisma.$transaction(async (tx) => {
-      const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
+      const job = await tx.agentRun.findFirst({
+        where: {
+          id: request.params.jobId,
+          ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        },
+      });
       if (!job) return { status: 'missing' as const };
       if (job.status !== 'queued' || job.approvalStatus !== 'pending') return { status: 'not_pending' as const };
       const steeringNotes = [job.steeringNotes, instruction].filter(Boolean).join('\n\n');
@@ -304,11 +319,21 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     schema: { body: { type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1, maxLength: 2000 } } } },
   }, async (request, reply) => {
     const result = await prisma.$transaction(async (tx) => {
-      const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
+      const job = await tx.agentRun.findFirst({
+        where: {
+          id: request.params.jobId,
+          ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        },
+      });
       if (!job) return 'missing' as const;
       if (job.status !== 'queued' || job.approvalStatus !== 'pending') return 'not_pending' as const;
       const updated = await tx.agentRun.updateMany({
-        where: { id: job.id, status: 'queued', approvalStatus: 'pending' },
+        where: {
+          id: job.id,
+          userId: job.userId,
+          status: 'queued',
+          approvalStatus: 'pending',
+        },
         data: { status: 'rejected', approvalStatus: 'rejected', completedAt: new Date() },
       });
       if (updated.count !== 1) return 'race' as const;
@@ -326,13 +351,18 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     schema: { body: { type: 'object', additionalProperties: false, properties: { reason: { type: 'string', maxLength: 2000 } } } },
   }, async (request, reply) => {
     const result = await prisma.$transaction(async (tx) => {
-      const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
+      const job = await tx.agentRun.findFirst({
+        where: {
+          id: request.params.jobId,
+          ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        },
+      });
       if (!job) return 'missing' as const;
       if (['completed', 'failed', 'cancelled', 'rejected'].includes(job.status)) return 'terminal' as const;
       if (job.status !== 'queued' && job.status !== 'running') return 'terminal' as const;
       const queued = job.status === 'queued';
       const updated = await tx.agentRun.updateMany({
-        where: { id: job.id, status: job.status },
+        where: { id: job.id, userId: job.userId, status: job.status },
         data: queued
           ? { status: 'cancelled', approvalStatus: 'cancelled', completedAt: new Date() }
           : { cancelRequestedAt: new Date() },
@@ -368,7 +398,13 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       },
     } },
   }, async (request, reply) => {
-    const job = await prisma.agentRun.findUnique({ where: { id: request.params.jobId }, select: { id: true } });
+    const job = await prisma.agentRun.findFirst({
+      where: {
+        id: request.params.jobId,
+        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+      },
+      select: { id: true },
+    });
     if (!job) return reply.code(404).send({ error: 'Job not found.' });
     await prisma.$transaction(async (tx) => {
       for (const check of request.body.checks) {
@@ -437,6 +473,14 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
   });
 
   fastify.get<{ Params: { jobId: string } }>('/api/engineering/jobs/:jobId/evidence-bundle', async (request, reply) => {
+    const job = await prisma.agentRun.findFirst({
+      where: {
+        id: request.params.jobId,
+        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+      },
+      select: { id: true },
+    });
+    if (!job) return reply.code(404).send({ error: 'Job not found.' });
     const result = await buildEvidenceBundle(request.params.jobId);
     if (!result) return reply.code(404).send({ error: 'Job not found.' });
     const body = JSON.stringify(result.bundle, null, 2);

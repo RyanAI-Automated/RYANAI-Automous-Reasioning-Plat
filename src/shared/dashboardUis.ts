@@ -56,8 +56,8 @@ export const DASHBOARD_UI_OPTIONS = [
   {
     id: 'studio',
     label: 'RyanAI Studio',
-    description: 'Administrative coding and engineering workspace.',
-    access: 'admin',
+    description: 'Build, inspect and test projects in your personal engineering workspace.',
+    access: 'any',
   },
   {
     id: 'admin',

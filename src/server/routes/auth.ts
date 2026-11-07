@@ -169,6 +169,10 @@ export function installAuthentication(fastify: FastifyInstance) {
       return;
     }
 
+    if (path.startsWith('/api/engineering/')) {
+      return requireUser(request, reply);
+    }
+
     if (
       (request.method === 'POST' &&
         ['/api/reason', '/api/reasoning/stream', '/api/v1/realtime/voice-ticket'].includes(path)) ||
