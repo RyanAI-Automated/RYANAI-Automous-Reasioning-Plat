@@ -10,9 +10,10 @@ import { addressOwnerMessage, getOwnerGreeting } from './personalization.js';
 import { createCommsUploadIntents, createCommsStorageAdmin, cleanCommsAttachmentUrls, downloadCleanCommsAttachments, downloadResendMedia, getCommsAttachmentScanStates, getCommsAttachmentStatuses, getOwnerInboundUserId, storeInboundCommsAttachment, storeTwilioMediaForCommunication } from './attachments.js';
 import { addressOwnerResponse, ownerCommunicationInstruction, RYANAI_LOCALE } from '../../shared/ryanIdentity.js';
 import { areCommunicationAttachmentsEnabled, isCommunicationsEnabled } from './featureFlags.js';
+import { createCommsDispatchApprovalDigest } from './dispatchApproval.js';
 
 type Channel = 'whatsapp' | 'sms' | 'voice' | 'email';
-type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string; idempotencyKey?: string; attachmentIds?: string[] };
+type CommsBody = { channel?: Channel; recipient?: string; message?: string; subject?: string; contentSid?: string; contentVariables?: string; idempotencyKey?: string; attachmentIds?: string[]; approvalId?: string };
 const MAX_MESSAGE_LENGTH = 4000;
 const E164 = /^\+[1-9]\d{7,14}$/;
 
@@ -224,6 +225,65 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  fastify.post<{ Body: CommsBody }>('/api/comms/approve', async (request, reply) => {
+    if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required to approve outbound communications.' });
+    const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [], approvalId } = request.body ?? {};
+    if (!channel || !['whatsapp', 'sms', 'voice', 'email'].includes(channel)) return reply.code(400).send({ success: false, error: 'Unsupported communication channel.' });
+    if (!Array.isArray(attachmentIds) || attachmentIds.length > 8 || new Set(attachmentIds).size !== attachmentIds.length) return reply.code(400).send({ success: false, error: 'At most 8 unique attachment IDs are supported.' });
+    if (attachmentIds.length && !areCommunicationAttachmentsEnabled()) return reply.code(503).send({ success: false, error: 'Communication attachments are disabled.' });
+    if (attachmentIds.length && (channel === 'voice' || (channel === 'whatsapp' && Boolean(contentSid || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim())))) return reply.code(400).send({ success: false, error: 'Voice and approved WhatsApp template sends cannot include attachments.' });
+    const targetValue = recipient || (channel === 'email' ? process.env.RYANAI_OWNER_EMAIL : process.env.RYANAI_OWNER_PHONE);
+    const target = typeof targetValue === 'string' ? targetValue.trim() : '';
+    const messageBody = typeof message === 'string' ? message.trim() : '';
+    const key = typeof idempotencyKey === 'string' ? idempotencyKey.trim() : '';
+    const isOwnerRecipient = channel === 'email'
+      ? target.toLowerCase() === process.env.RYANAI_OWNER_EMAIL?.trim().toLowerCase()
+      : Boolean(target && process.env.RYANAI_OWNER_PHONE && normalizePhone(target) === normalizePhone(process.env.RYANAI_OWNER_PHONE));
+    const deliveryBody = isOwnerRecipient ? addressOwnerMessage(messageBody) : messageBody;
+    const emailSubject = typeof subject === 'string' && subject.trim() ? subject.trim() : 'RyanAI notification';
+    const approvedTemplateSid = typeof contentSid === 'string' ? contentSid.trim() || process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim() : process.env.TWILIO_WHATSAPP_CONTENT_SID?.trim();
+    if (!key || key.length < 16 || key.length > 128 || !/^[a-zA-Z0-9._:-]+$/.test(key)) return reply.code(400).send({ success: false, error: 'A valid 16–128 character idempotency key is required.' });
+    if (!target || ((!messageBody) && !(channel === 'whatsapp' && approvedTemplateSid)) || messageBody.length > MAX_MESSAGE_LENGTH) return reply.code(400).send({ success: false, error: 'channel, recipient and a message of at most 4,000 characters are required.' });
+    if (channel === 'email') {
+      if (!messageBody) return reply.code(400).send({ success: false, error: 'An email message body is required.' });
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(target)) return reply.code(400).send({ success: false, error: 'Recipient must be a valid email address.' });
+      if (typeof subject === 'string' && subject.trim().length > 180) return reply.code(400).send({ success: false, error: 'Email subject must be no longer than 180 characters.' });
+    } else if (!E164.test(target)) {
+      return reply.code(400).send({ success: false, error: 'Recipient must be a valid E.164 phone number.' });
+    }
+    if (attachmentIds.length) {
+      try {
+        const states = await getCommsAttachmentStatuses(fastify.prisma, request.authUser.id, attachmentIds);
+        if (states.length !== attachmentIds.length || states.some(item => item.status !== 'clean')) return reply.code(409).send({ success: false, error: 'Attachments are not ready. All malware scans must be clean before approval.' });
+      } catch (error) {
+        request.log.warn({ err: error }, 'Comms approval attachment validation rejected');
+        return reply.code(409).send({ success: false, error: 'Attachments could not be verified for approval.' });
+      }
+    }
+    const requestHash = createCommsDispatchApprovalDigest({
+      ownerUserId: request.authUser.id,
+      channel,
+      recipient: channel === 'email' ? target.toLowerCase() : target,
+      deliveryBody: deliveryBody || '[WhatsApp approved template]',
+      emailSubject,
+      approvedTemplateSid: approvedTemplateSid || null,
+      contentVariables: typeof contentVariables === 'string' ? contentVariables : null,
+      idempotencyKey: key,
+      attachmentIds,
+    });
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
+    try {
+      const approval = await fastify.prisma.commsDispatchApproval.create({
+        data: { ownerUserId: request.authUser.id, requestHash, expiresAt },
+        select: { id: true, expiresAt: true },
+      });
+      return reply.code(201).send({ success: true, approvalId: approval.id, expiresAt: approval.expiresAt.toISOString() });
+    } catch (error) {
+      request.log.error({ err: error }, 'Unable to persist owner Comms dispatch approval');
+      return reply.code(503).send({ success: false, error: 'The owner approval could not be recorded. No provider request was sent.' });
+    }
+  });
+
   fastify.post<{ Body: CommsBody }>('/api/comms/send', async (request, reply) => {
     if (!request.authUser?.isOwner) return reply.code(403).send({ success: false, error: 'Owner access is required for outbound communications.' });
     const { channel, recipient, message, subject, contentSid, contentVariables, idempotencyKey, attachmentIds = [] } = request.body ?? {};
@@ -259,6 +319,18 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
     else if (channel === 'sms' || channel === 'voice') from = process.env.TWILIO_PHONE_NUMBER?.trim() || '';
     if (channel !== 'email' && !from) return reply.code(503).send({ success: false, error: `Twilio ${channel} sender is not configured.` });
     if (channel === 'voice' && !process.env.TWILIO_VOICE_ACTION_URL?.trim()) return reply.code(503).send({ success: false, error: 'Twilio voice action URL is not configured.' });
+    if (typeof approvalId !== 'string' || !approvalId.trim()) return reply.code(403).send({ success: false, error: 'A current owner approval is required before outbound dispatch.' });
+    const requestHash = createCommsDispatchApprovalDigest({
+      ownerUserId: request.authUser.id,
+      channel,
+      recipient: channel === 'email' ? target.toLowerCase() : target,
+      deliveryBody: deliveryBody || '[WhatsApp approved template]',
+      emailSubject,
+      approvedTemplateSid: approvedTemplateSid || null,
+      contentVariables: typeof contentVariables === 'string' ? contentVariables : null,
+      idempotencyKey: key,
+      attachmentIds,
+    });
     const outboundBody = deliveryBody || '[WhatsApp approved template]';
     let attachmentUrls: string[] = [];
     let emailAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
@@ -273,6 +345,25 @@ export const commsPlugin: FastifyPluginAsync = async (fastify) => {
         return reply.code(409).send({ success: false, error: error instanceof Error ? error.message : 'Attachments are not ready.' });
       }
     }
+    const consumedAt = new Date();
+    let consumedApproval;
+    try {
+      consumedApproval = await fastify.prisma.commsDispatchApproval.updateMany({
+        where: {
+          id: approvalId,
+          ownerUserId: request.authUser.id,
+          requestHash,
+          status: 'approved',
+          expiresAt: { gt: consumedAt },
+          consumedAt: null,
+        },
+        data: { status: 'consumed', consumedAt },
+      });
+    } catch (error) {
+      request.log.error({ err: error }, 'Unable to consume owner Comms dispatch approval');
+      return reply.code(503).send({ success: false, error: 'The owner approval could not be verified. No provider request was sent.' });
+    }
+    if (consumedApproval.count !== 1) return reply.code(409).send({ success: false, error: 'The owner approval is expired, already used, belongs to another owner, or does not match this exact outbound action.' });
     let reservation;
     try {
       reservation = await beginOutboundCommunication(fastify.prisma, {
