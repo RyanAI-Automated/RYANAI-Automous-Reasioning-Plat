@@ -235,21 +235,16 @@ export default function App() {
               : loading ? <p role="status" className="p-8 text-slate-300">Restoring your session…</p>
               : !user ? <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
               : roleAccessDenied ? <p role="alert" className="p-8 text-sm text-rose-200">Your account does not have permission to open this RyanAI workspace.</p>
-              : routeDisabled ? <section className="mx-auto max-w-3xl p-8" aria-labelledby="disabled-workspace-title"><h1 id="disabled-workspace-title" className="text-xl font-semibold text-white">Workspace disabled</h1><p className="mt-2 text-sm leading-6 text-slate-400">This workspace is turned off in your dashboard preferences. Enable it in Settings to restore its dashboard card, navigation link and direct access.</p><a href="#/settings" className="mt-4 inline-flex rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">Open Settings</a></section>
-              : <>
-                {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledUiIds={enabledUiIds} />}
-                {route === 'pa' && <PAAgentPage />}
-                {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} initialDashboardUiIds={enabledUiIds} isOwner={isOwner} isAdmin={isAdmin} />}
-              : isDisabledUiRoute ? (
-                <section className="mx-auto max-w-2xl px-5 py-12 text-slate-100">
-                  <h1 className="text-2xl font-bold text-white">Workspace disabled</h1>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">This workspace is disabled in your RyanAI account Settings. Re-enable it there to open this page.</p>
-                  <a href="#/settings" className="mt-5 inline-flex rounded-lg bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950">Open Settings</a>
+              : (routeDisabled || isDisabledUiRoute) ? (
+                <section className="mx-auto max-w-3xl p-8" aria-labelledby="disabled-workspace-title">
+                  <h1 id="disabled-workspace-title" className="text-xl font-semibold text-white">Workspace disabled</h1>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">This workspace is turned off in your dashboard preferences. Enable it in Settings to restore its dashboard card, navigation link and direct access.</p>
+                  <a href="#/settings" className="mt-4 inline-flex rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">Open Settings</a>
                 </section>
               ) : <>
                 {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledModules={dashboardUiPreferences} />}
                 {route === 'pa' && <PAAgentPage />}
-                {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} initialDashboardUiPreferences={dashboardUiPreferences} initialAudiobookSettings={audiobookSettings} initialInferenceSettings={inferenceSettings} isAdmin={isAdmin} isOwner={isOwner} onSignOut={() => void handleSignOut()} signingOut={signingOut} />}
+                {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} initialDashboardUiIds={enabledUiIds} initialDashboardUiPreferences={dashboardUiPreferences} initialAudiobookSettings={audiobookSettings} initialInferenceSettings={inferenceSettings} isAdmin={isAdmin} isOwner={isOwner} onSignOut={() => void handleSignOut()} signingOut={signingOut} />}
                 {route === 'operator' && <OperatorConsole />}
                 {route === 'operations' && <OperationsCenter isAdmin={isAdmin} />}
                 {route === 'admin' && (isAdmin ? <AdminConsole key={user.id} userId={user.id} /> : <p role="alert" className="p-8 text-sm text-rose-200">Administrator access is required to open the RyanAI Admin Console.</p>)}
