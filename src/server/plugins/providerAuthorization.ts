@@ -156,8 +156,10 @@ export function buildProviderAuthorizationUrl(
 ): string {
   if (!PROVIDER_ID.test(policy.providerId)) throw new Error('Invalid provider identifier.');
   const authorizationEndpoint = new URL(policy.authorizationEndpoint);
+  const tokenEndpoint = new URL(policy.tokenEndpoint);
   const redirectUri = new URL(policy.redirectUri);
-  if (authorizationEndpoint.protocol !== 'https:' || redirectUri.protocol !== 'https:') {
+  if (!policy.clientId.trim() || authorizationEndpoint.protocol !== 'https:' ||
+      tokenEndpoint.protocol !== 'https:' || redirectUri.protocol !== 'https:') {
     throw new Error('Provider OAuth endpoints and redirect URI must use HTTPS.');
   }
   if (authorizationEndpoint.username || authorizationEndpoint.password || authorizationEndpoint.hash ||
@@ -166,8 +168,10 @@ export function buildProviderAuthorizationUrl(
   }
   const allowed = new Set(normalizeScopeList(policy.allowedScopes));
   const scopes = normalizeScopeList(requestedScopes);
-  if (!scopes.length || scopes.some((scope) => !allowed.has(scope) || !SCOPE_PATTERN.test(scope))) {
-    throw new Error('Requested OAuth scopes exceed the provider allowlist.');
+  const required = new Set(normalizeScopeList(policy.requiredScopes));
+  if (!scopes.length || scopes.some((scope) => !allowed.has(scope) || !SCOPE_PATTERN.test(scope)) ||
+      [...required].some((scope) => !scopes.includes(scope))) {
+    throw new Error('Requested OAuth scopes exceed the provider allowlist or omit a required scope.');
   }
   if (!transaction.state || !transaction.codeChallenge) throw new Error('OAuth state and PKCE challenge are required.');
 
