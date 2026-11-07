@@ -34,9 +34,9 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function renderDashboard(isOwner = false, isAdmin = false, enabledUiIds?: string[]) {
+async function renderDashboard(isOwner = false, isAdmin = false, enabledModules?: Record<string, boolean>) {
   await act(async () => {
-    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledUiIds={enabledUiIds} />);
+    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledModules={enabledModules} />);
   });
 }
 
