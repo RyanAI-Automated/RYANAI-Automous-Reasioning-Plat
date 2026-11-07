@@ -12,20 +12,35 @@ const scopeToolNames: Record<string, string> = {
   ryanai_stack_manifest: 'mcp_stack_manifest',
 };
 
-function requireMcpService(request: FastifyRequest, reply: FastifyReply) {
+function requireMcpService(request: FastifyRequest, reply: FastifyReply): void {
   const expected = process.env.RYANAI_MCP_SERVICE_TOKEN?.trim() ?? '';
   if (expected.length < 32) {
-    return reply.code(503).send({ error: 'MCP service authentication is not configured.' });
+    reply.code(503).send({ error: 'MCP service authentication is not configured.' });
+    return;
   }
   if (!hasValidMcpServiceToken(request.headers['x-ryanai-service-token'], expected)) {
-    return reply.code(401).send({ error: 'Unauthorized MCP service.' });
+    reply.code(401).send({ error: 'Unauthorized MCP service.' });
   }
+}
+
+/**
+ * Keep the Fastify hook return type void. Returning FastifyReply from a hook
+ * makes Fastify's overload resolution select the WebSocket route signature,
+ * which then incorrectly types the HTTP request as a WebSocket.
+ */
+async function requireMcpDelegationAuth(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  requireMcpService(request, reply);
+  if (reply.sent) return;
+  await requireUser(request, reply);
 }
 
 export const mcpDelegationRoutes: FastifyPluginAsync = async (fastify) => {
   if (!fastify.hasRequestDecorator('authUser')) fastify.decorateRequest('authUser', null);
   fastify.post<{ Body: DelegationBody }>('/api/internal/mcp/delegation', {
-    preHandler: [requireMcpService, requireUser],
+    preHandler: requireMcpDelegationAuth,
     config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     schema: {
       body: {
