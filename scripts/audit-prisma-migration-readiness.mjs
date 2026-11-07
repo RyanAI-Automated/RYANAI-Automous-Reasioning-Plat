@@ -36,11 +36,14 @@ export function assessSchema({ columns, tables, indexes, extensions, memoryColum
   const requiredCacheColumns = ['id', 'prompt', 'response', 'embedding', 'created_at'];
   const missingMemoryColumns = requiredMemoryColumns.filter((name) => !memoryColumns.has(name));
   const missingCacheColumns = requiredCacheColumns.filter((name) => !cacheColumns.has(name));
-  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session', 'comms_dispatch_approvals_owner_status_expiry_idx'];
+  const requiredIndexes = ['idx_reasoning_embedding', 'idx_agent_session'];
+  const requiredCommsIndexes = ['comms_dispatch_approvals_owner_status_expiry_idx'];
   const missingIndexes = requiredIndexes.filter((name) => !indexes.has(name));
+  const missingCommsIndexes = requiredCommsIndexes.filter((name) => !indexes.has(name));
   return {
     missingColumns,
     missingTables,
+    missingCommsIndexes,
     vector: {
       extensionPresent: extensions.has('vector'),
       missingTables: missingVectorTables,
@@ -92,7 +95,7 @@ async function main() {
       remediation: 'Review each pending migration against live schema before applying. This command never applies DDL.',
     }, null, 2));
     if (state.pending.length || state.databaseOnly.length ||
-        schema.missingColumns.length || schema.missingTables.length ||
+        schema.missingColumns.length || schema.missingTables.length || schema.missingCommsIndexes.length ||
         !schema.vector.extensionPresent || schema.vector.missingTables.length ||
         schema.vector.missingMemoryColumns.length || schema.vector.missingCacheColumns.length ||
         schema.vector.missingIndexes.length) {
