@@ -14,12 +14,6 @@ function normalizePhone(value: string): string {
   return value.replace(/^whatsapp:/i, '').replace(/[^+\d]/g, '');
 }
 
-function escapeXml(unsafe: string): string {
-  return unsafe.replace(/[<>&'"]/g, (c) => ({
-    '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;',
-  })[c] ?? c);
-}
-
 export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
   if (!isCommunicationsEnabled()) {
     fastify.log.info('Twilio webhook routes are disabled by configuration.');
