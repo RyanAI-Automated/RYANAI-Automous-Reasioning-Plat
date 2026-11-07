@@ -130,7 +130,7 @@ export default function AudiobookStudio({ userId, defaultVoice = 'coral', defaul
       } finally { if (active) setServerReady(true); }
     })();
     return () => { active = false; };
-  }, [userId, initialProject]);
+  }, [userId, initialProject, defaultVoice, defaultSpeed]);
   useEffect(() => {
     window.addEventListener(STORAGE_ERROR_EVENT, reportStorageError);
     return () => window.removeEventListener(STORAGE_ERROR_EVENT, reportStorageError);
