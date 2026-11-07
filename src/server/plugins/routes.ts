@@ -8,6 +8,6 @@ import { pluginRegistry } from './pluginCatalog.js';
  */
 export const pluginRegistryRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/plugins/registry', { preHandler: requireUser }, async () => ({
-    providers: registry.list(),
+    providers: pluginRegistry.list(),
   }));
 };
