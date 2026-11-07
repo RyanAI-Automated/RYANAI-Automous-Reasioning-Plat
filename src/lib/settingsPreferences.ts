@@ -41,3 +41,15 @@ export function normalizeInferenceSettings(value:unknown,validModels:readonly st
  const candidate=(value as Record<string,unknown>).preferredModel;
  return {preferredModel:typeof candidate==='string'&&validModels.includes(candidate)?candidate:fallbackModel};
 }
+
+
+export const MUSIC_PROVIDERS = ['vlc', 'spotify', 'youtube-music'] as const;
+export type MusicProvider = (typeof MUSIC_PROVIDERS)[number];
+export interface MusicSettings { defaultProvider: MusicProvider; rememberPreferredProvider: boolean; volume: number; resumePlayback: boolean; vlcMode: 'both' | 'external' | 'embedded'; }
+export const DEFAULT_MUSIC_SETTINGS: MusicSettings = { defaultProvider: 'vlc', rememberPreferredProvider: true, volume: 70, resumePlayback: true, vlcMode: 'both' };
+export function normalizeMusicSettings(value: unknown): MusicSettings {
+ if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...DEFAULT_MUSIC_SETTINGS };
+ const input = value as Record<string, unknown>;
+ const volume = typeof input.volume === 'number' && Number.isFinite(input.volume) ? Math.min(100, Math.max(0, Math.round(input.volume))) : DEFAULT_MUSIC_SETTINGS.volume;
+ return { defaultProvider: MUSIC_PROVIDERS.includes(input.defaultProvider as MusicProvider) ? input.defaultProvider as MusicProvider : DEFAULT_MUSIC_SETTINGS.defaultProvider, rememberPreferredProvider: typeof input.rememberPreferredProvider === 'boolean' ? input.rememberPreferredProvider : DEFAULT_MUSIC_SETTINGS.rememberPreferredProvider, volume, resumePlayback: typeof input.resumePlayback === 'boolean' ? input.resumePlayback : DEFAULT_MUSIC_SETTINGS.resumePlayback, vlcMode: input.vlcMode === 'external' || input.vlcMode === 'embedded' || input.vlcMode === 'both' ? input.vlcMode : DEFAULT_MUSIC_SETTINGS.vlcMode };
+}
