@@ -21,7 +21,12 @@ CREATE TABLE public.plugin_provider_connections (
   CONSTRAINT plugin_connection_revoked_timestamp_check
     CHECK ((status <> 'revoked') OR revoked_at IS NOT NULL),
   CONSTRAINT plugin_connection_connected_token_check
-    CHECK ((status <> 'connected') OR encrypted_access_token IS NOT NULL)
+    CHECK ((status <> 'connected') OR encrypted_access_token IS NOT NULL),
+  CONSTRAINT plugin_connection_metadata_no_credentials_check
+    CHECK (NOT (connection_metadata ?| ARRAY[
+      'access_token', 'refresh_token', 'accessToken', 'refreshToken',
+      'client_secret', 'clientSecret', 'password', 'credential', 'credentials'
+    ]))
 );
 CREATE UNIQUE INDEX plugin_provider_connections_owner_provider_key
   ON public.plugin_provider_connections (owner_user_id, provider_id);
@@ -63,7 +68,11 @@ CREATE TABLE public.plugin_authorization_events (
     )),
   actor_user_id TEXT NOT NULL,
   request_id VARCHAR(128),
-  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb
+    CHECK (NOT (details ?| ARRAY[
+      'access_token', 'refresh_token', 'accessToken', 'refreshToken',
+      'client_secret', 'clientSecret', 'password', 'credential', 'credentials'
+    ])),
   created_at TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX plugin_authorization_events_owner_created_idx
