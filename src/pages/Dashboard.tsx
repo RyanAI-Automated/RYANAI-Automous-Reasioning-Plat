@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { usePlatformHealth } from '@/hooks/usePlatformHealth';
 import { getSnapshotFreshness } from '@/lib/healthFreshness';
+import type { DashboardUiId, DashboardUiPreferences } from '@/lib/settingsPreferences';
 
 const STALE_AFTER_MS = 90_000;
 const PA_HEARTBEAT_STALE_AFTER_MS = 45_000;
@@ -34,7 +35,7 @@ type PAStatus = {
   health: { api: boolean; database: boolean; redis: boolean };
 };
 
-export default function DashboardPage({ isOwner = false, isAdmin = false }: { isOwner?: boolean; isAdmin?: boolean }) {
+export default function DashboardPage({ isOwner = false, isAdmin = false, enabledModules }: { isOwner?: boolean; isAdmin?: boolean; enabledModules?: DashboardUiPreferences }) {
   const { health, error, checking, refresh } = usePlatformHealth();
   const [now, setNow] = useState(() => Date.now());
   const [paStatus, setPaStatus] = useState<PAStatus | null>(null);
@@ -163,6 +164,11 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
     }] : []),
   ];
 
+  const visibleWorkspaces = workspaces.filter((workspace) => {
+    const routeId = workspace.href.replace(/^#\//, '') as DashboardUiId;
+    return enabledModules?.[routeId] !== false;
+  });
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-8 sm:px-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -228,7 +234,7 @@ export default function DashboardPage({ isOwner = false, isAdmin = false }: { is
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {workspaces.map(({ href, title, description, icon: Icon }) => (
+          {visibleWorkspaces.map(({ href, title, description, icon: Icon }) => (
             <a
               key={href}
               href={href}

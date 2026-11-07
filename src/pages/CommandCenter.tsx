@@ -46,6 +46,8 @@ interface CommandCenterProps {
   userId: string;
   userEmail?: string;
   userFullName?: string;
+  showInferenceConsole?: boolean;
+  defaultInferenceModel?: ModelId;
 }
 
 /**
@@ -58,6 +60,8 @@ export default function CommandCenter({
   userId,
   userEmail,
   userFullName,
+  showInferenceConsole = true,
+  defaultInferenceModel = DEFAULT_MODEL,
 }: CommandCenterProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -726,6 +730,7 @@ export default function CommandCenter({
       onMemory={() => setMemoryOpen(true)}
       onConsole={() => setConsoleOpen(true)}
       onGithub={() => setGithubOpen(true)}
+      showInferenceConsole={showInferenceConsole}
     />
   );
 
@@ -936,7 +941,7 @@ export default function CommandCenter({
         icon={<Terminal size={16} />}
       >
         <div className="h-[26rem] -m-2 overflow-hidden rounded-lg">
-          <ChatInterface />
+          <ChatInterface initialModel={defaultInferenceModel} />
         </div>
       </Modal>
       <GithubModal
