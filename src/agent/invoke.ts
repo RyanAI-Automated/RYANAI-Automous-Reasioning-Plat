@@ -2,6 +2,7 @@ import { languageInstruction, DEFAULT_LANGUAGE, isRyanLanguage } from '../shared
 import { buildMemoryContext } from './memoryContext.js';
 import { dispatchAutonomousTask, waitForAutonomousTask, type AgentRunProgressEvent } from './operations.js';
 import { withTelemetrySpan } from '../telemetry/core.js';
+import { resolveSelectedReasoningModel } from './modelSelection.js';
 
 export interface AgentUser {
   id: string;
