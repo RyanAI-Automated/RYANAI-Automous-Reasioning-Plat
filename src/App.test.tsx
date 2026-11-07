@@ -147,6 +147,12 @@ describe('application authentication boundary', () => {
     await expectContent('Sign in to RYANAI');
     expect(container.textContent).not.toContain('Private dashboard');
   });
+  it('routes an authenticated sign-in session to the Commander Dashboard', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/signin');
+    await expectContent('Private dashboard');
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/dashboard'));
+  });
   it('keeps the landing page public', async () => {
     await mount('/');
     await expectContent('Public landing');
