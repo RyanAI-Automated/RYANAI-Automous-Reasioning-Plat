@@ -56,6 +56,9 @@ vi.mock('@/pages/Calculator', () => ({
 vi.mock('@/pages/AudiobookStudio', () => ({
   default: () => <div>Private audiobook studio</div>,
 }));
+vi.mock('@/pages/CodingStudio', () => ({
+  default: () => <div>Private RyanAI Studio</div>,
+}));
 vi.mock('@/components/dashboard/RyanAICockpit', () => ({
   default: () => <div>Private cockpit</div>,
 }));
@@ -118,7 +121,7 @@ async function mount(hash: string) {
 }
 
 describe('application authentication boundary', () => {
-  it.each(['dashboard', 'calculator', 'cockpit', 'workspace', 'operator', 'operations', 'settings', 'admin'])(
+  it.each(['dashboard', 'calculator', 'cockpit', 'workspace', 'operator', 'operations', 'settings', 'admin', 'studio'])(
     'blocks anonymous direct access to %s',
     async (route) => {
       await mount(`/${route}`);
@@ -172,7 +175,7 @@ describe('application authentication boundary', () => {
     await mount('/dashboard');
     await expectContent('Private dashboard');
 
-    for (const path of ['/dashboard', '/calculator', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations', '/settings', '/trading']) {
+    for (const path of ['/dashboard', '/calculator', '/quant', '/cockpit', '/workspace', '/audiobook', '/operator', '/operations', '/settings', '/trading', '/studio']) {
       expect(container.querySelector(`nav[aria-label="Main navigation"] a[href="#${path}"]`)).not.toBeNull();
       expect(container.querySelector(`nav[aria-label="Mobile navigation"] a[href="#${path}"]`)).not.toBeNull();
     }
@@ -247,6 +250,15 @@ describe('application authentication boundary', () => {
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     await mount('/operator');
     await expectContent('Private operator console');
+  });
+
+  it('opens RyanAI Studio for an authenticated regular account without admin claims', async () => {
+    auth.getSession.mockResolvedValue({ data: { session }, error: null });
+    await mount('/studio');
+    await expectContent('Private RyanAI Studio');
+    for (const nav of ['Main navigation', 'Mobile navigation']) {
+      expect(container.querySelector(`nav[aria-label="${nav}"] a[href="#/studio"]`)).not.toBeNull();
+    }
   });
 
   it('blocks the Admin Console for authenticated non-admin users', async () => {
