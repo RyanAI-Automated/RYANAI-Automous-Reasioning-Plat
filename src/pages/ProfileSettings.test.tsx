@@ -22,7 +22,7 @@ async function mount(options: { isOwner?: boolean; isAdmin?: boolean } = {}) {
       userId="user-a"
       email="person@example.test"
       initialDisplayName="Alex Morgan"
-      initialLanguage="en-ZA"
+      initialLanguage="ve-ZA"
       initialVoiceEnabled={false}
       initialDashboardUiPreferences={{}}
       isOwner={options.isOwner}
@@ -88,15 +88,14 @@ describe('RyanAI Settings', () => {
 
   it('exposes only the privileged workspaces allowed by the trusted role', async () => {
     await mount({ isAdmin: true });
-    expect(container.querySelector('[data-ui-id="admin"]')).not.toBeNull();
-    expect(container.querySelector('[data-ui-id="studio"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="ui-toggle-admin"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="ui-toggle-studio"]')).not.toBeNull();
     expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('persists profile and module preferences only after verifying the account', async () => {
     await mount();
     await changeValue(container.querySelector('input[autocomplete="name"]') as HTMLInputElement, 'Ntsiyeni Ganyane');
-    await changeValue(container.querySelector('select') as HTMLSelectElement, 've-ZA');
     await act(async () => {
       (container.querySelector('[data-testid="voice-enabled-toggle"]') as HTMLInputElement).click();
       (container.querySelector('[data-testid="calculator-enabled-toggle"]') as HTMLInputElement).click();
