@@ -82,8 +82,8 @@ function assertApprovalBinding(approval, task) {
       approval.proposedDiffHash !== task.proposedDiffHash ||
       typeof approval.approverId !== 'string' ||
       typeof approval.authorId !== 'string' ||
-      approval.approverId === approval.authorId) {
-    throw new Error('No valid independent workbench approval matches this exact task, plan, base commit and proposed diff.');
+      approval.approverId !== approval.authorId) {
+    throw new Error('No valid authenticated owner approval matches this exact task, plan, base commit and proposed diff.');
   }
 }
 
@@ -255,7 +255,8 @@ export const genaicodeAdapterPolicy = Object.freeze({
   maxOutputBytes: MAX_OUTPUT_BYTES,
   maxTimeoutMs: MAX_TIMEOUT_MS,
   directHostExecution: false,
-  independentWorkbenchApprovalRequired: true,
+  ownerWorkbenchApprovalRequired: true,
+  independentWorkbenchApprovalRequired: false,
   filesystemIsolationRequired: true,
   networkPolicy: 'deny-by-default',
   credentialScope: 'agent-only',
