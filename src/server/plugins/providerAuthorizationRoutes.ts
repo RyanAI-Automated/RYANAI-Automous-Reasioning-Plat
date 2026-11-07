@@ -126,7 +126,9 @@ async function exchangeAuthorizationCode(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   const payload = await parseProviderTokenResponse(response);
-  if (!response.ok || typeof payload.access_token !== 'string') {
+  if (!response.ok || typeof payload.access_token !== 'string' ||
+      typeof payload.token_type !== 'string' || payload.token_type.toLowerCase() !== 'bearer' ||
+      typeof payload.expires_in !== 'number' || !Number.isFinite(payload.expires_in) || payload.expires_in <= 0) {
     throw new Error('Provider authorization code exchange failed.');
   }
   const grantedScopes = typeof payload.scope === 'string'
@@ -314,10 +316,18 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
         });
         const appUrl = requiredEnv('RYANAI_APP_URL');
         if (appUrl) {
-          const destination = new URL('/settings', appUrl);
-          destination.searchParams.set('integration', config.id);
-          destination.searchParams.set('status', 'connected');
-          return reply.redirect(destination.toString());
+          try {
+            const destination = new URL('/settings', appUrl);
+            const localDevelopment = process.env.NODE_ENV !== 'production' &&
+              ['localhost', '127.0.0.1'].includes(destination.hostname);
+            if (destination.protocol === 'https:' || (destination.protocol === 'http:' && localDevelopment)) {
+              destination.searchParams.set('integration', config.id);
+              destination.searchParams.set('status', 'connected');
+              return reply.redirect(destination.toString());
+            }
+          } catch {
+            // An invalid app redirect must not turn a completed authorization into a failed one.
+          }
         }
         return { connected: true, provider: config.id, grantedScopes: encrypted.grantedScopes };
       } catch {
