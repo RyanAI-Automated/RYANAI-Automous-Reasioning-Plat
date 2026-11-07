@@ -1,100 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import {
-  CheckCircle2,
-  Globe2,
-  LayoutDashboard,
-  LockKeyhole,
-  LogOut,
-  Mail,
-  Save,
-  ShieldCheck,
-  Volume2,
-} from 'lucide-react';
-import { CheckCircle2, Globe2, Save, Volume2, LayoutDashboard, Calculator, BookAudio, Github, BrainCircuit, UserRound, LogOut, Code2 } from 'lucide-react';
+import { CheckCircle2, Globe2, Save, Volume2, LayoutDashboard, Calculator, BookAudio, Github, BrainCircuit, UserRound, LogOut, Code2, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { DEFAULT_LANGUAGE, isRyanLanguage, RYANAI_LANGUAGES } from '@/shared/languages';
-import { getAvailableDashboardUiOptions } from '@/shared/dashboardUis';
 import { supabase } from '@/lib/supabase';
 import { DEFAULT_MODEL, getAvailableModels, MODELS } from '@/lib/models';
 import { AUDIOBOOK_SPEEDS, AUDIOBOOK_VOICES, DASHBOARD_UI_OPTIONS, normalizeAudiobookSettings, normalizeDashboardUiPreferences, normalizeInferenceSettings, type DashboardUiId } from '@/lib/settingsPreferences';
 import GithubModal from '@/components/GithubModal';
 
-interface ProfileSettingsProps {
-  userId: string;
-  email: string;
-  initialDisplayName: string;
-  initialLanguage: string;
-  initialVoiceEnabled?: boolean;
-  initialDashboardUiIds: string[];
-  isOwner?: boolean;
-  isAdmin?: boolean;
 interface Props {
   userId: string; email: string; initialDisplayName: string; initialLanguage: string;
-  initialVoiceEnabled?: boolean; initialDashboardUiPreferences?: unknown; initialAudiobookSettings?: unknown;
+  initialVoiceEnabled?: boolean; initialDashboardUiIds?: string[]; initialDashboardUiPreferences?: unknown; initialAudiobookSettings?: unknown;
   initialInferenceSettings?: unknown; isAdmin?: boolean; isOwner?: boolean; onSignOut?: () => void; signingOut?: boolean;
 }
-export default function ProfileSettings({ userId, email, initialDisplayName, initialLanguage, initialVoiceEnabled, initialDashboardUiPreferences, initialAudiobookSettings, initialInferenceSettings, isAdmin = false, isOwner = false, onSignOut, signingOut = false }: Props) {
-
-/**
- * Edit only user-owned Supabase auth metadata. Workspace visibility is a
- * preference, not an authorization grant. Administrative roles, owner claims,
- * provider credentials and integration secrets are never editable here.
- */
-
-function getProfileValidationError(displayName: string, language: string): string | null {
-  if (!supabase) {
-    return 'Profile updates are unavailable because Supabase authentication is not configured.';
-  }
-  if (displayName.trim().length > 100) {
-    return 'Display name must be 100 characters or fewer.';
-  }
-  if (!isRyanLanguage(language)) {
-    return 'Choose a supported RyanAI language.';
-  }
-  return null;
-}
-
-interface PersistProfilePreferencesOptions {
-  userId: string;
-  displayName: string;
-  language: string;
-  voiceEnabled: boolean;
-}
-
-async function persistProfilePreferences({
-  userId,
-  displayName,
-  language,
-  voiceEnabled,
-}: PersistProfilePreferencesOptions): Promise<void> {
-  const client = supabase;
-  if (!client) {
-    throw new Error('Profile updates are unavailable because Supabase authentication is not configured.');
-  }
-
-  const { data, error } = await client.auth.updateUser({
-    data: {
-      full_name: displayName || null,
-      ryanai_language: language,
-      ryanai_voice_enabled: voiceEnabled,
-    },
-  });
-  if (error) throw error;
-  if (!data.user || data.user.id !== userId) {
-    throw new Error('The identity provider did not confirm this profile update.');
-  }
-
-  try {
-    window.localStorage.setItem(`ryanai:language:${userId}`, language);
-    window.localStorage.setItem('ryanai:language', language);
-    window.localStorage.setItem('ryanai:voice-enabled', String(voiceEnabled));
-    window.localStorage.setItem('ryanai:voice-greetings-enabled', String(voiceEnabled));
-  } catch {
-    // Supabase metadata is authoritative; device storage is only a compatibility cache.
-  }
-  window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language } }));
-  window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled: voiceEnabled } }));
-}
-
 export default function ProfileSettings({
   userId,
   email,
@@ -102,27 +18,36 @@ export default function ProfileSettings({
   initialLanguage,
   initialVoiceEnabled,
   initialDashboardUiIds,
+  initialDashboardUiPreferences,
+  initialAudiobookSettings,
+  initialInferenceSettings,
   isOwner = false,
   isAdmin = false,
-}: ProfileSettingsProps) {
+  onSignOut,
+  signingOut = false,
+}: Props) {
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [language, setLanguage] = useState(isRyanLanguage(initialLanguage) ? initialLanguage : DEFAULT_LANGUAGE);
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     if (typeof initialVoiceEnabled === 'boolean') return initialVoiceEnabled;
     try { return (window.localStorage.getItem('ryanai:voice-enabled') ?? window.localStorage.getItem('ryanai:voice-greetings-enabled')) !== 'false'; } catch { return true; }
   });
-  const [enabledUiIds, setEnabledUiIds] = useState<Set<string>>(
-    () => new Set(initialDashboardUiIds),
-  );
   const [newEmail, setNewEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [revokingSessions, setRevokingSessions] = useState(false);
-  const [dashboardUi, setDashboardUi] = useState(() => normalizeDashboardUiPreferences(initialDashboardUiPreferences));
+  const [dashboardUi, setDashboardUi] = useState(() => {
+    const preferences = normalizeDashboardUiPreferences(initialDashboardUiPreferences);
+    if (Array.isArray(initialDashboardUiIds)) {
+      const selected = new Set(initialDashboardUiIds);
+      for (const option of DASHBOARD_UI_OPTIONS) preferences[option.id] = selected.has(option.id);
+      preferences.dashboard = true;
+    }
+    return preferences;
+  });
   const [audiobookSettings, setAudiobookSettings] = useState(() => normalizeAudiobookSettings(initialAudiobookSettings));
   const [inferenceSettings, setInferenceSettings] = useState(() => normalizeInferenceSettings(initialInferenceSettings, Object.keys(MODELS), DEFAULT_MODEL));
   const [saving, setSaving] = useState(false);
@@ -150,10 +75,11 @@ export default function ProfileSettings({
       const currentPrefs = normalizeDashboardUiPreferences(identity.user.user_metadata?.ryanai_dashboard_ui_preferences);
       const nextPrefs = { ...dashboardUi };
       for (const item of DASHBOARD_UI_OPTIONS) if (!canManage(item.id)) nextPrefs[item.id] = currentPrefs[item.id];
+      const enabledIds = DASHBOARD_UI_OPTIONS.filter((option) => nextPrefs[option.id]).map((option) => option.id);
       const { data, error: updateError } = await supabase.auth.updateUser({ data: {
         full_name: name || null, ryanai_language: language, ryanai_voice_enabled: voiceEnabled,
-        ryanai_dashboard_ui_preferences: nextPrefs, ryanai_audiobook_settings: audiobookSettings,
-        ryanai_inference_settings: inferenceSettings,
+        ryanai_dashboard_ui_preferences: nextPrefs, ryanai_dashboard_ui: enabledIds,
+        ryanai_audiobook_settings: audiobookSettings, ryanai_inference_settings: inferenceSettings,
       }});
       if (updateError) throw updateError;
       if (!data.user || data.user.id !== userId) throw new Error('The identity provider did not confirm this Settings update.');
@@ -167,92 +93,8 @@ export default function ProfileSettings({
       setNotice('RyanAI Settings were saved to your authenticated account.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save Settings. Please retry.'); }
     finally { setSaving(false); }
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-
-  const dashboardUiOptions = getAvailableDashboardUiOptions(isOwner, isAdmin);
-
-  function toggleDashboardUi(id: string, enabled: boolean) {
-    setEnabledUiIds((current) => {
-      const next = new Set(current);
-      if (enabled) next.add(id);
-      else next.delete(id);
-      return next;
-    });
   }
 
-  async function saveProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (savingProfile) return;
-    if (!supabase) {
-      setError('Profile updates are unavailable because Supabase authentication is not configured.');
-      return;
-    }
-    if (saving) return;
-
-    const validationError = getProfileValidationError(displayName, language);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    const nextDashboardUiIds = dashboardUiOptions
-      .filter((option) => enabledUiIds.has(option.id))
-      .map((option) => option.id);
-
-    setSavingProfile(true);
-    setError('');
-    setNotice('');
-    try {
-      const { data, error: updateError } = await supabase.auth.updateUser({
-        data: {
-          full_name: nextName || null,
-          ryanai_language: language,
-          ryanai_voice_enabled: voiceEnabled,
-          ryanai_dashboard_ui: nextDashboardUiIds,
-        },
-      });
-      if (updateError) throw updateError;
-      if (!data.user || data.user.id !== userId) {
-        throw new Error('The identity provider did not confirm this profile update.');
-      }
-      const savedMetadata = data.user.user_metadata ?? {};
-      const savedUiIds = savedMetadata.ryanai_dashboard_ui;
-      if (
-        savedMetadata.full_name !== (nextName || null)
-        || savedMetadata.ryanai_language !== language
-        || savedMetadata.ryanai_voice_enabled !== voiceEnabled
-        || !Array.isArray(savedUiIds)
-        || savedUiIds.length !== nextDashboardUiIds.length
-        || savedUiIds.some((id, index) => id !== nextDashboardUiIds[index])
-      ) {
-        throw new Error('Supabase Auth did not confirm all requested profile and dashboard settings.');
-      }
-
-      try {
-        window.localStorage.setItem(`ryanai:language:${userId}`, language);
-        window.localStorage.setItem('ryanai:language', language);
-        window.localStorage.setItem('ryanai:voice-enabled', String(voiceEnabled));
-        window.localStorage.setItem('ryanai:voice-greetings-enabled', String(voiceEnabled));
-      } catch {
-        // Supabase metadata is authoritative; device storage is only a compatibility cache.
-      }
-      window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language } }));
-      window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled: voiceEnabled } }));
-      setNotice('Profile, dashboard visibility and preferences saved to your authenticated RyanAI account.');
-      await persistProfilePreferences({
-        userId,
-        displayName: displayName.trim(),
-        language,
-        voiceEnabled,
-      });
-      setNotice('Profile and preferences saved to your authenticated RyanAI account.');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save your profile. Please retry.');
-    } finally {
-      setSavingProfile(false);
-    }
-  }
 
   async function requestEmailChange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -310,7 +152,10 @@ export default function ProfileSettings({
     setError('');
     setNotice('');
     try {
-      const { data, error: updateError } = await supabase.auth.updateUser({ password: newPassword, currentPassword });
+      const { data: identity, error: signInError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+      if (signInError) throw signInError;
+      if (!identity.user || identity.user.id !== userId) throw new Error('The identity provider could not re-verify this account.');
+      const { data, error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) throw updateError;
       if (!data.user || data.user.id !== userId) {
         throw new Error('The identity provider did not confirm this password update.');
@@ -347,228 +192,6 @@ export default function ProfileSettings({
     }
   }
 
-  return (
-    <section className="mx-auto max-w-5xl space-y-6 px-5 py-8 text-slate-100 sm:px-10" aria-labelledby="profile-settings-title">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">RyanAI / Account</p>
-        <h1 id="profile-settings-title" className="mt-2 text-3xl font-bold text-white">Settings</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-          Manage your RyanAI workspaces, profile identity, sign-in details and personal preferences.
-        </p>
-      </header>
-
-      {error && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/5 p-3 text-sm text-rose-200">{error}</p>}
-      {notice && <p role="status" className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm text-emerald-200"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{notice}</p>}
-
-      <form onSubmit={saveProfile} className="space-y-5">
-        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="dashboard-ui-title">
-          <div className="mb-4 flex items-center gap-3">
-            <LayoutDashboard className="h-5 w-5 text-cyan-300" />
-            <div>
-              <h2 id="dashboard-ui-title" className="font-semibold text-white">Dashboard UI options</h2>
-              <p className="mt-1 text-xs text-slate-400">Choose which RyanAI workspaces appear in your dashboard and navigation.</p>
-            </div>
-          </div>
-          <p className="mb-4 text-xs leading-5 text-slate-500">
-            Dashboard and Settings always remain available. Turning a workspace off also blocks its direct in-app route for this account; role-based access checks still apply.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {dashboardUiOptions.map((option) => (
-              <label key={option.id} className="flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                <input
-                  type="checkbox"
-                  data-ui-id={option.id}
-                  checked={enabledUiIds.has(option.id)}
-                  onChange={(event) => toggleDashboardUi(option.id, event.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-cyan-400"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-slate-200">{option.label}</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">{option.description}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="profile-details-title">
-          <div className="mb-5 flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-cyan-300" />
-            <div>
-              <h2 id="profile-details-title" className="font-semibold text-white">Profile information</h2>
-              <p className="mt-1 text-xs text-slate-400">Your account identity is verified by Supabase Auth.</p>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm text-slate-300">
-              Display name
-              <input
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                maxLength={100}
-                autoComplete="name"
-                className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none"
-              />
-              <span className="mt-1 block text-[11px] text-slate-500">Used for your RyanAI welcome and workspace identity.</span>
-            </label>
-            <label className="block text-sm text-slate-300">
-              Signed-in email
-              <input value={email} readOnly aria-readonly="true" className="mt-1.5 w-full cursor-not-allowed rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-slate-400" />
-              <span className="mt-1 block text-[11px] text-slate-500">Use Account security below to request an email change.</span>
-            </label>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="language-preferences-title">
-          <div className="mb-5 flex items-center gap-3">
-            <Globe2 className="h-5 w-5 text-cyan-300" />
-            <div>
-              <h2 id="language-preferences-title" className="font-semibold text-white">Language preferences</h2>
-              <p className="mt-1 text-xs text-slate-400">Use your preferred language for voice input and RyanAI responses where the active model supports it.</p>
-            </div>
-          </div>
-          <label className="block max-w-xl text-sm text-slate-300">
-            Preferred language
-            <select value={language} onChange={(event) => setLanguage(event.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none">
-              <optgroup label="South African languages">
-                {RYANAI_LANGUAGES.filter((item) => item.region === 'South Africa').map((item) => (
-                  <option key={item.code} value={item.code}>{item.name}</option>
-                ))}
-              </optgroup>
-              <optgroup label="International languages">
-                {RYANAI_LANGUAGES.filter((item) => item.region === 'International').map((item) => (
-                  <option key={item.code} value={item.code}>{item.name}</option>
-                ))}
-              </optgroup>
-            </select>
-          </label>
-          <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="rounded border border-cyan-300/20 px-2 py-1">{language}</span>
-            <span>Preference is stored in your account and synced to the active workspace.</span>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="voice-preferences-title">
-          <div className="mb-4 flex items-center gap-3">
-            <Volume2 className="h-5 w-5 text-cyan-300" />
-            <div>
-              <h2 id="voice-preferences-title" className="font-semibold text-white">Voice preferences</h2>
-              <p className="mt-1 text-xs text-slate-400">Control automatic spoken greetings on this and compatible devices.</p>
-            </div>
-          </div>
-          <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/60 p-3">
-            <input
-              type="checkbox"
-              data-testid="voice-enabled"
-              checked={voiceEnabled}
-              onChange={(event) => setVoiceEnabled(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-cyan-400"
-            />
-            <span>
-              <span className="block text-sm font-medium text-slate-200">Speak my RyanAI welcome greeting</span>
-              <span className="mt-1 block text-xs leading-5 text-slate-500">When enabled, RyanAI uses the device's available speech voice. Voice availability and pronunciation depend on the device and language.</span>
-            </span>
-          </label>
-        </section>
-
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <button type="submit" disabled={savingProfile || !isRyanLanguage(language)} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">
-            <Save className="h-4 w-4" /> {savingProfile ? 'Saving settings…' : 'Save profile & dashboard settings'}
-          </button>
-        </div>
-      </form>
-
-      <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="account-security-title">
-        <div className="mb-5 flex items-center gap-3">
-          <LockKeyhole className="h-5 w-5 text-cyan-300" />
-          <div>
-            <h2 id="account-security-title" className="font-semibold text-white">Account security</h2>
-            <p className="mt-1 text-xs text-slate-400">Email and password changes are handled by your authenticated identity provider.</p>
-          </div>
-        </div>
-
-        <form onSubmit={requestEmailChange} className="grid gap-3 border-b border-white/5 pb-5 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label className="block text-sm text-slate-300">
-            New email address
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(event) => setNewEmail(event.target.value)}
-              autoComplete="email"
-              required
-              placeholder="name@example.com"
-              className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none"
-            />
-            <span className="mt-1 block text-[11px] text-slate-500">Verification is required before the new email becomes active.</span>
-          </label>
-          <button type="submit" disabled={savingEmail || !newEmail.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-300/20 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:opacity-50">
-            <Mail className="h-4 w-4" /> {savingEmail ? 'Requesting…' : 'Request email change'}
-          </button>
-        </form>
-
-        <form onSubmit={changePassword} className="grid gap-3 pt-5 sm:grid-cols-2">
-          <label className="block text-sm text-slate-300">
-            Current password
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-              className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none"
-            />
-          </label>
-          <label className="block text-sm text-slate-300">
-            New password
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={12}
-              required
-              className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none"
-            />
-          </label>
-          <label className="block text-sm text-slate-300">
-            Confirm new password
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={12}
-              required
-              className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-cyan-300 focus:outline-none"
-            />
-          </label>
-          <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Use at least 12 characters. Your identity provider may require recent authentication before a password change.</p>
-          <div className="sm:col-span-2">
-            <button type="submit" disabled={savingPassword || !currentPassword || newPassword.length < 12 || !confirmPassword} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:opacity-50">
-              <LockKeyhole className="h-4 w-4" /> {savingPassword ? 'Updating…' : 'Update password'}
-            </button>
-          </div>
-        </form>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-5">
-          <div>
-            <h3 className="text-sm font-medium text-slate-200">Other signed-in devices</h3>
-            <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">Invalidate other refresh-token sessions while keeping this device signed in. Previously issued access tokens may remain valid until they expire.</p>
-          </div>
-          <button type="button" onClick={() => void signOutOtherDevices()} disabled={revokingSessions} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50">
-            <LogOut className="h-4 w-4" /> {revokingSessions ? 'Signing out…' : 'Sign out other devices'}
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4">
-        <h2 className="text-sm font-semibold text-cyan-100">Provider and integration security</h2>
-        <p className="mt-1 text-xs leading-5 text-slate-400">
-          Provider credentials, billing settings, administrator roles, owner claims and external integration secrets are not editable here. They remain server-side and are managed through authorised administrative workflows. Account deletion also requires a verified server-side process; it is not exposed as a client-side profile action.
-        </p>
-      </section>
-    </section>
-  );
   const dashboardOptions = DASHBOARD_UI_OPTIONS.filter(({ id }) => !['calculator', 'audiobook', 'inferenceConsole'].includes(id));
   return <section className="mx-auto max-w-6xl space-y-6 px-5 py-8 text-slate-100 sm:px-10" aria-labelledby="profile-settings-title">
     <header><p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">RyanAI / Account</p><h1 id="profile-settings-title" className="mt-2 text-3xl font-bold text-white">Settings</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Manage dashboard visibility, your RyanAI profile, module preferences, GitHub authorization and inference defaults. Privileged access remains server-enforced.</p></header>
@@ -597,6 +220,27 @@ export default function ProfileSettings({
       <section className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4"><h2 className="text-sm font-semibold text-cyan-100">Credential and permission safety</h2><p className="mt-1 text-xs leading-5 text-slate-400">Provider API keys, GitHub client secrets, access tokens and encryption keys are never displayed or edited here. Roles and privileged access cannot be changed through account preferences.</p></section>
       <div className="flex justify-end"><button type="submit" disabled={saving || !isRyanLanguage(language) || !Object.hasOwn(MODELS, inferenceSettings.preferredModel)} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Saving Settings…' : 'Save all Settings'}</button></div>
     </form>
+    <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5 sm:p-6" aria-labelledby="account-security-title">
+      <div className="mb-4 flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-cyan-300" /><div><h2 id="account-security-title" className="font-semibold text-white">Account security</h2><p className="mt-1 text-xs text-slate-400">Email and password changes are verified by Supabase Auth.</p></div></div>
+      <form onSubmit={requestEmailChange} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+        <label className="block text-sm text-slate-300">New email address<input type="email" value={newEmail} onChange={event => setNewEmail(event.target.value)} autoComplete="email" className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white" /></label>
+        <button type="submit" disabled={savingEmail || !newEmail.trim()} className="self-end rounded-lg border border-cyan-300/20 px-4 py-2.5 text-sm font-semibold text-cyan-100 disabled:opacity-50">{savingEmail ? 'Requesting…' : 'Request email change'}</button>
+      </form>
+      <form onSubmit={changePassword} className="mt-5 grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm text-slate-300">Current password<input type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white" /></label>
+        <label className="block text-sm text-slate-300">New password<input type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={12} autoComplete="new-password" className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white" /></label>
+        <label className="block text-sm text-slate-300 sm:col-span-2">Confirm new password<input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={12} autoComplete="new-password" className="mt-1.5 w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white" /></label>
+        <button type="submit" disabled={savingPassword || !currentPassword || newPassword.length < 12 || newPassword !== confirmPassword} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 px-4 py-2.5 text-sm font-semibold text-cyan-100 disabled:opacity-50 sm:col-span-2"><LockKeyhole className="h-4 w-4" />{savingPassword ? 'Updating…' : 'Update password'}</button>
+      </form>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-5">
+        <div><h3 className="text-sm font-medium text-slate-200">Other signed-in devices</h3><p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">Invalidate other refresh-token sessions while keeping this device signed in. Previously issued access tokens may remain valid until they expire.</p></div>
+        <button type="button" onClick={() => void signOutOtherDevices()} disabled={revokingSessions} className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"><LogOut className="h-4 w-4" />{revokingSessions ? 'Signing out…' : 'Sign out other devices'}</button>
+      </div>
+    </section>
+    <section className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4">
+      <h2 className="text-sm font-semibold text-cyan-100">Provider and integration security</h2>
+      <p className="mt-1 text-xs leading-5 text-slate-400">Provider credentials, billing settings, administrator roles, owner claims and external integration secrets are not editable here. Account deletion requires a verified server-side process and is not exposed as a client-side action.</p>
+    </section>
     <GithubModal open={githubOpen} onClose={() => setGithubOpen(false)} />
   </section>;
 }

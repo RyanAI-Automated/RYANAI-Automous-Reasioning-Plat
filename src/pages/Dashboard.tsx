@@ -38,7 +38,6 @@ type PAStatus = {
   health: { api: boolean; database: boolean; redis: boolean };
 };
 
-export default function DashboardPage({ isOwner = false, isAdmin = false, enabledUiIds }: { isOwner?: boolean; isAdmin?: boolean; enabledUiIds?: string[] }) {
 export default function DashboardPage({ isOwner = false, isAdmin = false, enabledModules }: { isOwner?: boolean; isAdmin?: boolean; enabledModules?: DashboardUiPreferences }) {
   const { health, error, checking, refresh } = usePlatformHealth();
   const [now, setNow] = useState(() => Date.now());
@@ -206,7 +205,7 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
 
   const visibleWorkspaces = workspaces.filter((workspace) => {
     const routeId = workspace.href.replace(/^#\//, '') as DashboardUiId;
-    return enabledModules?.[routeId] !== false;
+    return routeId === 'settings' || enabledModules?.[routeId] !== false;
   });
 
   return (
@@ -275,7 +274,6 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {visibleWorkspaces.map(({ id, href, title, description, icon: Icon }) => (
-          {visibleWorkspaces.map(({ href, title, description, icon: Icon }) => (
             <a
               key={id}
               href={href}
