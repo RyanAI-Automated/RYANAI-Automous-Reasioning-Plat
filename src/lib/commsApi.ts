@@ -136,10 +136,22 @@ export async function sendCommsMessage(input: {
   idempotencyKey: string;
   attachmentIds?: string[];
 }): Promise<{ success: boolean; channel: CommsChannel; providerId: string | null; status: string; replayed?: boolean }> {
-  const response = await authenticatedFetch('/api/comms/send', {
+  // This function is called only from the owner's final review/confirm action.
+  // The server issues a short-lived, one-time approval bound to this exact payload.
+  const approvalResponse = await authenticatedFetch('/api/comms/approve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+  const approval = await readJson<{ approvalId: string }>(approvalResponse);
+  if (typeof approval.approvalId !== 'string' || !approval.approvalId) {
+    throw new Error('The server did not return a valid outbound approval.');
+  }
+
+  const response = await authenticatedFetch('/api/comms/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, approvalId: approval.approvalId }),
   });
   return readJson(response);
 }
