@@ -70,6 +70,8 @@ describe('provider authorization security primitives', () => {
     expect(url.searchParams.get('scope')).toBe('calendar.readonly');
     expect(() => buildProviderAuthorizationUrl({ ...policy, redirectUri: 'http://api.example.test/callback' }, tx, ['calendar.readonly'])).toThrow('HTTPS');
     expect(() => buildProviderAuthorizationUrl(policy, tx, ['calendar.admin'])).toThrow('allowlist');
+    expect(() => buildProviderAuthorizationUrl(policy, tx, ['calendar.events'])).toThrow('required scope');
+    expect(() => buildProviderAuthorizationUrl({ ...policy, tokenEndpoint: 'http://accounts.example.test/token' }, tx, ['calendar.readonly'])).toThrow('HTTPS');
   });
 
   it('rejects unrequested, disallowed and missing required provider scopes', () => {
