@@ -184,3 +184,6 @@ export const DEFAULT_PLUGIN_MANIFESTS: readonly PluginManifest[] = Object.freeze
 export function createDefaultPluginRegistry() {
   return createPluginRegistry(DEFAULT_PLUGIN_MANIFESTS);
 }
+
+/** Shared process-local registry; adapters are added by server bootstrap only. */
+export const pluginRegistry = createDefaultPluginRegistry();
