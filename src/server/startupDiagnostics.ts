@@ -28,7 +28,7 @@ const connectionHints: Record<string, string> = {
   ERR_SSL_WRONG_VERSION_NUMBER:
     'TLS negotiation failed. Confirm the PostgreSQL endpoint and port are correct.',
   '28P01':
-    'Password authentication failed. Check the database credentials in DATABASE_URL.',
+    'Password authentication failed. For Supabase Shared Pooler Session mode, the username must be <database-role>.<project-ref> (for example, postgres.<project-ref>); if that format is already correct, verify the database password in Supabase Connect. The password is not read, changed, or logged by RyanAI.',
   '28000':
     'Database authorization failed. Check the database user and server access rules.',
   '3D000':
