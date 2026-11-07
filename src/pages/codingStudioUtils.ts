@@ -24,8 +24,8 @@ export function languageFromPath(path: string): string {
   return languages[ext] ?? 'Text';
 }
 
-export function canApproveJob(jobCreatorId: string, currentUserId?: string, isAdmin = false): boolean {
-  return Boolean(isAdmin && currentUserId && jobCreatorId !== currentUserId);
+export function canApproveJob(jobCreatorId: string, currentUserId?: string): boolean {
+  return Boolean(currentUserId && jobCreatorId === currentUserId);
 }
 
 export function diffFiles(diff: string): string[] {
