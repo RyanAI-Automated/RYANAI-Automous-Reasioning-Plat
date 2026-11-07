@@ -45,7 +45,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
 
   fastify.get('/api/engineering/jobs', async (request) => {
     const jobs = await prisma.agentRun.findMany({
-      where: request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id },
+      where: { userId: request.authUser!.id },
       orderBy: { createdAt: 'desc' },
       take: 100,
       select: {
@@ -114,7 +114,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       planHash,
       baseCommitSha: run.baseCommitSha,
       proposedDiffHash,
-      message: 'Job persisted. Worker execution is blocked until a separate administrator approves this exact plan, commit and diff.',
+      message: 'Job persisted. Review the exact plan, commit and diff, then approve it from your signed-in workspace before execution.',
     });
   });
 
@@ -122,7 +122,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const job = await prisma.agentRun.findFirst({
       where: {
         id: request.params.jobId,
-        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        userId: request.authUser!.id,
       },
       include: { handoffs: { orderBy: { startedAt: 'asc' } }, evidence: { orderBy: { sequence: 'asc' } } },
     });
@@ -201,7 +201,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const job = await prisma.agentRun.findFirst({
       where: {
         id: request.params.jobId,
-        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        userId: request.authUser!.id,
       },
     });
     if (!job) return reply.code(404).send({ error: 'Workbench job not found.' });
@@ -257,7 +257,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       const job = await tx.agentRun.findFirst({
         where: {
           id: request.params.jobId,
-          ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+          userId: request.authUser!.id,
         },
       });
       if (!job) return { status: 'missing' as const };
@@ -304,7 +304,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       approvalStatus: 'pending',
       planHash: result.planHash,
       proposedDiffHash: result.proposedDiffHash,
-      message: 'Steering and revised plan/diff recorded. A separate administrator must approve the new exact snapshot.',
+      message: 'Steering and revised plan/diff recorded. Review and approve the new exact snapshot from your signed-in workspace before execution.',
     };
   });
 
@@ -315,7 +315,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       const job = await tx.agentRun.findFirst({
         where: {
           id: request.params.jobId,
-          ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+          userId: request.authUser!.id,
         },
       });
       if (!job) return 'missing' as const;
@@ -347,7 +347,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       const job = await tx.agentRun.findFirst({
         where: {
           id: request.params.jobId,
-          ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+          userId: request.authUser!.id,
         },
       });
       if (!job) return 'missing' as const;
@@ -394,7 +394,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const job = await prisma.agentRun.findFirst({
       where: {
         id: request.params.jobId,
-        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        userId: request.authUser!.id,
       },
       select: { id: true },
     });
@@ -469,7 +469,7 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     const job = await prisma.agentRun.findFirst({
       where: {
         id: request.params.jobId,
-        ...(request.authUser?.role === 'admin' ? {} : { userId: request.authUser!.id }),
+        userId: request.authUser!.id,
       },
       select: { id: true },
     });
