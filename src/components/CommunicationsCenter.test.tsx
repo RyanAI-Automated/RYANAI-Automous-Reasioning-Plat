@@ -96,7 +96,7 @@ afterEach(async () => {
 async function render() {
   await act(async () => {
     root.render(<CommunicationsCenter />);
-    await new Promise((resolve) => window.setTimeout(resolve, 5));
+    await vi.waitFor(() => expect(container.textContent).toContain('Messages loaded'));
   });
 }
 
