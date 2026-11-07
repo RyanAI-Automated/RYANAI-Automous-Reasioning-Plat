@@ -938,3 +938,62 @@ model SecurityApproval {
   @@index([targetRef, commitSha])
   @@map("security_approvals")
 }
+
+/// Server-only provider credentials. Token ciphertext is never exposed through
+/// catalogue or user-facing profile APIs; access is owner-scoped in services.
+model PluginProviderConnection {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId           String    @map("owner_user_id")
+  providerId            String    @map("provider_id") @db.VarChar(64)
+  externalAccountId     String?   @map("external_account_id")
+  displayLabel          String?   @map("display_label") @db.VarChar(255)
+  status                String    @default("connected") @db.VarChar(32)
+  encryptedAccessToken  String?   @map("encrypted_access_token") @db.Text
+  encryptedRefreshToken String?   @map("encrypted_refresh_token") @db.Text
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  grantedScopes         String[]  @default([]) @map("granted_scopes")
+  connectionMetadata    Json      @default("{}") @map("connection_metadata")
+  connectedAt           DateTime? @map("connected_at") @db.Timestamptz(6)
+  revokedAt             DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId, providerId], map: "plugin_provider_connections_owner_provider_key")
+  @@index([ownerUserId, status, updatedAt(sort: Desc)], map: "plugin_provider_connections_owner_status_idx")
+  @@index([providerId, status, updatedAt(sort: Desc)], map: "plugin_provider_connections_provider_status_idx")
+  @@map("plugin_provider_connections")
+}
+
+/// Short-lived one-use OAuth state. The raw state is never persisted.
+model PluginOAuthState {
+  stateHash             String   @id @map("state_hash") @db.VarChar(64)
+  ownerUserId           String   @map("owner_user_id")
+  providerId            String   @map("provider_id") @db.VarChar(64)
+  encryptedCodeVerifier String   @map("encrypted_code_verifier") @db.Text
+  requestedScopes       String[] @map("requested_scopes")
+  redirectUri           String   @map("redirect_uri") @db.Text
+  expiresAt             DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([expiresAt], map: "plugin_oauth_states_expires_idx")
+  @@index([ownerUserId, providerId], map: "plugin_oauth_states_owner_provider_idx")
+  @@map("plugin_oauth_states")
+}
+
+/// Append-only, redacted authorization lifecycle evidence. Never store tokens.
+model PluginAuthorizationEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId String   @map("owner_user_id")
+  providerId  String   @map("provider_id") @db.VarChar(64)
+  connectionId String? @map("connection_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(64)
+  actorUserId String   @map("actor_user_id")
+  requestId   String?  @map("request_id") @db.VarChar(128)
+  details     Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([ownerUserId, createdAt(sort: Desc)], map: "plugin_authorization_events_owner_created_idx")
+  @@index([connectionId, createdAt(sort: Desc)], map: "plugin_authorization_events_connection_created_idx")
+  @@map("plugin_authorization_events")
+}
