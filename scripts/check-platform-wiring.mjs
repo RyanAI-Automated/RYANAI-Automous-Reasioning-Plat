@@ -73,6 +73,15 @@ if (
 ) {
   fail('Legacy CLI server must remain quarantined and must not initialize services');
 }
+const primaryLauncher = readText('src/server/launcher.ts');
+if (
+  !primaryLauncher.includes("import fastifyCors from '@fastify/cors'") ||
+  !primaryLauncher.includes('process.env.CORS_ORIGINS') ||
+  !primaryLauncher.includes('allowedCorsOrigins.has(origin)') ||
+  primaryLauncher.includes("reply.header('Access-Control-Allow-Origin', '*')")
+) {
+  fail('Supported API launcher must enforce the explicit CORS origin allowlist');
+}
 
 // HTML entry-point metadata and script safety are checked by scripts/check-index-html.mjs.
 if (!readText('src/main.tsx').includes("import App from './App'")) {
@@ -119,7 +128,17 @@ for (const id of ['dashboard', 'operator', 'admin', 'quant', 'cockpit', 'workspa
     fail(`app/routes.json is missing the ${id} route`);
   }
 }
-if (!app.includes("{route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} />}")) {
+const dashboardRouteStart = app.indexOf("{route === 'dashboard' && <DashboardPage");
+const dashboardRouteEnd = dashboardRouteStart >= 0
+  ? app.indexOf("/>}", dashboardRouteStart)
+  : -1;
+const dashboardRoute = dashboardRouteEnd > dashboardRouteStart
+  ? app.slice(dashboardRouteStart, dashboardRouteEnd + 3)
+  : '';
+if (
+  !dashboardRoute.includes('isOwner={isOwner}')
+  || !dashboardRoute.includes('isAdmin={isAdmin}')
+) {
   fail('Dashboard route must render the focused DashboardPage with verified role context');
 }
 if (!app.includes("lazy(() => import('@/pages/OperatorConsole'))") || !app.includes("{route === 'operator' && <OperatorConsole />}")) {

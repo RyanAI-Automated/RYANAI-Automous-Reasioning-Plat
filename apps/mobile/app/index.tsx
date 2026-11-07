@@ -1,7 +1,7 @@
 import React,{useState} from "react";
 import {ActivityIndicator,Pressable,StyleSheet,Text,TextInput,View} from "react-native";
 import {Redirect} from "expo-router";
-import {useAuth} from "../src/auth";
+import {useAuth} from "../src/useAuth";
 export default function SignInRoute(){
  const {session,loading,signIn}=useAuth();const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);
  if(loading)return <View style={s.center}><ActivityIndicator color="#00F2FE"/></View>;

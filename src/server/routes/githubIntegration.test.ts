@@ -49,7 +49,7 @@ async function createApp() {
   apps.push(app);
   app.decorateRequest('authUser', null);
   app.decorate('prisma', {
-    githubOAuthState: store.state,
+    gitHubOAuthState: store.state,
     githubAppConnection: store.connection,
   } as unknown as PrismaClient);
   app.addHook('onRequest', async (request) => {
