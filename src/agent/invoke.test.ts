@@ -72,7 +72,7 @@ describe('invokeReasoningAgent production orchestration', () => {
 
     expect(state.dispatch).toHaveBeenCalledWith(
       'user-model',
-      expect.stringContaining('User request:\\nCompare these options'),
+      expect.stringContaining('User request:\nCompare these options'),
       undefined,
       '~anthropic/claude-sonnet-latest',
     );
