@@ -39,8 +39,12 @@ function createPrismaFixture() {
         connectionRows.set(id, row);
         return row;
       }),
-      findMany: vi.fn(async ({ where }: { where: { ownerUserId: string } }) =>
-        [...connectionRows.values()].filter((row) => row.ownerUserId === where.ownerUserId)),
+      findMany: vi.fn(async ({ where, select }: { where: { ownerUserId: string }; select?: Record<string, boolean> }) =>
+        [...connectionRows.values()]
+          .filter((row) => row.ownerUserId === where.ownerUserId)
+          .map((row) => select
+            ? Object.fromEntries(Object.entries(select).filter(([, include]) => include).map(([field]) => [field, row[field]]))
+            : row)),
       update: vi.fn(async () => ({})),
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
