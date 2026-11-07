@@ -36,7 +36,11 @@ function getStoredRyanPreference(key: string, legacyKey: string): string | null 
 
 export default function Greeting({ userId: accountId, displayName, isOwner = false, preferredLanguage, preferredVoiceEnabled }: GreetingProps) {
   const userId = accountId || displayName || 'guest';
-  const [language, setLanguage] = useState(() => getStoredRyanLanguage(userId, isOwner, preferredLanguage));
+  const [languageSelection, setLanguageSelection] = useState<{ userId: string; preferredLanguage?: string; value: string } | null>(null);
+  const language = languageSelection?.userId === userId && languageSelection.preferredLanguage === preferredLanguage
+    ? languageSelection.value
+    : getStoredRyanLanguage(userId, isOwner, preferredLanguage);
+  const setLanguage = (value: string) => setLanguageSelection({ userId, preferredLanguage, value });
   const [title, setTitle] = useState(() =>
     getStoredRyanPreference(`ryanai:title:${userId}`, `ryanai:preferred-title:${userId}`) ?? (isOwner ? 'Sir G' : ''),
   );
@@ -45,11 +49,13 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
   const [voiceUri, setVoiceUri] = useState(() =>
     getStoredRyanPreference('ryanai:voice-uri', 'ryanai:voice-greeting-uri') ?? '',
   );
-  const [voiceEnabled, setVoiceEnabled] = useState(() =>
-    typeof preferredVoiceEnabled === 'boolean'
+  const [voiceSelection, setVoiceSelection] = useState<{ userId: string; preferredVoiceEnabled?: boolean; value: boolean } | null>(null);
+  const voiceEnabled = voiceSelection?.userId === userId && voiceSelection.preferredVoiceEnabled === preferredVoiceEnabled
+    ? voiceSelection.value
+    : typeof preferredVoiceEnabled === 'boolean'
       ? preferredVoiceEnabled
-      : getStoredRyanPreference('ryanai:voice-enabled', 'ryanai:voice-greetings-enabled') !== 'false',
-  );
+      : getStoredRyanPreference('ryanai:voice-enabled', 'ryanai:voice-greetings-enabled') !== 'false';
+  const setVoiceEnabled = (value: boolean) => setVoiceSelection({ userId, preferredVoiceEnabled, value });
   const spoken = useRef(false);
   const firstName = displayName?.trim().split(/\s+/)[0] || 'there';
   const address = title || firstName;
@@ -96,16 +102,6 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
   }, [userId, language]);
 
   useEffect(() => {
-    if (preferredLanguage && RYANAI_LANGUAGES.some((item) => item.code === preferredLanguage)) {
-      setLanguage(preferredLanguage);
-    }
-  }, [preferredLanguage]);
-
-  useEffect(() => {
-    if (typeof preferredVoiceEnabled === 'boolean') setVoiceEnabled(preferredVoiceEnabled);
-  }, [preferredVoiceEnabled]);
-
-  useEffect(() => {
     const handleLanguageChange = (event: Event) => {
       const code = (event as CustomEvent<{ language?: string }>).detail?.language;
       if (code && RYANAI_LANGUAGES.some((item) => item.code === code)) setLanguage(code);
@@ -120,6 +116,7 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
       window.removeEventListener('ryanai:language-changed', handleLanguageChange);
       window.removeEventListener('ryanai:voice-enabled-changed', handleVoiceChange);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribe once; setters only write local selection state
   }, []);
 
   useEffect(() => {

@@ -85,20 +85,23 @@ export default function QuantLabPage() {
     const data = await response.json() as { experiments: Experiment[] };
     return data.experiments;
   }, []);
-  const loadMarketDataImports = useCallback(async () => {
+  const fetchMarketDataImports = useCallback(async () => {
     const response = await authenticatedFetch('/api/quant/market-data/imports');
     if (!response.ok) throw new Error('Saved market-data imports are unavailable.');
     const data = await response.json() as { imports: MarketDataImport[] };
-    setMarketDataImports(data.imports);
-    setSelectedImportId((current) => current || data.imports.find((item) => !item.is_stale)?.id || '');
+    return data.imports;
   }, []);
 
-  const loadSignalHistory = useCallback(async () => {
+  const fetchSignalHistory = useCallback(async () => {
     const response = await authenticatedFetch('/api/quant/strategy-signals');
     if (!response.ok) throw new Error('Strategy signal history is unavailable.');
     const data = await response.json() as { signals: StrategySignal[] };
-    setSignalHistory(data.signals);
+    return data.signals;
   }, []);
+
+  const loadSignalHistory = useCallback(async () => {
+    setSignalHistory(await fetchSignalHistory());
+  }, [fetchSignalHistory]);
 
   const importMarketData = async () => {
     setMarketDataError('');
@@ -168,13 +171,24 @@ export default function QuantLabPage() {
   const finishHistoryLoad = useCallback(() => setHistoryLoading(false), []);
 
   useEffect(() => {
-    void loadMarketDataImports().catch((cause) => {
-      setMarketDataError(cause instanceof Error ? cause.message : 'Unable to load market data.');
-    }).finally(() => setImportsLoading(false));
-    void loadSignalHistory().catch((cause) => {
-      setSignalError(cause instanceof Error ? cause.message : 'Unable to load signal history.');
+    let active = true;
+    void fetchMarketDataImports().then((imports) => {
+      if (active) {
+        setMarketDataImports(imports);
+        setSelectedImportId((current) => current || imports.find((item) => !item.is_stale)?.id || '');
+      }
+    }).catch((cause: unknown) => {
+      if (active) setMarketDataError(cause instanceof Error ? cause.message : 'Unable to load market data.');
+    }).finally(() => {
+      if (active) setImportsLoading(false);
     });
-  }, [loadMarketDataImports, loadSignalHistory]);
+    void fetchSignalHistory().then((signals) => {
+      if (active) setSignalHistory(signals);
+    }).catch((cause: unknown) => {
+      if (active) setSignalError(cause instanceof Error ? cause.message : 'Unable to load signal history.');
+    });
+    return () => { active = false; };
+  }, [fetchMarketDataImports, fetchSignalHistory]);
 
   useEffect(() => {
     let active = true;

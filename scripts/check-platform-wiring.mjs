@@ -73,6 +73,15 @@ if (
 ) {
   fail('Legacy CLI server must remain quarantined and must not initialize services');
 }
+const primaryLauncher = readText('src/server/launcher.ts');
+if (
+  !primaryLauncher.includes("import fastifyCors from '@fastify/cors'") ||
+  !primaryLauncher.includes('process.env.CORS_ORIGINS') ||
+  !primaryLauncher.includes('allowedCorsOrigins.has(origin)') ||
+  primaryLauncher.includes("reply.header('Access-Control-Allow-Origin', '*')")
+) {
+  fail('Supported API launcher must enforce the explicit CORS origin allowlist');
+}
 
 // HTML entry-point metadata and script safety are checked by scripts/check-index-html.mjs.
 if (!readText('src/main.tsx').includes("import App from './App'")) {

@@ -171,7 +171,7 @@ export function optimizeLongOnlyPortfolio(input: PortfolioOptimizationInput): Po
   const step = lipschitz > 1e-12 ? 1 / lipschitz : 1;
   let weights = Array(assetCount).fill(investedWeight / assetCount) as number[];
   let converged = false;
-  let iterations = 0;
+  let iterations: number;
   for (iterations = 1; iterations <= 5000; iterations += 1) {
     const gradient = stableCovariance.map((row) =>
       2 * row.reduce((sum, value, column) => sum + value * weights[column], 0),

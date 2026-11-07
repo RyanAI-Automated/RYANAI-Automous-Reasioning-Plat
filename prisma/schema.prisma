@@ -48,6 +48,8 @@ model User {
   marketDataEvents QuantMarketDataEvent[]
   strategySignals QuantStrategySignal[]
   paperOrderProposals QuantPaperOrderProposal[]
+  quantPaperAccount QuantPaperAccount?
+  quantPaperDailyRiskStates QuantPaperDailyRiskState[]
   audiobookProjects AudiobookProject[]
   audiobookRenderJobs AudiobookRenderJob[]
 
@@ -249,6 +251,30 @@ model PendingAction {
   @@map("pending_actions")
 }
 
+
+model QuantPaperAccount {
+  userId       String   @id @map("user_id")
+  cashBalance  Decimal  @default(100000) @map("cash_balance") @db.Decimal(24, 8)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("quant_paper_accounts")
+}
+
+model QuantPaperDailyRiskState {
+  userId         String   @map("user_id")
+  riskDate       DateTime @map("risk_date") @db.Date
+  startingEquity Decimal  @map("starting_equity") @db.Decimal(24, 8)
+  currentEquity  Decimal  @map("current_equity") @db.Decimal(24, 8)
+  dailyLoss      Decimal  @default(0) @map("daily_loss") @db.Decimal(24, 8)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([userId, riskDate])
+  @@index([riskDate(sort: Desc)], map: "quant_paper_daily_risk_state_date_idx")
+  @@map("quant_paper_daily_risk_state")
+}
 
 model AgentRun {
   id String @id @default(uuid())
@@ -816,8 +842,8 @@ model SecurityScan {
 
   @@index([createdAt(sort: Desc)])
   @@index([commitSha, createdAt(sort: Desc)])
-  @@index([environment, status, createdAt(sort: Desc)])
-  @@index([ownerUserId, createdAt(sort: Desc)])
+  @@index([environment, status, createdAt(sort: Desc)], map: "security_scans_environment_status_idx")
+  @@index([ownerUserId, createdAt(sort: Desc)], map: "security_scans_owner_created_idx")
   @@map("security_scans")
 }
 
