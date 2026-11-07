@@ -56,6 +56,7 @@ import { AgentPAScript, setAgentPAObserver } from '../skills/agentPAScript.js';
 import { startAttachmentScanner } from './attachments/scanner.js';
 import { startAttachmentOrphanCleanup } from './attachments/orphanCleanup.js';
 import { pluginRegistryRoutes } from './plugins/routes.js';
+import { providerAuthorizationRoutes } from './plugins/providerAuthorizationRoutes.js';
 
 const { Pool } = pg;
 
@@ -534,6 +535,7 @@ async function registerPlugins() {
   await fastify.register(authSigninRoute);
   await fastify.register(githubIntegrationRoutes);
   await fastify.register(pluginRegistryRoutes);
+  await fastify.register(providerAuthorizationRoutes);
   await fastify.register(commsPlugin);
   await fastify.register(approvalRoutes);
   await fastify.register(engineeringEvidenceRoutes);
