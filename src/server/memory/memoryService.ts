@@ -190,3 +190,25 @@ function normalizeCategory(category: string): string {
   if (value.length > 50) throw new Error('Memory category must be 50 characters or fewer.');
   return value;
 }
+
+/** Agent-facing entry points keep Prisma ownership inside this API service module. */
+async function getMemoryDelegate(): Promise<MemoryDelegate> {
+  const { prisma } = await import('../../lib/prisma.js');
+  return prisma.memoryEntry;
+}
+
+export async function rememberUserFactForPrincipal(userId: string, key: string, value: string, category = 'preference') {
+  return rememberUserFact(await getMemoryDelegate(), userId, key, value, category);
+}
+
+export async function recallUserFactsForPrincipal(userId: string, query: string) {
+  return recallUserFacts(await getMemoryDelegate(), userId, query);
+}
+
+export async function forgetUserFactForPrincipal(userId: string, key: string) {
+  return forgetUserFact(await getMemoryDelegate(), userId, key);
+}
+
+export async function readRecentUserMemoryForPrincipal(userId: string) {
+  return readRecentUserMemory(await getMemoryDelegate(), userId);
+}
