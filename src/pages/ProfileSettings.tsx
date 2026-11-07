@@ -15,6 +15,62 @@ interface ProfileSettingsProps {
  * Edit only user-owned Supabase auth metadata. Administrative roles, owner
  * claims, provider credentials and integration secrets are never editable here.
  */
+
+function getProfileValidationError(displayName: string, language: string): string | null {
+  if (!supabase) {
+    return 'Profile updates are unavailable because Supabase authentication is not configured.';
+  }
+  if (displayName.trim().length > 100) {
+    return 'Display name must be 100 characters or fewer.';
+  }
+  if (!isRyanLanguage(language)) {
+    return 'Choose a supported RyanAI language.';
+  }
+  return null;
+}
+
+interface PersistProfilePreferencesOptions {
+  userId: string;
+  displayName: string;
+  language: string;
+  voiceEnabled: boolean;
+}
+
+async function persistProfilePreferences({
+  userId,
+  displayName,
+  language,
+  voiceEnabled,
+}: PersistProfilePreferencesOptions): Promise<void> {
+  const client = supabase;
+  if (!client) {
+    throw new Error('Profile updates are unavailable because Supabase authentication is not configured.');
+  }
+
+  const { data, error } = await client.auth.updateUser({
+    data: {
+      full_name: displayName || null,
+      ryanai_language: language,
+      ryanai_voice_enabled: voiceEnabled,
+    },
+  });
+  if (error) throw error;
+  if (!data.user || data.user.id !== userId) {
+    throw new Error('The identity provider did not confirm this profile update.');
+  }
+
+  try {
+    window.localStorage.setItem(`ryanai:language:${userId}`, language);
+    window.localStorage.setItem('ryanai:language', language);
+    window.localStorage.setItem('ryanai:voice-enabled', String(voiceEnabled));
+    window.localStorage.setItem('ryanai:voice-greetings-enabled', String(voiceEnabled));
+  } catch {
+    // Supabase metadata is authoritative; device storage is only a compatibility cache.
+  }
+  window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language } }));
+  window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled: voiceEnabled } }));
+}
+
 export default function ProfileSettings({
   userId,
   email,
@@ -43,18 +99,10 @@ export default function ProfileSettings({
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
-    if (!supabase) {
-      setError('Profile updates are unavailable because Supabase authentication is not configured.');
-      return;
-    }
 
-    const nextName = displayName.trim();
-    if (nextName.length > 100) {
-      setError('Display name must be 100 characters or fewer.');
-      return;
-    }
-    if (!isRyanLanguage(language)) {
-      setError('Choose a supported RyanAI language.');
+    const validationError = getProfileValidationError(displayName, language);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -62,28 +110,12 @@ export default function ProfileSettings({
     setError('');
     setNotice('');
     try {
-      const { data, error: updateError } = await supabase.auth.updateUser({
-        data: {
-          full_name: nextName || null,
-          ryanai_language: language,
-          ryanai_voice_enabled: voiceEnabled,
-        },
+      await persistProfilePreferences({
+        userId,
+        displayName: displayName.trim(),
+        language,
+        voiceEnabled,
       });
-      if (updateError) throw updateError;
-      if (!data.user || data.user.id !== userId) {
-        throw new Error('The identity provider did not confirm this profile update.');
-      }
-
-      try {
-        window.localStorage.setItem(`ryanai:language:${userId}`, language);
-        window.localStorage.setItem('ryanai:language', language);
-        window.localStorage.setItem('ryanai:voice-enabled', String(voiceEnabled));
-        window.localStorage.setItem('ryanai:voice-greetings-enabled', String(voiceEnabled));
-      } catch {
-        // Supabase metadata is authoritative; device storage is only a compatibility cache.
-      }
-      window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language } }));
-      window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled: voiceEnabled } }));
       setNotice('Profile and preferences saved to your authenticated RyanAI account.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save your profile. Please retry.');

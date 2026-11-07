@@ -15,15 +15,15 @@ function makeBars(closes: number[]): QuantBar[] {
 
 describe('SMA crossover signal validation', () => {
   it('emits buy only when fast SMA crosses above slow SMA', () => {
-    const closes = [10, 10, 10, 10, 8, 8, 8, 8, 8, 12, 12, 12];
+    const closes = [10, 10, 10, 10, 10, 10, 10, 12, 12, 8, 8, 13];
     const signal = createSmaCrossoverSignal(makeBars(closes), 2, 4, new Date('2026-04-01T00:00:00Z'));
     expect(signal.action).toBe('buy');
     expect(signal.strategy).toBe('sma_crossover');
-    expect(signal.referencePrice).toBe(12);
+    expect(signal.referencePrice).toBe(13);
   });
 
   it('emits sell only when fast SMA crosses below slow SMA', () => {
-    const closes = [8, 8, 8, 8, 12, 12, 12, 12, 12, 8, 8, 8];
+    const closes = [10, 10, 10, 10, 10, 10, 10, 8, 8, 12, 12, 7];
     const signal = createSmaCrossoverSignal(makeBars(closes), 2, 4);
     expect(signal.action).toBe('sell');
   });

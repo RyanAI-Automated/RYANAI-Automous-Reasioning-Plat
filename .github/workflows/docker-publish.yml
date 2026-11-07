@@ -53,6 +53,9 @@ jobs:
           target: api
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.description=RyanAI API runtime image
+          annotations: manifest:org.opencontainers.image.description=RyanAI API runtime image
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -19,7 +19,7 @@ const encryptionKey = Buffer.alloc(32, 0xa7);
 const rawAccessToken = 'ghu.synthetic-access-token';
 const rawRefreshToken = 'ghr.synthetic-refresh-token';
 
-function response(payload: unknown, status = 200) {
+function mockResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: { 'content-type': 'application/json' },
@@ -50,7 +50,7 @@ async function createApp() {
   app.decorateRequest('authUser', null);
   app.decorate('prisma', {
     gitHubOAuthState: store.state,
-    githubAppConnection: store.connection,
+    gitHubAppConnection: store.connection,
   } as unknown as PrismaClient);
   app.addHook('onRequest', async (request) => {
     if (request.headers.authorization === 'Bearer test-user') {
@@ -162,14 +162,14 @@ describe('GitHub App in-app authorization lifecycle', () => {
     const state = new URL(authorization.json().authorizationUrl).searchParams.get('state')!;
     const fetchMock = vi.mocked(fetch);
     fetchMock
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({
         access_token: rawAccessToken,
         refresh_token: rawRefreshToken,
         expires_in: 28_800,
         refresh_token_expires_in: 15_897_600,
       }))
-      .mockResolvedValueOnce(response({ id: 123456, login: 'synthetic-owner', avatar_url: 'https://avatars.example.test/owner.png' }))
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({ id: 123456, login: 'synthetic-owner', avatar_url: 'https://avatars.example.test/owner.png' }))
+      .mockResolvedValueOnce(mockResponse({
         id: 1361308785,
         full_name: GITHUB_APP_REPOSITORY,
         permissions: { pull: true, push: false, admin: false },
@@ -208,14 +208,14 @@ describe('GitHub App in-app authorization lifecycle', () => {
     });
     const state = new URL(authorization.json().authorizationUrl).searchParams.get('state')!;
     vi.mocked(fetch)
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({
         access_token: rawAccessToken,
         refresh_token: rawRefreshToken,
         expires_in: 28_800,
         refresh_token_expires_in: 15_897_600,
       }))
-      .mockResolvedValueOnce(response({ id: 123456, login: 'synthetic-owner' }))
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({ id: 123456, login: 'synthetic-owner' }))
+      .mockResolvedValueOnce(mockResponse({
         id: 1361308785,
         full_name: GITHUB_APP_REPOSITORY,
         permissions: { pull: false, push: false },
@@ -234,8 +234,8 @@ describe('GitHub App in-app authorization lifecycle', () => {
   it('reports a verified connection without returning either credential to the browser', async () => {
     store.connection.findUnique.mockResolvedValue(storedConnection());
     vi.mocked(fetch)
-      .mockResolvedValueOnce(response({ id: 123456, login: 'synthetic-owner' }))
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({ id: 123456, login: 'synthetic-owner' }))
+      .mockResolvedValueOnce(mockResponse({
         id: 1361308785,
         full_name: GITHUB_APP_REPOSITORY,
         permissions: { pull: true, push: false },
@@ -261,14 +261,14 @@ describe('GitHub App in-app authorization lifecycle', () => {
       accessTokenExpiresAt: new Date(Date.now() - 60_000),
     }));
     vi.mocked(fetch)
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({
         access_token: 'ghu.rotated-access-token',
         refresh_token: 'ghr.rotated-refresh-token',
         expires_in: 28_800,
         refresh_token_expires_in: 15_897_600,
       }))
-      .mockResolvedValueOnce(response({ id: 123456, login: 'synthetic-owner' }))
-      .mockResolvedValueOnce(response({
+      .mockResolvedValueOnce(mockResponse({ id: 123456, login: 'synthetic-owner' }))
+      .mockResolvedValueOnce(mockResponse({
         id: 1361308785,
         full_name: GITHUB_APP_REPOSITORY,
         permissions: { pull: true, push: false },
