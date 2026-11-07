@@ -400,10 +400,12 @@ The tracked [`.env.example`](.env.example) is the canonical starting template. I
 | `LOGIC_REASONING_MODEL` | Logic model selection. |
 | `OPENAI_API_KEY` | Optional OpenAI credential used by OpenAI-compatible features. |
 | `OPENAI_BASE_URL`, `OPENAI_MODEL` | Optional OpenAI-compatible endpoint and model. |
+| `OPENROUTER_API_KEY` | Optional server-only credential for the catalogued ChatGPT and Claude models in the Inference Console. No key is created or managed by RyanAI. |
+| `OPENROUTER_API_ENDPOINT` | Optional HTTPS OpenRouter-compatible endpoint; defaults to `https://openrouter.ai/api/v1`. |
 | `LM_STUDIO_URL`, `LM_STUDIO_API_KEY`, `LM_STUDIO_MODEL` | Optional local LM Studio configuration where supported. |
 | `OLLAMA_URL` | Optional local Ollama-compatible endpoint where supported. |
 
-The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_URL`, then `LM_STUDIO_URL`, then its default endpoint. Configure one intended endpoint explicitly in production to avoid ambiguity.
+The Logic client gives `LOGIC_API_ENDPOINT` first priority, then `OPENAI_BASE_URL`, then `LM_STUDIO_URL`, then its default endpoint. Configure one intended endpoint explicitly in production to avoid ambiguity. The optional ChatGPT and Claude catalogue entries use `OPENROUTER_API_KEY` for the Logic synthesis step only. The existing NVIDIA and Qwen roles still run as the two specialist brains; no new reasoning role is introduced. If the key is absent, selection fails closed before a reasoning job is queued.
 
 ### Database and browser integrations
 
