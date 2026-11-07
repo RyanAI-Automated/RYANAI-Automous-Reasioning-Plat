@@ -835,13 +835,13 @@ model SecurityScan {
   startedAt        DateTime?             @map("started_at") @db.Timestamptz(6)
   completedAt      DateTime?             @map("completed_at") @db.Timestamptz(6)
   createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  approval         SecurityApproval?     @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  approval         SecurityApproval?     @relation(fields: [approvalId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   findings         SecurityFinding[]
   evidence         SecurityEvidence[]
   verifiedRemediations SecurityRemediation[] @relation("SecurityRemediationVerification")
 
-  @@index([createdAt(sort: Desc)])
-  @@index([commitSha, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)], map: "security_scans_created_idx")
+  @@index([commitSha, createdAt(sort: Desc)], map: "security_scans_commit_created_idx")
   @@index([environment, status, createdAt(sort: Desc)], map: "security_scans_environment_status_idx")
   @@index([ownerUserId, createdAt(sort: Desc)], map: "security_scans_owner_created_idx")
   @@map("security_scans")
