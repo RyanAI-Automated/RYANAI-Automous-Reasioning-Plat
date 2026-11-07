@@ -13,7 +13,7 @@ This README describes the current repository implementation and its intended loc
 - Production promotion requires a reviewed change, green required checks, an approved database plan, configured secrets, and a verified health check.
 - Autonomous execution is bounded by configured workers, queue availability, provider quotas, and infrastructure uptime. It is not an unlimited or guaranteed always-on service.
 
-## RyanAI architecture and governance standard (4 November 2026)
+## RyanAI architecture and governance standard (7 November 2026)
 
 RyanAI is designed to own its intelligence architecture. Models are replaceable specialists; evidence determines their value; deterministic security controls authorization; and human authority governs consequential actions.
 
@@ -60,75 +60,65 @@ See [the architecture reference](docs/ARCHITECTURE.md) and [the specialist model
 
 ## Current implementation status
 
-**Checkpoint: 4 November 2026 · `main`.** This is a source/documentation checkpoint, not a production-readiness certificate. PRs #864, #865, and #866 are merged. Their merge status establishes that the changes entered the repository; it does not prove live Ollama availability, provider connectivity, successful current-head CI, database migration readiness, production security, or end-to-end communications.
+**Documentation baseline: 7 November 2026 · official repository · `main` at `382f4ad2e44524cf6f9d362e6debd45f4234f0f1` (PR #1140).** This is a source and architecture baseline, not a production-readiness certificate. The commit history through this revision includes the Studio access/approval work (#1136–#1139), governed plugin registry and provider OAuth lifecycle work (#1132–#1135), and a Render build-blocker repair (#1140). Merged code and completed pull requests do not establish that hosted services, providers, workers, migrations, or every end-to-end user journey are healthy.
 
-### Available foundations
+### Implemented foundations represented in the current source
 
-- React/Vite web application and TypeScript/Node.js API.
-- PostgreSQL persistence and Prisma schema/migration tooling.
-- Redis integration points and agent-run/handoff/checkpoint code.
-- Three configured reasoning-client slots: NVIDIA, Qwen, and Logic.
-- Separate MCP service and workflow package.
-- Repository worker-role metadata and permission-boundary tests.
-- GitHub pull-request proposal flow for reviewed code changes.
+- React/Vite web application and Node.js/TypeScript API, with a separate MCP service and workflow packages.
+- PostgreSQL as the authoritative application and durable-memory store; pgvector is the vector-search foundation. Redis supports runtime coordination and caching, not authoritative long-term memory.
+- Supabase remains the authentication and primary identity boundary. Keep the existing Supabase identity/storage relationship intact; optional audiobook persistence is a separate concern and does not replace the primary database.
+- Three distinct configured reasoning roles (NVIDIA, Qwen, Logic) and an explicit local Ollama inference mode. Configuration and adapter code are not proof of provider connectivity or an installed/running local model.
+- Durable agent-run, handoff, checkpoint, and engineering-evidence foundations. Pending work, worker-role metadata, and hash-chained records do not prove a worker is running or that evidence came from a trusted CI attestation.
+- Owner-scoped RyanAI Studio workbench access for authenticated standard users, with exact plan/base-commit/proposed-diff approval binding and guarded execution paths.
+- A server-side plugin registry and provider authorization lifecycle foundations for Google and Microsoft calendar connections, including PKCE/state handling, encrypted owner-bound token storage, scope validation, refresh/disconnect lifecycle, and safer callback handling.
+- RyanAI Comms contracts and human-review checkpoint before outbound dispatch. Drafting, classification, transcription, and preparing a message do not authorize sending, calling, or provider dispatch.
 
-The presence of a client, route, schema, worker profile, or configuration entry does not by itself prove that the corresponding external service is connected or operational. Provider authentication, queue execution, recovery, and hosted-service health must be tested independently.
+### 7 November engineering updates
 
-### 4 November 2026 engineering updates
+- **PR #1132 — governed plugin registry:** added a validated server-side provider manifest and authenticated read-only registry endpoint. Providers remain `adapter_required`; registry presence is not a connected state and does not expose executable adapter methods.
+- **PR #1133 — secure authorization foundation:** added owner/provider-bound OAuth state and credential lifecycle primitives, encrypted credential storage design, strict endpoint/scope validation, audit events, and a proposed Prisma migration. The presence of migration files does not mean a production database migration has been applied.
+- **PR #1134 and #1135 — Google/Microsoft OAuth lifecycle and hardening:** added provider-specific authorization-code/PKCE flows, one-use state, owner-bound encrypted tokens, scope checks, safe connection projections, refresh/disconnect handling, and callback/refresh failure hardening. Provider availability still depends on user consent and approved server-side configuration. No credential values are documented here.
+- **PR #1136–#1139 — RyanAI Studio:** made Studio discoverable to authenticated standard users and aligned its API and coding-worker authorization with strict per-user workspace ownership. Approval is an authenticated owner action bound to the exact persisted plan hash, base commit SHA, and proposed diff hash; changing the plan invalidates the prior approval. This is not permission to bypass sandboxing, tests, review of resulting repository changes, CI, or deployment controls.
+- **PR #1140 — Render build blockers:** repaired identified API/web build and Studio/settings integration blockers without production changes. This is a source/build repair, not evidence of a successful production deployment or healthy live service.
 
-- **PR #864 — local inference adapter:** merged an explicit `RYANAI_INFERENCE_MODE=local` path using `OLLAMA_URL` and `OLLAMA_MODEL`. The local path is designed to reject unsupported/remote endpoint configurations and must not silently fall back to a cloud provider. A merged adapter is not proof that an Ollama daemon or model is installed and responding.
-- **PR #865 — communications contracts:** merged Python orchestration interfaces and authenticated communications MCP contracts for policy reading and draft preparation. These contracts do not authorize message sending, voice calls, or provider dispatch. Cross-channel and live-model tests remain separate acceptance work.
-- **PR #866 — specialist model fit:** merged the weighted evaluation rubric and staged adoption policy. No specialist model is enabled merely by that document; the candidate scores are preliminary architecture-fit estimates, not RyanAI benchmark results.
-- **PR #863 — verification report:** records the database/migration, CI/security, and main-branch ruleset evidence still required at the time of review. Re-check those gates against the exact current `main` commit; do not assume they passed because documentation or related PRs merged.
+### RyanAI Studio: capability and limits
 
-The next work is evidence-led: complete disposable PostgreSQL/pgvector and migration checks; obtain current-head CI/security results; independently verify enforceable `main` branch protection; then benchmark specialist workloads offline. Do not download or activate candidate models in production as part of this documentation milestone.
+Studio is an authenticated engineering workspace available to standard signed-in users. The current governed workbench supports owner-scoped job visibility and management, plan/diff review, evidence inspection, and approval bound to the exact plan, base commit, and proposed diff. A plan change invalidates its earlier approval.
 
-### Governed engineering evidence workbench
+The execution adapter is required to use an isolated, resource-bounded workspace with deny-by-default network access and no inherited production credentials or host filesystem access. It must revalidate the exact approval binding before execution. A queued job or approved plan is not proof that a worker claimed or completed it.
 
-The merged engineering evidence workbench adds a governed record for engineering jobs. Its current foundations include:
+**Do not describe Studio as a fully interactive cloud IDE/terminal unless the live implementation has been tested end to end.** Acceptance requires authenticated persistent sessions, real command execution, streamed stdout/stderr, exit codes, cancellation/interrupt, reconnect behavior, resource isolation, and actual TypeScript/Python build/test results. Never display simulated output or fabricated worker progress as real execution.
 
-- New workbench jobs begin pending approval and are excluded from the worker claim path until separately approved.
-- Approval is bound to the recorded plan digest, base commit SHA, and proposed diff digest; the worker revalidates those bindings before claim.
-- Plan steering invalidates the previous approval. Rejection and cancellation are recorded, and running cancellation is observed through the worker lease heartbeat.
-- Execution events are appended to a per-job SHA-256 hash-chained evidence ledger. Evidence integrity can be checked and a JSON evidence bundle can be retrieved.
-- Evaluation and assurance receipts have separate author/approver/evaluator/reviewer identity constraints.
+### Plugin and communications boundaries
 
-**Important limits:** the existing worker is a durable reasoning worker, not yet a general-purpose isolated CLI coding executor. The workbench does not independently fetch a Git commit and diff from GitHub to prove their provenance. Check receipts submitted through the API are currently labelled `human-reported`; trusted GitHub Actions ingestion and signature/provenance verification are not yet implemented. A SHA-256 digest detects changes but is not a digital signature. The additive database migration has not been applied to production.
+The plugin registry is a catalogue, not an execution grant. Provider connections must be initiated by the authenticated owner through the approved OAuth flow; tokens remain server-side, encrypted, owner-bound, and absent from ordinary API responses and logs. Only declared least-privilege scopes may be requested. A successful OAuth callback does not prove every provider API operation or calendar workflow works.
 
-The syntax correction for the workbench prompt construction was merged in PR #708. PR #707 remains unmerged because its branch cannot currently be cleanly merged; do not treat it as an accepted implementation or force it into `main`. Validate the merged correction with completed checks against the current commit before declaring the failure resolved.
+Comms retains a separate human-review checkpoint before outbound dispatch. No agent, plugin, model, or orchestration service may self-authorize sending, calling, or other consequential external actions. Live delivery is not established by a draft, queued message, configured provider, or successful local test: verify provider callback and destination ownership, then obtain explicit authorization for the particular live test/action.
 
-### Worker execution status
+### Hosting and release posture
 
-The specialist worker roster is a set of role definitions, not proof that ten independent worker processes are running. A production-grade execution layer still needs verified durable assignment and claim behavior, worker heartbeats, lease expiry and recovery, bounded concurrency, idempotent completion, and authenticated progress reporting. Do not interpret a queued task or a profile entry as an active worker.
+- **Render is the designated hosted application platform** for the RyanAI web/API delivery path. PR #1140 repairs source/build blockers; it does not authorize or prove a production deployment.
+- **Railway is limited to isolated staging/backup evaluation** until its linked service, database, networking, health checks, data isolation, and recovery behavior are independently verified. A staging service is not production and is not evidence of failover readiness.
+- **Vercel is not an approved RyanAI runtime/deployment target.** Do not add Vercel deployment, secrets, or infrastructure dependencies to the architecture.
+- Supabase remains the primary identity/database/storage relationship. Keep audiobook-specific Neon persistence isolated and optional; do not silently redirect or replace core application data.
+- Production deployments, production database migrations, secret changes/rotation, paid upgrades, and infrastructure changes require separate explicit authorization.
 
-### RyanAI Studio coding workspace
+### Verification status and acceptance language
 
-The intended first Studio milestone is a real TypeScript/JavaScript and Python development workflow. It is not complete merely because the application has a workspace page or file-management APIs.
+This documentation does not assert that the current API or web deployment is healthy, that PostgreSQL/pgvector migrations are production-ready, that Redis/worker execution is continuously available, that all inference providers authenticate, or that Google/Microsoft OAuth connections are active. Those facts require current, independent evidence.
 
-The acceptance target is an integrated, authenticated experience that can:
+For every release candidate, record the exact commit SHA and classify each check as **passed, failed, queued, skipped, cancelled, missing, or provider-blocked**. Only a completed successful check on the exact candidate SHA is a pass. A configured integration, merged PR, queued workflow, skipped scan, green build alone, or provider quota error must not be represented as end-to-end success.
 
-1. Create and open TypeScript/JavaScript and Python projects.
-2. Browse, read, edit, and review workspace files and proposed patches.
-3. Execute real commands in isolated, resource-bounded workspaces.
-4. Run builds and tests and display actual output, diagnostics, exit codes, and failures.
-5. Connect visible worker activity to durable assignment records and real execution events.
-6. Require human approval before applying agent-generated changes or opening a pull request.
+Before Beta acceptance, verify at minimum:
+1. Disposable/staging PostgreSQL and pgvector schema, migration, backup, and restore behavior.
+2. API typecheck, tests, production build, Docker image build, and security scans on the exact candidate commit.
+3. Enforceable `main` branch rules requiring reviewed PRs and required checks, blocking force-push/delete, and removing inappropriate bypass actors.
+4. Render web/API health and authenticated smoke tests against the intended revision; independently verify any Railway staging target.
+5. Authenticated owner isolation, memory access/deletion, plugin OAuth consent/refresh/disconnect, and Comms human-review/dispatch boundaries.
+6. Real worker claim, lease/heartbeat, cancellation, retry, recovery, and isolated command execution—not just persisted jobs or queued status.
+7. Real provider inference probes and offline specialist benchmarks with pinned model/data provenance, licence review, security gates, fallback, rollback, and ZAR cost per successful task.
 
-**Live terminal status:** a fully interactive terminal is not yet established by the current implementation checkpoint. Do not describe the terminal as live or functional until authenticated persistent sessions, interactive command input, streamed stdout/stderr, resize, interrupt/cancel, reconnect behavior, and real TypeScript/Python command execution have been implemented and tested.
-
-Until these end-to-end acceptance tests pass, treat Studio as work in progress. Do not show simulated terminal output, fabricated worker progress, or success states that are not backed by real execution results.
-
-### Security boundaries for coding workers
-
-Coding workers must run in isolated disposable environments with explicit CPU, memory, disk, process, and time limits. They must not inherit production credentials, mount a developer's home directory or production data, or receive unrestricted network access. Validate paths and commands at the execution boundary, redact secrets from logs, and keep code changes on reviewable branches. Human review and required CI/security checks remain mandatory; workers must not merge or deploy their own changes.
-
-The current repository checkpoint is a source-control checkpoint, not a live-service acceptance report. In particular, no claim is made here that all three model providers authenticate, that all queued jobs execute continuously, or that the web/API/MCP deployment is healthy.
-
-### Release and verification status
-
-This README is not a production-readiness certificate. Before calling a capability operational, record evidence against the same commit: completed test results, real provider responses where applicable, actual worker/queue execution, security scan outcomes, and a verified runtime health check. Queued, skipped, cancelled, mocked, or incomplete checks are not passes.
-
-No deployment, release, production data change, secret rotation, or paid infrastructure upgrade is implied by this documentation update.
+No deployment, production migration, secret change, paid infrastructure upgrade, auto-merge, CI bypass, or model activation is implied by this README. Human review remains mandatory.
 
 ## Capabilities and architecture
 
@@ -778,59 +768,43 @@ Health endpoints show whether a process or its configured dependencies respond. 
 
 ## Deployment
 
-**Default hosted providers:** Render is the primary frontend and web/API delivery target; Railway is the primary Docker and persistent-workload target. Docker Compose and Kubernetes remain local/alternative definitions. Vercel is not a RyanAI deployment target or integration.
+**Approved architecture:** Render is the designated hosted platform for the RyanAI web/API delivery path. Railway is restricted to isolated staging or backup evaluation until independently validated. Vercel is not an approved RyanAI runtime or deployment target. Docker Compose remains the reproducible local development stack.
 
-All provider deployments from pull requests are staging-only. The staging workflows require an open PR head, exact-head CI/security success, explicit `STAGE` confirmation, and a separately verified isolated target. Production deployment remains outside these PR workflows and requires a separate approval.
+Pull-request deployments, where configured, are staging-only and must be bound to the exact open PR head and completed required CI/security checks. A staging deployment does not authorize production promotion. Production deployment requires a separate explicit approval.
 
-### Docker deployment
+### Render — designated hosted platform
 
-For a production Docker deployment:
+The repository includes a Render Blueprint for the web and API services. Treat the Blueprint and dashboard as configuration inputs that must be reconciled, not as proof of a healthy deployment.
 
-- Use a private network and TLS-terminating ingress.
-- Store secrets in the host's secret manager, not in the image or repository.
-- Use persistent, backed-up database storage.
-- Restrict PostgreSQL, Redis, and MCP access to trusted networks.
-- Configure resource limits, monitoring, log retention, and alerting.
-- Apply reviewed database migrations before or alongside a compatible application release.
-- Verify the actual health route and perform authenticated application smoke tests.
+Before any authorized change:
+1. Confirm the service is connected to the official `RyanAI-Automated/RYANAI-Automous-Reasioning-Plat` repository and intended branch.
+2. Review the exact Blueprint diff, service names, Dockerfile/build context, publish path, health route, CORS origins, and environment-variable references.
+3. Confirm database connectivity through the exact Supabase-provided Session Pooler hostname where required; never infer or guess a pooler hostname.
+4. Confirm Redis/Valkey connectivity independently.
+5. Keep schema migrations separate from API startup and require a separately reviewed, approved migration plan.
+6. Verify build, deploy revision, `/health`, authenticated application journeys, logs, and real provider probes independently.
+7. Keep auto-deploy disabled unless the release process and exact-head protections have been verified.
 
-The default Compose port bindings are loopback-only and are intended for local use.
+PR #1140 repaired source/build blockers without production changes. It does not establish a completed deployment, healthy API, successful database connection, or verified end-to-end product.
 
-### Render
+### Railway — isolated staging/backup evaluation only
 
-The repository includes `render.yaml` describing a static web service and a Docker API service. Before applying it:
+Railway may be used for a dedicated, isolated staging or backup evaluation of API/Docker workloads. Do not treat a linked staging service as production or as a proven failover target. Before considering it operational, verify the official repository/branch, isolated environment, database and storage separation, network policy, secrets scope, health checks, persistence, backup/restore, and recovery behavior. Do not repurpose unrelated Railway projects or connect staging to production data.
 
-1. Confirm the Render service is connected to the intended repository and branch.
-2. Confirm service names, domains, Dockerfile path, build context, health route, and CORS origins.
-3. Configure all required secrets in Render's environment settings.
-4. Provision persistent database and Redis services appropriate for the workload; do not assume the local Compose services exist in Render.
-5. Review the Blueprint diff before applying changes.
-6. Enable auto-deploy only after the CI and release policy are in place.
-7. Verify the resulting deployment, health check, logs, and external model calls.
+### Production release checklist
 
-Do not create duplicate services to work around a repository-link or service-configuration issue.
-
-### Railway
-
-Railway is the default provider for Docker services and persistent workloads. Use a dedicated RyanAI staging project/environment linked to the official repository, build from `Dockerfile.api`, and verify `/health`. Do not repurpose the existing unrelated Railway project as staging. Staging credentials, databases, volumes, and networking must be isolated from production.
-
-The Render and Railway PR workflows deploy only to explicitly configured staging targets. They refuse to run unless the open PR head matches the exact commit and all named CI/security checks have completed successfully. Production deploys are not triggered by these workflows.
-
-### Release checklist
-
-Before promoting a release, verify all of the following for the exact commit:
-
-- [ ] Pull request reviewed and merged through the approved process.
-- [ ] Required typecheck, lint, unit, integration, and E2E checks passed.
-- [ ] Dependency, secret, CodeQL, and container security scans reviewed.
-- [ ] Docker images built successfully for the intended targets.
-- [ ] Database migration reviewed, tested, backed up, and approved.
-- [ ] Production secrets configured in the deployment provider.
-- [ ] NVIDIA, Qwen, and Logic provider calls tested with real credentials if those brains are part of the release.
-- [ ] API, web, database, Redis, and MCP health checks verified.
-- [ ] Authentication, authorization, and critical user journeys smoke-tested.
-- [ ] Logs, monitoring, rollback plan, and service ownership confirmed.
-- [ ] Deployment provider reports the intended revision as healthy.
+For the exact candidate commit, require:
+- [ ] Human-reviewed pull request; no auto-merge or bypass.
+- [ ] Required typecheck, lint, unit, integration, and relevant end-to-end checks completed successfully.
+- [ ] Dependency, secret, CodeQL, container, and supply-chain scans reviewed; skipped or missing scans are not passes.
+- [ ] Web and API builds and Docker image builds completed successfully.
+- [ ] Database migration reviewed and tested on disposable/staging data; separate explicit approval before any production migration.
+- [ ] Production secrets already provisioned through approved secret stores; no secret values in source or logs.
+- [ ] Real provider calls tested only where authorized and required for the release.
+- [ ] API, web, PostgreSQL, Redis, and MCP health independently verified.
+- [ ] Authentication, authorization, owner isolation, critical user journeys, and outbound-communications approval tested.
+- [ ] Monitoring, rollback, backup/restore, and service ownership confirmed.
+- [ ] Explicit production deployment approval recorded before promotion.
 
 ## Security and secret handling
 
