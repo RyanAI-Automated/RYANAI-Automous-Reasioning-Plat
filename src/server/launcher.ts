@@ -117,7 +117,7 @@ const fastify = Fastify({
 });
 
 // Initialize the core platform Prisma client and the separate optional Neon audiobook client.
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasources: { db: { url: connectionUrls.databaseUrl } } });
 fastify.decorate('prisma', prisma);
 const audiobookPrisma = getAudiobookPrismaClient();
 fastify.decorate('audiobookPrisma', audiobookPrisma);
