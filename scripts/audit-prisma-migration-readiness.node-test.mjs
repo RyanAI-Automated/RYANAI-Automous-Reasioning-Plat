@@ -34,6 +34,7 @@ test('detects schema and vector-memory drift, including runtime columns and inde
     cacheColumns: new Set(['id', 'prompt']),
   });
   assert.ok(result.missingColumns.includes('approval_status'));
+  assert.ok(result.missingColumns.includes('requested_model'));
   assert.ok(result.missingTables.includes('agent_run_evidence'));
   assert.equal(result.vector.extensionPresent, false);
   assert.deepEqual(result.vector.missingTables, ['agent_memory']);
@@ -46,7 +47,7 @@ test('detects schema and vector-memory drift, including runtime columns and inde
 test('accepts a complete schema and vector-memory installation', () => {
   const columns = ['execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash', 'base_commit_sha',
     'proposed_diff_hash', 'approved_plan_hash', 'approved_commit_sha', 'approved_diff_hash',
-    'approved_by', 'approved_at', 'steering_notes', 'cancel_requested_at'];
+    'approved_by', 'approved_at', 'steering_notes', 'cancel_requested_at', 'requested_model'];
   const result = assessSchema({
     columns: new Set(columns),
     tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'reasoning_cache', 'agent_memory']),
