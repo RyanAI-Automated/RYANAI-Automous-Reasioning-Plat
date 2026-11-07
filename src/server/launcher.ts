@@ -90,12 +90,16 @@ console.log(
   `    - Redis: ${process.env.REDIS_URL ? 'URL supplied' : 'Local development/test default'} (connection not yet checked)\n`,
 );
 
+// Pretty logging is reserved for local development. Staging and production
+// use structured JSON so the runtime does not depend on dev-only pino-pretty.
+const isDevelopment = config.nodeEnv === 'development';
+
 // Initialize Fastify instance with trustProxy and telemetry-aware logger
 const fastify = Fastify({
   trustProxy: true,
   logger: {
-    level: config.nodeEnv === 'production' ? 'info' : 'debug',
-    ...(config.nodeEnv !== 'production' && {
+    level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+    ...(isDevelopment && {
       transport: {
         target: 'pino-pretty',
         options: {
