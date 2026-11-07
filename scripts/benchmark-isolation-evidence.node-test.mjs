@@ -56,7 +56,7 @@ function fixtureProbe() {
     containerImageDigest: 'node@sha256:' + 'a'.repeat(64),
     networkInterfaces: ['lo'],
     environmentVariableNames: ['HOME', 'HOSTNAME', 'NODE_VERSION', 'PATH', 'PWD', 'YARN_VERSION'],
-    allowedEnvironmentVariableNames: ['HOME', 'HOSTNAME', 'NODE_VERSION', 'PATH', 'PWD', 'YARN_VERSION'],
+    allowedEnvironmentVariableNames: ['HOME', 'HOSTNAME', 'NODE_VERSION', 'PATH', 'PWD', 'TERM', 'YARN_VERSION'],
     failedChecks: 0,
     checks: requiredChecks.map(name => ({
       name, status: 'PASS', command: 'fixture command', exitCode: 0, observedCode: 'fixture'

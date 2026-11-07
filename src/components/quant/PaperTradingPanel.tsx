@@ -101,7 +101,6 @@ export default function PaperTradingPanel() {
   const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     try {
       const [response, riskResponse, signalResponse, riskStateResponse, proposalResponse] = await Promise.all([
         authenticatedFetch('/api/quant/paper'),
@@ -141,6 +140,7 @@ export default function PaperTradingPanel() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load paper trading snapshot on mount
   useEffect(() => { void refresh(); }, [refresh]);
 
   const recentTrades = snapshot?.trades ?? [];

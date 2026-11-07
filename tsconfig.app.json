@@ -82,7 +82,8 @@
     "src/services/tauriBridge.ts",
     "src/utils/**/*.ts",
     "src/data/**/*.ts",
-    "src/engine/selfPatchSkill.ts"
+    "src/engine/selfPatchSkill.ts",
+    "src/pages/codingStudioUtils.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",

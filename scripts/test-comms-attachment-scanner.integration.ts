@@ -65,7 +65,8 @@ async function waitForScanResults(
       .eq('bucket_id', COMMS_ATTACHMENT_BUCKET)
       .in('object_name', objectNames);
     if (error) throw error;
-    latest = new Map((data ?? []).map((row: any) => [
+    const rows = (data ?? []) as Array<{ object_name: string; status: string; attempts: number }>;
+    latest = new Map(rows.map((row) => [
       row.object_name,
       { status: String(row.status), attempts: Number(row.attempts) },
     ]));

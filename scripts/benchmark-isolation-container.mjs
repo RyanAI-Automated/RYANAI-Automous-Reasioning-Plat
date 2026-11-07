@@ -24,7 +24,8 @@ const suspiciousValues = Object.entries(process.env)
      /(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["']?\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{12,}/i.test(value ?? '')))
   .map(([name]) => name);
 const allowedContainerEnvNames = new Set([
-  'PATH', 'HOME', 'HOSTNAME', 'NODE_VERSION', 'YARN_VERSION', 'PWD', 'TERM'
+  // SHLVL is injected by the container shell runtime; no host credentials are passed.
+  'PATH', 'HOME', 'HOSTNAME', 'NODE_VERSION', 'YARN_VERSION', 'PWD', 'TERM', 'SHLVL'
 ]);
 const unexpectedEnvNames = Object.keys(process.env)
   .filter(name => !allowedContainerEnvNames.has(name))
@@ -95,8 +96,17 @@ async function expectTcpBlocked(host, port) {
       reject(new Error(`Unexpected network connection to ${host}:${port}`));
     });
     socket.once('error', error => {
-      if (DENIED_NETWORK_CODES.has(error.code)) resolve(error.code);
-      else reject(new Error(`Connection to ${host}:${port} failed with ${error.code}; this is not proof of egress denial.`));
+      if (DENIED_NETWORK_CODES.has(error.code)) {
+        resolve(error.code);
+        return;
+      }
+      // ECONNREFUSED is not proof by itself. Accept it only after the
+      // network=none container has independently exposed loopback only.
+      if (error.code === 'ECONNREFUSED' && interfaces.length === 1 && interfaces[0] === 'lo') {
+        resolve('ECONNREFUSED_LOOPBACK_ONLY');
+        return;
+      }
+      reject(new Error(`Connection to ${host}:${port} failed with ${error.code}; this is not proof of egress denial.`));
     });
     socket.once('timeout', () => {
       socket.destroy();
@@ -120,6 +130,11 @@ async function expectPublicDnsBlocked(hostname) {
   } catch (error) {
     if (error.message.startsWith('Unexpected public DNS resolution')) throw error;
     if (DENIED_NETWORK_CODES.has(error.code)) return error.code;
+    // ECONNREFUSED alone is not an egress proof. Accept it only after the
+    // earlier network-interface gate has established a loopback-only namespace.
+    if (error.code === 'ECONNREFUSED' && interfaces.length === 1 && interfaces[0] === 'lo') {
+      return 'ECONNREFUSED_LOOPBACK_ONLY';
+    }
     throw new Error(`Public DNS probe for ${hostname} failed with ${error.code ?? error.message}; egress denial was not established.`);
   }
 }

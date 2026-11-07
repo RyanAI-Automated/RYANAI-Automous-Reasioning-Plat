@@ -65,7 +65,7 @@ export function validateBenchmarkGateEvidence(bundle) {
     require(bundle?.remote_credentials_mounted === false, 'Profile A must prove remote_credentials_mounted=false');
     require(bundle?.cloud_fallback_enabled === false, 'Profile A must prove cloud_fallback_enabled=false');
     require(bundle?.os_egress_enforcement_evidence === true, 'Profile A requires OS/container egress enforcement evidence');
-    require(isolation?.verdict !== 'PASS' || isolation?.ollama_loopback_only === true, 'Profile A G1 PASS requires Ollama loopback-only proof');
+    require(isolation?.verdict !== 'PASS' || bundle?.ollama_loopback_only === true, 'Profile A G1 PASS requires top-level Ollama loopback-only proof');
   }
   if (bundle.profile === 'B_REMOTE_PROVIDER') {
     require(bundle?.remote_credentials_mounted === true, 'Profile B must explicitly record scoped remote credentials as mounted');

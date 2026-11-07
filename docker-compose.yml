@@ -68,8 +68,8 @@ services:
       - path: .env
         required: false
     environment:
-      # This service targets only the private disposable/local Compose Postgres service.
-      # Production uses the separately approved production-migrations workflow.
+      # This migration service targets only the private disposable/local Compose Postgres service.
+      # Production migrations run separately through the reviewed production-migrations workflow.
       NODE_ENV: test
       DATABASE_URL: postgresql://ryanai:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/ryanai_db
     networks: [ryanai-net]
