@@ -201,6 +201,13 @@ assertPermissionsWorkflow('deploy-railway.yml', (filePath, _text, document) => {
     fail(filePath, 'Railway staging validation must use read-only repository/check permissions');
   }
 });
+if (statSafe(join(workflowDir, 'preview.yml'))) {
+  assertPermissionsWorkflow('preview.yml', (filePath, _text, document) => {
+    if (document.permissions?.contents !== 'read') {
+      fail(filePath, 'preview validation must use read-only repository permissions');
+    }
+  });
+}
 
 assertPermissionsWorkflow('container-security.yml', (filePath, _text, document) => {
   if (document.permissions?.['security-events'] === 'write') {

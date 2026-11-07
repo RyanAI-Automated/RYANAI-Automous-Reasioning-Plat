@@ -19,6 +19,7 @@ vi.mock('@/lib/commsApi', () => ({
   getCommsStatus: comms.getCommsStatus,
   getCommsConversations: comms.getCommsConversations,
   sendCommsMessage: comms.sendCommsMessage,
+  assistCommsConversation: comms.assistCommsConversation,
   prepareCommsAttachments: comms.prepareCommsAttachments,
   uploadCommsAttachment: comms.uploadCommsAttachment,
   getCommsAttachmentStatuses: comms.getCommsAttachmentStatuses,

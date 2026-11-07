@@ -29,6 +29,11 @@ on:
       - '.github/workflows/ci.yml'
       - 'scripts/check-platform-wiring.mjs'
       - 'scripts/validate-github-workflows.mjs'
+      - 'quant-engine/**'
+      - 'certs/**'
+      - 'scripts/backup-on-startup.mjs'
+      - 'scripts/verify-node-ca.sh'
+      - 'tsconfig*.json'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
     inputs:

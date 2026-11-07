@@ -63,14 +63,15 @@ if (!desktopRunner.includes("MCP_PORT: '8767'")) {
   fail('Desktop MCP service must use port 8767');
 }
 
-// The legacy CLI entrypoint is intentionally quarantined and must not be treated
-// as a supported runtime or an independently validated API server.
+// The legacy CLI server is intentionally quarantined. Keep it from becoming
+// a second, unsupported API runtime; the supported runtime is launcher.ts.
 const legacyServer = readText('src/server/index.ts');
-if (!legacyServer.includes('Unsupported legacy API entrypoint')) {
-  fail('Legacy CLI server must remain explicitly quarantined');
-}
-if (!legacyServer.includes('src/server/launcher.ts')) {
-  fail('Legacy CLI server quarantine must direct callers to src/server/launcher.ts');
+if (
+  !legacyServer.includes('intentionally quarantined') ||
+  !legacyServer.includes('Unsupported legacy API entrypoint') ||
+  /from ['"]fastify['"]|JWT_SECRET|server\.listen|startTelemetry\(\)|startMeshBroadcast/.test(legacyServer)
+) {
+  fail('Legacy CLI server must remain quarantined and must not initialize services');
 }
 const primaryLauncher = readText('src/server/launcher.ts');
 if (
