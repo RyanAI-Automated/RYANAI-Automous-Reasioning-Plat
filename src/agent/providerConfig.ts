@@ -62,33 +62,33 @@ export function resolveBrainProviderConfig(
   }
 
   if (brain === 'primary') {
-    const endpoint = env.NVIDIA_API_ENDPOINT || 'https://integrate.api.nvidia.com/v1';
+    const endpoint = env.NVIDIA_API_ENDPOINT || env.LM_STUDIO_URL || 'https://integrate.api.nvidia.com/v1';
     return {
       role,
       adapter: 'openai-compatible',
       model: env.PRIMARY_REASONING_MODEL || env.NVIDIA_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b',
       endpoint: validateEndpoint(endpoint, role),
-      credential: Boolean(env.NVIDIA_API_KEY),
+      credential: Boolean(env.NVIDIA_API_KEY) || (!env.NVIDIA_API_ENDPOINT && Boolean(env.LM_STUDIO_URL) && Boolean(env.LM_STUDIO_API_KEY)),
     };
   }
 
   if (brain === 'secondary') {
-    const endpoint = env.QWEN_API_ENDPOINT || 'https://api.together.xyz/v1';
+    const endpoint = env.QWEN_API_ENDPOINT || env.LM_STUDIO_URL || 'https://api.together.xyz/v1';
     return {
       role,
       adapter: 'openai-compatible',
       model: env.SECONDARY_REASONING_MODEL || env.QWEN_MODEL || 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
       endpoint: validateEndpoint(endpoint, role),
-      credential: Boolean(env.QWEN_API_KEY),
+      credential: Boolean(env.QWEN_API_KEY) || (!env.QWEN_API_ENDPOINT && Boolean(env.LM_STUDIO_URL) && Boolean(env.LM_STUDIO_API_KEY)),
     };
   }
 
-  const endpoint = env.LOGIC_API_ENDPOINT || env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+  const endpoint = env.LOGIC_API_ENDPOINT || env.OPENAI_BASE_URL || env.LM_STUDIO_URL || 'https://api.openai.com/v1';
   return {
     role,
     adapter: 'openai-compatible',
     model: env.LOGIC_REASONING_MODEL || env.LM_STUDIO_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini',
     endpoint: validateEndpoint(endpoint, role),
-    credential: Boolean(env.LOGIC_API_KEY || env.OPENAI_API_KEY),
+    credential: Boolean(env.LOGIC_API_KEY || env.OPENAI_API_KEY) || (Boolean(env.LM_STUDIO_URL) && endpoint === env.LM_STUDIO_URL && Boolean(env.LM_STUDIO_API_KEY)),
   };
 }
