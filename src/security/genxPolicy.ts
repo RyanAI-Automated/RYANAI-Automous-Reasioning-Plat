@@ -49,9 +49,6 @@ export function evaluateGenXSecurityEvent(event: GenXSecurityEvent): GenXPolicyR
   if (event.action === 'CREDENTIAL_ACCESS' || SENSITIVE_TARGET.test(event.target ?? '')) {
     return { decision: 'DENY', ruleId: 'GX-SECRETS-001', reason: 'Agents cannot read or export credentials, secrets, private keys, or environment files.', severity: 'CRITICAL' };
   }
-  if (event.action === 'DELETE' && event.environment === 'production') {
-    return { decision: 'DENY', ruleId: 'GX-PROD-DELETE-001', reason: 'Production deletion is prohibited for autonomous agents.', severity: 'CRITICAL' };
-  }
   // Validate untrusted target strings before granting any read-only tool exception.
   // Otherwise a nominally safe reader could receive shell-control or injection payloads.
   if (event.target && COMMAND_CONTROL.test(event.target)) {
@@ -62,6 +59,9 @@ export function evaluateGenXSecurityEvent(event: GenXSecurityEvent): GenXPolicyR
   if (event.actorType === 'human' && event.toolName === 'api_user_memory' && event.target === 'self' &&
       ['READ', 'CREATE', 'UPDATE', 'DELETE'].includes(event.action)) {
     return { decision: 'ALLOW', ruleId: 'GX-HUMAN-MEMORY-001', reason: 'Verified user action is limited to that user's own memory records.', severity: 'LOW' };
+  }
+  if (event.action === 'DELETE' && event.environment === 'production') {
+    return { decision: 'DENY', ruleId: 'GX-PROD-DELETE-001', reason: 'Production deletion is prohibited for autonomous agents.', severity: 'CRITICAL' };
   }
   // A direct, authenticated API reasoning request is explicit user consent to use
   // the configured reasoning providers. It does not authorize arbitrary network access.
