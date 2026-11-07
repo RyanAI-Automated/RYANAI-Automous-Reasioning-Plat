@@ -97,7 +97,9 @@ async function render() {
   await act(async () => {
     root.render(<CommunicationsCenter />);
   });
-  await vi.waitFor(() => expect(container.textContent).toContain('client@example.com'));
+  await act(async () => {
+    await vi.waitFor(() => expect(container.textContent).toContain('client@example.com'));
+  });
 }
 
 describe('RyanAI Comms inbox controls', () => {
