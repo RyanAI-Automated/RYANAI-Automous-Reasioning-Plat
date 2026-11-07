@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   dispatch: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock('./memoryContext.js', () => ({
 import { invokeReasoningAgent } from './invoke.js';
 
 beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.unstubAllEnvs());
 
 describe('invokeReasoningAgent production orchestration', () => {
   it('dispatches an authenticated objective through the persisted three-brain orchestrator', async () => {
@@ -55,6 +56,35 @@ describe('invokeReasoningAgent production orchestration', () => {
     ]);
     expect(result.handoffs).toHaveLength(4);
     expect(state.waitForAutonomousTask).toHaveBeenCalledWith('run-123', 'user-1', 120_000, onProgress);
+  });
+
+  it('persists an explicitly selected ChatGPT or Claude model for Logic synthesis', async () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'test-only-key');
+    state.buildMemoryContext.mockResolvedValue(null);
+    state.dispatch.mockResolvedValue({ id: 'run-model' });
+    state.waitForAutonomousTask.mockResolvedValue({ id: 'run-model', result: 'done', handoffs: [] });
+
+    await invokeReasoningAgent({
+      prompt: 'Compare these options',
+      model: '~anthropic/claude-sonnet-latest',
+      user: { id: 'user-model' },
+    });
+
+    expect(state.dispatch).toHaveBeenCalledWith(
+      'user-model',
+      expect.stringContaining('User request:\\nCompare these options'),
+      undefined,
+      '~anthropic/claude-sonnet-latest',
+    );
+  });
+
+  it('does not queue an external model when its existing gateway credential is absent', async () => {
+    await expect(invokeReasoningAgent({
+      prompt: 'Do not queue this',
+      model: '~openai/gpt-latest',
+      user: { id: 'user-no-key' },
+    })).rejects.toThrow(/requires an existing OpenRouter credential/);
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
 
   it('injects saved user context into the orchestrated objective', async () => {
