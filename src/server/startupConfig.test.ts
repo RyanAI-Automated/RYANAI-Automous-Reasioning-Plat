@@ -8,6 +8,10 @@ const expectedLocalDatabaseUrl = () => {
   return url.toString();
 };
 
+const supabaseProjectRef = 'narsvpwymvlrhurqbthu';
+const supabaseProjectUrl = `https://${supabaseProjectRef}.supabase.co`;
+const supabasePoolerHost = 'aws-1-eu-west-1.pooler.supabase.com';
+
 describe('production connection configuration', () => {
   it('fails closed when production database and Redis URLs are missing', () => {
     expect(() => resolveConnectionUrls('production')).toThrow(
@@ -37,6 +41,50 @@ describe('production connection configuration', () => {
     });
   });
 
+  it('routes a Supabase direct connection through the configured IPv4 Session Pooler', () => {
+    const result = resolveConnectionUrls(
+      'production',
+      `postgresql://postgres:p%40ss%3Aword@db.${supabaseProjectRef}.supabase.co:5432/postgres`,
+      'redis://cache',
+      supabaseProjectUrl,
+      supabasePoolerHost,
+      '/etc/ssl/supabase-root.crt',
+    );
+    const database = new URL(result.databaseUrl);
+
+    expect(database.hostname).toBe(supabasePoolerHost);
+    expect(database.port).toBe('5432');
+    expect(database.username).toBe(`postgres.${supabaseProjectRef}`);
+    expect(database.password).toBe('p%40ss%3Aword');
+    expect(database.searchParams.get('sslmode')).toBe('verify-full');
+    expect(database.searchParams.get('sslrootcert')).toBe('/etc/ssl/supabase-root.crt');
+    expect(database.searchParams.get('sslaccept')).toBe('strict');
+  });
+
+  it('repairs an existing Supabase pooler URL with an unqualified username', () => {
+    const result = resolveConnectionUrls(
+      'production',
+      `postgresql://postgres:password@aws-1-eu-west-1.pooler.supabase.com:5432/postgres`,
+      'redis://cache',
+      supabaseProjectUrl,
+      supabasePoolerHost,
+    );
+    const database = new URL(result.databaseUrl);
+
+    expect(database.hostname).toBe(supabasePoolerHost);
+    expect(database.username).toBe(`postgres.${supabaseProjectRef}`);
+    expect(database.searchParams.get('sslmode')).toBe('verify-full');
+  });
+
+  it('rejects Supabase pooler routing when its project or verified host is missing', () => {
+    expect(() => resolveConnectionUrls(
+      'production',
+      `postgresql://postgres:password@aws-1-eu-west-1.pooler.supabase.com:5432/postgres`,
+      'redis://cache',
+      supabaseProjectUrl,
+    )).toThrow('SUPABASE_SESSION_POOLER_HOST');
+  });
+
   it('retains local defaults outside production', () => {
     expect(resolveConnectionUrls('development')).toEqual({
       databaseUrl: expectedLocalDatabaseUrl(),
@@ -54,7 +102,6 @@ describe('production connection configuration', () => {
     );
   });
 });
-
 
 describe('production startup dependency gate', () => {
   it('blocks production startup when PostgreSQL is unavailable', () => {
@@ -84,7 +131,6 @@ describe('production startup dependency gate', () => {
     ).not.toThrow();
   });
 });
-
 
 describe('production agent checkpointer readiness', () => {
   it('blocks production startup when the agent checkpointer is unavailable', () => {
