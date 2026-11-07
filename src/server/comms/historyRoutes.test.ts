@@ -8,12 +8,13 @@ import { commsPlugin } from './index.js';
 const { prisma } = vi.hoisted(() => ({
   prisma: {
     communicationConversation: {
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       findMany: vi.fn().mockResolvedValue([{
         id: 'conversation-1', channel: 'whatsapp', externalAddress: '+27710000000',
         updatedAt: new Date('2026-11-03T06:00:00.000Z'),
         messages: [
-          { id: 'message-2', direction: 'outbound', body: 'Reply', status: 'sent', providerMessageId: 'SM2', metadata: null, createdAt: new Date('2026-11-03T06:00:02.000Z') },
-          { id: 'message-1', direction: 'inbound', body: 'Hello', status: 'received', providerMessageId: 'SM1', metadata: null, createdAt: new Date('2026-11-03T06:00:01.000Z') },
+          { id: 'message-2', direction: 'outbound', body: 'Reply', status: 'sent', providerMessageId: 'SM2', metadata: null, attachments: [], createdAt: new Date('2026-11-03T06:00:02.000Z') },
+          { id: 'message-1', direction: 'inbound', body: 'Hello', status: 'received', providerMessageId: 'SM1', metadata: null, attachments: [], createdAt: new Date('2026-11-03T06:00:01.000Z') },
         ],
       }]),
     },
