@@ -34,7 +34,6 @@ type OAuthTokenResponse = {
 };
 
 const REQUEST_TIMEOUT_MS = 10_000;
-const REFRESH_SKEW_MS = 120_000;
 
 function requiredEnv(name: string): string | null {
   const value = process.env[name]?.trim();
@@ -145,6 +144,13 @@ async function exchangeAuthorizationCode(
   };
 }
 
+class ProviderOAuthFailure extends Error {
+  constructor(message: string, readonly requiresReauthorization: boolean) {
+    super(message);
+    this.name = 'ProviderOAuthFailure';
+  }
+}
+
 async function refreshProviderToken(
   config: ProviderConfig,
   refreshToken: string,
@@ -165,8 +171,16 @@ async function refreshProviderToken(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   const payload = await parseProviderTokenResponse(response);
-  if (!response.ok || typeof payload.access_token !== 'string') {
-    throw new Error('Provider token refresh failed.');
+  if (!response.ok) {
+    throw new ProviderOAuthFailure(
+      'Provider token refresh failed.',
+      response.status === 400 && payload.error === 'invalid_grant',
+    );
+  }
+  if (typeof payload.access_token !== 'string' ||
+      typeof payload.token_type !== 'string' || payload.token_type.toLowerCase() !== 'bearer' ||
+      typeof payload.expires_in !== 'number' || !Number.isFinite(payload.expires_in) || payload.expires_in <= 0) {
+    throw new ProviderOAuthFailure('Provider returned an invalid refresh token response.', false);
   }
   return {
     accessToken: payload.access_token,
@@ -227,6 +241,15 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
           expiresAt: transaction.expiresAt,
         },
       });
+      await fastify.prisma.pluginAuthorizationEvent.create({
+        data: {
+          ownerUserId,
+          providerId: config.id,
+          eventType: 'authorization_started',
+          actorUserId: ownerUserId,
+          details: { requestedScopes: [...config.requestedScopes] },
+        },
+      });
       const authorizationUrl = new URL(buildProviderAuthorizationUrl(config.policy, transaction, config.requestedScopes));
       for (const [name, value] of Object.entries(config.extraAuthorizationParams ?? {})) {
         authorizationUrl.searchParams.set(name, value);
@@ -258,7 +281,18 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
         where: { stateHash, providerId: config.id, expiresAt: { gt: new Date() } },
       });
       if (claimed.count !== 1) return reply.code(400).send({ error: 'Provider authorization state was already used.' });
-      if (error) return reply.code(400).send({ error: 'Provider authorization was denied.' });
+      if (error) {
+        await fastify.prisma.pluginAuthorizationEvent.create({
+          data: {
+            ownerUserId: pending.ownerUserId,
+            providerId: config.id,
+            eventType: 'authorization_failed',
+            actorUserId: pending.ownerUserId,
+            details: { reason: 'provider_authorization_denied' },
+          },
+        });
+        return reply.code(400).send({ error: 'Provider authorization was denied.' });
+      }
       if (pending.redirectUri !== config.policy.redirectUri) {
         return reply.code(400).send({ error: 'Provider callback configuration changed. Start authorization again.' });
       }
@@ -431,6 +465,7 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
       if (!connection || connection.status !== 'connected' || !connection.encryptedRefreshToken) {
         return reply.code(409).send({ error: 'Provider connection requires reauthorization.' });
       }
+      let requiresReauthorization = false;
       try {
         const key = encryptionKey();
         const refreshToken = decryptProviderCredential(
@@ -438,9 +473,15 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
           `${connectionEncryptionContext(config.id, ownerUserId)}:refresh`,
         );
         const tokens = await refreshProviderToken(config, refreshToken);
-        const grantedScopes = validateProviderGrantedScopes(
-          config.policy, config.requestedScopes, tokens.grantedScopes,
-        );
+        let grantedScopes: readonly string[];
+        try {
+          grantedScopes = validateProviderGrantedScopes(
+            config.policy, config.requestedScopes, tokens.grantedScopes,
+          );
+        } catch {
+          requiresReauthorization = true;
+          throw new ProviderOAuthFailure('Provider returned unapproved scopes.', true);
+        }
         const encryptedAccess = encryptProviderCredential(
           tokens.accessToken, key, connectionEncryptionContext(config.id, ownerUserId),
         );
@@ -467,12 +508,18 @@ export const providerAuthorizationRoutes: FastifyPluginAsync = async (fastify) =
           },
         });
         return { refreshed: true, provider: config.id, accessTokenExpiresAt: tokens.accessTokenExpiresAt?.toISOString() ?? null };
-      } catch {
-        await fastify.prisma.pluginProviderConnection.updateMany({
-          where: { id: connection.id, status: 'connected' },
-          data: { status: 'reauthorization_required', updatedAt: new Date() },
-        });
-        return reply.code(409).send({ error: 'Provider refresh failed. Reauthorization is required.' });
+      } catch (cause) {
+        const definitiveInvalidation = requiresReauthorization ||
+          (cause instanceof ProviderOAuthFailure && cause.requiresReauthorization);
+        if (definitiveInvalidation) {
+          await fastify.prisma.pluginProviderConnection.updateMany({
+            where: { id: connection.id, status: 'connected' },
+            data: { status: 'reauthorization_required', updatedAt: new Date() },
+          });
+          return reply.code(409).send({ error: 'Provider authorization expired or its granted scopes changed. Reauthorization is required.' });
+        }
+        request.log.warn({ providerId: config.id }, 'Provider token refresh temporarily failed');
+        return reply.code(503).send({ error: 'Provider refresh is temporarily unavailable. The existing connection has been preserved.' });
       }
     },
   );
