@@ -178,7 +178,7 @@ export default function App() {
         && (id !== 'comms' || isOwner)
         && (id !== 'admin' || isAdmin)
         && (id === 'landing' || id === 'dashboard' || id === 'settings' || enabledUiIds.some((enabledId) => enabledId === id))
-        && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin) && (id !== 'studio' || isAdmin)
+        && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin)
         && (!routeUiOptions[id] || dashboardUiPreferences[routeUiOptions[id] as DashboardUiId])
       : id === 'landing' || id === 'signin' || id === 'signup',
   );
