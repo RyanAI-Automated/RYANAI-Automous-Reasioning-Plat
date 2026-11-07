@@ -95,6 +95,21 @@ describe('provider authorization HTTP lifecycle', () => {
     await app.close();
   });
 
+  it('requests Microsoft offline access but requires only returned API scopes', async () => {
+    vi.stubEnv('RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY', key);
+    vi.stubEnv('RYANAI_PLUGIN_MICROSOFT_365_CLIENT_ID', 'synthetic-ms-client');
+    vi.stubEnv('RYANAI_PLUGIN_MICROSOFT_365_CLIENT_SECRET', 'synthetic-ms-secret');
+    vi.stubEnv('RYANAI_PLUGIN_MICROSOFT_365_REDIRECT_URI', 'https://api.example.test/api/plugins/oauth/microsoft-365-calendar/callback');
+    const { app } = await createApp();
+    const response = await app.inject({ method: 'POST', url: '/api/plugins/microsoft-365-calendar/connect' });
+    expect(response.statusCode).toBe(200);
+    const url = new URL((response.json() as { authorizationUrl: string }).authorizationUrl);
+    expect(url.origin).toBe('https://login.microsoftonline.com');
+    expect(url.searchParams.get('scope')).toContain('offline_access');
+    expect(url.searchParams.get('scope')).toContain('Calendars.Read');
+    await app.close();
+  });
+
   it('exchanges a one-time callback, validates scopes and stores encrypted tokens', async () => {
     vi.stubEnv('RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY', key);
     vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_ID', 'synthetic-client');
