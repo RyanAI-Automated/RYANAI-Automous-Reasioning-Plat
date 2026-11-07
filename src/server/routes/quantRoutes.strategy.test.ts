@@ -18,11 +18,13 @@ vi.mock('../../lib/prisma.js', () => ({
 }));
 
 import { quantRoutes } from './quantRoutes.js';
+import { prisma } from '../../lib/prisma.js';
 
 const tx = { $executeRawUnsafe: vi.fn(), $queryRawUnsafe: vi.fn() };
 
 async function appForUser() {
   const app = Fastify();
+  app.decorate('prisma', prisma as never);
   app.decorateRequest('authUser', null);
   app.addHook('preHandler', async (request) => {
     request.authUser = { id: 'strategy-user-a', role: 'user', isOwner: false };

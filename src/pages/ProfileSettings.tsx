@@ -12,6 +12,74 @@ interface Props {
   initialInferenceSettings?: unknown; isAdmin?: boolean; isOwner?: boolean; onSignOut?: () => void; signingOut?: boolean;
 }
 export default function ProfileSettings({ userId, email, initialDisplayName, initialLanguage, initialVoiceEnabled, initialDashboardUiPreferences, initialAudiobookSettings, initialInferenceSettings, isAdmin = false, isOwner = false, onSignOut, signingOut = false }: Props) {
+
+/**
+ * Edit only user-owned Supabase auth metadata. Administrative roles, owner
+ * claims, provider credentials and integration secrets are never editable here.
+ */
+
+function getProfileValidationError(displayName: string, language: string): string | null {
+  if (!supabase) {
+    return 'Profile updates are unavailable because Supabase authentication is not configured.';
+  }
+  if (displayName.trim().length > 100) {
+    return 'Display name must be 100 characters or fewer.';
+  }
+  if (!isRyanLanguage(language)) {
+    return 'Choose a supported RyanAI language.';
+  }
+  return null;
+}
+
+interface PersistProfilePreferencesOptions {
+  userId: string;
+  displayName: string;
+  language: string;
+  voiceEnabled: boolean;
+}
+
+async function persistProfilePreferences({
+  userId,
+  displayName,
+  language,
+  voiceEnabled,
+}: PersistProfilePreferencesOptions): Promise<void> {
+  const client = supabase;
+  if (!client) {
+    throw new Error('Profile updates are unavailable because Supabase authentication is not configured.');
+  }
+
+  const { data, error } = await client.auth.updateUser({
+    data: {
+      full_name: displayName || null,
+      ryanai_language: language,
+      ryanai_voice_enabled: voiceEnabled,
+    },
+  });
+  if (error) throw error;
+  if (!data.user || data.user.id !== userId) {
+    throw new Error('The identity provider did not confirm this profile update.');
+  }
+
+  try {
+    window.localStorage.setItem(`ryanai:language:${userId}`, language);
+    window.localStorage.setItem('ryanai:language', language);
+    window.localStorage.setItem('ryanai:voice-enabled', String(voiceEnabled));
+    window.localStorage.setItem('ryanai:voice-greetings-enabled', String(voiceEnabled));
+  } catch {
+    // Supabase metadata is authoritative; device storage is only a compatibility cache.
+  }
+  window.dispatchEvent(new CustomEvent('ryanai:language-changed', { detail: { language } }));
+  window.dispatchEvent(new CustomEvent('ryanai:voice-enabled-changed', { detail: { enabled: voiceEnabled } }));
+}
+
+export default function ProfileSettings({
+  userId,
+  email,
+  initialDisplayName,
+  initialLanguage,
+  initialVoiceEnabled,
+}: ProfileSettingsProps) {
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [language, setLanguage] = useState(isRyanLanguage(initialLanguage) ? initialLanguage : DEFAULT_LANGUAGE);
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
@@ -63,6 +131,35 @@ export default function ProfileSettings({ userId, email, initialDisplayName, ini
       setNotice('RyanAI Settings were saved to your authenticated account.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save Settings. Please retry.'); }
     finally { setSaving(false); }
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    const validationError = getProfileValidationError(displayName, language);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await persistProfilePreferences({
+        userId,
+        displayName: displayName.trim(),
+        language,
+        voiceEnabled,
+      });
+      setNotice('Profile and preferences saved to your authenticated RyanAI account.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save your profile. Please retry.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   const dashboardOptions = DASHBOARD_UI_OPTIONS.filter(({ id }) => !['calculator', 'audiobook', 'inferenceConsole'].includes(id));

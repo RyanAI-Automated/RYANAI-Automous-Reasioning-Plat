@@ -52,7 +52,7 @@ describe('paper order risk assessment', () => {
       side: 'sell',
       startingDailyEquity: 200000,
       lifetimePeakEquity: 200000,
-      limits: { maxDailyLoss: 50000, maxDrawdownPct: 10 },
+      limits: { maxDailyLoss: 100000, maxDrawdownPct: 10 },
     });
     expect(result.breach).toBe('max_drawdown_limit');
   });

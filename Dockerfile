@@ -53,6 +53,7 @@ RUN npm run db:generate \
 # pg_dump is required by the optional, non-blocking startup backup.
 # The npm CLI is deliberately absent; Render must use this image's default CMD.
 FROM node:24-alpine AS api
+LABEL org.opencontainers.image.description="RyanAI API runtime image"
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
@@ -62,9 +63,8 @@ ENV NODE_ENV=production \
     NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt \
     SUPABASE_SSL_ROOT_CERT_PATH=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
 COPY certs/supabase/prod-ca-2021.crt /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
-RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat wget postgresql-client python3 \
+RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat postgresql-client python3 'libexpat>=2.10.0-r0' \
     && apk upgrade --no-cache \
-    && apk add --no-cache 'libexpat>=2.10.0-r0' \
     && update-ca-certificates \
     && test -s /etc/ssl/cert.pem \
     && test -s /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt \
@@ -81,6 +81,14 @@ COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
 COPY --chown=node:node quant-engine ./quant-engine
 COPY --chown=node:node scripts/backup-on-startup.mjs ./scripts/backup-on-startup.mjs
 COPY --chown=node:node scripts/verify-node-ca.sh ./scripts/verify-node-ca.sh
+# Fail the API image build if required runtime artifacts or utilities are missing.
+RUN test -s dist/server/server/launcher.js \
+    && test -s scripts/backup-on-startup.mjs \
+    && test -s scripts/verify-node-ca.sh \
+    && node --check scripts/backup-on-startup.mjs \
+    && sh -n scripts/verify-node-ca.sh \
+    && pg_dump --version >/dev/null \
+    && node --version
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
