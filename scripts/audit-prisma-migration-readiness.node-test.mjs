@@ -35,6 +35,7 @@ test('detects schema and vector-memory drift, including runtime columns and inde
   });
   assert.ok(result.missingColumns.includes('approval_status'));
   assert.ok(result.missingTables.includes('agent_run_evidence'));
+  assert.ok(result.missingTables.includes('comms_dispatch_approvals'));
   assert.equal(result.vector.extensionPresent, false);
   assert.deepEqual(result.vector.missingTables, ['agent_memory']);
   assert.deepEqual(result.vector.missingMemoryColumns, ['session_id', 'content', 'timestamp']);
@@ -49,8 +50,8 @@ test('accepts a complete schema and vector-memory installation', () => {
     'approved_by', 'approved_at', 'steering_notes', 'cancel_requested_at'];
   const result = assessSchema({
     columns: new Set(columns),
-    tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'reasoning_cache', 'agent_memory']),
-    indexes: vectorIndexes,
+    tables: new Set(['agent_run_evidence', 'jarvis_audit_events', 'comms_dispatch_approvals', 'reasoning_cache', 'agent_memory']),
+    indexes: new Set([...vectorIndexes, 'comms_dispatch_approvals_owner_status_expiry_idx']),
     extensions: new Set(['vector']),
     memoryColumns,
     cacheColumns,
