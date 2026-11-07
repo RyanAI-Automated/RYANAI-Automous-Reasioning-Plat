@@ -54,6 +54,7 @@ export default function GithubModal({ open, onClose }: GitHubModalProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load GitHub status when the modal opens
     if (open) void refreshStatus();
   }, [open, refreshStatus]);
 

@@ -71,6 +71,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load memories when the vault opens
     void refresh(controller.signal);
     return () => controller.abort();
   }, [open, userId, refresh]);

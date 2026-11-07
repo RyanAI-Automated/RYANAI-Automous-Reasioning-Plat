@@ -87,6 +87,7 @@ export default function CodingStudio() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load coding jobs on mount
   useEffect(() => { void loadJobs(); }, [loadJobs]);
 
   const loadJob = async (jobId: string) => {

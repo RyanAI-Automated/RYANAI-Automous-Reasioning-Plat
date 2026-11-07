@@ -140,6 +140,7 @@ export default function PaperTradingPanel() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load paper trading snapshot on mount
   useEffect(() => { void refresh(); }, [refresh]);
 
   const recentTrades = snapshot?.trades ?? [];

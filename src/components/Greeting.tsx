@@ -116,6 +116,7 @@ export default function Greeting({ userId: accountId, displayName, isOwner = fal
       window.removeEventListener('ryanai:language-changed', handleLanguageChange);
       window.removeEventListener('ryanai:voice-enabled-changed', handleVoiceChange);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribe once; setters only write local selection state
   }, []);
 
   useEffect(() => {

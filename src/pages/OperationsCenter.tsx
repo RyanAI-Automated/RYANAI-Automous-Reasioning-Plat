@@ -120,6 +120,7 @@ export default function OperationsCenter({ isAdmin = false }: { isAdmin?: boolea
   }, [refreshActions, refreshTasks]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load tasks and actions on mount
     void refresh();
   }, [refresh]);
 
