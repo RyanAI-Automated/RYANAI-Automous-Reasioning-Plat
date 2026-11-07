@@ -4,8 +4,8 @@ This workbench adds governed plan review and an append-only evidence trail to th
 
 ## Safety model
 
-- Every Studio API request requires a verified Supabase user session. Standard users can create and manage their own workbench jobs; administrators retain cross-user review access.
-- Job listing, detail, steering, rejection, cancellation, task queueing and evidence-bundle downloads are scoped to the authenticated job owner (or an administrator). A user cannot read or mutate another user's workbench job through these routes.
+- Every Studio API request requires a verified Supabase user session. Each user can create and manage only their own workbench jobs. Administrator role does not grant cross-user access inside Studio.
+- Job listing, detail, steering, rejection, cancellation, task queueing and evidence-bundle downloads are strictly scoped to the authenticated job owner. Administrator role does not bypass workspace ownership.
 - A workbench job is created with `approval_status=pending`; the queue worker SQL explicitly excludes it.
 - Approval requires the authenticated owner of the job and must match the exact `plan_hash`, `base_commit_sha` and `proposed_diff_hash` stored on the job. Studio does not require an administrator role; each signed-in user can approve their own workspace plan.
 - Steering stores the revised plan and diff, updates their hashes, and leaves the job pending. The previous approval is cleared.
@@ -23,12 +23,12 @@ The evidence bundle contains the job snapshot, handoffs, ordered evidence, chain
 
 ## API
 
-All endpoints require a verified Supabase user session. Studio job endpoints, including plan approval, are scoped to the authenticated user and that user's own jobs. No Studio endpoint requires an administrator role:
+All endpoints require a verified Supabase user session. Studio job endpoints, including plan approval, are scoped to the authenticated user and that user's own jobs. No Studio endpoint requires an administrator role; normal workspace operations are owner-scoped:
 
 - `GET /api/engineering/jobs` — recent job list.
 - `POST /api/engineering/jobs` — submit objective, plan, base commit SHA and proposed diff; returns pending approval.
 - `GET /api/engineering/jobs/:jobId` — job, handoffs, evidence integrity and acceptance state.
-- `POST /api/engineering/jobs/:jobId/approve` — approve only matching plan/commit/diff digests; self-approval is rejected.
+- `POST /api/engineering/jobs/:jobId/approve` — approve only matching plan/commit/diff digests; the authenticated job owner may approve their own exact snapshot.
 - `POST /api/engineering/jobs/:jobId/steer` — add human steering and submit the revised plan/diff; prior approval is invalidated.
 - `POST /api/engineering/jobs/:jobId/reject` — reject a pending plan.
 - `POST /api/engineering/jobs/:jobId/cancel` — cancel queued work or request cancellation of running work.
