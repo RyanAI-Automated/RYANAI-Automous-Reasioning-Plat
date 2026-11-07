@@ -126,7 +126,7 @@ export default function CodingStudio() {
       });
       const payload = await response.json() as { jobId?: string; message?: string; error?: string };
       if (!response.ok) throw new Error(payload.error || 'Coding plan could not be persisted.');
-      setStatus(payload.message || 'Plan persisted and awaiting independent approval.');
+      setStatus(payload.message || 'Plan persisted. Review the exact snapshot and approve it from your workspace when ready.');
       setObjective('');
       setProposedDiff('');
       await loadJobs();
@@ -276,7 +276,7 @@ export default function CodingStudio() {
               <textarea value={proposedDiff} onChange={(event) => setProposedDiff(event.target.value)} spellCheck={false} placeholder={'diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@\n+...'} className="min-h-[360px] w-full resize-y rounded-xl border border-white/10 bg-[#070a10] p-4 font-mono text-xs leading-6 text-slate-200 outline-none focus:border-cyan-300/40" />
             </label>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button type="button" onClick={() => void submitJob()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"><ShieldCheck className="h-4 w-4" />Persist plan for independent approval</button>
+              <button type="button" onClick={() => void submitJob()} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"><ShieldCheck className="h-4 w-4" />Save plan for your review and approval</button>
               <span className="text-[10px] text-slate-600">{changedFiles.length} changed file{changedFiles.length === 1 ? '' : 's'} detected from the diff</span>
             </div>
           </div>
