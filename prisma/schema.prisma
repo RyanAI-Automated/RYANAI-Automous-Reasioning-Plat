@@ -281,6 +281,7 @@ model AgentRun {
   userId String @map("user_id")
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   objective String @db.Text
+  requestedModel String? @map("requested_model")
   traceContext Json? @map("trace_context")
   executionScope Json @default("{}") @map("execution_scope")
   approvalStatus String @default("approved") @map("approval_status")

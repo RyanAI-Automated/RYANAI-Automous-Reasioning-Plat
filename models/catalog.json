@@ -14,6 +14,20 @@
       "provider": "OpenAI-compatible API",
       "description": "Fast and efficient RyanAI reasoning model.",
       "contextWindow": 128000
+    },
+    {
+      "id": "~openai/gpt-latest",
+      "label": "ChatGPT · GPT Latest",
+      "provider": "OpenAI via OpenRouter",
+      "description": "Latest OpenAI GPT model through OpenRouter. Used for Logic synthesis only; requires an existing OPENROUTER_API_KEY.",
+      "contextWindow": 1050000
+    },
+    {
+      "id": "~anthropic/claude-sonnet-latest",
+      "label": "Claude · Sonnet Latest",
+      "provider": "Anthropic via OpenRouter",
+      "description": "Latest Anthropic Claude Sonnet model through OpenRouter. Used for Logic synthesis only; requires an existing OPENROUTER_API_KEY.",
+      "contextWindow": 1000000
     }
   ]
 }

@@ -2,6 +2,7 @@ import { languageInstruction, DEFAULT_LANGUAGE, isRyanLanguage } from '../shared
 import { buildMemoryContext } from './memoryContext.js';
 import { dispatchAutonomousTask, waitForAutonomousTask, type AgentRunProgressEvent } from './operations.js';
 import { withTelemetrySpan } from '../telemetry/core.js';
+import { resolveSelectedReasoningModel } from './modelSelection.js';
 
 export interface AgentUser {
   id: string;
@@ -38,13 +39,16 @@ export async function invokeReasoningAgent({
     throw new Error('An authenticated user is required for traceable three-brain reasoning.');
   }
 
-  // Provider selection is owned by the three independent server-side brain configs.
-  void model;
+  // The three canonical brain roles remain server-owned. An explicitly selected
+  // ChatGPT/Claude catalogue model can override only Logic synthesis.
+  const selectedModel = resolveSelectedReasoningModel(model);
   const memory = await buildMemoryContext(user.id);
   const responseLanguage = language && isRyanLanguage(language) ? language : DEFAULT_LANGUAGE;
   const languagePolicy = '[RYANAI LANGUAGE POLICY] ' + languageInstruction(responseLanguage);
   const objective = [languagePolicy, memory, 'User request:\n' + prompt].filter(Boolean).join('\n\n');
-  const queued = await dispatchAutonomousTask(user.id, objective);
+  const queued = selectedModel
+    ? await dispatchAutonomousTask(user.id, objective, undefined, selectedModel.model)
+    : await dispatchAutonomousTask(user.id, objective);
   const run = await waitForAutonomousTask(queued.id, user.id, 120_000, onProgress);
   const handoffs = run.handoffs as ReasoningHandoff[];
   const specialistMessages = handoffs
