@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
@@ -8,7 +8,7 @@ import MemoryVault from './MemoryVault';
 vi.mock('@/lib/authenticatedFetch', () => ({ authenticatedFetch: vi.fn() }));
 // Memory Vault behavior is under test here; modal transition animation is covered separately.
 vi.mock('./Modal', () => ({
-  default: ({ open, children }: { open: boolean; children: any }) => open ? <div role="dialog">{children}</div> : null,
+  default: ({ open, children }: { open: boolean; children: ReactNode }) => open ? <div role="dialog">{children}</div> : null,
 }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
