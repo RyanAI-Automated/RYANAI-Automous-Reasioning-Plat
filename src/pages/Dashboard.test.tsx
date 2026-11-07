@@ -65,7 +65,7 @@ describe('System Dashboard workspace launcher', () => {
   });
 
   it('keeps Settings visible while filtering disabled workspace cards', async () => {
-    await renderDashboard(false, false, ['pa', 'workspace']);
+    await renderDashboard(false, false, { pa: true, workspace: true, cockpit: false, calculator: false });
 
     expect(container.querySelector('a[href="#/pa"]')).not.toBeNull();
     expect(container.querySelector('a[href="#/workspace"]')).not.toBeNull();
