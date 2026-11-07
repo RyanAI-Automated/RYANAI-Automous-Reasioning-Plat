@@ -85,7 +85,7 @@ function providerConfig(providerId: string): ProviderConfig | null {
         tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
         redirectUri,
         allowedScopes: scopes,
-        requiredScopes: scopes,
+        requiredScopes: ['User.Read', 'Calendars.Read'],
       },
       requestedScopes: scopes,
     };
