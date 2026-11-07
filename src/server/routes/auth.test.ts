@@ -92,6 +92,10 @@ describe('Supabase API authentication', () => {
     const response = await app.inject({ method: 'POST', url: '/api/quant/protected' });
     expect(response.statusCode).toBe(401);
 
+    getUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { status: 401, message: 'invalid token' },
+    });
     const invalidBearer = await app.inject({
       method: 'POST',
       url: '/api/quant/protected',
