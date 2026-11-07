@@ -341,7 +341,8 @@ jobs:
           for version in \
             20261030120000 20261030130000 20261030140000 \
             20261031100000 20261031110000 20261031120000 \
-            20261031130000 20261031150000 20261105130000 20261105193000 99999999999999; do
+            20261031130000 20261031150000 20261105130000 20261105193000 \
+            20261107150000 99999999999999; do
             grep -F "$version" /tmp/fresh-migration-list.txt
           done
           eval "$(supabase status -o env)"
@@ -374,7 +375,24 @@ jobs:
             ) THEN
               RAISE EXCEPTION 'public default table ACL grants client access';
             END IF;
-          END $$;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public'
+                AND table_name = 'communication_messages'
+                AND column_name = 'idempotency_key'
+                AND data_type = 'text'
+            ) THEN
+              RAISE EXCEPTION 'Comms idempotency column is missing from the Supabase migration chain';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname = 'public'
+                AND tablename = 'communication_messages'
+                AND indexname = 'communication_messages_idempotency_key_key'
+            ) THEN
+              RAISE EXCEPTION 'Comms idempotency unique index is missing from the Supabase migration chain';
+            END IF;
+          END $;
           SQL
       - name: Simulate recorded far-future legacy migration and apply corrective migration
         run: |

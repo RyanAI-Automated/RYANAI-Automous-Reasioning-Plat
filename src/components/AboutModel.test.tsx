@@ -4,6 +4,20 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import packageMetadata from '../../package.json';
 import AboutModal from './AboutModel';
+vi.mock('framer-motion', async () => {
+  const React = await import('react');
+  type MotionDivProps = React.HTMLAttributes<HTMLDivElement> & {
+    initial?: unknown;
+    animate?: unknown;
+    exit?: unknown;
+    transition?: unknown;
+  };
+  const StaticMotionDiv = React.forwardRef<HTMLDivElement, MotionDivProps>(
+    ({ initial: _initial, animate: _animate, exit: _exit, transition: _transition, ...props }, ref) =>
+      React.createElement('div', { ...props, ref }),
+  );
+  return { motion: { div: StaticMotionDiv } };
+});
 
 const { usePlatformHealthMock } = vi.hoisted(() => ({
   usePlatformHealthMock: vi.fn(),

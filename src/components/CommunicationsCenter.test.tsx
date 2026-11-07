@@ -96,6 +96,8 @@ afterEach(async () => {
 async function render() {
   await act(async () => {
     root.render(<CommunicationsCenter />);
+  });
+  await act(async () => {
     await vi.waitFor(() => expect(container.textContent).toContain('client@example.com'));
   });
 }
