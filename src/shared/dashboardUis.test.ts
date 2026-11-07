@@ -13,12 +13,15 @@ describe('RyanAI dashboard UI preferences', () => {
       'trading',
       'workspace',
       'audiobook',
+      'studio',
     ]);
   });
 
-  it('only exposes admin and owner workspaces to the matching trusted role', () => {
-    expect(getAvailableDashboardUiOptions(false, false).some(({ id }) => id === 'admin' || id === 'comms' || id === 'studio')).toBe(false);
-    expect(getAvailableDashboardUiOptions(false, true).some(({ id }) => id === 'admin' || id === 'studio')).toBe(true);
+  it('keeps Studio available to regular users while protecting Admin Console and Comms', () => {
+    const regular = getAvailableDashboardUiOptions(false, false);
+    expect(regular.some(({ id }) => id === 'studio')).toBe(true);
+    expect(regular.some(({ id }) => id === 'admin' || id === 'comms')).toBe(false);
+    expect(getAvailableDashboardUiOptions(false, true).some(({ id }) => id === 'admin')).toBe(true);
     expect(getAvailableDashboardUiOptions(true, false).some(({ id }) => id === 'comms')).toBe(true);
   });
 
