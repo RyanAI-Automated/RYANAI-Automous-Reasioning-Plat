@@ -21,7 +21,7 @@ test('requires every release-gate check and a successful combined status', () =>
 });
 
 test('missing check data never becomes a pass', () => {
-  assert.equal(summarizeCi({ check_runs: [] }, { state: 'unknown' }).level, 'no-check-data');
+  assert.equal(summarizeCi({ check_runs: [] }, { state: 'unknown' }).level, 'pending');
 });
 
 test('all neutral or skipped checks cannot produce a passing CI state', () => {

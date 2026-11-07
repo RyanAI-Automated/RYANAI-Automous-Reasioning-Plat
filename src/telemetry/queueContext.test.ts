@@ -72,8 +72,8 @@ describe('durable queue trace context privacy contract', () => {
       supplied: trace.getSpanContext(activeContext),
     }));
 
-    expect(restored.active).toMatchObject(parentSpanContext);
-    expect(restored.supplied).toMatchObject(parentSpanContext);
+    expect(restored.active).toMatchObject({ ...parentSpanContext, isRemote: true });
+    expect(restored.supplied).toMatchObject({ ...parentSpanContext, isRemote: true });
     expect(trace.getSpanContext(context.active())).toBeUndefined();
   });
 

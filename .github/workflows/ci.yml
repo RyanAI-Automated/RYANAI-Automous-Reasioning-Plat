@@ -466,7 +466,9 @@ jobs:
           export DATABASE_URL="$DB_URL"
           export SUPABASE_URL="$API_URL"
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
-          npx prisma migrate deploy
+          # The disposable Supabase stack already applies the committed SQL migrations.
+          # Prisma migration history is not the authority for this local integration database;
+          # do not baseline or mutate it again before the Comms tests.
           npm run test:comms-callback:integration
           npm run test:comms-attachments:integration
       - name: Verify PostgreSQL LISTEN/NOTIFY and reasoning worker recovery
