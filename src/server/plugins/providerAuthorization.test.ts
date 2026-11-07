@@ -72,6 +72,7 @@ describe('provider authorization security primitives', () => {
     expect(() => buildProviderAuthorizationUrl(policy, tx, ['calendar.admin'])).toThrow('allowlist');
     expect(() => buildProviderAuthorizationUrl(policy, tx, ['calendar.events'])).toThrow('required scope');
     expect(() => buildProviderAuthorizationUrl({ ...policy, tokenEndpoint: 'http://accounts.example.test/token' }, tx, ['calendar.readonly'])).toThrow('HTTPS');
+    expect(() => buildProviderAuthorizationUrl({ ...policy, tokenEndpoint: 'https://user:pass@accounts.example.test/token#fragment' }, tx, ['calendar.readonly'])).toThrow('credentials or fragments');
   });
 
   it('rejects unrequested, disallowed and missing required provider scopes', () => {
