@@ -1,12 +1,16 @@
+
 # syntax=docker/dockerfile:1
 # Standalone API image for Render and other Dockerfile-based platforms.
 # Keep this build and runtime contract aligned with the "api" target in ./Dockerfile.
+
 FROM node:24-alpine AS api-deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 RUN apk add --no-cache libc6-compat \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0'
+
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev --legacy-peer-deps
 
@@ -18,15 +22,17 @@ COPY models/catalog.json ./models/catalog.json
 COPY app/routes.json ./app/routes.json
 COPY prisma ./prisma
 COPY stacks ./stacks
+
 RUN npm run db:generate \
     && npm run build:server \
     && npm prune --omit=dev --legacy-peer-deps
 
-# Minimal runtime; npm is deliberately removed after the production dependencies
+# Minimal runtime; npm is deliberately removed after production dependencies
 # are copied. pg_dump supports the optional, non-blocking startup backup.
 FROM node:24-alpine AS api
 LABEL org.opencontainers.image.description="RyanAI API runtime image"
 WORKDIR /app
+
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
@@ -34,7 +40,9 @@ ENV NODE_ENV=production \
     NODE_USE_SYSTEM_CA=1 \
     NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt \
     SUPABASE_SSL_ROOT_CERT_PATH=/usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
+
 COPY certs/supabase/prod-ca-2021.crt /usr/local/share/ca-certificates/supabase-prod-ca-2021.crt
+
 RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat postgresql-client python3 'libexpat>=2.10.0-r0' \
     && apk upgrade --no-cache \
     && update-ca-certificates \
@@ -44,15 +52,18 @@ RUN apk add --no-cache ca-certificates dumb-init libstdc++ libc6-compat postgres
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /app/logs \
     && chown -R node:node /app
+
 COPY --from=api-builder --chown=node:node /app/package.json ./package.json
 COPY --from=api-builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=api-builder --chown=node:node /app/dist/server ./dist/server
 COPY --from=api-builder --chown=node:node /app/dist/app ./dist/app
 COPY --from=api-builder --chown=node:node /app/dist/models ./dist/models
 COPY --from=api-builder --chown=node:node /app/dist/stacks ./dist/stacks
+
 COPY --chown=node:node quant-engine ./quant-engine
 COPY --chown=node:node scripts/backup-on-startup.mjs ./scripts/backup-on-startup.mjs
 COPY --chown=node:node scripts/verify-node-ca.sh ./scripts/verify-node-ca.sh
+
 # Fail the image build if required runtime artifacts or utilities are missing.
 RUN test -s dist/server/server/launcher.js \
     && test -s scripts/backup-on-startup.mjs \
@@ -61,9 +72,12 @@ RUN test -s dist/server/server/launcher.js \
     && sh -n scripts/verify-node-ca.sh \
     && pg_dump --version >/dev/null \
     && node --version
+
 USER node
 EXPOSE 3000
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["sh", "-c", "exec sh scripts/verify-node-ca.sh sh -c 'node scripts/backup-on-startup.mjs; exec node dist/server/server/launcher.js'"]
