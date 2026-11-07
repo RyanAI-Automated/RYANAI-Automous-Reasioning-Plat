@@ -57,12 +57,15 @@ AS $function$
 DECLARE
   order_client_id TEXT;
 BEGIN
+  -- Validate order ownership for every fill, including rows that provide an
+  -- explicit idempotency key. Never let client_fill_id bypass account isolation.
+  SELECT client_order_id INTO order_client_id
+  FROM public.quant_paper_orders WHERE id = NEW.order_id AND user_id = NEW.user_id;
+  IF order_client_id IS NULL THEN
+    RAISE EXCEPTION 'paper fill references an unknown order';
+  END IF;
+
   IF NEW.client_fill_id IS NULL OR NEW.client_fill_id = '' THEN
-    SELECT client_order_id INTO order_client_id
-    FROM public.quant_paper_orders WHERE id = NEW.order_id AND user_id = NEW.user_id;
-    IF order_client_id IS NULL THEN
-      RAISE EXCEPTION 'paper fill references an unknown order';
-    END IF;
     NEW.client_fill_id := 'paper:' || order_client_id || ':' || NEW.id::text;
   END IF;
   RETURN NEW;

@@ -26,9 +26,11 @@ vi.mock('../../lib/prisma.js', () => ({
 }));
 
 import { quantRoutes } from './quantRoutes.js';
+import { prisma } from '../../lib/prisma.js';
 
 function createApp() {
   const app = Fastify();
+  app.decorate('prisma', prisma as never);
   app.decorateRequest('authUser', null);
   app.addHook('preHandler', async (request) => {
     request.authUser = { id: 'paper-user-a', role: 'user', isOwner: false };

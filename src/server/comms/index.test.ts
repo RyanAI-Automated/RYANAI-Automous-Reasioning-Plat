@@ -33,6 +33,9 @@ async function send(path: string, url: string, payload: Record<string, string>, 
   const app = Fastify();
   apps.push(app);
   installAuthentication(app);
+  app.addHook('onRequest', async (request) => {
+    request.authUser = { id: 'owner-test', role: 'user', isOwner: true };
+  });
   app.decorate('prisma', prismaMock as never);
   await app.register(commsPlugin);
   const signature = valid
@@ -181,7 +184,7 @@ describe('Comms conversation intelligence', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/comms/assist',
-      payload: { operation: 'summarize', conversationId: 'conversation-1' },
+      payload: { operation: 'summarize', conversationId: '7b0f1c1e-3c0a-4d3e-9a52-0b5f3b6a1c11' },
     });
 
     expect(response.statusCode).toBe(200);
