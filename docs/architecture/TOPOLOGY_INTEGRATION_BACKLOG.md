@@ -125,3 +125,47 @@ No production worker cutover, live external message dispatch, real trading/broke
 | PR C | Durable task execution, worker lifecycle, MCP and module E2E | Beta operational certification |
 
 PR B and PR C may have independent preparatory work, but PR C's integrated acceptance depends on PR B's verified identity and persistence contracts. Beta certification remains a separate evidence decision; merging these PRs does not itself certify Beta readiness.
+
+
+---
+
+## 4. API + MCP Render convergence amendment — 7 November 2026
+
+The hosting decision is updated: **Render is the common platform for both the canonical API and the MCP HTTP service**. They remain separate services and security boundaries, not duplicate APIs. Render web and API service declarations remain as-is until the separately reviewed deployment-contract PR. A proposed `ryanai-mcp` Render service is blocked until `mcp-server/http.js` supports Render's assigned port/interface and exact Host/Origin policy, and service-to-service delegated identity is implemented.
+
+### PR B — API/data-plane implementation (expanded)
+
+- Inventory all API routes, middleware, authentication, identity derivation, Gen-X policy calls, model endpoints, memory/database access, task lifecycle, health/readiness and outbound integrations.
+- Establish versioned API envelopes: request/correlation ID, verified actor/tenant, schema version, idempotency key, deadline, policy decision reference and typed error.
+- Standardise canonical model roles to `nvidia`, `qwen`, `logic`, `ollama`; map NVIDIA/Nemotron and OpenAI-compatible Logic provider names behind adapters. Keep DeepSeek/TorchTPU experimental and disabled until separately approved.
+- Implement Supabase Auth verification and server-derived owner/tenant scope; add forged identity, cross-owner and denied-side-effect tests.
+- Verify Supabase Session Pooler and strict CA/TLS in staging; never migrate production or change secrets.
+- Keep API as the only database authority and model-routing authority. MCP must not hold database credentials or direct provider keys.
+
+### PR C — MCP/gateway implementation (expanded)
+
+- Build one canonical tool registry package/schema consumed by MCP Manager and legacy RyanMCP/SystemMCP adapters.
+- Standardise tool metadata: stable ID/version, owner, risk, capability scope, input/output schema, timeout, idempotency, approval, audit and enablement.
+- Add API-issued delegated identity with audience, expiry, actor/tenant and request/correlation IDs; shared MCP token remains service authentication only.
+- Re-check Gen-X authorization at execution time; fail closed if identity/policy unavailable.
+- Align public MCP brain enum with the four canonical role IDs; route provider calls through API-owned model gateway.
+- Verify MCPJungle server registration and Jarvis client effective grants at runtime; JSON declarations alone are not acceptance evidence.
+- Keep shell, arbitrary filesystem/network, GitHub write, deployment, private memory, comms dispatch and real trading tools unavailable by default.
+- Prove host/port binding, Host/Origin allowlist, bearer validation, request limits, shutdown, health and readiness for Render.
+
+### PR D — deployment/configuration reconciliation
+
+- Update Render Blueprint with a distinct MCP service only after its runtime contract and security tests pass. Preserve `autoDeployTrigger: off`; PR does not authorize Blueprint sync or deployment.
+- Reconcile `Dockerfile.api`, `mcp-server/Dockerfile`, `railway.json`, `render.yaml`, `stacks/ryanai.stack.json`, its JSON Schema, Compose/Kubernetes declarations and validation scripts to one service ownership map.
+- Remove or mark unsupported duplicate/legacy topology declarations only after exact consumer inventory; do not delete working services or providers by inference.
+- Keep Supabase PostgreSQL/pgvector authoritative, Redis/Valkey ephemeral, and Railway persistent workloads unassigned until the Primary Railway project is verified.
+
+### PR E — verification and exit criteria
+
+- Exact reviewed SHA has complete passing required CI/security checks; no missing/queued/skipped/cancelled/provider-blocked checks count as passes.
+- API tests cover identity, authorization, CORS/Host, readiness, idempotency, database strict TLS, model adapter mapping and provider failure.
+- MCP tests cover one registry, schema validation, capability allow/deny, delegated identity, Gen-X re-check, digest-bound approval, request limits and audit.
+- API↔MCP integration proves denied calls have no side effects and every permitted call is correlated.
+- MCPJungle registration and per-client effective grants are observed from a running non-production gateway.
+- Render staging smoke test verifies web→API→auth→Gen-X→database and API→MCP→registry→policy→tool.
+- No production deploy, production migration, secret mutation, paid upgrade, live external communication, real trading or auto-merge.
