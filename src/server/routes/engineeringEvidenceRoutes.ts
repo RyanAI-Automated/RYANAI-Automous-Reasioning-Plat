@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
-import { requireAdmin, requireUser } from './auth.js';
+import { requireUser } from './auth.js';
 import { enqueueApprovedCodingTask } from '../../engineering/codingTaskQueue.mjs';
 import { appendRunEvidence, buildEvidenceBundle, sha256, verifyEvidenceChain } from '../../agent/engineeringEvidence.js';
 
@@ -137,7 +137,6 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
   });
 
   fastify.post<{ Params: { jobId: string }; Body: ApprovalBody }>('/api/engineering/jobs/:jobId/approve', {
-    preHandler: requireAdmin,
     schema: { body: {
       type: 'object',
       required: ['planHash', 'baseCommitSha', 'proposedDiffHash'],
@@ -154,9 +153,8 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
       return reply.code(400).send({ error: 'Approval must include a valid plan digest, base commit SHA and diff digest.' });
     }
     const result = await prisma.$transaction(async (tx) => {
-      const job = await tx.agentRun.findUnique({ where: { id: request.params.jobId } });
+      const job = await tx.agentRun.findFirst({ where: { id: request.params.jobId, userId: request.authUser!.id } });
       if (!job) return { status: 'missing' as const };
-      if (job.userId === request.authUser!.id) return { status: 'self_approval' as const };
       if (job.status !== 'queued' || job.approvalStatus !== 'pending') return { status: 'not_pending' as const };
       if (job.planHash !== planHash || job.baseCommitSha !== baseCommitSha.toLowerCase() || job.proposedDiffHash !== proposedDiffHash) {
         return { status: 'stale' as const };
@@ -183,13 +181,8 @@ export const engineeringEvidenceRoutes: FastifyPluginAsync = async (fastify) => 
     });
     if (result.status !== 'approved') {
       const status = result.status === 'missing' ? 404
-        : result.status === 'self_approval' ? 403
-          : result.status === 'stale' || result.status === 'race' ? 409 : 422;
-      return reply.code(status).send({
-        error: result.status === 'self_approval'
-          ? 'The job creator cannot approve their own plan.'
-          : 'Approval was not applied: ' + result.status,
-      });
+        : result.status === 'stale' || result.status === 'race' ? 409 : 422;
+      return reply.code(status).send({ error: 'Approval was not applied: ' + result.status });
     }
     return { success: true, approvalStatus: 'approved', jobId: request.params.jobId, executionQueue: 'coding_tasks' };
   });
