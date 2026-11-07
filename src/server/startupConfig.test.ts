@@ -12,6 +12,14 @@ const supabaseProjectRef = 'narsvpwymvlrhurqbthu';
 const supabaseProjectUrl = `https://${supabaseProjectRef}.supabase.co`;
 const supabasePoolerHost = 'aws-1-eu-west-1.pooler.supabase.com';
 
+function supabaseDatabaseUrl(host: string, password = 'test-placeholder'): string {
+  const url = new URL('postgresql://localhost:5432/postgres');
+  url.hostname = host;
+  url.username = 'postgres';
+  url.password = password;
+  return url.toString();
+}
+
 describe('production connection configuration', () => {
   it('fails closed when production database and Redis URLs are missing', () => {
     expect(() => resolveConnectionUrls('production')).toThrow(
@@ -44,7 +52,7 @@ describe('production connection configuration', () => {
   it('routes a Supabase direct connection through the configured IPv4 Session Pooler', () => {
     const result = resolveConnectionUrls(
       'production',
-      `postgresql://postgres:p%40ss%3Aword@db.${supabaseProjectRef}.supabase.co:5432/postgres`,
+      supabaseDatabaseUrl(`db.${supabaseProjectRef}.supabase.co`, 'p@ss:word'),
       'redis://cache',
       supabaseProjectUrl,
       supabasePoolerHost,
@@ -64,7 +72,7 @@ describe('production connection configuration', () => {
   it('repairs an existing Supabase pooler URL with an unqualified username', () => {
     const result = resolveConnectionUrls(
       'production',
-      `postgresql://postgres:password@aws-1-eu-west-1.pooler.supabase.com:5432/postgres`,
+      supabaseDatabaseUrl(supabasePoolerHost),
       'redis://cache',
       supabaseProjectUrl,
       supabasePoolerHost,
