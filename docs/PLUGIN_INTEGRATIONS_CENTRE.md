@@ -64,3 +64,23 @@ Adapter implementations receive an opaque server-side `connectionRef`, never raw
 - No workflow dispatch, PA Agent tool execution or outbound communications.
 - No database schema change or migration.
 - No production deployment or infrastructure change.
+
+## Secure provider authorization foundation
+
+The authorization foundation in `src/server/plugins/providerAuthorization.ts` provides:
+
+- AES-256-GCM credential encryption with random 96-bit nonces, authentication tags and provider/owner-specific additional authenticated data.
+- A fail-closed 32-byte hex key parser. No key is generated, stored in repository settings or provisioned by this change.
+- Short-lived OAuth transactions with high-entropy state, SHA-256 state hashes, PKCE S256 challenges and encrypted code verifiers.
+- HTTPS-only authorization and redirect URL validation.
+- Requested/granted scope intersection, provider allowlists and mandatory-scope enforcement.
+- Owner/provider binding checks and explicit provider-confirmed revocation state transitions.
+- Encryption helpers for access and refresh tokens that bind ciphertext to the provider and owning RyanAI user.
+
+The accompanying Prisma migration and schema models introduce server-only provider connection records, one-use OAuth state records and append-only authorization lifecycle events. Browser roles `anon` and `authenticated` are explicitly revoked from these tables; server access remains subject to authenticated owner checks. The migration is code only and has not been applied to any database.
+
+### Important implementation boundary
+
+This increment is a security foundation, not a complete live OAuth connection flow. It does not register provider client IDs/secrets, create or rotate credentials, exchange provider authorization codes, refresh tokens, call provider revocation endpoints or mark a provider connected. Those operations require provider-specific adapters, owner-authorized server configuration, live callback verification and dedicated integration tests. Until then, providers remain disconnected/adapter-required in the UI.
+
+Never log OAuth codes, raw state, PKCE verifiers, access/refresh tokens, client secrets or encryption keys. Authorization events may contain only redacted lifecycle metadata.
