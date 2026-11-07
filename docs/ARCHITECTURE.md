@@ -337,3 +337,16 @@ RyanAI Beta is accepted only when a named candidate commit has reproducible evid
 For each gate publish the evidence source, commit/run identifier, timestamp, status, failure or blocker, and reviewer. Missing evidence remains missing; it must never be silently converted into a pass.
 
 **Governing rule:** architecture documents describe intended controls; code demonstrates implementation; completed tests demonstrate specific behavior; independent runtime evidence demonstrates operation. These are distinct proof levels.
+
+
+## 17. API control plane and MCP delegation contract
+
+The API is the authoritative application control plane for verified Supabase identity, Gen-X policy admission, durable PostgreSQL memory and server-side reasoning-provider selection. MCP is a protocol/gateway plane only; it must consume API-issued delegated identity and scoped capability context rather than creating a parallel user registry, policy engine, memory store or model-provider authority.
+
+Canonical reasoning roles remain **NVIDIA, Qwen and Logic**. Nemotron is a model implementation under NVIDIA. **Ollama is an optional local inference adapter**, not a fourth reasoning role; it can serve a role only when explicitly selected and configured with a model ID. Unknown provider selectors fail closed and local mode never silently falls back to cloud.
+
+PR B introduces a single API-owned Memory Vault persistence module used by HTTP routes, agent memory tools and reasoning memory-context construction. All reads and writes are scoped to the verified user/task principal. Gen-X is evaluated at the API boundary: only verified human requests can use the narrow self-memory and configured-reasoning exceptions; agent and service actors do not inherit human authority.
+
+The API-issued MCP delegation contract uses a separate service credential and HMAC signing secret, a verified Supabase principal, issuer `ryanai-api`, audience `ryanai-mcp`, a maximum 120-second lifetime, unique token ID and explicitly allowlisted read-only diagnostic scopes. MCP runtime verification and execution-time policy reauthorization remain PR C work. The legacy service-token-only OpenAI gateway is disabled by default until delegated identity is integrated.
+
+See [API Control Plane Contract](API_CONTROL_PLANE_CONTRACT.md) for the route, claim, scope, provider and rollout details. PR B remains a code proposal until exact-head CI/security checks and human review pass; this architecture section is not a deployment or production-readiness certificate.
