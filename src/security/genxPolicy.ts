@@ -9,6 +9,8 @@ export interface GenXSecurityEvent {
   target?: string;
   command?: string;
   environment?: 'development' | 'staging' | 'production';
+  /** Set only by trusted API handlers after Supabase verification; never from model/tool input. */
+  actorType?: 'human' | 'agent' | 'service';
 }
 
 export interface GenXPolicyResult {
@@ -54,6 +56,18 @@ export function evaluateGenXSecurityEvent(event: GenXSecurityEvent): GenXPolicyR
   // Otherwise a nominally safe reader could receive shell-control or injection payloads.
   if (event.target && COMMAND_CONTROL.test(event.target)) {
     return { decision: 'DENY', ruleId: 'GX-INJECTION-001', reason: 'Target contains shell-control or command-injection syntax.', severity: 'HIGH' };
+  }
+  // Authenticated human requests may manage only their own Memory Vault records.
+  // Agent/service callers do not inherit this exception; their mutations still require approval.
+  if (event.actorType === 'human' && event.toolName === 'api_user_memory' && event.target === 'self' &&
+      ['READ', 'CREATE', 'UPDATE', 'DELETE'].includes(event.action)) {
+    return { decision: 'ALLOW', ruleId: 'GX-HUMAN-MEMORY-001', reason: 'Verified user action is limited to that user's own memory records.', severity: 'LOW' };
+  }
+  // A direct, authenticated API reasoning request is explicit user consent to use
+  // the configured reasoning providers. It does not authorize arbitrary network access.
+  if (event.actorType === 'human' && event.toolName === 'api_reasoning_request' &&
+      event.action === 'NETWORK' && event.target === 'configured-approved-provider') {
+    return { decision: 'ALLOW', ruleId: 'GX-HUMAN-REASONING-001', reason: 'Verified user requested reasoning through the configured provider policy.', severity: 'LOW' };
   }
   if (event.action === 'CREATE' || event.action === 'UPDATE' || event.action === 'DELETE' || event.action === 'NETWORK') {
     return { decision: 'REQUIRE_APPROVAL', ruleId: 'GX-HIL-001', reason: 'Mutating or network actions require an authenticated human approval and scoped credentials.', severity: 'HIGH' };
