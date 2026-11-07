@@ -11,7 +11,7 @@ function createBrain(brain: BrainId, temperature: number) {
     model: config.model,
     temperature,
     // Ollama's OpenAI-compatible endpoint does not require a cloud credential.
-    apiKey: config.adapter === 'ollama' ? 'ollama' : brain === 'primary' ? (process.env.NVIDIA_API_KEY || '') : brain === 'secondary' ? (process.env.QWEN_API_KEY || '') : (process.env.LOGIC_API_KEY || process.env.OPENAI_API_KEY || ''),
+    apiKey: config.adapter === 'ollama' ? 'ollama' : brain === 'primary' ? (process.env.NVIDIA_API_KEY || (config.endpoint === process.env.LM_STUDIO_URL ? process.env.LM_STUDIO_API_KEY : '') || '') : brain === 'secondary' ? (process.env.QWEN_API_KEY || (config.endpoint === process.env.LM_STUDIO_URL ? process.env.LM_STUDIO_API_KEY : '') || '') : (process.env.LOGIC_API_KEY || process.env.OPENAI_API_KEY || (config.endpoint === process.env.LM_STUDIO_URL ? process.env.LM_STUDIO_API_KEY : '') || ''),
     configuration: { baseURL: config.endpoint },
   });
 }
