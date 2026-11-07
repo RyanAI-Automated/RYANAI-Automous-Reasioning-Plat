@@ -120,7 +120,7 @@ describe('Twilio webhook provider authentication', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('does not invoke RyanAI again when Twilio retries an already-claimed message', async () => {
+  it('does not dispatch a generated draft when Twilio retries an already-claimed message', async () => {
     prismaMock.communicationMessage.create.mockRejectedValueOnce({ code: 'P2002' });
     prismaMock.communicationMessage.findUnique.mockResolvedValueOnce({
       status: 'replied',
@@ -131,11 +131,12 @@ describe('Twilio webhook provider authentication', () => {
     const response = await sendWebhook(signature);
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('This was already handled.');
+    expect(response.body).toBe('<?xml version="1.0" encoding="UTF-8"?><Response/>');
+    expect(response.body).not.toContain('<Message>');
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it('accepts an authentic provider request without a user bearer and escapes the reply XML', async () => {
+  it('accepts an authentic provider request and stores a draft without dispatching it', async () => {
     const signature = twilio.getExpectedTwilioSignature(
       token,
       webhookUrl,
@@ -144,9 +145,20 @@ describe('Twilio webhook provider authentication', () => {
     const response = await sendWebhook(signature);
     expect(response.statusCode).toBe(200);
     expect(response.headers['content-type']).toContain('text/xml');
-    expect(response.body).toBe(
-      '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Certainly, Sir G. Approved &lt;reply&gt; &amp; ready</Message></Response>',
-    );
+    expect(response.body).toBe('<?xml version="1.0" encoding="UTF-8"?><Response/>');
+    expect(response.body).not.toContain('<Message>');
+    expect(prismaMock.communicationMessage.update).toHaveBeenCalledWith({
+      where: { providerMessageId: 'SM123' },
+      data: {
+        status: 'pending_approval',
+        metadata: {
+          draftReply: 'Certainly, Sir G. Approved <reply> & ready',
+          approvalRequired: true,
+          inReplyTo: 'SM123',
+          mediaCount: 0,
+        },
+      },
+    });
     expect(prismaMock.communicationMessage.create).toHaveBeenCalled();
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       {
