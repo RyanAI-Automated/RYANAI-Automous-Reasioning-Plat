@@ -18,6 +18,11 @@ export const internalOpenAiGatewayRoutes: FastifyPluginAsync = async (fastify) =
     schema: { body: { type: 'object', required: ['prompt'], additionalProperties: false,
       properties: { prompt: { type: 'string', minLength: 1, maxLength: 20000 } } } },
   }, async (request, reply) => {
+    // This legacy service-token-only gateway has no delegated user identity or Gen-X context.
+    // Keep it disabled until PR C replaces it with the delegated API/MCP contract.
+    if (process.env.RYANAI_OPENAI_GATEWAY_ENABLED !== 'true') {
+      return reply.code(503).send({ success: false, error: 'The legacy model gateway is disabled pending delegated identity integration.' });
+    }
     const expected = process.env.RYANAI_OPENAI_GATEWAY_TOKEN?.trim() ?? '';
     if (expected.length < 32) return reply.code(503).send({ success: false, error: 'Internal model gateway authentication is not configured.' });
     if (!hasValidGatewayToken(request.headers.authorization, expected)) return reply.code(401).send({ success: false, error: 'Unauthorized.' });
