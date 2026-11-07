@@ -21,6 +21,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
       - name: Verify six gate contracts without model invocation
         run: npm run benchmark:gates:mock
       - name: Test mock adapter, scorer and evidence inventory contracts
