@@ -197,6 +197,7 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
       icon: Activity,
     }] : []),
   ];
+  const cockpitEnabled = enabledModules?.cockpit !== false;
   const visibleWorkspaces = workspaces.filter((workspace) => {
     const routeId = workspace.href.replace(/^#\//, '') as DashboardUiId;
     return enabledModules?.[routeId] !== false;
@@ -294,7 +295,7 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
             <InfoRow label="Graph" value={health?.activeGraph || 'Not reported'} />
             <InfoRow label="Last health check" value={hasTimestamp ? new Date(reportedAt).toLocaleString() : 'Not available'} />
           </dl>
-          <a href="#/cockpit" className="mt-5 inline-flex rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">Open cockpit</a>
+          {cockpitEnabled && <a href="#/cockpit" className="mt-5 inline-flex rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">Open cockpit</a>}
         </article>
         <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
           <h2 className="font-semibold text-white">Operator quick actions</h2>
@@ -302,7 +303,7 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
             Start a reasoning request in the cockpit, or open the workspace for conversation history and files. Provider and tool availability must be confirmed by their own live checks.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <a href="#/cockpit" className="inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5">Run a task</a>
+            {cockpitEnabled && <a href="#/cockpit" className="inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5">Run a task</a>}
             <a href="#/workspace" className="inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5">Open workspace</a>
           </div>
         </article>
