@@ -33,18 +33,17 @@ function statusLabel(status: GitHubStatus['status'] | null, checking: boolean): 
 /** The app reports connected only after server-side account and repository verification. */
 export default function GithubModal({ open, onClose }: GitHubModalProps) {
   const [integration, setIntegration] = useState<GitHubStatus | null>(null);
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
   const refreshStatus = useCallback(async () => {
-    setChecking(true);
-    setError('');
     try {
       const response = await authenticatedFetch('/api/github/status');
       const payload = await response.json().catch(() => ({})) as GitHubStatus & { error?: string };
       if (!response.ok) throw new Error(payload.error || 'Could not verify the GitHub connection.');
+      setError('');
       setIntegration(payload);
     } catch (cause) {
       setIntegration({ status: 'unverified', connected: false });
@@ -55,6 +54,7 @@ export default function GithubModal({ open, onClose }: GitHubModalProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load GitHub status when the modal opens
     if (open) void refreshStatus();
   }, [open, refreshStatus]);
 
