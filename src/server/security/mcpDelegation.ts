@@ -93,6 +93,7 @@ export function verifyMcpDelegationToken(
   nowSeconds = Math.floor(Date.now() / 1000),
 ): DelegationClaims {
   if (secret.length < 32) throw new Error('MCP delegation verification is not configured.');
+  if (typeof token !== 'string' || token.length > 8_192) throw new Error('Invalid delegated identity token.');
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('Invalid delegated identity token.');
   const signingInput = parts[0] + '.' + parts[1];
