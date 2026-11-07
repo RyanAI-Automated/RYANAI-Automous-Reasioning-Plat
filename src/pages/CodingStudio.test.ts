@@ -3,9 +3,10 @@ import { canApproveJob, diffFiles, languageFromPath } from './codingStudioUtils'
 
 describe('RyanAI Studio helpers', () => {
   it('prevents a plan creator from approving their own coding plan', () => {
-    expect(canApproveJob('creator-1', 'creator-1')).toBe(false);
-    expect(canApproveJob('creator-1', 'reviewer-2')).toBe(true);
-    expect(canApproveJob('creator-1', undefined)).toBe(false);
+    expect(canApproveJob('creator-1', 'creator-1', true)).toBe(false);
+    expect(canApproveJob('creator-1', 'reviewer-2', false)).toBe(false);
+    expect(canApproveJob('creator-1', 'reviewer-2', true)).toBe(true);
+    expect(canApproveJob('creator-1', undefined, true)).toBe(false);
   });
 
   it('maps common coding file extensions to their language labels', () => {
