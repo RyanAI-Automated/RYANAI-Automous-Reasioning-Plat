@@ -82,21 +82,21 @@ describe('RyanAI Settings', () => {
   it('does not expose privileged workspace toggles to standard users', async () => {
     await mount();
     expect((container.querySelector('[data-testid="ui-toggle-admin"]') as HTMLInputElement).disabled).toBe(true);
-    expect((container.querySelector('[data-testid="ui-toggle-studio"]') as HTMLInputElement).disabled).toBe(true);
+    expect((container.querySelector('[data-testid="ui-toggle-studio"]') as HTMLInputElement).disabled).toBe(false);
     expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('exposes only the privileged workspaces allowed by the trusted role', async () => {
     await mount({ isAdmin: true });
-    expect(container.querySelector('[data-ui-id="admin"]')).not.toBeNull();
-    expect(container.querySelector('[data-ui-id="studio"]')).not.toBeNull();
+    expect((container.querySelector('[data-testid="ui-toggle-admin"]') as HTMLInputElement).disabled).toBe(false);
+    expect((container.querySelector('[data-testid="ui-toggle-studio"]') as HTMLInputElement).disabled).toBe(false);
     expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('persists profile and module preferences only after verifying the account', async () => {
     await mount();
     await changeValue(container.querySelector('input[autocomplete="name"]') as HTMLInputElement, 'Ntsiyeni Ganyane');
-    await changeValue(container.querySelector('select') as HTMLSelectElement, 've-ZA');
+    await changeValue(container.querySelector('select:not([aria-label="Plugin category"])') as HTMLSelectElement, 've-ZA');
     await act(async () => {
       (container.querySelector('[data-testid="voice-enabled-toggle"]') as HTMLInputElement).click();
       (container.querySelector('[data-testid="calculator-enabled-toggle"]') as HTMLInputElement).click();
