@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-const source = readFileSync(new URL('../pages/CommandCenter.tsx', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../pages/commandCenterOperations.ts', import.meta.url), 'utf8');
 
 describe('cloud attachment message persistence ordering', () => {
   it('uses a UUID message ID and persists the message before Storage upload', () => {
