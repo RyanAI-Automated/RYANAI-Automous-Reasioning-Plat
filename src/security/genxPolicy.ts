@@ -58,7 +58,7 @@ export function evaluateGenXSecurityEvent(event: GenXSecurityEvent): GenXPolicyR
   // Agent/service callers do not inherit this exception; their mutations still require approval.
   if (event.actorType === 'human' && event.toolName === 'api_user_memory' && event.target === 'self' &&
       ['READ', 'CREATE', 'UPDATE', 'DELETE'].includes(event.action)) {
-    return { decision: 'ALLOW', ruleId: 'GX-HUMAN-MEMORY-001', reason: 'Verified user action is limited to that user's own memory records.', severity: 'LOW' };
+    return { decision: 'ALLOW', ruleId: 'GX-HUMAN-MEMORY-001', reason: "Verified user action is limited to that user's own memory records.", severity: 'LOW' };
   }
   if (event.action === 'DELETE' && event.environment === 'production') {
     return { decision: 'DENY', ruleId: 'GX-PROD-DELETE-001', reason: 'Production deletion is prohibited for autonomous agents.', severity: 'CRITICAL' };
