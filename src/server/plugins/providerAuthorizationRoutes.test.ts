@@ -121,6 +121,7 @@ describe('provider authorization HTTP lifecycle', () => {
     const state = new URL((start.json() as { authorizationUrl: string }).authorizationUrl).searchParams.get('state')!;
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       access_token: 'synthetic-access-token',
+      token_type: 'Bearer',
       refresh_token: 'synthetic-refresh-token',
       expires_in: 3600,
       scope: 'https://www.googleapis.com/auth/calendar.readonly',
