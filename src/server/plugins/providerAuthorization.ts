@@ -163,6 +163,7 @@ export function buildProviderAuthorizationUrl(
     throw new Error('Provider OAuth endpoints and redirect URI must use HTTPS.');
   }
   if (authorizationEndpoint.username || authorizationEndpoint.password || authorizationEndpoint.hash ||
+      tokenEndpoint.username || tokenEndpoint.password || tokenEndpoint.hash ||
       redirectUri.username || redirectUri.password || redirectUri.hash) {
     throw new Error('Provider OAuth URLs must not contain credentials or fragments.');
   }
