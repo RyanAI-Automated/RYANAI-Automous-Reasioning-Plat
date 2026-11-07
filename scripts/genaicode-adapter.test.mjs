@@ -27,7 +27,7 @@ const task = (root, work, overrides = {}) => ({
   workspaceRoot: root, workspacePath: work, ...overrides,
 });
 const approved = async (binding) => ({
-  approved: true, ...binding, approverId: 'admin-2', authorId: 'admin-1',
+  approved: true, ...binding, approverId: 'owner-1', authorId: 'owner-1',
 });
 const capabilities = {
   filesystemIsolation: true, workspaceMountOnly: true, resourceLimits: true,
@@ -66,21 +66,21 @@ describe('RyanAI GenAIcode adapter authorization and isolation', () => {
     await assert.rejects(runGenAICodeTask(task(root, work, { approved: true }), {
       authorizeTask: async () => null,
       sandboxRunner: fakeRunner({ onLaunch: () => { launched = true; } }),
-    }), /valid independent workbench approval/);
+    }), /valid authenticated owner approval/);
     assert.equal(launched, false);
   });
 
-  it('requires independent approval bound to exact task, plan, base and diff digests', async () => {
+  it('requires authenticated owner approval bound to exact task, plan, base and diff digests', async () => {
     const { root, work } = await workspace();
     const binding = { taskId: 'job-123', approvalId: 'approval-456', planHash: HASH, baseCommitSha: COMMIT_SHA, proposedDiffHash: HASH };
     await assert.rejects(runGenAICodeTask(task(root, work), {
       authorizeTask: async () => approved({ ...binding, proposedDiffHash: 'b'.repeat(64) }),
       sandboxRunner: fakeRunner(),
-    }), /valid independent workbench approval/);
+    }), /valid authenticated owner approval/);
     await assert.rejects(runGenAICodeTask(task(root, work), {
-      authorizeTask: async () => ({ ...await approved(binding), approverId: 'admin-1' }),
+      authorizeTask: async () => ({ ...await approved(binding), approverId: 'different-user' }),
       sandboxRunner: fakeRunner(),
-    }), /valid independent workbench approval/);
+    }), /valid authenticated owner approval/);
   });
 
   it('rejects a runner without filesystem, network and resource isolation', async () => {
@@ -146,7 +146,8 @@ describe('RyanAI GenAIcode adapter authorization and isolation', () => {
 
   it('keeps the fail-closed policy explicit', () => {
     assert.equal(genaicodeAdapterPolicy.directHostExecution, false);
-    assert.equal(genaicodeAdapterPolicy.independentWorkbenchApprovalRequired, true);
+    assert.equal(genaicodeAdapterPolicy.ownerWorkbenchApprovalRequired, true);
+    assert.equal(genaicodeAdapterPolicy.independentWorkbenchApprovalRequired, false);
     assert.equal(genaicodeAdapterPolicy.filesystemIsolationRequired, true);
     assert.equal(genaicodeAdapterPolicy.networkPolicy, 'deny-by-default');
     assert.equal(genaicodeAdapterPolicy.verificationRequiredOutsideAdapter, true);
