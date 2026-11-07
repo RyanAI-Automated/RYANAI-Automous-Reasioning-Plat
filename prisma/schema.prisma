@@ -427,6 +427,19 @@ model BrainKnowledge {
 }
 
 
+model CommsDispatchApproval {
+  id           String    @id @default(uuid())
+  ownerUserId  String    @db.Uuid @map("owner_user_id")
+  requestHash  String    @map("request_hash")
+  status       String    @default("approved")
+  expiresAt    DateTime  @db.Timestamptz(6) @map("expires_at")
+  consumedAt   DateTime? @db.Timestamptz(6) @map("consumed_at")
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  @@index([ownerUserId, status, expiresAt], map: "comms_dispatch_approvals_owner_status_expiry_idx")
+  @@map("comms_dispatch_approvals")
+}
+
 model CommunicationConversation {
   id              String                   @id @default(uuid())
   channel         String
