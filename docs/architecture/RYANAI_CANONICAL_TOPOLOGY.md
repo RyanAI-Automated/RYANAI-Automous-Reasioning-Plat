@@ -160,3 +160,120 @@ This contract does not authorise production deployment, production database migr
 ## 10. Implementation backlog
 
 See [RyanAI topology integration backlog](./TOPOLOGY_INTEGRATION_BACKLOG.md) for the scoped PR B and PR C work packages, dependencies, acceptance evidence, and explicit exclusions.
+
+
+---
+
+## 11. API and MCP hosting amendment — 7 November 2026
+
+**Decision:** Render is the common hosting platform for the RyanAI web frontend, canonical API, and externally reachable MCP HTTP service(s). API and MCP are separate services with separate processes, deployable artifacts, health checks, resource limits, and least-privilege environment. "Same platform" does not mean duplicated purpose or shared unrestricted credentials.
+
+### 11.1 Render service ownership
+
+| Render service | Single responsibility | Public surface | Must not own |
+| --- | --- | --- | --- |
+| `ryanai-web` | Static web experience | Browser assets | Privileged database or model credentials |
+| `ryanai-api` | Canonical application API, identity verification, Gen-X policy enforcement, orchestration entry point, memory/task APIs | Versioned `/api/*` and health/readiness | MCP tool registry duplication, worker-only workloads |
+| `ryanai-mcp` (proposed) | MCP protocol endpoint and governed tool dispatch | Streamable HTTP `/mcp`; health/readiness | User identity authority, database authority, independent policy decisions |
+| MCPJungle (optional gateway adapter) | Client registration/routing only if its runtime and access controls are proven | Private network only unless separately approved | Tool implementation, authorization authority, secret store |
+| Persistent worker services (future) | Durable task execution | Private/internal only | Public API/MCP endpoints or authoritative task state |
+
+The proposed `ryanai-mcp` service is not yet declared in the live Render Blueprint. Its deployment is blocked pending the port/host binding, service authentication, API identity propagation, and readiness contract described below. No Render Blueprint sync or deploy is authorized by this documentation decision.
+
+### 11.2 API plane and contract
+
+The API is the only application-facing authority for:
+- Supabase Auth token verification and server-derived owner/tenant identity.
+- Gen-X deterministic authorization and policy decision recording.
+- Jarvis orchestration admission, task creation/status, and human-approval state.
+- Owner-scoped PostgreSQL/pgvector access, provenance, correction/deletion and audit records.
+- Versioned model-routing requests and MCP service-to-service identity assertions.
+- Correlation IDs, idempotency keys, structured errors, rate limits, request budgets and audit.
+
+The API must distinguish liveness (`/health`) from readiness (`/ready`). Liveness reports that the process is responsive. Readiness reports required dependency state (database, auth verification capability, and any mandatory internal service) without exposing connection strings, tokens, hostnames containing credentials, or personal data. Optional model providers and optional workers must not make core API liveness fail.
+
+### 11.3 MCP plane and contract
+
+The MCP service owns protocol adaptation, discovery, schema validation, capability allowlisting, bounded execution, and tool-result normalization. It does not trust MCP client-supplied user IDs, roles, tenant IDs, approval flags, or model claims.
+
+For every user-scoped or consequential tool call:
+1. MCP authenticates the calling service/client.
+2. The caller supplies a short-lived, verifiable delegated identity assertion issued by the API (or an equivalent signed, audience-bound context); the shared MCP bearer token alone is service authentication, not an end-user identity.
+3. MCP validates tool name, schema, size, deadline, idempotency and capability scope.
+4. Gen-X/API authorization is rechecked immediately before execution using the verified principal and exact action.
+5. Consequential actions require a fresh human approval bound to a canonical action digest.
+6. MCP emits a structured audit result with correlation, actor, policy, tool, outcome and timing identifiers.
+
+Until delegated identity and policy recheck are implemented and tested, the hosted MCP service is restricted to explicitly allowlisted non-sensitive platform diagnostics. No private memory, arbitrary file, shell, deployment, GitHub write, communications dispatch, or trading tools may be exposed.
+
+### 11.4 Canonical model-role mapping
+
+The external reasoning contract uses four stable role identifiers; provider/model names are implementation details:
+
+| Canonical role | Intended responsibility | Adapter mapping |
+| --- | --- | --- |
+| `nvidia` | Primary specialist reasoning | NVIDIA endpoint; Nemotron is a selectable model implementation, not a separate reasoning role |
+| `qwen` | Secondary reasoning and independent comparison | Qwen endpoint/model |
+| `logic` | Structured logic, verification and critique | Logic adapter; current repository configuration points to the OpenAI-compatible endpoint and `LOGIC_REASONING_MODEL` |
+| `ollama` | Local/private inference foundation | Local Ollama endpoint; local-only mode must never silently fall back to a cloud provider |
+
+The MCP public schema and router must use the same role enum. OpenAI, Nemotron, DeepSeek and TorchTPU must not appear as competing top-level brain roles. OpenAI-compatible transport is an adapter detail for Logic or the API-owned model gateway. DeepSeek and TorchTPU remain experimental, disabled-by-default provider adapters until separately approved and benchmarked. The current MCP router does not yet meet this contract: it exposes `openai`, `nemotron`, `qwen`, `deepseek`, and `torch_tpu`, while its advertised enum omits Ollama and Logic. This is a code-level PR B/C blocker, not a documentation-only pass.
+
+All adapters require typed request/response contracts, explicit timeout and cancellation, model/version provenance, token/cost budgets, safe error classification, no provider-side tool execution, and tested abstention/fallback. Provider availability does not imply permission to route data to that provider.
+
+### 11.5 One tool registry and legacy-server disposition
+
+The canonical registry is the single source of truth for tool identity, owner, risk, input/output schema, capability, availability, enablement, approval requirement, timeout, and audit policy. MCP Manager, RyanMCPServer, SystemMcpServer, MCPJungle and Jarvis client groups must consume generated views/adapters of that registry; they must not independently define or widen permissions.
+
+- MCP Manager's current `mcp-server/tool-registry.js` is the initial registry candidate, but it is operator-wide and does not yet implement per-user delegated authorization.
+- `src/mcp/ryanMcpServer.ts` and `src/mcp/systemServer.ts` currently register separate tool lists and Gen-X checks. They must be migrated behind the canonical registry/policy adapter or explicitly retired after parity tests; no silent removal.
+- MCPJungle server/client JSON files are declarations only. Server registration, transport reachability, tool exposure, and each client's effective grant must be verified from the running gateway before claiming integration.
+- Jarvis read-only and diagnostics groups are distinct capability profiles. Diagnostics execution remains disabled unless separately approved; no inherited write capability.
+- Unknown tools, unknown client groups, missing identity, unavailable policy, invalid schemas, and unverified approvals fail closed.
+
+### 11.6 Render deployment readiness gates
+
+The current `mcp-server/http.js` defaults to loopback (`127.0.0.1`) and port `8765`; a Render web service needs a correctly bound interface and the platform-provided port. Its host allowlist defaults to localhost, and bearer authentication is optional when a loopback listener is used. Before a Render service is declared deployable, code and tests must prove:
+- bind to the platform-assigned `PORT` on `0.0.0.0` without weakening local development defaults;
+- require a strong service credential for non-loopback binding and reject missing/short credentials at startup;
+- configure exact expected Host and Origin values without wildcard trust or confusing hostnames with `host:port`;
+- use private service-to-service networking where possible; do not expose an unrestricted public MCP endpoint;
+- health/readiness routes are bounded, unauthenticated only where safe, and disclose no secrets;
+- API-to-MCP calls use an audience-bound service identity and delegated user context, not a shared bearer token as user identity;
+- graceful shutdown, request limits, timeout/cancellation and concurrency limits are tested;
+- Render Blueprint remains auto-deploy-off; a separate owner approval is required before any Blueprint sync or deployment.
+
+### 11.7 Authoritative API/MCP service map
+
+| Layer | Canonical owner | API contract | MCP contract |
+| --- | --- | --- | --- |
+| Edge and experience | Render web | Browser calls canonical API only | No direct browser-to-MCP calls |
+| Identity | Supabase Auth, verified by API | Principal and tenant derived server-side | Consumes delegated verified context |
+| Policy | Gen-X | Decision before data/action | Re-check before each tool execution |
+| Orchestration | Jarvis via API | One task coordinator | No MCP-owned orchestration |
+| Model routing | API specialist router | `nvidia`, `qwen`, `logic`, `ollama` | MCP may request approved API model operations; no independent brain map |
+| Memory | Supabase PostgreSQL + pgvector | Owner-scoped durable APIs | No direct database credentials or bypass |
+| Tool registry | Canonical registry package/API | Capability metadata and authorization | Protocol discovery and bounded invocation |
+| Durable tasks | PostgreSQL task records | Create/status/cancel contracts | Dispatch only approved task types |
+| Ephemeral coordination | Existing Redis/Valkey | Cache/coordination only | No durable authority |
+| Observability | Shared telemetry/audit contract | Request/task/policy correlation | Tool/actor/outcome correlation |
+
+### 11.8 Configuration ownership and prohibited drift
+
+- `render.yaml` is the Render desired-state declaration; actual Render service state must be checked separately.
+- `railway.json` is not evidence that a Railway service exists or is assigned to RyanAI. Railway remains read-only until the primary account exposes the intended project.
+- `stacks/ryanai.stack.json` is a logical local/container development manifest, not a claim that PostgreSQL, Redis, API, web and MCP are all deployed as separate production services.
+- `mcpjungle/*.json` are gateway/client declarations, not proof of registration or authorization.
+- `.env.example` documents variable names and safe defaults; it must contain no real secrets.
+- Render environment values must be referenced by name only in repository configuration (`sync: false` where applicable); no secret values in Git, logs, PRs or generated manifests.
+- Provider topology validators must check one canonical service map and explicitly distinguish configured, deployed, healthy, and verified states.
+
+### 11.9 Sequenced completion gates
+
+1. **PR A — canonical topology:** update ownership and current-vs-target facts; documentation only.
+2. **PR B — API/data plane:** canonical identity, Gen-X enforcement, API contracts, database TLS/pooler verification, readiness, API model-role router and provider configuration mapping. Staging only; no production migration or cutover.
+3. **PR C — MCP/gateway:** shared registry, delegated identity, Gen-X reauthorization, Render HTTP binding, MCPJungle runtime registration/grant verification, legacy server adapter/retirement and API-to-MCP integration.
+4. **PR D — deployment contract:** reconcile Render Blueprint, Dockerfiles, stack manifest and validators after PR B/C interfaces pass. Keep auto-deploy off; no Blueprint sync or deployment under this PR.
+5. **PR E — acceptance:** exact-head CI/security, contract, auth-negative, tool allow/deny, API↔MCP, provider failure/fallback, worker recovery, observability and staging E2E evidence.
+
+No PR merges itself, and no passing status may be inferred from missing, queued, skipped, cancelled, stale, or provider-blocked checks.
