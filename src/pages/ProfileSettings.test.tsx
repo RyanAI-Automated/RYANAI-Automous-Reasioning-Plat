@@ -35,6 +35,7 @@ async function changeValue(element: HTMLInputElement | HTMLSelectElement, value:
   await act(async () => {
     const prototype = element instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(prototype, 'value')?.set?.call(element, value);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
   });
 }
@@ -80,16 +81,16 @@ describe('RyanAI Settings', () => {
 
   it('does not expose privileged workspace toggles to standard users', async () => {
     await mount();
-    expect(container.querySelector('[data-ui-id="admin"]')).toBeNull();
-    expect(container.querySelector('[data-ui-id="studio"]')).toBeNull();
-    expect(container.querySelector('[data-ui-id="comms"]')).toBeNull();
+    expect((container.querySelector('[data-testid="ui-toggle-admin"]') as HTMLInputElement).disabled).toBe(true);
+    expect((container.querySelector('[data-testid="ui-toggle-studio"]') as HTMLInputElement).disabled).toBe(true);
+    expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('exposes only the privileged workspaces allowed by the trusted role', async () => {
     await mount({ isAdmin: true });
     expect(container.querySelector('[data-ui-id="admin"]')).not.toBeNull();
     expect(container.querySelector('[data-ui-id="studio"]')).not.toBeNull();
-    expect(container.querySelector('[data-ui-id="comms"]')).toBeNull();
+    expect((container.querySelector('[data-testid="ui-toggle-comms"]') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('persists profile and module preferences only after verifying the account', async () => {
