@@ -96,7 +96,7 @@ describe('RyanAI Settings', () => {
   it('persists profile and module preferences only after verifying the account', async () => {
     await mount();
     await changeValue(container.querySelector('input[autocomplete="name"]') as HTMLInputElement, 'Ntsiyeni Ganyane');
-    await changeValue(container.querySelector('select:not([aria-label="Plugin category"])') as HTMLSelectElement, 've-ZA');
+    await changeValue(container.querySelector('optgroup[label="South African languages"]')?.parentElement as HTMLSelectElement, 've-ZA');
     await act(async () => {
       (container.querySelector('[data-testid="voice-enabled-toggle"]') as HTMLInputElement).click();
       (container.querySelector('[data-testid="calculator-enabled-toggle"]') as HTMLInputElement).click();
