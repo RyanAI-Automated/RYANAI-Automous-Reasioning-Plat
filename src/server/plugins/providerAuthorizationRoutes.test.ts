@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { providerAuthorizationRoutes } from './providerAuthorizationRoutes.js';
