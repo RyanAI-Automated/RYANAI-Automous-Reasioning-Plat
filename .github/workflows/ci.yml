@@ -466,6 +466,9 @@ jobs:
           export DATABASE_URL="$DB_URL"
           export SUPABASE_URL="$API_URL"
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          # Supabase db reset has already created the initial platform schema.
+          # Baseline the legacy Prisma init migration before applying later Prisma migrations.
+          npx prisma migrate resolve --applied 20261015081513_init_reasoning_platform
           npx prisma migrate deploy
           npm run test:comms-callback:integration
           npm run test:comms-attachments:integration
