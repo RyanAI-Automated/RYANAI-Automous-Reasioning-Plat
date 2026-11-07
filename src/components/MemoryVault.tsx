@@ -32,7 +32,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
   const [activeSearch, setActiveSearch] = useState('');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -44,8 +44,6 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
   const [notice, setNotice] = useState('');
 
   const refresh = useCallback(async (signal?: AbortSignal, append = false, query = activeSearch, cursor?: string) => {
-    setLoading(true);
-    setError('');
     try {
       const params = new URLSearchParams();
       if (query) params.set('q', query);
@@ -57,6 +55,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
       });
       const payload = await response.json().catch(() => ({})) as { entries?: VaultEntry[]; error?: string; hasMore?: boolean; nextCursor?: string | null };
       if (!response.ok) throw new Error(payload.error || 'Could not load saved memories.');
+      setError('');
       const loaded = Array.isArray(payload.entries) ? payload.entries : [];
       setEntries((current) => append ? [...current, ...loaded] : loaded);
       setHasMore(payload.hasMore === true);
@@ -72,6 +71,7 @@ export default function MemoryVault({ open, userId, onClose }: MemoryVaultProps)
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load memories when the vault opens
     void refresh(controller.signal);
     return () => controller.abort();
   }, [open, userId, refresh]);

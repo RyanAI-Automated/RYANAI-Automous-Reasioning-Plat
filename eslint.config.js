@@ -8,6 +8,8 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      // Generated Prisma clients are artifacts, not hand-maintained source.
+      'src/generated/**',
       'build/**',
       'node_modules/**',
       '.next/**',

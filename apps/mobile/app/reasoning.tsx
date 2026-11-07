@@ -3,7 +3,7 @@ import {Pressable,StyleSheet,Text,View} from "react-native";
 import {Redirect} from "expo-router";
 import {AgentConsoleScreen} from "../../../src/screens/AgentConsoleScreen";
 import {supabase} from "../src/lib/supabase";
-import {useAuth} from "../src/auth";
+import {useAuth} from "../src/useAuth";
 export default function ReasoningRoute(){
  const {session,loading,signOut}=useAuth();
  if(loading)return <View style={s.center}><Text style={s.text}>Restoring secure session…</Text></View>;

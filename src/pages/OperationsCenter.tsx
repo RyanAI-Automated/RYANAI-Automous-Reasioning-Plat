@@ -91,8 +91,6 @@ export default function OperationsCenter({ isAdmin = false }: { isAdmin?: boolea
   const [notice, setNotice] = useState('');
 
   const refreshTasks = useCallback(async () => {
-    setLoadingTasks(true);
-    setTaskError('');
     try {
       const response = await authenticatedFetch('/api/agent/ops/tasks');
       const payload = await readPayload<ApiPayload<AgentTask>>(response, 'Could not load autonomous task history.');
@@ -106,8 +104,6 @@ export default function OperationsCenter({ isAdmin = false }: { isAdmin?: boolea
 
   const refreshActions = useCallback(async () => {
     if (!isAdmin) return;
-    setLoadingActions(true);
-    setApprovalError('');
     try {
       const response = await authenticatedFetch('/api/actions');
       const payload = await readPayload<ApiPayload<PendingAction>>(response, 'Could not load pending approvals.');
@@ -124,6 +120,7 @@ export default function OperationsCenter({ isAdmin = false }: { isAdmin?: boolea
   }, [refreshActions, refreshTasks]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load tasks and actions on mount
     void refresh();
   }, [refresh]);
 

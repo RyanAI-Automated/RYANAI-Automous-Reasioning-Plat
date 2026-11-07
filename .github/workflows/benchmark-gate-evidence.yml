@@ -38,6 +38,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --legacy-peer-deps
       - name: Run deterministic gate contract tests
         run: npm run test:benchmark:contracts
       - name: Run OS-enforced network isolation probe
