@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { useAuth } from '@/hooks/useAuth';
+import { canApproveJob, diffFiles, languageFromPath } from './codingStudioUtils';
+
 import {
   Activity,
   Check,
@@ -56,45 +58,6 @@ const DEFAULT_PLAN = JSON.stringify({
   ],
 }, null, 2);
 
-export function languageFromPath(path: string): string {
-  const ext = path.toLowerCase().split('.').pop() ?? '';
-  const languages: Record<string, string> = {
-    ts: 'TypeScript',
-    tsx: 'TypeScript React',
-    js: 'JavaScript',
-    jsx: 'JavaScript React',
-    py: 'Python',
-    rs: 'Rust',
-    go: 'Go',
-    java: 'Java',
-    cs: 'C#',
-    cpp: 'C++',
-    c: 'C',
-    h: 'C/C++',
-    sql: 'SQL',
-    sh: 'Bash',
-    ps1: 'PowerShell',
-    json: 'JSON',
-    md: 'Markdown',
-    yaml: 'YAML',
-    yml: 'YAML',
-  };
-  return languages[ext] ?? 'Text';
-}
-
-export function canApproveJob(jobCreatorId: string, currentUserId?: string): boolean {
-  return Boolean(currentUserId && jobCreatorId !== currentUserId);
-}
-
-export function diffFiles(diff: string): string[] {
-  const files = new Set<string>();
-  for (const line of diff.split(/\r?\n/)) {
-    const match = line.match(/^\+\+\+ b\/(.+)$/);
-    if (match && match[1] !== '/dev/null') files.add(match[1]);
-  }
-  return [...files];
-}
-
 export default function CodingStudio() {
   const { session } = useAuth();
   const currentUserId = session?.user.id;
@@ -114,7 +77,6 @@ export default function CodingStudio() {
   const changedFiles = useMemo(() => diffFiles(proposedDiff), [proposedDiff]);
 
   const loadJobs = useCallback(async () => {
-    setError(null);
     try {
       const response = await authenticatedFetch('/api/engineering/jobs');
       const payload = await response.json() as { jobs?: Job[]; error?: string };
@@ -125,6 +87,7 @@ export default function CodingStudio() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load coding jobs on mount
   useEffect(() => { void loadJobs(); }, [loadJobs]);
 
   const loadJob = async (jobId: string) => {

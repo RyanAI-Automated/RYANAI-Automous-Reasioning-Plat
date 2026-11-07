@@ -23,21 +23,38 @@ export default function PaperStrategyAllocations() {
   const [error, setError] = useState('');
   const [removing, setRemoving] = useState<string | null>(null);
 
+  const loadStrategies = useCallback(async () => {
+    const response = await authenticatedFetch('/api/quant/paper/strategies');
+    const data = await response.json() as { strategies?: Strategy[]; error?: string };
+    if (!response.ok) throw new Error(data.error || 'Paper strategy allocations are unavailable.');
+    return data.strategies ?? [];
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
-      const response = await authenticatedFetch('/api/quant/paper/strategies');
-      const data = await response.json() as { strategies?: Strategy[]; error?: string };
-      if (!response.ok) throw new Error(data.error || 'Paper strategy allocations are unavailable.');
-      setStrategies(data.strategies ?? []);
+      setStrategies(await loadStrategies());
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load paper strategies.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadStrategies]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    let active = true;
+    void loadStrategies().then((loaded) => {
+      if (active) {
+        setStrategies(loaded);
+        setError('');
+      }
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Unable to load paper strategies.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [loadStrategies]);
 
   const remove = async (experimentId: string) => {
     setRemoving(experimentId);

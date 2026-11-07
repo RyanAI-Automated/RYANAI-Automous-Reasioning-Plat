@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canApproveJob, diffFiles, languageFromPath } from './CodingStudio';
+import { canApproveJob, diffFiles, languageFromPath } from './codingStudioUtils';
 
 describe('RyanAI Studio helpers', () => {
   it('prevents a plan creator from approving their own coding plan', () => {

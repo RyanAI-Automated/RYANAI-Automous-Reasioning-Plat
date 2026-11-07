@@ -54,6 +54,8 @@ jobs:
           src/pages/Dashboard.test.tsx
           src/pages/ProfileSettings.test.tsx
           src/App.test.tsx
+      - name: Typecheck API independently of application lint
+        run: npm run build:server
 
       - name: Validate application
         run: npm run validate

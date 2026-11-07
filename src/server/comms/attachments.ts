@@ -198,7 +198,7 @@ export async function storeTwilioMediaForCommunication(
 export async function getCommsAttachmentScanStates(storage:SupabaseClient,attachments:readonly {id:string;objectName:string}[]):Promise<Record<string,string>> {
   if(!attachments.length)return {};
   const {data,error}=await storage.from('ryanai_attachment_scans').select('object_name,status').eq('bucket_id',COMMS_ATTACHMENT_BUCKET).in('object_name',attachments.map(a=>a.objectName));
-  if(error)throw error;const map=new Map((data??[]).map((x:any)=>[x.object_name,x.status]));
+  if(error)throw error;const rows=(data??[]) as Array<{object_name:string;status:string}>;const map=new Map(rows.map((x)=>[x.object_name,x.status]));
   return Object.fromEntries(attachments.map(a=>[a.id,map.get(a.objectName)||'missing']));
 }
 export async function cleanCommsAttachmentUrls(prisma:PrismaClient,ownerUserId:string,ids:readonly string[],expiresIn=900):Promise<Map<string,string>> {
