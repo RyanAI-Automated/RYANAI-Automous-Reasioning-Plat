@@ -9,7 +9,7 @@ RUN apk add --no-cache libc6-compat \
     && apk upgrade --no-cache \
     && apk add --no-cache 'libexpat>=2.10.0-r0'
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps
 
 # One-shot migration image uses the same verified Supabase CA as the API image.
 # It is invoked only by the separately approved production-migration workflow.
@@ -101,7 +101,7 @@ FROM node:24-alpine AS web-builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps
 COPY tsconfig*.json ./
 COPY vite.config.ts postcss.config.js tailwind.config.js index.html ./
 COPY src ./src
