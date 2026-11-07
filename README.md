@@ -401,7 +401,7 @@ The tracked [`.env.example`](.env.example) is the canonical starting template. I
 | `OPENAI_API_KEY` | Optional OpenAI credential used by OpenAI-compatible features. |
 | `OPENAI_BASE_URL`, `OPENAI_MODEL` | Optional OpenAI-compatible endpoint and model. |
 | `OPENROUTER_API_KEY` | Optional server-only credential for the catalogued ChatGPT and Claude models in the Inference Console. No key is created or managed by RyanAI. |
-| `OPENROUTER_API_ENDPOINT` | Optional HTTPS OpenRouter-compatible endpoint; defaults to `https://openrouter.ai/api/v1`. |
+| `OPENROUTER_API_ENDPOINT` | Optional HTTPS OpenRouter-compatible endpoint; defaults to the public OpenRouter API endpoint. |
 | `LM_STUDIO_URL`, `LM_STUDIO_API_KEY`, `LM_STUDIO_MODEL` | Optional local LM Studio configuration where supported. |
 | `OLLAMA_URL` | Optional local Ollama-compatible endpoint where supported. |
 
