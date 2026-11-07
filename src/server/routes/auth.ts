@@ -37,7 +37,7 @@ export async function requireUser(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  if (request.authUser) return;
+  if (request.authUser?.id) return;
   
   const token = /^Bearer ([^\s]+)$/i.exec(
     request.headers.authorization || '',
