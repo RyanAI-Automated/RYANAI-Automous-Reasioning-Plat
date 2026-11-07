@@ -1,6 +1,29 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireUser } from './auth.js';
+import { evaluateGenXSecurityEvent, type GenXAction } from '../../security/genxPolicy.js';
 import { createUserMemory, deleteUserMemory, listUserMemory, updateUserMemory } from '../memory/memoryService.js';
+
+
+function authorizeHumanMemoryAction(
+  fastify: Parameters<FastifyPluginAsync>[0],
+  principal: string,
+  action: GenXAction,
+): boolean {
+  const environment = process.env.NODE_ENV === 'production' ? 'production'
+    : process.env.NODE_ENV === 'staging' ? 'staging' : 'development';
+  const policy = evaluateGenXSecurityEvent({
+    agentId: 'ryanai-api',
+    principal,
+    toolName: 'api_user_memory',
+    action,
+    target: 'self',
+    environment,
+    actorType: 'human',
+  });
+  if (policy.decision === 'ALLOW') return true;
+  fastify.log.warn({ ruleId: policy.ruleId, principal, action }, 'Gen-X denied Memory Vault API action');
+  return false;
+}
 
 export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', requireUser);
@@ -8,6 +31,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: { q?: string; limit?: string; cursor?: string } }>('/api/user/memory', async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (!authorizeHumanMemoryAction(fastify, userId, 'READ')) return reply.code(403).send({ error: 'Gen-X denied this memory action.' });
     const query = (request.query.q || '').trim();
     if (query.length > 100) return reply.code(400).send({ error: 'Search text must be 100 characters or fewer.' });
     const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
@@ -40,6 +64,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (!authorizeHumanMemoryAction(fastify, userId, 'CREATE')) return reply.code(403).send({ error: 'Gen-X denied this memory action.' });
     try {
       const entry = await createUserMemory(fastify.prisma.memoryEntry, userId, request.body.value, request.body.category);
       return reply.code(201).send({ entry });
@@ -71,6 +96,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (!authorizeHumanMemoryAction(fastify, userId, 'UPDATE')) return reply.code(403).send({ error: 'Gen-X denied this memory action.' });
     try {
       const entry = await updateUserMemory(fastify.prisma.memoryEntry, userId, request.params.id, request.body.value, request.body.category);
       if (!entry) return reply.code(404).send({ error: 'Memory entry was not found for this account.' });
@@ -94,6 +120,7 @@ export const memoryRoutes: FastifyPluginAsync = async (fastify) => {
   }, async (request, reply) => {
     const userId = request.authUser?.id;
     if (!userId) return reply.code(401).send({ error: 'Sign in to continue.' });
+    if (!authorizeHumanMemoryAction(fastify, userId, 'DELETE')) return reply.code(403).send({ error: 'Gen-X denied this memory action.' });
     try {
       const deleted = await deleteUserMemory(fastify.prisma.memoryEntry, userId, request.params.id);
       if (!deleted) return reply.code(404).send({ error: 'Memory entry was not found for this account.' });
