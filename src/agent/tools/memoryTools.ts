@@ -1,20 +1,16 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { requireUserId } from './toolContext.js';
-
-async function getMemoryService() {
-  const [{ prisma }, service] = await Promise.all([
-    import('../../lib/prisma.js'),
-    import('../../server/memory/memoryService.js'),
-  ]);
-  return { memory: prisma.memoryEntry, service };
-}
+import {
+  forgetUserFactForPrincipal,
+  recallUserFactsForPrincipal,
+  rememberUserFactForPrincipal,
+} from '../../server/memory/memoryService.js';
 
 export const rememberFactTool = tool(
   async ({ key, value, category }, config) => {
     const userId = requireUserId(config);
-    const { memory, service } = await getMemoryService();
-    return JSON.stringify(await service.rememberUserFact(memory, userId, key, value, category));
+    return JSON.stringify(await rememberUserFactForPrincipal(userId, key, value, category));
   },
   {
     name: 'remember_fact',
@@ -30,8 +26,7 @@ export const rememberFactTool = tool(
 export const recallMemoryTool = tool(
   async ({ query }, config) => {
     const userId = requireUserId(config);
-    const { memory, service } = await getMemoryService();
-    return JSON.stringify(await service.recallUserFacts(memory, userId, query));
+    return JSON.stringify(await recallUserFactsForPrincipal(userId, query));
   },
   {
     name: 'recall_memory',
@@ -45,8 +40,7 @@ export const recallMemoryTool = tool(
 export const forgetMemoryTool = tool(
   async ({ key }, config) => {
     const userId = requireUserId(config);
-    const { memory, service } = await getMemoryService();
-    return JSON.stringify(await service.forgetUserFact(memory, userId, key));
+    return JSON.stringify(await forgetUserFactForPrincipal(userId, key));
   },
   {
     name: 'forget_memory',
