@@ -25,7 +25,7 @@ describe('Gen-X deterministic security enforcement', () => {
     expect(evaluateGenXSecurityEvent({ ...base, action: 'DELETE', environment: 'production' }).decision).toBe('DENY');
   });
 
-  it('allows verified human deletion of the user's own Memory Vault record in production only', () => {
+  it("allows verified human deletion of the user's own Memory Vault record in production only", () => {
     expect(evaluateGenXSecurityEvent({
       ...base, agentId: 'ryanai-api', toolName: 'api_user_memory',
       principal: 'verified-user-id', target: 'self', action: 'DELETE',
