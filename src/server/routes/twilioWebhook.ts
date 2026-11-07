@@ -72,12 +72,9 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
         ...(media.length ? { metadata: { mediaCount: media.length } } : {}),
       });
       if (!claim.claimed) {
-        const previousReply = claim.existing?.metadata && typeof claim.existing.metadata === 'object'
-          && !Array.isArray(claim.existing.metadata) ? (claim.existing.metadata as { reply?: unknown }).reply : undefined;
+        // A provider retry must never turn a previously generated draft into an
+        // outbound send. Dispatch happens only through the owner-approved Comms API.
         reply.type('text/xml');
-        if (typeof previousReply === 'string' && previousReply.length) {
-          return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(previousReply)}</Message></Response>`;
-        }
         return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
       }
       if (media.length) {
@@ -97,15 +94,27 @@ export const twilioWebhookPlugin: FastifyPluginAsync = async (fastify) => {
       const agentReply = addressOwnerResponse(extractContent(messages.at(-1)?.content) || 'I could not prepare a response.');
       await fastify.prisma.communicationMessage.update({
         where: { providerMessageId: body.MessageSid },
-        data: { status: 'replied', metadata: { reply: agentReply, mediaCount: media.length } },
+        data: {
+          status: 'pending_approval',
+          metadata: {
+            draftReply: agentReply,
+            approvalRequired: true,
+            inReplyTo: body.MessageSid,
+            mediaCount: media.length,
+          },
+        },
       });
       await recordCommunication(fastify.prisma, {
         channel: 'whatsapp', externalAddress: senderPhone, direction: 'outbound',
-        body: agentReply, status: 'response_generated', metadata: { inReplyTo: body.MessageSid },
+        body: agentReply,
+        status: 'pending_approval',
+        metadata: { approvalRequired: true, inReplyTo: body.MessageSid },
         ...(ownerUserId ? { ownerUserId } : {}),
       });
       reply.type('text/xml');
-      return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(agentReply.slice(0, 4000))}</Message></Response>`;
+      // Acknowledge receipt only. TwiML <Message> would dispatch immediately
+      // and bypass the owner approval required by the Comms centre.
+      return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
     } catch (error) {
       if (mediaStorageFailed) {
         await fastify.prisma.communicationMessage.updateMany({
