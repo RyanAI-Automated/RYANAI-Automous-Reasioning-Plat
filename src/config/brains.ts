@@ -1,64 +1,26 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI } from '@langchain/openai';
+import { resolveBrainProviderConfig } from '../agent/providerConfig.js';
+import type { BrainId } from '../agent/operationsCore.js';
 
-/**
- * Safe environment variable retrieval supporting Node.js runtime.
- */
-const getEnv = (key: string, fallback: string = ''): string => {
-  try {
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      return process.env[key] as string;
-    }
-  } catch {
-    // Fallback if environment context is restricted
+function createBrain(brain: BrainId, temperature: number) {
+  const config = resolveBrainProviderConfig(brain);
+  if (!config.model.trim()) {
+    throw new Error('The selected ' + config.adapter + ' adapter for the ' + config.role + ' brain requires a model ID.');
   }
-  return fallback;
-};
-
-const apiKey = (providerKey?: string) => providerKey || '';
-
-function createBrain(
-  modelName: string,
-  temperature: number,
-  baseURL: string,
-  key?: string,
-) {
   return new ChatOpenAI({
-    model: modelName,
+    model: config.model,
     temperature,
-    apiKey: apiKey(key),
-    configuration: { baseURL },
+    // Ollama's OpenAI-compatible endpoint does not require a cloud credential.
+    apiKey: config.adapter === 'ollama' ? 'ollama' : '',
+    configuration: { baseURL: config.endpoint },
   });
 }
 
-/**
- * Primary Sovereign Reasoning Brain 
- * Defaults to Nvidia Nemotron or local Ollama / LM Studio runtime endpoints.
- */
-export const primaryBrain = createBrain(
-  getEnv('PRIMARY_REASONING_MODEL') || getEnv('NVIDIA_MODEL') || 'nvidia/nemotron-3-ultra-550b-a55b',
-  0.2,
-  getEnv('NVIDIA_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || getEnv('OLLAMA_URL') || 'https://integrate.api.nvidia.com/v1',
-  getEnv('NVIDIA_API_KEY') || ((!getEnv('NVIDIA_API_ENDPOINT') && (getEnv('LM_STUDIO_URL') || getEnv('OLLAMA_URL'))) ? getEnv('LM_STUDIO_API_KEY') : ''),
-);
+/** Canonical NVIDIA reasoning role; Nemotron is a model implementation. */
+export const primaryBrain = createBrain('primary', 0.2);
 
-/**
- * Secondary Massive Context Brain 
- * Tuned for deep analysis and Qwen multi-turn reasoning workflows.
- */
-export const secondaryBrain = createBrain(
-  getEnv('SECONDARY_REASONING_MODEL') || getEnv('QWEN_MODEL') || 'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',
-  0.4,
-  getEnv('QWEN_API_ENDPOINT') || getEnv('LM_STUDIO_URL') || 'https://api.together.xyz/v1',
-  getEnv('QWEN_API_KEY') || ((!getEnv('QWEN_API_ENDPOINT') && getEnv('LM_STUDIO_URL')) ? getEnv('LM_STUDIO_API_KEY') : ''),
-);
+/** Canonical Qwen reasoning role; provider/model names remain adapter details. */
+export const secondaryBrain = createBrain('secondary', 0.4);
 
-/**
- * High-Speed Logic & Tool-Use Brain 
- * Optimized with low temperature for deterministic parsing, function calling, and agentic loops.
- */
-export const logicBrain = createBrain(
-  getEnv('LOGIC_REASONING_MODEL') || getEnv('LM_STUDIO_MODEL') || getEnv('OPENAI_MODEL') || 'gpt-4o-mini',
-  0.1,
-  getEnv('LOGIC_API_ENDPOINT') || getEnv('OPENAI_BASE_URL') || getEnv('LM_STUDIO_URL') || 'https://api.openai.com/v1',
-  getEnv('LOGIC_API_KEY') || getEnv('OPENAI_API_KEY') || ((getEnv('LM_STUDIO_URL') && (getEnv('LOGIC_API_ENDPOINT') || getEnv('LM_STUDIO_URL')) === getEnv('LM_STUDIO_URL')) ? getEnv('LM_STUDIO_API_KEY') : ''),
-);
+/** Canonical Logic verification and synthesis role. */
+export const logicBrain = createBrain('logic', 0.1);
