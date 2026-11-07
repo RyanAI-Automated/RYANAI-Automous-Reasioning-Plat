@@ -26,6 +26,11 @@ on:
       - 'store/**'
       - 'stacks/**'
       - 'scripts/copy-server-assets.mjs'
+      - 'quant-engine/**'
+      - 'certs/**'
+      - 'scripts/backup-on-startup.mjs'
+      - 'scripts/verify-node-ca.sh'
+      - 'tsconfig*.json'
       - '.github/workflows/docker.yml'
   workflow_dispatch:
     inputs:
@@ -94,9 +99,6 @@ jobs:
         include:
           - image: api
             file: Dockerfile
-            target: api
-          - image: standalone-api
-            file: Dockerfile.api
             target: api
           - image: standalone-api
             file: Dockerfile.api
