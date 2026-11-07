@@ -7,7 +7,7 @@ export const DASHBOARD_UI_OPTIONS = [
  { id:'quant',label:'Quant Lab',description:'Show isolated research and paper-trading tools.' },
  { id:'trading',label:'Trading Terminal',description:'Show the trading workspace.' },
  { id:'cockpit',label:'Command Cockpit',description:'Show model and platform health views.' },
- { id:'studio',label:'RyanAI Studio',description:'Show the development studio.',access:'admin' },
+ { id:'studio',label:'RyanAI Studio',description:'Show the development studio.' },
  { id:'comms',label:'RyanAI Communications',description:'Show owner-authorised communications.',access:'owner' },
  { id:'workspace',label:'Reasoning Workspace',description:'Show chat, memory and workspace tools.' },
  { id:'calculator',label:'Calculator',description:'Enable or disable the calculator UI.' },

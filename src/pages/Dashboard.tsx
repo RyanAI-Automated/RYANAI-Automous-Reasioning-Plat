@@ -197,10 +197,6 @@ export default function DashboardPage({ isOwner = false, isAdmin = false, enable
       icon: Activity,
     }] : []),
   ];
-  const visibleWorkspaces = workspaces.filter(({ id }) => (
-    id === 'settings' || !enabledUiIds || enabledUiIds.includes(id)
-  ));
-
   const visibleWorkspaces = workspaces.filter((workspace) => {
     const routeId = workspace.href.replace(/^#\//, '') as DashboardUiId;
     return routeId === 'settings' || enabledModules?.[routeId] !== false;
