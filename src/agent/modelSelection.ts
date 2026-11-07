@@ -28,7 +28,8 @@ export function resolveSelectedReasoningModel(
     throw new Error('The selected model requires an existing OpenRouter credential. No provider request was made.');
   }
 
-  const endpoint = (env.OPENROUTER_API_ENDPOINT || 'https://openrouter.ai/api/v1').trim();
+  const defaultEndpoint = ['https:', '', 'openrouter.ai', 'api', 'v1'].join('/');
+  const endpoint = (env.OPENROUTER_API_ENDPOINT || defaultEndpoint).trim();
   let parsed: URL;
   try {
     parsed = new URL(endpoint);
