@@ -174,6 +174,23 @@ if (!commsPage.includes('Private Comms attachments')
   || !commsPage.includes('!attachmentsEnabled')) {
   fail('Comms must retain private attachment upload, scan-gated dispatch, clean-only downloads, and the server-reported attachment feature gate');
 }
+const commsApi = readText('src/lib/commsApi.ts');
+const commsRoutes = readText('src/server/comms/index.ts');
+const commsApprovalTests = readText('src/server/comms/index.test.ts');
+if (
+  !commsApi.includes("'/api/comms/approve'") ||
+  !commsApi.includes('approvalId: approval.approvalId') ||
+  !commsRoutes.includes("'/api/comms/approve'") ||
+  !commsRoutes.includes('createCommsDispatchApprovalDigest') ||
+  !commsRoutes.includes('commsDispatchApproval.updateMany') ||
+  !commsRoutes.includes("status: 'approved'") ||
+  !commsRoutes.includes('consumedAt: null') ||
+  !commsApprovalTests.includes('rejects direct send requests that do not carry an owner approval') ||
+  !commsApprovalTests.includes('rejects a changed payload when the approval digest does not match')
+) {
+  fail('Comms outbound dispatch must require a short-lived, owner-bound, one-time server approval for the exact message, recipient and attachments');
+}
+
 const audiobookPage = readText('src/pages/AudiobookStudio.tsx');
 const audiobookRoutes = readText('src/server/routes/audiobookProjects.ts');
 if (!audiobookPage.includes('Private audiobook library') || !audiobookPage.includes('createNewProject')) {
