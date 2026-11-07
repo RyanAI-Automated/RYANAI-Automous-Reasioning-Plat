@@ -164,6 +164,7 @@ describe('provider authorization HTTP lifecycle', () => {
     });
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       access_token: 'rotated-access-token',
+      token_type: 'Bearer',
       refresh_token: 'rotated-refresh-token',
       expires_in: 3600,
       scope: 'https://www.googleapis.com/auth/calendar.readonly',
@@ -176,6 +177,52 @@ describe('provider authorization HTTP lifecycle', () => {
     expect(updateArgs.data.encryptedAccessToken).not.toContain('rotated-access-token');
     expect(updateArgs.data.encryptedRefreshToken).not.toContain('rotated-refresh-token');
     expect(events.some((event) => event.eventType === 'token_refreshed')).toBe(true);
+    await app.close();
+  });
+
+  it('preserves an active connection when provider refresh is temporarily unavailable', async () => {
+    vi.stubEnv('RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY', key);
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_ID', 'synthetic-client');
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_SECRET', 'synthetic-secret');
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_REDIRECT_URI', 'https://api.example.test/api/plugins/oauth/google-calendar/callback');
+    const { app, prisma, connectionRows } = await createApp();
+    const refreshCipher = encryptProviderCredential(
+      'synthetic-refresh-token', Buffer.from(key, 'hex'),
+      'plugin-token:google-calendar:owner-user-1:refresh',
+    );
+    connectionRows.set(`${owner.id}:google-calendar`, {
+      id: 'connection-1', ownerUserId: owner.id, providerId: 'google-calendar',
+      status: 'connected', encryptedRefreshToken: refreshCipher,
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'temporarily_unavailable' }), { status: 503 })));
+    const response = await app.inject({ method: 'POST', url: '/api/plugins/google-calendar/refresh' });
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error).toContain('existing connection has been preserved');
+    expect(prisma.pluginProviderConnection.updateMany).not.toHaveBeenCalled();
+    expect(connectionRows.get(`${owner.id}:google-calendar`)?.status).toBe('connected');
+    await app.close();
+  });
+
+  it('requires reauthorization only when provider explicitly invalidates the refresh grant', async () => {
+    vi.stubEnv('RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY', key);
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_ID', 'synthetic-client');
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_SECRET', 'synthetic-secret');
+    vi.stubEnv('RYANAI_PLUGIN_GOOGLE_CALENDAR_REDIRECT_URI', 'https://api.example.test/api/plugins/oauth/google-calendar/callback');
+    const { app, prisma, connectionRows } = await createApp();
+    const refreshCipher = encryptProviderCredential(
+      'synthetic-refresh-token', Buffer.from(key, 'hex'),
+      'plugin-token:google-calendar:owner-user-1:refresh',
+    );
+    connectionRows.set(`${owner.id}:google-calendar`, {
+      id: 'connection-1', ownerUserId: owner.id, providerId: 'google-calendar',
+      status: 'connected', encryptedRefreshToken: refreshCipher,
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })));
+    const response = await app.inject({ method: 'POST', url: '/api/plugins/google-calendar/refresh' });
+    expect(response.statusCode).toBe(409);
+    expect(prisma.pluginProviderConnection.updateMany).toHaveBeenCalledOnce();
+    const updateArgs = (prisma.pluginProviderConnection.updateMany as ReturnType<typeof vi.fn>).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(updateArgs.data.status).toBe('reauthorization_required');
     await app.close();
   });
 
