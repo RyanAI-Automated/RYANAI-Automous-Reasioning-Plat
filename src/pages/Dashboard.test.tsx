@@ -36,7 +36,7 @@ afterEach(async () => {
 
 async function renderDashboard(isOwner = false, isAdmin = false, enabledModules?: Record<string, boolean>) {
   await act(async () => {
-    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledModules={enabledUiIds} />);
+    root.render(<DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledModules={enabledModules} />);
   });
 }
 
