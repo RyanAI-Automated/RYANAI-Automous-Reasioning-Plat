@@ -43,7 +43,7 @@ import { tasksRoutes } from './routes/tasks.js';
 import { pendingActionsRoutes } from './routes/pendingActions.js';
 import { jarvisRoutes } from './routes/jarvisRoutes.js';
 import { internalJarvisRoutes } from './routes/internalJarvisRoutes.js';
-import { internalOpenAiGatewayRoutes } from './routes/internalOpenAi.js';
+import { mcpDelegationRoutes } from './routes/mcpDelegation.js';
 import { registerPatchRoutes } from './routes/patchRoutes.js';
 import { inspectDatabaseSchema } from './databaseSchema.js';
 import { agentOperationsRoutes } from './routes/agentOperations.js';
