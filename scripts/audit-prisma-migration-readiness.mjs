@@ -22,7 +22,7 @@ export function compareMigrationState(localNames, appliedRows) {
 
 export function assessSchema({ columns, tables, indexes, extensions, memoryColumns, cacheColumns }) {
   const requiredColumns = [
-    'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
+    'requested_model', 'execution_scope', 'approval_status', 'plan_snapshot', 'plan_hash',
     'base_commit_sha', 'proposed_diff_hash', 'approved_plan_hash',
     'approved_commit_sha', 'approved_diff_hash', 'approved_by',
     'approved_at', 'steering_notes', 'cancel_requested_at',
