@@ -137,3 +137,23 @@ The optional standard-library package in `comms-orchestration/` defines typed co
 Two communications tools are available for explicit operator allowlisting: `comms_policy_read` and `comms_draft_prepare`. They expose channel policy and prepare drafts only; neither reads private history, uses provider credentials, sends messages, schedules messages or places calls. Both require a valid `MCP_AUTH_TOKEN` of at least 32 characters before they can be enabled. The Streamable HTTP transport validates the bearer token using a constant-time comparison. Keep the listener loopback-bound unless a separately reviewed deployment configures a narrow host allowlist and strong token.
 
 The MCP bearer token authenticates the MCP service client, not an individual end user. Do not use these tools for user-specific private history or delegated actions until per-user identity propagation and per-tool authorization scopes are implemented. Stdio transport is trusted local-process access and must be protected by operating-system process permissions. The tools remain disabled unless named in `RYANAI_MCP_ENABLED_TOOLS`.
+
+## Disposable sandbox mode for the LangGraph checkpointer
+
+PostgreSQL remains the default and authoritative checkpointer. The default
+`RYANAI_AGENT_MEMORY_MODE=postgres` (or an unset variable) requires
+`DATABASE_URL` and fails closed when it is absent.
+
+For isolated, disposable sandbox or test work only, explicitly set
+`RYANAI_AGENT_MEMORY_MODE=ephemeral` with `NODE_ENV=staging` or
+`NODE_ENV=test`. This selects LangGraph's in-memory `MemorySaver`; its
+checkpoints exist only in the process and are lost on exit or restart. The
+application refuses this mode when `NODE_ENV=production`, and rejects
+unrecognized mode values.
+
+This switch changes only the LangGraph agent checkpointer. It does not replace
+PostgreSQL-backed agent task queues, application memory, communications
+history, approval records, database health checks, or other durable services.
+It therefore does not make the full RyanAI API database-independent. Never
+configure the ephemeral mode on a production service or treat it as a
+substitute for staging/production PostgreSQL.

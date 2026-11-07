@@ -19,6 +19,11 @@ on:
       - 'stacks/**'
       - 'prisma/**'
       - 'scripts/copy-server-assets.mjs'
+      - 'quant-engine/**'
+      - 'certs/**'
+      - 'scripts/backup-on-startup.mjs'
+      - 'scripts/verify-node-ca.sh'
+      - 'tsconfig*.json'
       - '.github/workflows/container-security.yml'
   pull_request:
     branches: [main, master]
@@ -38,6 +43,11 @@ on:
       - 'stacks/**'
       - 'prisma/**'
       - 'scripts/copy-server-assets.mjs'
+      - 'quant-engine/**'
+      - 'certs/**'
+      - 'scripts/backup-on-startup.mjs'
+      - 'scripts/verify-node-ca.sh'
+      - 'tsconfig*.json'
       - '.github/workflows/container-security.yml'
   schedule:
     - cron: '0 4 * * 1'
@@ -68,6 +78,9 @@ jobs:
           - image: web
             file: Dockerfile
             target: web
+          - image: standalone-api
+            file: Dockerfile.api
+            target: api
           - image: mcp
             file: mcp-server/Dockerfile
             target: ''
@@ -165,7 +178,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [api, web, mcp, migrate]
+        image: [api, web, standalone-api, mcp, migrate]
     steps:
       - name: Download SARIF artifact
         uses: actions/download-artifact@v4
