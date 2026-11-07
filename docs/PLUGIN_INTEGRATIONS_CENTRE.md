@@ -84,3 +84,25 @@ The accompanying Prisma migration and schema models introduce server-only provid
 This increment is a security foundation, not a complete live OAuth connection flow. It does not register provider client IDs/secrets, create or rotate credentials, exchange provider authorization codes, refresh tokens, call provider revocation endpoints or mark a provider connected. Those operations require provider-specific adapters, owner-authorized server configuration, live callback verification and dedicated integration tests. Until then, providers remain disconnected/adapter-required in the UI.
 
 Never log OAuth codes, raw state, PKCE verifiers, access/refresh tokens, client secrets or encryption keys. Authorization events may contain only redacted lifecycle metadata.
+
+## Provider OAuth lifecycle routes
+
+The next authorization increment adds server-side OAuth lifecycle routes for Google Calendar (read-only) and Microsoft 365 Calendar (read-only):
+
+- `POST /api/plugins/:provider/connect` — requires a verified user, validates provider configuration, creates a ten-minute state/PKCE transaction and returns the provider authorization URL.
+- `GET /api/plugins/oauth/:provider/callback` — consumes the one-use state, exchanges the authorization code, validates granted scopes, encrypts tokens and persists an owner-bound connection.
+- `GET /api/plugins/connections` — returns only the signed-in owner's safe connection metadata; ciphertext and tokens are excluded.
+- `POST /api/plugins/:provider/refresh` — rotates access/refresh credentials using an owner-scoped connection and compare-and-swap update.
+- `POST /api/plugins/:provider/disconnect` — purges local ciphertext and records whether remote revocation was confirmed or remains pending.
+
+The supported provider configurations are read only from server environment at runtime:
+
+- Google Calendar: `RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_ID`, `RYANAI_PLUGIN_GOOGLE_CALENDAR_CLIENT_SECRET`, `RYANAI_PLUGIN_GOOGLE_CALENDAR_REDIRECT_URI`.
+- Microsoft 365 Calendar: `RYANAI_PLUGIN_MICROSOFT_365_CLIENT_ID`, `RYANAI_PLUGIN_MICROSOFT_365_CLIENT_SECRET`, `RYANAI_PLUGIN_MICROSOFT_365_REDIRECT_URI`.
+- Both: `RYANAI_PLUGIN_TOKEN_ENCRYPTION_KEY` (64 hexadecimal characters representing 32 bytes), and optionally `RYANAI_APP_URL` for the post-callback Settings redirect.
+
+No secret values are included in source control, and this change does not create, alter or rotate any environment secret. OAuth callback logging is silent at the route level; application logs contain only provider identifiers and redacted event metadata.
+
+Google Calendar is restricted to `calendar.readonly`. Microsoft 365 Calendar is restricted to `Calendars.Read`, `User.Read` and `offline_access`. Write scopes are not requested. Google remote token revocation is attempted; Microsoft does not expose a compatible OAuth token-revocation endpoint in this adapter, so its state remains `revocation_pending` after local credential purge and requires provider-side revocation through the account's security controls.
+
+These routes do not yet constitute broad provider coverage. GitHub retains its separately implemented GitHub App OAuth integration. Other catalogue providers remain adapter-required. No provider is marked connected without a successful callback and verified token response.
