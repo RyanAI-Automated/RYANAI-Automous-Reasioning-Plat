@@ -138,8 +138,9 @@ const dashboardRoute = dashboardRouteEnd > dashboardRouteStart
 if (
   !dashboardRoute.includes('isOwner={isOwner}')
   || !dashboardRoute.includes('isAdmin={isAdmin}')
+  || !dashboardRoute.includes('enabledUiIds={enabledUiIds}')
 ) {
-  fail('Dashboard route must render the focused DashboardPage with verified role context');
+  fail('Dashboard route must render the focused DashboardPage with verified role context and saved UI preferences');
 }
 if (!app.includes("lazy(() => import('@/pages/OperatorConsole'))") || !app.includes("{route === 'operator' && <OperatorConsole />}")) {
   fail('Operator route must lazy-load and render the durable OperatorConsole');

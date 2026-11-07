@@ -48,6 +48,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Greeting from '@/components/Greeting';
 import { authenticatedFetch } from '@/lib/authenticatedFetch';
 import { DEFAULT_LANGUAGE, OWNER_DEFAULT_LANGUAGE } from '@/shared/languages';
+import { getEnabledDashboardUiIds } from '@/shared/dashboardUis';
 import { DEFAULT_MODEL, MODEL_LIST, type ModelId } from '@/lib/models';
 import { normalizeAudiobookSettings, normalizeDashboardUiPreferences, normalizeInferenceSettings, type DashboardUiId } from '@/lib/settingsPreferences';
 
@@ -111,6 +112,14 @@ export default function App() {
   const user = session?.user;
   const isAdmin = user?.app_metadata?.role === 'admin';
   const isOwner = user?.app_metadata?.owner === true || Boolean(user && verifiedIdentity?.userId === user.id && verifiedIdentity.isOwner);
+  const enabledUiIds = getEnabledDashboardUiIds(user?.user_metadata?.ryanai_dashboard_ui, isOwner, isAdmin);
+  const roleAccessDenied = Boolean(user && (
+    (route === 'admin' && !isAdmin)
+    || (route === 'studio' && !isAdmin)
+    || (route === 'comms' && !isOwner)
+  ));
+  const routeRequiresToggle = !['landing', 'dashboard', 'settings', 'signin', 'signup'].includes(route);
+  const routeDisabled = Boolean(user && routeRequiresToggle && !enabledUiIds.some((id) => id === route));
   const displayName =
     typeof user?.user_metadata?.full_name === 'string'
       ? user.user_metadata.full_name
@@ -167,6 +176,10 @@ export default function App() {
   const visibleDestinations = destinations.filter(({ id }) =>
     user
       ? id !== 'signin' && id !== 'signup'
+        && (id !== 'comms' || isOwner)
+        && (id !== 'admin' || isAdmin)
+        && (id !== 'studio' || isAdmin)
+        && (id === 'landing' || id === 'dashboard' || id === 'settings' || enabledUiIds.some((enabledId) => enabledId === id))
         && (id !== 'comms' || isOwner) && (id !== 'admin' || isAdmin) && (id !== 'studio' || isAdmin)
         && (!routeUiOptions[id] || dashboardUiPreferences[routeUiOptions[id] as DashboardUiId])
       : id === 'landing' || id === 'signin' || id === 'signup',
@@ -221,6 +234,12 @@ export default function App() {
               : route === 'landing' ? <LandingPage />
               : loading ? <p role="status" className="p-8 text-slate-300">Restoring your session…</p>
               : !user ? <AuthPage key={route} mode={route === 'signup' ? 'signup' : 'signin'} />
+              : roleAccessDenied ? <p role="alert" className="p-8 text-sm text-rose-200">Your account does not have permission to open this RyanAI workspace.</p>
+              : routeDisabled ? <section className="mx-auto max-w-3xl p-8" aria-labelledby="disabled-workspace-title"><h1 id="disabled-workspace-title" className="text-xl font-semibold text-white">Workspace disabled</h1><p className="mt-2 text-sm leading-6 text-slate-400">This workspace is turned off in your dashboard preferences. Enable it in Settings to restore its dashboard card, navigation link and direct access.</p><a href="#/settings" className="mt-4 inline-flex rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300">Open Settings</a></section>
+              : <>
+                {route === 'dashboard' && <DashboardPage isOwner={isOwner} isAdmin={isAdmin} enabledUiIds={enabledUiIds} />}
+                {route === 'pa' && <PAAgentPage />}
+                {route === 'settings' && <ProfileSettings key={user.id} userId={user.id} email={user.email ?? ''} initialDisplayName={displayName || ''} initialLanguage={typeof user.user_metadata?.ryanai_language === 'string' ? user.user_metadata.ryanai_language : isOwner ? OWNER_DEFAULT_LANGUAGE : DEFAULT_LANGUAGE} initialVoiceEnabled={typeof user.user_metadata?.ryanai_voice_enabled === 'boolean' ? user.user_metadata.ryanai_voice_enabled : undefined} initialDashboardUiIds={enabledUiIds} isOwner={isOwner} isAdmin={isAdmin} />}
               : isDisabledUiRoute ? (
                 <section className="mx-auto max-w-2xl px-5 py-12 text-slate-100">
                   <h1 className="text-2xl font-bold text-white">Workspace disabled</h1>
