@@ -164,7 +164,7 @@ export default function App() {
   }, [authenticatedUserId, authenticatedUserEmail, authenticatedOwnerClaim, displayName]);
 
   useEffect(() => {
-    if (session && isAuthRoute) window.location.hash = '/workspace';
+    if (session && isAuthRoute) window.location.hash = '/dashboard';
   }, [session, isAuthRoute]);
 
   useEffect(() => {
