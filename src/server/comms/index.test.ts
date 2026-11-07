@@ -16,6 +16,10 @@ const { invoke, prismaMock } = vi.hoisted(() => ({
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       create: vi.fn().mockResolvedValue({}),
     },
+    commsDispatchApproval: {
+      create: vi.fn().mockResolvedValue({ id: 'approval-test-1', expiresAt: new Date(Date.now() + 120_000) }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   },
 }));
 vi.mock('../../agent/approvalEngine.js', () => ({
@@ -52,6 +56,23 @@ async function send(path: string, url: string, payload: Record<string, string>, 
   });
 }
 
+async function sendCommsJson(path: string, payload: Record<string, unknown>) {
+  const app = Fastify();
+  apps.push(app);
+  installAuthentication(app);
+  app.addHook('onRequest', async (request) => {
+    request.authUser = { id: 'owner-test', role: 'user', isOwner: true };
+  });
+  app.decorate('prisma', prismaMock as never);
+  await app.register(commsPlugin);
+  return app.inject({
+    method: 'POST',
+    url: path,
+    payload,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 beforeEach(() => {
   vi.stubEnv('COMMUNICATIONS_ENABLED', 'true');
   prismaMock.communicationConversation.upsert.mockResolvedValue({ id: 'conversation-1' });
@@ -61,6 +82,8 @@ beforeEach(() => {
   prismaMock.communicationMessage.update.mockResolvedValue({});
   prismaMock.communicationMessage.updateMany.mockResolvedValue({ count: 1 });
   prismaMock.communicationMessage.create.mockResolvedValue({});
+  prismaMock.commsDispatchApproval.create.mockResolvedValue({ id: 'approval-test-1', expiresAt: new Date(Date.now() + 120_000) });
+  prismaMock.commsDispatchApproval.updateMany.mockResolvedValue({ count: 1 });
   vi.stubEnv('TWILIO_AUTH_TOKEN', token);
   vi.stubEnv('TWILIO_VOICE_WEBHOOK_URL', voiceUrl);
   vi.stubEnv('TWILIO_VOICE_ACTION_URL', actionUrl);
@@ -234,5 +257,59 @@ describe('Comms feature gates', () => {
     const response = await send('/api/comms/attachments/prepare', '', {});
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ error: 'Communication attachments are disabled.' });
+  });
+});
+
+describe('server-authoritative Comms outbound approval', () => {
+  const payload = {
+    channel: 'sms',
+    recipient: '+15555550123',
+    message: 'Approved test message',
+    idempotencyKey: 'comms-approval-test-0001',
+  };
+
+  it('creates a short-lived owner-bound approval without contacting a provider', async () => {
+    const response = await sendCommsJson('/api/comms/approve', payload);
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ success: true, approvalId: 'approval-test-1' });
+    expect(prismaMock.commsDispatchApproval.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        ownerUserId: 'owner-test',
+        requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        expiresAt: expect.any(Date),
+      }),
+      select: { id: true, expiresAt: true },
+    });
+  });
+
+  it('rejects direct send requests that do not carry an owner approval', async () => {
+    const response = await sendCommsJson('/api/comms/send', payload);
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error).toMatch(/owner approval is required/i);
+    expect(prismaMock.commsDispatchApproval.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a changed payload when the approval digest does not match', async () => {
+    vi.stubEnv('TWILIO_ACCOUNT_SID', 'AC00000000000000000000000000000000');
+    vi.stubEnv('TWILIO_PHONE_NUMBER', '+15555550000');
+    prismaMock.commsDispatchApproval.updateMany.mockResolvedValueOnce({ count: 0 });
+    const response = await sendCommsJson('/api/comms/send', {
+      ...payload,
+      message: 'Tampered message',
+      approvalId: 'approval-test-1',
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toMatch(/does not match this exact outbound action/i);
+    expect(prismaMock.commsDispatchApproval.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'approval-test-1',
+        ownerUserId: 'owner-test',
+        requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        status: 'approved',
+        expiresAt: { gt: expect.any(Date) },
+        consumedAt: null,
+      }),
+      data: { status: 'consumed', consumedAt: expect.any(Date) },
+    });
   });
 });
