@@ -93,4 +93,4 @@ export default function PluginIntegrationsSettings({ userId, initialPreferences,
   </section>;
 }
 
-export { CATALOG as RYANAI_PLUGIN_CATALOG, normalizePreferences as normalizePluginPreferences };
+
