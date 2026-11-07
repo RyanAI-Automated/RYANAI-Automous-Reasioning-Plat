@@ -12,7 +12,7 @@ RUN apk add --no-cache libc6-compat \
     && apk add --no-cache 'libexpat>=2.10.0-r0'
 
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps
 
 FROM api-deps AS api-builder
 COPY tsconfig*.json ./
