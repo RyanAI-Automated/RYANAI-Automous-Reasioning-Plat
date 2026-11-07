@@ -39,3 +39,48 @@ Financial transactions, brokerage actions, production infrastructure changes, pr
 - Verify malformed preference metadata is normalized safely.
 - Verify the component never claims a provider is connected or installed.
 - Add adapter-level test suites separately for each provider before enabling runtime use.
+
+## Server registry foundation
+
+The server-side registry foundation is introduced in `src/server/plugins/`:
+
+- `pluginRegistry.ts` defines validated provider manifests, capability risk labels, adapter contracts and an in-process registry.
+- `pluginCatalog.ts` seeds the provider catalogue used by the API.
+- `routes.ts` exposes the authenticated, read-only `GET /api/plugins/registry` endpoint.
+- The API authentication hook requires a verified Supabase user for plugin registry routes.
+
+The registry reports only `adapter_required` or `adapter_registered`. It does not report a provider as connected or healthy: those states require a later connection lifecycle and live provider verification. Registered adapter objects remain private to the server process; public catalogue methods expose metadata only.
+
+Adapter implementations receive an opaque server-side `connectionRef`, never raw browser-supplied credentials. This contract does not yet provide an invocation endpoint or execution service. The next increment must add provider connection ownership, OAuth state/PKCE, encrypted token storage, scope validation, revocation and a Gen-X authorization decision before any adapter can execute.
+
+## Initial API contract
+
+`GET /api/plugins/registry` returns a `providers` array containing provider IDs, display names, categories, manifest versions, declared capabilities, capability risk labels, human-approval requirements, data classifications and adapter registration status. The route requires a verified user and never returns tokens, secrets, connection records or executable adapter instances.
+
+## Non-goals for this increment
+
+- No OAuth flows or provider credentials.
+- No live provider adapter implementations.
+- No workflow dispatch, PA Agent tool execution or outbound communications.
+- No database schema change or migration.
+- No production deployment or infrastructure change.
+
+## Secure provider authorization foundation
+
+The authorization foundation in `src/server/plugins/providerAuthorization.ts` provides:
+
+- AES-256-GCM credential encryption with random 96-bit nonces, authentication tags and provider/owner-specific additional authenticated data.
+- A fail-closed 32-byte hex key parser. No key is generated, stored in repository settings or provisioned by this change.
+- Short-lived OAuth transactions with high-entropy state, SHA-256 state hashes, PKCE S256 challenges and encrypted code verifiers.
+- HTTPS-only authorization and redirect URL validation.
+- Requested/granted scope intersection, provider allowlists and mandatory-scope enforcement.
+- Owner/provider binding checks and explicit provider-confirmed revocation state transitions.
+- Encryption helpers for access and refresh tokens that bind ciphertext to the provider and owning RyanAI user.
+
+The accompanying Prisma migration and schema models introduce server-only provider connection records, one-use OAuth state records and append-only authorization lifecycle events. Browser roles `anon` and `authenticated` are explicitly revoked from these tables; server access remains subject to authenticated owner checks. The migration is code only and has not been applied to any database.
+
+### Important implementation boundary
+
+This increment is a security foundation, not a complete live OAuth connection flow. It does not register provider client IDs/secrets, create or rotate credentials, exchange provider authorization codes, refresh tokens, call provider revocation endpoints or mark a provider connected. Those operations require provider-specific adapters, owner-authorized server configuration, live callback verification and dedicated integration tests. Until then, providers remain disconnected/adapter-required in the UI.
+
+Never log OAuth codes, raw state, PKCE verifiers, access/refresh tokens, client secrets or encryption keys. Authorization events may contain only redacted lifecycle metadata.
