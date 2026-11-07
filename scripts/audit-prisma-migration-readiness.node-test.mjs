@@ -41,6 +41,7 @@ test('detects schema and vector-memory drift, including runtime columns and inde
   assert.deepEqual(result.vector.missingMemoryColumns, ['session_id', 'content', 'timestamp']);
   assert.deepEqual(result.vector.missingCacheColumns, ['response', 'embedding', 'created_at']);
   assert.deepEqual(result.vector.missingIndexes, ['idx_reasoning_embedding', 'idx_agent_session']);
+  assert.deepEqual(result.missingCommsIndexes, ['comms_dispatch_approvals_owner_status_expiry_idx']);
   assert.equal(result.vector.indexPresent, false);
 });
 
@@ -58,6 +59,7 @@ test('accepts a complete schema and vector-memory installation', () => {
   });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.missingTables, []);
+  assert.deepEqual(result.missingCommsIndexes, []);
   assert.equal(result.vector.extensionPresent, true);
   assert.deepEqual(result.vector.missingTables, []);
   assert.deepEqual(result.vector.missingMemoryColumns, []);
