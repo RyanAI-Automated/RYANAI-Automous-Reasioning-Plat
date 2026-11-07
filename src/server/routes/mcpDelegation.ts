@@ -23,6 +23,7 @@ function requireMcpService(request: FastifyRequest, reply: FastifyReply) {
 }
 
 export const mcpDelegationRoutes: FastifyPluginAsync = async (fastify) => {
+  if (!fastify.hasRequestDecorator('authUser')) fastify.decorateRequest('authUser', null);
   fastify.post<{ Body: DelegationBody }>('/api/internal/mcp/delegation', {
     preHandler: [requireMcpService, requireUser],
     config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
